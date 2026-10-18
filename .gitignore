@@ -1,0 +1,23 @@
+# secrets
+db.txt
+.env
+.env.*
+*.pem
+*.key
+
+# build output and dependencies
+target/
+node_modules/
+dist/
+build/
+src-tauri/target/
+playwright-report/
+test-results/
+
+# logs, IDE, OS
+*.log
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+.claude/
