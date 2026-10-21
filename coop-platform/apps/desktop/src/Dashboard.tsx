@@ -2,14 +2,14 @@ import { Box, ButtonBase, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import {
-  FiBarChart2, FiBookOpen, FiDollarSign, FiDownloadCloud, FiFileText, FiInbox, FiList,
+  FiBarChart2, FiBookOpen, FiDollarSign, FiDownloadCloud, FiFilePlus, FiFileText, FiList,
   FiCheckSquare, FiMonitor, FiPlusSquare, FiSettings, FiShoppingCart, FiUserCheck, FiUsers,
 } from 'react-icons/fi'
 import { getPendingCount } from './api'
 import { useMe } from './session'
 import { tileFill, useThemeMode, type Tint } from './theme'
 
-export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'frontoffice'
+export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'frontoffice' | 'loanapp'
 
 // Every item is a square of 1x1 or 2x2 cells on a landscape 5 x 4 grid (2 x 4 + 12 = 20 cells, no gaps).
 type Size = 'md' | 'sm'
@@ -29,7 +29,7 @@ const groups: Record<Group, { label: string; color: Tint }> = {
 const tiles: TileSpec[] = [
   { label: 'Client Profile', icon: <FiUsers />, group: 'members', area: 'cp', size: 'md', view: 'members' },
   { label: 'Front Office', icon: <FiDollarSign />, group: 'operations', area: 'fo', size: 'sm', view: 'frontoffice' },
-  { label: 'Receivables', icon: <FiInbox />, group: 'operations', area: 'rec', size: 'sm' },
+  { label: 'Loan Application', icon: <FiFilePlus />, group: 'operations', area: 'rec', size: 'sm', view: 'loanapp' },
   { label: 'Payables', icon: <FiBarChart2 />, group: 'operations', area: 'pay', size: 'sm' },
   { label: 'Inventory', icon: <FiList />, group: 'commerce', area: 'inv', size: 'sm' },
   { label: 'POS', icon: <FiShoppingCart />, group: 'commerce', area: 'pos', size: 'sm' },

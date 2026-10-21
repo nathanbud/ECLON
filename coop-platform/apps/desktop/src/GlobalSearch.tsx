@@ -20,7 +20,7 @@ const DESTINATIONS: Destination[] = [
   { label: 'Accounting', hint: 'Trial balance, statements, journals', group: 'Screens', view: 'accounting', keywords: 'reports accounting debit credit balance statement' },
   { label: 'Approvals', hint: 'Changes waiting for approval', group: 'Screens', view: 'approvals', keywords: 'approve pending changes review requests membership officer' },
   { label: 'Users', hint: 'Passwords and roles', group: 'Screens', view: 'users', keywords: 'accounts people passwords sign in roles membership officer administrators' },
-  { label: 'Receivables', hint: 'Coming soon', group: 'Modules', keywords: 'loans collections' },
+  { label: 'Loan Application', hint: 'Find a member and start a loan application', group: 'Screens', view: 'loanapp', keywords: 'loan apply new application borrow' },
   { label: 'Payables', hint: 'Coming soon', group: 'Modules', keywords: 'bills suppliers' },
   { label: 'Inventory', hint: 'Coming soon', group: 'Modules', keywords: 'stock items' },
   { label: 'POS', hint: 'Coming soon', group: 'Modules', keywords: 'point of sale cashier' },

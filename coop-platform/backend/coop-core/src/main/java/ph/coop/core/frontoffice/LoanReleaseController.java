@@ -134,7 +134,7 @@ class LoanReleaseController {
     private static final String VOUCHER_SQL = """
             SELECT s.TR_BRCODE, s.TR_YEAR, s.TR_CTLNO, s.TR_DOCNO, s.TR_DATE, s.TR_CLIENTID, COALESCE(s.EXPLANATION, ''),
               (SELECT COALESCE(MAX(d.DTAMT), 0) FROM transdt d WHERE d.DTTR_BRCODE = s.TR_BRCODE AND d.DTTR_YEAR = s.TR_YEAR AND d.DTTR_MODULE = s.TR_MODULE
-                 AND d.DTTR_CODE = s.TR_CODE AND d.DTTR_CTLNO = s.TR_CTLNO AND d.DTSLC_CODE = 12 AND d.DTSLE_CODE = 11),
+                 AND d.DTTR_CODE = s.TR_CODE AND d.DTTR_CTLNO = s.TR_CTLNO AND d.DTSLC_CODE IN (12, 31) AND d.DTSLE_CODE = 11),
               (SELECT COALESCE(MAX(d.DTENCDBY), 0) FROM transdt d WHERE d.DTTR_BRCODE = s.TR_BRCODE AND d.DTTR_YEAR = s.TR_YEAR AND d.DTTR_MODULE = s.TR_MODULE
                  AND d.DTTR_CODE = s.TR_CODE AND d.DTTR_CTLNO = s.TR_CTLNO),
               (SELECT MAX(d.DTAPPRVBY) FROM transdt d WHERE d.DTTR_BRCODE = s.TR_BRCODE AND d.DTTR_YEAR = s.TR_YEAR AND d.DTTR_MODULE = s.TR_MODULE
@@ -175,7 +175,7 @@ class LoanReleaseController {
             if (states == null || states != 1 || pending == null || pending != lines.size()) problems.add("The lines of this voucher are not waiting to be posted.");
         }
         if (lines.stream().map(Line::amount).reduce(BigDecimal.ZERO, BigDecimal::add).signum() != 0) problems.add("The voucher does not balance.");
-        if (lines.stream().noneMatch((l) -> l.slc() != null && l.slc() == 12 && l.event() != null && l.event() == 11 && l.amount().signum() > 0)) problems.add("This is not a loan release voucher.");
+        if (lines.stream().noneMatch((l) -> l.slc() != null && (l.slc() == 12 || l.slc() == 31) && l.event() != null && l.event() == 11 && l.amount().signum() > 0)) problems.add("This is not a loan release or share withdrawal voucher.");
         if (lines.stream().anyMatch((l) -> l.slc() != null && l.slc() > 0 && (l.slt() == null || l.refNo() == null || l.event() == null))) problems.add("A line has an incomplete ledger account.");
         if (v.clientId() <= 0) problems.add("The voucher has no client.");
         Integer cancelled = jdbc.queryForObject("SELECT COUNT(*) FROM loanapp WHERE BR_CODE = ? AND TR_CODE = ? AND TR_CTLNO = ? AND STATUSID = 5 AND APPRV_DATE >= ? AND APPRV_DATE < ?",

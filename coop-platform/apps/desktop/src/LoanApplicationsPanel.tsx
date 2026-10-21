@@ -1,7 +1,7 @@
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { approveLoanApplication, cancelLoanApplication, getLoanApplication, getLoanApplications, verifyLoanApplication, type LoanApplicationItem } from './api'
+import { approveLoanApplication, cancelLoanApplication, disapproveLoanApplication, getLoanApplication, getLoanApplications, verifyLoanApplication, type LoanApplicationItem } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
 
@@ -19,6 +19,7 @@ export function LoanApplicationsPanel() {
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  const [disapproving, setDisapproving] = useState(false)
   const [showOlder, setShowOlder] = useState(false)
   const [reason, setReason] = useState('')
   const detail = useQuery({ queryKey: ['loan-application', open?.id], queryFn: () => getLoanApplication(open!.id), enabled: !!open })
@@ -27,6 +28,11 @@ export function LoanApplicationsPanel() {
   const cancel = useMutation({
     mutationFn: (a: LoanApplicationItem) => cancelLoanApplication(a.id, reason.trim()),
     onSuccess: () => { setError(null); setOpen(null); setCancelling(false); setReason(''); setNote('The application was cancelled.'); refresh() },
+    onError: (e) => setError((e as Error).message),
+  })
+  const disapprove = useMutation({
+    mutationFn: (a: LoanApplicationItem) => disapproveLoanApplication(a.id, reason.trim()),
+    onSuccess: () => { setError(null); setOpen(null); setDisapproving(false); setReason(''); setNote('The application was disapproved.'); refresh() },
     onError: (e) => setError((e as Error).message),
   })
   const approve = useMutation({
@@ -42,7 +48,7 @@ export function LoanApplicationsPanel() {
   const older = all.filter((r) => r.date < cutoff).length
   const rows = showOlder ? all : all.filter((r) => r.date >= cutoff)
   const a = detail.data?.item ?? open
-  const busy = verify.isPending || approve.isPending || cancel.isPending
+  const busy = verify.isPending || approve.isPending || cancel.isPending || disapprove.isPending
   return (
     <Box sx={(t) => ({ p: 1.5, mb: 1.5, maxHeight: 240, overflow: 'auto', ...glass(t) })}>
       <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Loan applications waiting</Typography>
@@ -54,7 +60,7 @@ export function LoanApplicationsPanel() {
         </Box>
       )}
       {rows.map((r) => (
-        <Box key={r.id} onClick={() => { setOpen(r); setError(null); setCancelling(false) }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') { setOpen(r); setError(null) } }}
+        <Box key={r.id} onClick={() => { setOpen(r); setError(null); setCancelling(false); setDisapproving(false) }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') { setOpen(r); setError(null) } }}
           sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{ fontSize: 14 }}>{r.clientName ?? `Client ${r.clientId}`} · {money(r.amount)}</Typography>
@@ -83,6 +89,7 @@ export function LoanApplicationsPanel() {
               </TableBody>
             </Table>
           )}
+          {disapproving && <TextField label="Reason for disapproving" value={reason} onChange={(e) => setReason(e.target.value)} fullWidth size="small" sx={{ mt: 1.5 }} autoFocus />}
           {cancelling && <TextField label="Reason for cancelling" value={reason} onChange={(e) => setReason(e.target.value)} fullWidth size="small" sx={{ mt: 1.5 }} autoFocus />}
           <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
             This is the voucher approval will create. You cannot verify or approve an application you encoded, and the verifier cannot approve it.
@@ -90,7 +97,9 @@ export function LoanApplicationsPanel() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(null)}>Close</Button>
-          {a && !cancelling && <Button color="error" disabled={busy} onClick={() => setCancelling(true)}>Cancel application</Button>}
+          {a && !cancelling && !disapproving && <Button color="error" disabled={busy} onClick={() => setCancelling(true)}>Cancel application</Button>}
+          {a && !disapproving && !cancelling && (a.status === 1 || a.status === 2) && <Button color="error" disabled={busy} onClick={() => setDisapproving(true)}>Disapprove</Button>}
+          {a && disapproving && <Button color="error" variant="outlined" disabled={busy || !reason.trim()} onClick={() => disapprove.mutate(a)}>Confirm disapprove</Button>}
           {a && cancelling && <Button color="error" variant="outlined" disabled={busy || !reason.trim()} onClick={() => cancel.mutate(a)}>Confirm cancel</Button>}
           {a?.status === 1 && <Button disabled={busy} onClick={() => verify.mutate(a)}>Verify</Button>}
           {a && (a.status === 1 || a.status === 2) && <Button variant="contained" disabled={busy || !!detail.data?.problems.length} onClick={() => approve.mutate(a)}>Approve</Button>}

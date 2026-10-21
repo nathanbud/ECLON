@@ -184,6 +184,27 @@ public class LoanApplicationWorkflowController {
         });
     }
 
+    /**
+     * Disapproves an application that is new or verified (status 4, with the date and the person in APPRV_DATE / APPRVBY, as the two real ones from 2023 and 2024
+     * show; no voucher is made). Needs the right to approve; the person who encoded it cannot disapprove it (unless allowed to do every step alone). The reason
+     * goes to the audit log. An approved application is cancelled, not disapproved.
+     */
+    @PostMapping("/{id}/disapprove")
+    public Item disapprove(@PathVariable long id, @org.springframework.web.bind.annotation.RequestBody Reason in, Authentication auth) {
+        Staff s = staff(auth.getName());
+        if (!s.canApprove()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not disapprove loan applications.");
+        if (in == null || in.reason() == null || in.reason().isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Give the reason for disapproving.");
+        return tx.execute((st) -> {
+            Prepared p = prepare(s.branch(), id, true);
+            int status = p.item().status();
+            if (status != NEW && status != VERIFIED) throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a new or verified application can be disapproved.");
+            if (p.encoder() == s.id() && !single.has(auth.getName())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You encoded this application, so someone else must disapprove it.");
+            jdbc.update("UPDATE loanapp SET STATUSID = 4, APPRV_DATE = ?, APPRVBY = ? WHERE BR_CODE = ? AND ID = ? AND STATUSID = ?", LocalDate.now(clock).toString(), s.id(), s.branch(), id, status);
+            audit(auth, "loan.application.disapprove", s.branch(), id, in.reason().trim());
+            return jdbc.query(ITEM_SQL + " WHERE a.BR_CODE = ? AND a.ID = ?", (rs, i) -> item(rs), s.branch(), id).get(0);
+        });
+    }
+
     // ---- building the voucher -----------------------------------------------------------------------------------
 
     private List<Row> rows(Prepared p) {

@@ -508,6 +508,18 @@ export interface SharePaymentReceipt {
 /** Posts a cash payment into a share capital account (a Cash Receipt in the legacy ledger). */
 export const postSharePayment = (body: SharePaymentIn) => send<SharePaymentReceipt>('POST', '/api/front-office/share-payments', body)
 
+export interface ShareWithdrawalIn { clientId: number; typeCode: number; refNo: number; amount: number; explanation?: string }
+export interface ShareWithdrawalOut { branchCode: number; year: number; controlNo: number; documentNo: string; clientId: number; clientName: string; amount: number; availableAfter: number }
+/** Encodes a share capital withdrawal as a Cash Voucher; it is approved and posted on the Disburse tab. */
+export const postShareWithdrawal = (body: ShareWithdrawalIn) => send<ShareWithdrawalOut>('POST', '/api/front-office/share-withdrawals', body)
+
+export interface BankCashBank { bankId: number; name: string; ledgerAccount: string; event: number }
+export interface BankCashIn { bankId: number; amount: number; counts: Record<number, number>; remarks?: string }
+export interface BankCashOut { year: number; controlNo: number; documentNo: string; bank: string; amount: number; vaultAfter: number }
+export const getBankCashBanks = () => send<BankCashBank[]>('GET', '/api/front-office/bank-cash/banks')
+export const postBankDeposit = (body: BankCashIn) => send<BankCashOut>('POST', '/api/front-office/bank-cash/deposits', body)
+export const postBankWithdrawal = (body: BankCashIn) => send<BankCashOut>('POST', '/api/front-office/bank-cash/withdrawals', body)
+
 // ---- savings deposits (read-only) ----------------------------------------------------------------------------------
 
 export interface SavingsAccount {
@@ -651,3 +663,4 @@ export const listSingleHand = () => getJson<SingleHandGrant[]>('/api/admin/singl
 export const grantSingleHand = (username: string, reason: string) => send<SingleHandGrant>('PUT', `/api/admin/single-hand-loans/${encodeURIComponent(username)}`, { reason })
 export const revokeSingleHand = (username: string) => send<void>('DELETE', `/api/admin/single-hand-loans/${encodeURIComponent(username)}`)
 export const cancelLoanApplication = (id: number, reason: string) => send<LoanApplicationItem>('POST', `/api/loan-applications/${id}/cancel`, { reason })
+export const disapproveLoanApplication = (id: number, reason: string) => send<LoanApplicationItem>('POST', `/api/loan-applications/${id}/disapprove`, { reason })

@@ -175,4 +175,18 @@ class LoanWorkflowTest {
         ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> workflow.cancel(c.applicationId(), new Reason("too late"), encoder));
         assertTrue(e.getReason().contains("already posted"));
     }
+
+    @Test
+    void disapprovingNeedsAReasonAnotherPersonAndAnUnapprovedApplication() {
+        Created c = apply();
+        assertThrows(ResponseStatusException.class, () -> workflow.disapprove(c.applicationId(), new Reason(" "), approver));
+        assertThrows(ResponseStatusException.class, () -> workflow.disapprove(c.applicationId(), new Reason("income too low"), encoder), "the encoder cannot disapprove");
+        workflow.disapprove(c.applicationId(), new Reason("income too low"), approver);
+        assertEquals(4, jdbc.queryForObject("SELECT STATUSID FROM loanapp WHERE BR_CODE = 1 AND ID = ?", Integer.class, c.applicationId()));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'loan.application.disapprove' AND entity_id = ?", Integer.class, "1/" + c.applicationId()));
+        assertThrows(ResponseStatusException.class, () -> workflow.approve(c.applicationId(), approver), "a disapproved application cannot be approved");
+        Created d = apply();
+        workflow.approve(d.applicationId(), approver);
+        assertThrows(ResponseStatusException.class, () -> workflow.disapprove(d.applicationId(), new Reason("late"), approver), "an approved application is cancelled, not disapproved");
+    }
 }

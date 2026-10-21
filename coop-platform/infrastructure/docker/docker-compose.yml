@@ -1,0 +1,21 @@
+services:
+  eclon-postgres:
+    image: postgres:18-alpine
+    container_name: eclon-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: coop_admin
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in .env}
+      POSTGRES_DB: coop
+    ports:
+      - "127.0.0.1:5440:5432"
+    volumes:
+      - eclon-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coop_admin -d coop"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  eclon-pgdata:

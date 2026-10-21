@@ -10,6 +10,7 @@ import {
   type FoClientAccount, type FoColumn, type FoDraftPayload, type FoDraftRow, type FoSetup, type FoSummary,
 } from './api'
 import CashHandoverPanel from './CashHandoverPanel'
+import { BankCashPanel } from './BankCashPanel'
 import DrawerClose from './DrawerClose'
 import FoFindDialog from './FoFindDialog'
 import { LoanApplicationsPanel } from './LoanApplicationsPanel'
@@ -561,7 +562,7 @@ export default function FrontOfficePage() {
       {summary
         ? <SummaryPanel setup={setup} onOpen={openTxn} />
         : tab === 'handover' && shown.kind === 'none'
-          ? <CashHandoverPanel setup={setup} onNotice={setNotice} />
+          ? <><CashHandoverPanel setup={setup} onNotice={setNotice} /><BankCashPanel setup={setup} /></>
           : tab === 'disburse' && shown.kind === 'none'
           ? <><LoanApplicationsPanel /><LoanReleasePanel /></>
           : tab === 'passbook'

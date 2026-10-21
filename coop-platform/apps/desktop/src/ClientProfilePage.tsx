@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
 import {
-  getCapabilities, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, getMemberImage, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, postSharePayment, type SharePaymentReceipt, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
+  getCapabilities, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, getMemberImage, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
   type Change, type DetailField, type Lookups, type Member, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck, type ShareAccount,
 } from './api'
 import { appBackground, glass } from './glass'
@@ -532,6 +532,7 @@ const peso = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleSt
 
 function ShareCapitalTab({ id }: { id: Id }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
+  const [withdrawing, setWithdrawing] = useState<ShareAccount | null>(null)
   const [paying, setPaying] = useState<ShareAccount | null>(null)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-shares', id], queryFn: () => getShares(id.branchCode, id.clientId), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
@@ -556,6 +557,7 @@ function ShareCapitalTab({ id }: { id: Id }) {
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{peso(a.balance)}</TableCell>
                 <TableCell align="right">
                   {a.status === 15 && <Button size="small" onClick={(e) => { e.stopPropagation(); setPaying(a) }}>Post payment</Button>}
+                  {a.status === 15 && a.balance > 0 && <Button size="small" onClick={(e) => { e.stopPropagation(); setWithdrawing(a) }}>Withdraw</Button>}
                 </TableCell>
               </TableRow>
             ))}
@@ -569,6 +571,7 @@ function ShareCapitalTab({ id }: { id: Id }) {
       </TableCard>
       {open && <ShareHistoryDialog id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
       {paying && <SharePaymentDialog id={id} account={paying} onClose={() => setPaying(null)} />}
+      {withdrawing && <ShareWithdrawalDialog id={id} account={withdrawing} onClose={() => setWithdrawing(null)} />}
     </>
   )
 }
@@ -632,6 +635,61 @@ function SharePaymentDialog({ id, account, onClose }: { id: Id; account: ShareAc
             {askConfirm
               ? <Button variant="contained" color="warning" disabled={busy} onClick={() => submit(true)}>Post anyway</Button>
               : <Button variant="contained" disabled={busy || !valid} onClick={() => submit(false)}>Post payment</Button>}
+          </>
+        )}
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+function ShareWithdrawalDialog({ id, account, onClose }: { id: Id; account: ShareAccount; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [amount, setAmount] = useState('')
+  const [explanation, setExplanation] = useState('')
+  const [done, setDone] = useState<ShareWithdrawalOut | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const value = Number(amount)
+  const valid = amount.trim() !== '' && Number.isFinite(value) && value > 0
+
+  const submit = async () => {
+    setBusy(true); setError(null)
+    try {
+      setDone(await postShareWithdrawal({ clientId: id.clientId, typeCode: account.typeCode, refNo: account.refNo, amount: value, explanation }))
+      qc.invalidateQueries({ queryKey: ['loan-releases'] })
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open onClose={busy ? undefined : onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>{done ? 'Withdrawal voucher created' : 'Withdraw share capital'}</DialogTitle>
+      <DialogContent>
+        {!done && (
+          <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
+            <Box sx={{ fontSize: 13 }}>{account.type ?? 'Share capital'} {account.refNoText ?? account.refNo} · balance {peso(account.balance)}</Box>
+            <TextField label="Amount" type="number" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
+            <TextField label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="SC WITHDRAWAL" />
+            <Box sx={{ fontSize: 12 }}>This creates a Cash Voucher that credits the member's vouchers-payable account. Nothing is posted until two other people approve and post it on the Disburse tab.</Box>
+          </Box>
+        )}
+        {done && (
+          <Box sx={{ display: 'grid', gap: 0.5, pt: 1, fontSize: 14 }}>
+            <Box>Voucher <strong>{done.documentNo}</strong> (control {done.controlNo}) for {done.clientName}</Box>
+            <Box>Withdrawal <strong>{peso(done.amount)}</strong>; capital left after it posts <strong>{peso(done.availableAfter)}</strong></Box>
+            <Box>It now waits for approval and posting on the Disburse tab.</Box>
+          </Box>
+        )}
+        {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+      </DialogContent>
+      <DialogActions>
+        {done ? <Button onClick={onClose}>Close</Button> : (
+          <>
+            <Button onClick={onClose} disabled={busy}>Cancel</Button>
+            <Button variant="contained" disabled={busy || !valid} onClick={submit}>Create voucher</Button>
           </>
         )}
       </DialogActions>

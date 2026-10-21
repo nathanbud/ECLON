@@ -1,18 +1,36 @@
-import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Skeleton, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Skeleton, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
-import { createLoanApplication, getLoanAppTemplate, type LoanAppCreated } from './api'
+import { useEffect, useState } from 'react'
+import { createLoanApplication, getLoanAppTemplate, searchMembers, type LoanAppCreated, type Member } from './api'
+import { displayName, memberNo, statusOf } from './clients'
 
 const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /**
  * New loan application (status New), after the old Loans Profile screen: the loan type's defaults come from the server, the clerk gives the
  * amount, term, purpose, collateral, co-makers and the deduction amounts. Saving writes the application, loan and schedule; verifying and
- * approving are later steps.
+ * approving are later steps. Opened from a member's profile it is given the member and loan type; opened from the dashboard it starts with a member search
+ * and a loan type choice.
  */
-export default function LoanApplicationDialog({ branchCode, clientId, typeCode, onClose }: { branchCode: number; clientId: number; typeCode: number; onClose: () => void }) {
+const LOAN_TYPES = [{ code: 48, name: 'Back to back loan' }, { code: 49, name: 'Co-maker loan' }]
+
+export default function LoanApplicationDialog({ branchCode: givenBranch, clientId: givenClient, typeCode: givenType, onClose }: { branchCode?: number; clientId?: number; typeCode?: number; onClose: () => void }) {
   const qc = useQueryClient()
-  const { data: t, error, isLoading } = useQuery({ queryKey: ['loan-app-template', branchCode, clientId, typeCode], queryFn: () => getLoanAppTemplate(branchCode, clientId, typeCode) })
+  const searching = givenClient == null
+  const [picked, setPicked] = useState<Member | null>(null)
+  const [pickType, setPickType] = useState(LOAN_TYPES[0].code)
+  const [text, setText] = useState('')
+  const [q, setQ] = useState('')
+  useEffect(() => {
+    const h = setTimeout(() => setQ(text.trim()), 300)
+    return () => clearTimeout(h)
+  }, [text])
+  const found = useQuery({ queryKey: ['loan-start-search', q], queryFn: () => searchMembers(q, 0, 8), enabled: searching && !picked && q.length >= 2 })
+  const branchCode = givenBranch ?? picked?.id.branchCode ?? 0
+  const clientId = givenClient ?? picked?.id.clientId ?? 0
+  const typeCode = givenType ?? pickType
+  const ready = clientId > 0
+  const { data: t, error, isLoading } = useQuery({ queryKey: ['loan-app-template', branchCode, clientId, typeCode], queryFn: () => getLoanAppTemplate(branchCode, clientId, typeCode), enabled: ready })
   const [amount, setAmount] = useState('')
   const [terms, setTerms] = useState('')
   const [purpose, setPurpose] = useState('')
@@ -36,6 +54,8 @@ export default function LoanApplicationDialog({ branchCode, clientId, typeCode, 
     }),
     onSuccess: (r) => { setDone(r); qc.invalidateQueries({ queryKey: ['member-loans', branchCode, clientId] }) },
   })
+  const clear = () => { setAmount(''); setTerms(''); setPurpose(''); setCollType(''); setCollAmount(''); setCollDesc(''); setRemarks(''); setCoMakers(''); setDed({}); setDone(null); setCls('1'); setPaid({}); save.reset() }
+  const pick = (m: Member | null) => { clear(); setPicked(m); if (m == null) { setText(''); setQ('') } }
   const paidTotal = Object.values(paid).reduce((s, v) => s + (Number(v.principal) || 0) + (Number(v.interest) || 0) + (Number(v.penalty) || 0), 0)
   const total = Object.values(ded).reduce((s, v) => s + (Number(v) || 0), 0) + paidTotal
   const net = (Number(amount) || 0) - total
@@ -44,10 +64,48 @@ export default function LoanApplicationDialog({ branchCode, clientId, typeCode, 
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>New loan application{t ? ` · ${t.typeName}` : ''}</DialogTitle>
       <DialogContent>
+        {searching && !picked && (
+          <Box sx={{ mb: 1.5, pt: 0.5 }}>
+            <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">Find the member who wants to apply. Search by name or member number.</Typography>
+            <TextField autoFocus fullWidth size="small" label="Search member" value={text} onChange={(e) => setText(e.target.value)} />
+            {found.error && <Alert severity="error" sx={{ mt: 1 }}>{(found.error as Error).message}</Alert>}
+            {q.length >= 2 && found.data && found.data.content.length === 0 && <Typography sx={{ py: 1.5 }} color="text.secondary">No member found.</Typography>}
+            {found.data?.content.map((m) => {
+              const st = statusOf(m)
+              return (
+                <Box key={`${m.id.branchCode}-${m.id.clientId}`} role="button" tabIndex={0} onClick={() => pick(m)} onKeyDown={(e) => { if (e.key === 'Enter') pick(m) }}
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontSize: 14 }}>{displayName(m)}</Typography>
+                    <Typography sx={{ fontSize: 12 }} color="text.secondary">{memberNo(m.id)}{m.city ? ` · ${m.city}` : ''}</Typography>
+                  </Box>
+                  <Chip size="small" variant="outlined" color={st.kind} label={st.label} />
+                </Box>
+              )
+            })}
+          </Box>
+        )}
+        {searching && picked && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5, pt: 0.5, flexWrap: 'wrap' }}>
+            <Box sx={{ flex: 1, minWidth: 180 }}>
+              <Typography sx={{ fontWeight: 600 }}>{displayName(picked)}</Typography>
+              <Typography sx={{ fontSize: 12 }} color="text.secondary">{memberNo(picked.id)}</Typography>
+            </Box>
+            <TextField size="small" select label="Loan type" value={pickType} onChange={(e) => { clear(); setPickType(Number(e.target.value)) }} sx={{ minWidth: 200 }} disabled={!!done}>
+              {LOAN_TYPES.map((x) => <MenuItem key={x.code} value={x.code}>{x.name}</MenuItem>)}
+            </TextField>
+            {!done && <Button size="small" onClick={() => pick(null)}>Change member</Button>}
+          </Box>
+        )}
+        {searching && picked && statusOf(picked).kind === 'default' && <Alert severity="warning" sx={{ mb: 1.5 }}>This member's account is not active. The application may be refused.</Alert>}
         {error && <Alert severity="error">{(error as Error).message}</Alert>}
-        {isLoading && <Skeleton variant="rounded" height={240} />}
+        {ready && isLoading && <Skeleton variant="rounded" height={240} />}
         {t && !done && (
           <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
+            <TextField size="small" select label="Loan classification" value={cls} onChange={(e) => setCls(e.target.value)} sx={{ maxWidth: 260 }}
+              helperText={cls === '3' ? 'A restructured loan must pay off the loan it restructures.' : undefined}>
+              <MenuItem value="1">New</MenuItem><MenuItem value="2">Renewal</MenuItem><MenuItem value="3">Restructured</MenuItem>
+            </TextField>
             {!t.hasVouchersPayable && <Alert severity="info">This member has no vouchers-payable account yet. Saving the application opens one, as the old system does.</Alert>}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 1.25 }}>
               <TextField size="small" label="Principal" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required />
@@ -64,10 +122,6 @@ export default function LoanApplicationDialog({ branchCode, clientId, typeCode, 
             <TextField size="small" label="Collateral description" value={collDesc} onChange={(e) => setCollDesc(e.target.value)} />
             <TextField size="small" label="Remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
             <TextField size="small" label="Co-maker client IDs (separated by commas)" value={coMakers} onChange={(e) => setCoMakers(e.target.value)} />
-            <TextField size="small" select label="Loan classification" value={cls} onChange={(e) => setCls(e.target.value)} sx={{ maxWidth: 260 }}
-              helperText={cls === '3' ? 'A restructured loan must pay off the loan it restructures.' : undefined}>
-              <MenuItem value="1">New</MenuItem><MenuItem value="2">Renewal</MenuItem><MenuItem value="3">Restructured</MenuItem>
-            </TextField>
             {t.payoffs.length > 0 && (
               <>
                 <Typography sx={{ fontSize: 12, fontWeight: 700 }} color="text.secondary">Pay off earlier loans from the proceeds</Typography>

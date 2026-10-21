@@ -6,6 +6,7 @@ import type { Id } from './clients'
 import Dashboard, { type View } from './Dashboard'
 import ErrorBoundary from './ErrorBoundary'
 import FrontOfficePage from './FrontOfficePage'
+import LoanApplicationDialog from './LoanApplicationDialog'
 import TopBar from './TopBar'
 import UsersPage from './UsersPage'
 import AccountingPage from './AccountingPage'
@@ -13,7 +14,7 @@ import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
 const titles: Record<View, string> = {
-  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', frontoffice: 'Front Office',
+  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', frontoffice: 'Front Office', loanapp: 'Coop Platform',
 }
 
 function Signed() {
@@ -25,7 +26,8 @@ function Signed() {
     <ToolbarSlotProvider>
       <TopBar title={titles[view]} onHome={view === 'home' ? undefined : () => setView('home')} onNavigate={setView} onOpenClient={openClient} />
       <ErrorBoundary resetKey={view}>
-        {view === 'home' && <Dashboard onOpen={setView} />}
+        {(view === 'home' || view === 'loanapp') && <Dashboard onOpen={setView} />}
+        {view === 'loanapp' && <LoanApplicationDialog onClose={() => setView('home')} />}
         {view === 'members' && <ClientProfilePage selected={client} onSelect={setClient} />}
         {view === 'accounts' && <AccountsPage />}
         {view === 'accounting' && <AccountingPage />}
