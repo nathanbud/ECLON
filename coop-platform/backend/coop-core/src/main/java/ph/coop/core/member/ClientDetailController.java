@@ -159,7 +159,7 @@ class ClientDetailController {
             l("Residence type", "ResType", "residenceType"), l("Mailing address", "MailingAddress", "mailingAddress"),
             t("Provincial street", "ProvAddStreet"), t("Provincial barangay", "ProvAddBarangay"),
             t("Provincial city", "ProvAddCity"), t("Provincial province", "ProvAddProvince"),
-            t("Profession", "Profession"), t("Height", "Height"), t("Weight", "Weight"), t("Blood type", "BloodType"),
+            t("Profession", "Profession"),
             m("Monthly income", "BusinessIncome"), l("Health care", "IsIncludeHealthCare", "yesNo"),
             l("Client type", "ClientType", "clientType"), l("Account type", "AccountType", "accountType"),
             l("Department", "ClientDEPT", "department"), l("DOSRI tag", "DOSRITag", "dosriTag"));

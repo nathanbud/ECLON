@@ -239,12 +239,6 @@ function PersonalTab({ m, lk }: { m: Member; lk?: Lookups }) {
       </Section>
 
       <AddressSection m={m} lk={lk} />
-
-      <Section title="Physical">
-        <Field label="Height" value={m.height} col="Height" />
-        <Field label="Weight" value={m.weight} col="Weight" />
-        <Field label="Blood type" value={m.bloodType} col="BloodType" />
-      </Section>
     </Box>
   )
 }

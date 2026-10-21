@@ -21,13 +21,16 @@ def fmt(v):
     if isinstance(v, datetime.timedelta): return str(v)
     if isinstance(v, bool): return "1" if v else "0"
     return v
+# Columns that stay in the legacy MySQL database only (see database/postgres/migrations/V008).
+OMIT = {"client": {"height", "weight", "bloodtype"}}
 def load(t):
     cols = [r[0] for r in (lambda c:(c.execute("show columns from `%s`"%t), c.fetchall())[1])(my.cursor())]
+    cols = [c for c in cols if c.lower() not in OMIT.get(t.lower(), ())]
     types = dict(l.split("|") for l in pg("select column_name||'|'||data_type from information_schema.columns where table_schema='legacy' and table_name='%s'"%t.lower()).splitlines())
     byl = {c.lower(): c for c in types}  # PostgreSQL may keep case (e.g. a name starting with a digit)
     lc = [byl.get(c.lower(), c.lower()) for c in cols]
     pg("truncate legacy.\"%s\""%t.lower())
-    cur = my.cursor(); cur.execute("select * from `%s`"%t)
+    cur = my.cursor(); cur.execute("select %s from `%s`"%(",".join("`%s`"%c for c in cols), t))
     total = 0
     cmd = ["docker","exec","-i","eclon-postgres","psql","-U","coop_admin","-d","coop","-v","ON_ERROR_STOP=1","-c",
            "\\copy legacy.\"%s\" (%s) from stdin with (format csv, null '%s')"%(t.lower(), ",".join('"%s"'%c for c in lc), NULL)]

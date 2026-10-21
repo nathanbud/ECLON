@@ -49,9 +49,6 @@ public class Member {
     @Column(name = "ReligionID") private Integer religion;
     @Column(name = "MailingAddress") private Integer mailingAddress;
     @Column(name = "DOSRITag") private Integer dosriTag;
-    @Column(name = "Height") private String height;
-    @Column(name = "Weight") private String weight;
-    @Column(name = "BloodType") private String bloodType;
     @Column(name = "IsIncludeHealthCare") private Integer includeHealthCare;
     @Column(name = "BusinessIncome") private String monthlyIncome;
     @Column(name = "ResAddZipCode") private String zipCode;
@@ -91,9 +88,6 @@ public class Member {
     public Integer getReligion() { return religion; }
     public Integer getMailingAddress() { return mailingAddress; }
     public Integer getDosriTag() { return dosriTag; }
-    public String getHeight() { return height; }
-    public String getWeight() { return weight; }
-    public String getBloodType() { return bloodType; }
     public Integer getIncludeHealthCare() { return includeHealthCare; }
     public String getMonthlyIncome() { return monthlyIncome; }
     public String getZipCode() { return zipCode; }

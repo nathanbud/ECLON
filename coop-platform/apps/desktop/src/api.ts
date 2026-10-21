@@ -27,9 +27,6 @@ export interface Member {
   religion: number | null
   mailingAddress: number | null
   dosriTag: number | null
-  height: string | null
-  weight: string | null
-  bloodType: string | null
   includeHealthCare: number | null
   monthlyIncome: string | null
   zipCode: string | null
