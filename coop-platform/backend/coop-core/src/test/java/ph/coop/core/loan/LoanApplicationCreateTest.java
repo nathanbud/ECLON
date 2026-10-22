@@ -89,6 +89,16 @@ class LoanApplicationCreateTest {
     }
 
     @Test
+    void countsATermGivenInYearsAsTwelveMonthsEach() {
+        Created c = applications.create(1, client, new Create(48, new BigDecimal("5000.00"), 2, 5, 1, 1, null, null, null, null, List.of(), List.of(), List.of(), 7), clerk);
+        assertEquals(25, c.scheduleRows()); // the release row and 24 monthly instalments
+        assertEquals(LocalDate.of(2028, 4, 25), c.maturity());
+        Map<String, Object> loan = jdbc.queryForMap("SELECT LoanTERMS, LoanTERM_PERD FROM loan WHERE LoanBR_CODE = 1 AND LoanSLC_CODE = 12 AND LoanSLT_CODE = 48 AND LoanREF_NO = ?", c.refNo());
+        assertEquals(2, ((Number) loan.get("LoanTERMS")).intValue()); // kept as typed, with its unit, as the old system does
+        assertEquals(7, ((Number) loan.get("LoanTERM_PERD")).intValue());
+    }
+
+    @Test
     void storesTheDeductionsAndNetProceeds() {
         List<Map<String, Object>> fee = jdbc.queryForList("SELECT ID FROM loansldeduc WHERE BR_CODE = 1 AND SLC_CODE = 12 AND SLT_CODE = 48 AND SLBEHAVIOR = 1 ORDER BY DEDUCORDER, ID LIMIT 1");
         assumeTrue(!fee.isEmpty(), "no fee row in the template");

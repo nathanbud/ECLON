@@ -2,6 +2,7 @@ import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogT
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { approveLoanApplication, cancelLoanApplication, disapproveLoanApplication, getLoanApplication, getLoanApplications, verifyLoanApplication, type LoanApplicationItem } from './api'
+import { openLoanApplicationWindow } from './detachedWindow'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
 
@@ -97,6 +98,7 @@ export function LoanApplicationsPanel() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(null)}>Close</Button>
+          {a && <Button onClick={() => { if (openLoanApplicationWindow({ applicationId: a.id })) setOpen(null) }}>Open step by step</Button>}
           {a && !cancelling && !disapproving && <Button color="error" disabled={busy} onClick={() => setCancelling(true)}>Cancel application</Button>}
           {a && !disapproving && !cancelling && (a.status === 1 || a.status === 2) && <Button color="error" disabled={busy} onClick={() => setDisapproving(true)}>Disapprove</Button>}
           {a && disapproving && <Button color="error" variant="outlined" disabled={busy || !reason.trim()} onClick={() => disapprove.mutate(a)}>Confirm disapprove</Button>}

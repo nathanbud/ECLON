@@ -10,6 +10,7 @@ import {
 import { money } from './FoTransactionForm'
 import { CountGrid, countTotal, toNumbers, type Counts } from './CountGrid'
 import { glass } from './glass'
+import MoneyField from './MoneyField'
 
 const VAULT = 50
 const label = (t: string) => (
@@ -341,9 +342,9 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
         <DialogTitle>Cash limit</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 1.5 }}>The most cash for {limitFor?.label}. Tellers over it are asked to give the excess to the head cashier. Leave empty or 0 for no limit.</DialogContentText>
-          <TextField
-            autoFocus fullWidth size="small" label="Limit" value={limitFor?.value ?? ''} slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-            onChange={(e) => setLimitFor((l) => (l ? { ...l, value: e.target.value.replace(/[^0-9.,]/g, '') } : l))}
+          <MoneyField
+            autoFocus fullWidth size="small" label="Limit" value={limitFor?.value ?? ''}
+            onValueChange={(v) => setLimitFor((l) => (l ? { ...l, value: v } : l))}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void saveLimit() } }}
           />
         </DialogContent>

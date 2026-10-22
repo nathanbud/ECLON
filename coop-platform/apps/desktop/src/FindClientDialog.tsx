@@ -1,9 +1,9 @@
 import { Alert, Avatar, Box, Chip, CircularProgress, Dialog, InputAdornment, TextField, Typography, type Theme } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { FiSearch } from 'react-icons/fi'
+import { FiSearch, FiUser } from 'react-icons/fi'
 import { searchMembers, type Lookups } from './api'
-import { displayName, initials, memberNo, statusOf, type Id } from './clients'
+import { displayName, memberNo, statusOf, type Id } from './clients'
 import { tileFill } from './theme'
 
 const MAX_RESULTS = 8
@@ -125,7 +125,7 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
                 <Avatar sx={{
                   width: 38, height: 38, fontSize: 13, fontWeight: 700, color: '#fff',
                   backgroundColor: tileFill.blue,
-                }}>{initials(m)}</Avatar>
+                }}><FiUser size={20} aria-hidden /></Avatar>
                 <Box sx={{ minWidth: 0, flex: 1 }}>
                   <Typography noWrap sx={{ fontSize: 14.5, fontWeight: 600 }}>{displayName(m)}</Typography>
                   <Typography noWrap sx={{ fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">

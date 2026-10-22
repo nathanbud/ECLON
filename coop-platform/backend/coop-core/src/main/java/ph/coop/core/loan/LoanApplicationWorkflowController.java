@@ -36,7 +36,7 @@ public class LoanApplicationWorkflowController {
     private static final int LOAN_CLASS = 12, NEW = 1, VERIFIED = 2, APPROVED = 3, MODULE = 2, VOUCHER = 21, PENDING = 2;
 
     public record Item(long id, String documentNo, int clientId, String clientName, int typeCode, String typeName, int refNo, BigDecimal amount, int terms, int status, String statusName,
-                String encodedByName, String date) {}
+                String encodedByName, String date, Integer voucherYear, Long voucherControlNo, int branchCode) {}
 
     record Row(String account, String description, BigDecimal amount) {}
 
@@ -70,7 +70,8 @@ public class LoanApplicationWorkflowController {
 
     private static final String ITEM_SQL = """
             SELECT a.ID, a.DOC_NO, a.CLIENTID, CONCAT_WS(' ', k.LName, k.FName), a.SLT_CODE, t.SLTypeM_DESC, a.REF_NO, l.LoanPAMT, l.LoanTERMS, a.STATUSID, a.TR_DATE,
-                   (SELECT CONCAT_WS(' ', e.AccessFName, e.AccessLName) FROM access e WHERE e.AccessBR_CODE = a.BR_CODE AND e.AccessID = a.ENCDBY)
+                   (SELECT CONCAT_WS(' ', e.AccessFName, e.AccessLName) FROM access e WHERE e.AccessBR_CODE = a.BR_CODE AND e.AccessID = a.ENCDBY),
+                   a.TR_CTLNO, a.APPRV_DATE, a.BR_CODE
             FROM loanapp a
             JOIN loan l ON l.LoanBR_CODE = a.BR_CODE AND l.LoanSLC_CODE = a.SLC_CODE AND l.LoanSLT_CODE = a.SLT_CODE AND l.LoanREF_NO = a.REF_NO
             LEFT JOIN client k ON k.ClientIDBrCode = a.BR_CODE AND k.ClientID = a.CLIENTID
@@ -79,8 +80,11 @@ public class LoanApplicationWorkflowController {
 
     private static Item item(java.sql.ResultSet rs) throws java.sql.SQLException {
         int st = rs.getInt(10);
+        // The release voucher's number is set when the application is approved; it was dated that day, which gives its year.
+        Number ctl = st == APPROVED ? (Number) rs.getObject(13) : null;
         return new Item(rs.getLong(1), rs.getString(2), rs.getInt(3), rs.getString(4), rs.getInt(5), rs.getString(6), rs.getInt(7), rs.getBigDecimal(8), rs.getInt(9), st,
-            st == NEW ? "New" : st == VERIFIED ? "Verified" : st == APPROVED ? "Approved" : "Status " + st, rs.getString(12), String.valueOf(rs.getDate(11)));
+            st == NEW ? "New" : st == VERIFIED ? "Verified" : st == APPROVED ? "Approved" : "Status " + st, rs.getString(12), String.valueOf(rs.getDate(11)),
+            ctl == null ? null : rs.getDate(14).toLocalDate().getYear(), ctl == null ? null : ctl.longValue(), rs.getInt(15));
     }
 
     /** Applications waiting to be verified or approved. */

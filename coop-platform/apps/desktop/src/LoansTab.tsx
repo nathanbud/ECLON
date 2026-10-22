@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import LoanApplicationDialog from './LoanApplicationDialog'
 import LoanProfileDialog from './LoanProfileDialog'
-import { checkLoanPayment, getLoanDetail, getLoans, postLoanPayment, type LoanItem, type LoanPaymentBreakdown, type LoanPaymentReceipt, type LoanScheduleRow } from './api'
+import { checkLoanPayment, getLoanDetail, getLoans, getLoanTypes, postLoanPayment, type LoanItem, type LoanPaymentBreakdown, type LoanPaymentReceipt, type LoanScheduleRow } from './api'
+import MoneyField from './MoneyField'
 
 const money = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
 const num = { fontVariantNumeric: 'tabular-nums' } as const
@@ -19,6 +20,7 @@ export default function LoansTab({ branchCode, clientId }: { branchCode: number;
   const [profile, setProfile] = useState<LoanItem | null>(null)
   const [applyType, setApplyType] = useState<number | null>(null)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-loans', branchCode, clientId, paid], queryFn: () => getLoans(branchCode, clientId, paid), staleTime: 60_000 })
+  const types = useQuery({ queryKey: ['loan-types', branchCode], queryFn: () => getLoanTypes(branchCode, clientId), staleTime: 10 * 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
   if (isLoading) return <Skeleton variant="rounded" height={160} />
   return (
@@ -27,9 +29,8 @@ export default function LoansTab({ branchCode, clientId }: { branchCode: number;
         <Box sx={{ flex: 1, fontSize: 13 }}>
           {data && <>Outstanding principal <strong>{money(data.totalOutstanding)}</strong>{data.totalPastDue > 0 && <> · past due <strong style={{ color: 'var(--mui-palette-error-main, #d32f2f)' }}>{money(data.totalPastDue)}</strong></>}</>}
         </Box>
-        <TextField size="small" select label="New application" value="" onChange={(e) => setApplyType(Number(e.target.value))} sx={{ minWidth: 190, mr: 1 }}>
-          <MenuItem value="48">Back to back loan</MenuItem>
-          <MenuItem value="49">Co-maker loan</MenuItem>
+        <TextField size="small" select label="New application" value="" onChange={(e) => setApplyType(Number(e.target.value))} sx={{ minWidth: 220, mr: 1 }} disabled={!types.data}>
+          {types.data?.map((x) => <MenuItem key={x.code} value={x.code} disabled={!x.available}>{x.name}{x.available ? '' : ' (cannot be scheduled here yet)'}</MenuItem>)}
         </TextField>
         <FormControlLabel control={<Switch size="small" checked={paid} onChange={(e) => setPaid(e.target.checked)} />} label="Show paid loans" />
       </Box>
@@ -114,7 +115,7 @@ function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan
         {!receipt && (
           <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
             <Box sx={{ fontSize: 13 }}>{loan.type ?? `Type ${loan.typeCode}`} #{loan.refNo} · owes {money(loan.outstanding)} · {loan.interestRate?.toFixed(2)}% a year</Box>
-            <TextField label="Amount" type="number" autoFocus value={amount} onChange={(e) => { setAmount(e.target.value); setAskConfirm(false); setError(null) }} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
+            <MoneyField label="Amount" autoFocus value={amount} onValueChange={(v) => { setAmount(v); setAskConfirm(false); setError(null) }} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
             {check && (
               <Table size="small" aria-label="How the payment is split">
                 <TableBody>

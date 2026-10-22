@@ -34,12 +34,15 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/members/{branchCode}/{clientId}/loan-applications")
 public class LoanApplicationController {
 
-    private static final int LOAN_CLASS = 12, MONTHS = 4, STATUS_NEW = 1, LOAN_CURRENT = 11, VOUCHER_CODE = 21;
+    private static final int LOAN_CLASS = 12, MONTHS = 4, YEARS = 7, STATUS_NEW = 1, LOAN_CURRENT = 11, VOUCHER_CODE = 21;
     private static final int BEHAVIOR_FEE = 1, BEHAVIOR_MEMBER = 3, BEHAVIOR_PAYOFF = 4, BEHAVIOR_NET = 6;
 
     record DeductionRow(long id, String description, int behavior, String formula, boolean needsMemberAccount, boolean hasMemberAccount) {}
 
-    public record Template(int typeCode, String typeName, int terms, int termUnit, int paymentMode, BigDecimal interestRate, boolean hasVouchersPayable, int nextRefNo, List<DeductionRow> deductions, List<Option> purposes, List<Option> collateralTypes, List<PayoffOption> payoffs) {}
+    public record Template(int typeCode, String typeName, int terms, int termUnit, int paymentMode, BigDecimal interestRate, boolean hasVouchersPayable, int nextRefNo, List<DeductionRow> deductions, List<Option> purposes, List<Option> collateralTypes, List<PayoffOption> payoffs, Setup setup) {}
+
+    /** The loan type's setup in words, as the old Loans Profile shows it, and whether this screen can build its schedule yet. */
+    public record Setup(String termUnit, String principalPayment, String interestPayment, String basedOn, String diminish, BigDecimal penaltyRate, Integer yearDays, boolean collateralRequired, String unsupported) {}
 
     /** An open loan of the member that the new loan could pay off, with today's suggested interest. */
     public record PayoffOption(int typeCode, String typeName, int refNo, int status, BigDecimal outstanding, BigDecimal interestDue, long daysPastDue) {}
@@ -52,10 +55,15 @@ public class LoanApplicationController {
     public record DeductionAmount(long id, BigDecimal amount) {}
 
     public record Create(int typeCode, BigDecimal amount, Integer terms, Integer purpose, Integer loanClass, Integer borrowerClass, Integer collateralType, BigDecimal collateralAmount,
-                  String collateralDescription, String remarks, List<Integer> coMakers, List<DeductionAmount> deductions, List<Payoff> payoffs) {
+                  String collateralDescription, String remarks, List<Integer> coMakers, List<DeductionAmount> deductions, List<Payoff> payoffs, Integer termUnit) {
+        /** Without a term unit, the loan type's own unit is used. */
+        public Create(int typeCode, BigDecimal amount, Integer terms, Integer purpose, Integer loanClass, Integer borrowerClass, Integer collateralType, BigDecimal collateralAmount,
+                      String collateralDescription, String remarks, List<Integer> coMakers, List<DeductionAmount> deductions, List<Payoff> payoffs) {
+            this(typeCode, amount, terms, purpose, loanClass, borrowerClass, collateralType, collateralAmount, collateralDescription, remarks, coMakers, deductions, payoffs, null);
+        }
         public Create(int typeCode, BigDecimal amount, Integer terms, Integer purpose, Integer loanClass, Integer borrowerClass, Integer collateralType, BigDecimal collateralAmount,
                       String collateralDescription, String remarks, List<Integer> coMakers, List<DeductionAmount> deductions) {
-            this(typeCode, amount, terms, purpose, loanClass, borrowerClass, collateralType, collateralAmount, collateralDescription, remarks, coMakers, deductions, List.of());
+            this(typeCode, amount, terms, purpose, loanClass, borrowerClass, collateralType, collateralAmount, collateralDescription, remarks, coMakers, deductions, List.of(), null);
         }
     }
 
@@ -75,6 +83,26 @@ public class LoanApplicationController {
         this.clock = clock;
     }
 
+    /** A loan type the member can apply for. A type with no interest rate or term in the setup cannot be scheduled, so it is listed but not available. */
+    public record TypeOption(int code, String name, Integer terms, BigDecimal rate, long loans, boolean available) {}
+
+    /** The enabled loan types from the setup (sltype, class 12), the most used first. */
+    @GetMapping("/types")
+    public List<TypeOption> types(@PathVariable int branchCode) {
+        return jdbc.query("""
+            SELECT s.SLTypeSLT_CODE, s.SLTypeM_DESC, s.SLTypeTERMS, s.SLTypeINT_RATE, s.SLTypeTERM_PERD, s.SLTypePPMT_MODE, s.SLTypeAMORTYPE,
+                   (SELECT COUNT(*) FROM loan l WHERE l.LoanBR_CODE = s.SLTypeBR_CODE AND l.LoanSLC_CODE = s.SLTypeSLC_CODE AND l.LoanSLT_CODE = s.SLTypeSLT_CODE) n
+            FROM sltype s WHERE s.SLTypeBR_CODE = ? AND s.SLTypeSLC_CODE = ? AND COALESCE(s.SLTypeIsDisabled, 0) = 0
+            ORDER BY n DESC, s.SLTypeM_DESC
+            """, (rs, i) -> {
+                Integer terms = (Integer) rs.getObject(3);
+                BigDecimal rate = rs.getBigDecimal(4);
+                Map<String, Object> d = new java.util.HashMap<>();
+                d.put("SLTypeTERMS", terms); d.put("SLTypeINT_RATE", rate); d.put("SLTypeTERM_PERD", rs.getObject(5)); d.put("SLTypePPMT_MODE", rs.getObject(6)); d.put("SLTypeAMORTYPE", rs.getObject(7));
+                return new TypeOption(rs.getInt(1), rs.getString(2), terms, rate, rs.getLong(8), unsupported(d) == null);
+            }, branchCode, LOAN_CLASS);
+    }
+
     /** What the clerk starts from: the type's defaults and the deductions list, with what the member lacks. */
     @GetMapping("/template")
     public Template template(@PathVariable int branchCode, @PathVariable int clientId, @RequestParam int type) {
@@ -92,7 +120,38 @@ public class LoanApplicationController {
             nextRef(branchCode, type), rows,
             jdbc.query("SELECT LoanPurposeID, LoanPurposeDesc FROM loanpurpose ORDER BY LoanPurposeDesc", (rs, i) -> new Option(rs.getInt(1), rs.getString(2))),
             jdbc.query("SELECT CollateralTypeID, CollateralTypeDesc FROM collateraltype ORDER BY CollateralTypeID", (rs, i) -> new Option(rs.getInt(1), rs.getString(2))),
-            payoffOptions(branchCode, clientId));
+            payoffOptions(branchCode, clientId), setup(t.d()));
+    }
+
+    private static final java.util.Set<Integer> SCHEDULED_MODES = java.util.Set.of(LoanSchedule.MONTHLY, LoanSchedule.QUARTERLY, LoanSchedule.LUMP_SUM);
+
+    /** Why a schedule cannot be built for this setup yet, or null. Mirrors what {@link #create} refuses. */
+    static String unsupported(Map<String, Object> d) {
+        Object terms = d.get("SLTypeTERMS"), rate = d.get("SLTypeINT_RATE"), unit = d.get("SLTypeTERM_PERD"), pm = d.get("SLTypePPMT_MODE"), am = d.get("SLTypeAMORTYPE");
+        if (terms == null || ((Number) terms).intValue() <= 0) return "The setup has no term.";
+        if (rate == null) return "The setup has no interest rate.";
+        if (unit == null || (((Number) unit).intValue() != MONTHS && ((Number) unit).intValue() != YEARS)) return "Only loan types counted in months or years can be applied for here so far.";
+        if (am == null || ((Number) am).intValue() != LoanSchedule.DIMINISHING) return "Only diminishing-balance loan types can be applied for here so far.";
+        if (pm == null || !SCHEDULED_MODES.contains(((Number) pm).intValue())) return "Only monthly, quarterly and lump-sum payment modes can be scheduled here so far.";
+        return null;
+    }
+
+    private String lookup(String sql, Object id) {
+        if (id == null) return null;
+        List<String> r = jdbc.query(sql, (rs, i) -> rs.getString(1), id);
+        return r.isEmpty() ? "Code " + id : r.get(0);
+    }
+
+    private Setup setup(Map<String, Object> d) {
+        Object diminish = d.get("SLTypeDIMB_FREQ");
+        Object penalty = d.get("SLTypePEN_RATE"), days = d.get("SLTypeNDAYS_1YEAR_INTLOAN"), coll = d.get("SLTypeRequireCollateral");
+        return new Setup(
+            lookup("SELECT TermDesc FROM term WHERE TermID = ?", d.get("SLTypeTERM_PERD")),
+            lookup("SELECT PaymentModeDesc FROM paymentmode WHERE PaymentModeID = ?", d.get("SLTypePPMT_MODE")),
+            lookup("SELECT PaymentModeDesc FROM paymentmode WHERE PaymentModeID = ?", d.get("SLTypeIPMT_MODE")),
+            lookup("SELECT AmorTypeDesc FROM amortype WHERE AmorTypeID = ?", d.get("SLTypeAMORTYPE")),
+            diminish == null ? null : LoanProfileController.diminish(((Number) diminish).intValue()),
+            penalty == null ? null : (BigDecimal) penalty, days == null ? null : ((Number) days).intValue(), coll != null && ((Number) coll).intValue() != 0, unsupported(d));
     }
 
     @PostMapping
@@ -106,17 +165,22 @@ public class LoanApplicationController {
         if (clients.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such client.");
         Integer existingVp = memberRef(branchCode, clientId, 29, 1);
 
+        // The clerk may count the term in months or in years, whatever the type's default; the old system keeps the number as typed with its unit.
+        int typeUnit = num(t.d(), "SLTypeTERM_PERD");
+        int unit = in.termUnit() == null ? typeUnit : in.termUnit();
+        if (unit != MONTHS && unit != YEARS) throw bad("The term can be counted in months or years.");
+        if (in.terms() == null && unit != typeUnit) throw bad("Give the term when it is counted in a different unit from the loan type's.");
         int terms = in.terms() == null ? num(t.d(), "SLTypeTERMS") : in.terms();
-        int unit = num(t.d(), "SLTypeTERM_PERD");
-        if (unit != MONTHS) throw bad("Only loan types counted in months can be applied for here so far.");
         if (terms <= 0) throw bad("The term must be more than zero.");
+        int termMonths = unit == YEARS ? terms * 12 : terms;
+        if (termMonths > 600) throw bad("The term is too long.");
         BigDecimal rate = (BigDecimal) t.d().get("SLTypeINT_RATE");
         int pmode = num(t.d(), "SLTypePPMT_MODE");
         LocalDate today = LocalDate.now(clock);
         List<LoanSchedule.Row> schedule;
         try {
             if (num(t.d(), "SLTypeAMORTYPE") != 1) throw new IllegalArgumentException("Only diminishing-balance loan types can be applied for here so far.");
-            schedule = LoanSchedule.diminishing(in.amount(), terms, pmode, rate, today);
+            schedule = LoanSchedule.diminishing(in.amount(), termMonths, pmode, rate, today);
         } catch (IllegalArgumentException e) {
             throw bad(e.getMessage());
         }

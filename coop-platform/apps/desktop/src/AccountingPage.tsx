@@ -10,6 +10,7 @@ import { appBackground, glass } from './glass'
 import { useMe } from './session'
 import BanksTab from './BanksTab'
 import TrialBalancePage from './TrialBalancePage'
+import MoneyField from './MoneyField'
 
 const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const today = () => new Date().toLocaleDateString('en-CA')
@@ -216,8 +217,8 @@ function NewJournal({ branchCode, onClose, onDone }: { branchCode: number; onClo
         {lines.map((l, i) => (
           <Stack key={i} direction="row" spacing={1} sx={{ mb: 1 }}>
             <TextField size="small" label="Account" value={l.account} onChange={(e) => set(i, 'account', e.target.value)} sx={{ width: 160 }} />
-            <TextField size="small" label="Debit" type="number" value={l.debit} onChange={(e) => set(i, 'debit', e.target.value)} sx={{ flex: 1 }} />
-            <TextField size="small" label="Credit" type="number" value={l.credit} onChange={(e) => set(i, 'credit', e.target.value)} sx={{ flex: 1 }} />
+            <MoneyField size="small" label="Debit" value={l.debit} onValueChange={(v) => set(i, 'debit', v)} sx={{ flex: 1 }} />
+            <MoneyField size="small" label="Credit" value={l.credit} onValueChange={(v) => set(i, 'credit', v)} sx={{ flex: 1 }} />
             <IconButton aria-label="Remove line" disabled={lines.length <= 2} onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}><FiTrash2 /></IconButton>
           </Stack>
         ))}

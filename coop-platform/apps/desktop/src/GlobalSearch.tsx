@@ -1,15 +1,15 @@
 import { Autocomplete, Avatar, Box, CircularProgress, InputAdornment, TextField, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { FiSearch } from 'react-icons/fi'
+import { FiSearch, FiUser } from 'react-icons/fi'
 import { searchMembers } from './api'
-import { displayName, initials, memberNo, type Id } from './clients'
+import { displayName, memberNo, type Id } from './clients'
 import type { View } from './Dashboard'
 
 interface Destination { label: string; hint: string; view?: View; keywords: string; group: 'Screens' | 'Modules' }
 type Option =
   | (Destination & { kind: 'destination' })
-  | { kind: 'client'; group: 'Clients'; label: string; hint: string; id: Id; initials: string }
+  | { kind: 'client'; group: 'Clients'; label: string; hint: string; id: Id }
 
 // Everything the app offers, including modules that are not built yet (listed but disabled).
 const DESTINATIONS: Destination[] = [
@@ -75,7 +75,7 @@ export default function GlobalSearch({ onNavigate, onOpenClient }: { onNavigate:
   const clients: Option[] = wantClients
     ? (data?.content ?? []).map((m) => ({
         kind: 'client' as const, group: 'Clients' as const, label: displayName(m),
-        hint: `${memberNo(m.id)}${m.city ? ` · ${m.city}` : ''}`, id: m.id, initials: initials(m),
+        hint: `${memberNo(m.id)}${m.city ? ` · ${m.city}` : ''}`, id: m.id,
       }))
     : []
   const options = [...destinations, ...clients]
@@ -124,7 +124,7 @@ export default function GlobalSearch({ onNavigate, onOpenClient }: { onNavigate:
         return (
           <Box component="li" key={key} {...rest} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, borderRadius: '5px', mx: 0.5 }}>
             {o.kind === 'client' && (
-              <Avatar sx={{ width: 28, height: 28, fontSize: 11, fontWeight: 600, bgcolor: 'action.hover', color: 'text.secondary' }}>{o.initials}</Avatar>
+              <Avatar sx={{ width: 28, height: 28, fontSize: 11, fontWeight: 600, bgcolor: 'action.hover', color: 'text.secondary' }}><FiUser size={16} aria-hidden /></Avatar>
             )}
             <Typography noWrap sx={{ fontSize: 14, fontWeight: 500, flex: 1, minWidth: 0 }}>{o.label}</Typography>
             <Typography noWrap sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{o.hint}</Typography>

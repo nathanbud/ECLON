@@ -7,6 +7,7 @@ import { FiPlus, FiTrash2 } from 'react-icons/fi'
 import { getFoClientAccounts, searchFoAccounts, searchMembers, type FoAllocation, type FoCash, type FoClientAccount, type FoCheque, type FoSetup, type FoTypeInfo } from './api'
 import { displayName, memberNo } from './clients'
 import { glass } from './glass'
+import MoneyField from './MoneyField'
 
 // ---- the form's data ----------------------------------------------------------------------------------------------
 
@@ -67,10 +68,10 @@ function Text({ label, value, onChange, editing, type, width, align, multiline }
 
 function Amount({ value, onChange, label, onEnter }: { value: string; onChange: (v: string) => void; label: string; onEnter?: () => void }) {
   return (
-    <TextField
-      value={value} onChange={(e) => onChange(e.target.value.replace(/[^0-9.,]/g, ''))} size="small" placeholder="0.00"
+    <MoneyField
+      value={value} onValueChange={onChange} size="small" placeholder="0.00"
       onKeyDown={(e) => { if (e.key === 'Enter' && onEnter) { e.preventDefault(); onEnter() } }}
-      slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-label': label, style: { textAlign: 'right' } } }} sx={{ ...box, width: 130 }}
+      slotProps={{ htmlInput: { 'aria-label': label } }} sx={{ ...box, width: 130 }}
     />
   )
 }
@@ -170,10 +171,10 @@ function QuickEntry({ clientId, side, onAdd, cashName }: { clientId: number | nu
               {accounts.map((a) => <MenuItem key={`${a.slc}-${a.slt}-${a.refNo}`} value={`${a.slc}-${a.slt}-${a.refNo}`}>{a.type}{a.number ? ` · ${a.number}` : ` · ${a.refNo}`}</MenuItem>)}
             </TextField>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-              <TextField
-                label="Amount" size="small" fullWidth value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.,]/g, ''))}
+              <MoneyField
+                label="Amount" size="small" fullWidth value={amount} onValueChange={setAmount}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
-                slotProps={{ inputLabel: { shrink: true }, htmlInput: { inputMode: 'decimal', style: { textAlign: 'right' } } }} sx={box} placeholder="0.00"
+                slotProps={{ inputLabel: { shrink: true } }} sx={box} placeholder="0.00"
               />
               <Button variant="contained" size="small" disabled={!ready} onClick={add} sx={{ whiteSpace: 'nowrap', height: 40 }}>Add entries</Button>
             </Box>

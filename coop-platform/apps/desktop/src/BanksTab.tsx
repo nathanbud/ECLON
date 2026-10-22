@@ -6,6 +6,7 @@ import {
   type BankAccount, type BankKey, type BankRecon,
 } from './api'
 import { glass } from './glass'
+import MoneyField from './MoneyField'
 
 const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const iso = (d: Date) => d.toLocaleDateString('en-CA')
@@ -135,7 +136,7 @@ function ReconcileDialog({ branchCode, bank, onClose }: { branchCode: number; ba
       <DialogContent>
         <Stack direction="row" spacing={2} useFlexGap sx={{ my: 1, flexWrap: 'wrap', alignItems: 'center' }}>
           <TextField size="small" type="date" label="Statement date" value={date} onChange={(e) => setDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField size="small" type="number" label="Balance on the bank statement" value={balance} onChange={(e) => setBalance(e.target.value)} slotProps={{ htmlInput: { step: '0.01' } }} sx={{ width: 240 }} />
+          <MoneyField size="small" label="Balance on the bank statement" value={balance} onValueChange={(v) => setBalance(v)} slotProps={{ htmlInput: { step: '0.01' } }} sx={{ width: 240 }} />
           <TextField size="small" label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} sx={{ flex: 1, minWidth: 200 }} />
         </Stack>
         {sheet.data?.previousDate && <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">Last reconciled through {sheet.data.previousDate}. Entries that were outstanding then are ticked.</Typography>}

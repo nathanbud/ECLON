@@ -56,6 +56,13 @@ let credentials: string | null = (() => {
 /** Fired when the server rejects the saved sign-in, or the person signs out. */
 export const SIGNED_OUT = 'coop:signed-out'
 
+/** Hands the sign-in to a window the app opened itself (a detached form), which starts without one. */
+export const currentCredentials = () => credentials
+export function adoptCredentials(token: string) {
+  credentials = token
+  try { sessionStorage.setItem(SESSION_KEY, token) } catch { /* storage unavailable */ }
+}
+
 const authHeader = () => (credentials ? `Basic ${credentials}` : '')
 
 export function signOut() {
@@ -638,17 +645,20 @@ export interface LoanAppTemplate {
   deductions: { id: number; description: string; behavior: number; formula: string | null; needsMemberAccount: boolean; hasMemberAccount: boolean }[]
   purposes: { id: number; name: string }[]; collateralTypes: { id: number; name: string }[]
   payoffs: { typeCode: number; typeName: string | null; refNo: number; status: number; outstanding: number; interestDue: number; daysPastDue: number }[]
+  setup: { termUnit: string | null; principalPayment: string | null; interestPayment: string | null; basedOn: string | null; diminish: string | null; penaltyRate: number | null; yearDays: number | null; collateralRequired: boolean; unsupported: string | null }
 }
 export interface LoanAppIn {
-  typeCode: number; amount: number; terms: number | null; purpose: number | null; loanClass: number | null; borrowerClass: number | null; collateralType: number | null
+  typeCode: number; amount: number; terms: number | null; termUnit: number | null; purpose: number | null; loanClass: number | null; borrowerClass: number | null; collateralType: number | null
   collateralAmount: number | null; collateralDescription: string | null; remarks: string | null; coMakers: number[]; deductions: { id: number; amount: number }[]
   payoffs: { typeCode: number; refNo: number; principal: number; interest: number; penalty: number }[]
 }
 export interface LoanAppCreated { applicationId: number; documentNo: string; refNo: number; firstDue: string; maturity: string; totalInterest: number; totalDeductions: number; netProceeds: number; scheduleRows: number }
+export interface LoanTypeOption { code: number; name: string; terms: number | null; rate: number | null; loans: number; available: boolean }
+export const getLoanTypes = (b: number, c: number) => getJson<LoanTypeOption[]>(`/api/members/${b}/${c}/loan-applications/types`)
 export const getLoanAppTemplate = (b: number, c: number, type: number) => getJson<LoanAppTemplate>(`/api/members/${b}/${c}/loan-applications/template?type=${type}`)
 export const createLoanApplication = (b: number, c: number, body: LoanAppIn) => send<LoanAppCreated>('POST', `/api/members/${b}/${c}/loan-applications`, body)
 
-export interface LoanApplicationItem { id: number; documentNo: string; clientId: number; clientName: string | null; typeCode: number; typeName: string | null; refNo: number; amount: number; terms: number; status: number; statusName: string; encodedByName: string | null; date: string }
+export interface LoanApplicationItem { id: number; documentNo: string; clientId: number; clientName: string | null; typeCode: number; typeName: string | null; refNo: number; amount: number; terms: number; status: number; statusName: string; encodedByName: string | null; date: string; voucherYear: number | null; voucherControlNo: number | null; branchCode: number }
 export interface LoanApplicationDetail { item: LoanApplicationItem; lines: { account: string | null; description: string; amount: number }[]; totalDeductions: number; netProceeds: number; problems: string[] }
 export const getLoanApplications = () => getJson<LoanApplicationItem[]>('/api/loan-applications/pending')
 export const getLoanApplication = (id: number) => getJson<LoanApplicationDetail>(`/api/loan-applications/${id}`)

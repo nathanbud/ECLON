@@ -7,18 +7,20 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import {
   FiAlertTriangle, FiCheckCircle, FiChevronDown, FiClock, FiEdit2, FiInfo, FiPlus, FiSave, FiSearch,
-  FiSlash, FiTrash2, FiX,
+  FiSlash, FiTrash2, FiUser, FiX,
 } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
 import {
-  getCapabilities, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, getMemberImage, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
+  getCapabilities, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
   type Change, type DetailField, type Lookups, type Member, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck, type ShareAccount,
 } from './api'
 import { appBackground, glass } from './glass'
 import { tileFill } from './theme'
-import { displayName, initials, memberNo, statusOf, type Id } from './clients'
+import { displayName, memberNo, statusOf, type Id } from './clients'
 import LoansTab from './LoansTab'
 import FindClientDialog, { FindBody } from './FindClientDialog'
+import MoneyField from './MoneyField'
+import { useMemberImage } from './memberImage'
 import { useMe } from './session'
 import { ToolbarPortal } from './toolbarSlot'
 
@@ -243,19 +245,6 @@ function PersonalTab({ m, lk }: { m: Member; lk?: Lookups }) {
   )
 }
 
-/** Loads a member's photo or signature; resolves to null when none is on file. */
-function useMemberImage(kind: 'photo' | 'signature', id: Id) {
-  const { data } = useQuery({
-    queryKey: ['member-image', kind, id],
-    queryFn: () => getMemberImage(kind, id.branchCode, id.clientId),
-    staleTime: 5 * 60_000,
-    retry: false,
-  })
-  // Object URLs hold the image in memory, so release each one when it is replaced or the page closes.
-  useEffect(() => () => { if (data) URL.revokeObjectURL(data) }, [data])
-  return data ?? null
-}
-
 /** Small, low-contrast tag: short, thin outline, regular weight. */
 const quietChip = {
   height: 20, fontSize: 11.5, fontWeight: 400, opacity: 0.9,
@@ -276,7 +265,7 @@ function ProfileHeader({ m, lk }: { m: Member; lk?: Lookups }) {
         width: 68, height: 68, fontSize: 24, fontWeight: 600, color: '#fff', borderRadius: '5px', flexShrink: 0,
         background: `linear-gradient(160deg, ${tileFill.orange}F2, ${tileFill.orange})`,
         boxShadow: '0 1px 2px rgba(0,0,0,0.14)',
-      }}>{initials(m)}</Avatar>
+      }}><FiUser size={34} aria-hidden /></Avatar>
       <Box sx={{ minWidth: 0, flex: 1 }}>
         {/* Status and alert: small outlined tags above the name, kept quiet so the name leads. */}
         <Box role="group" aria-label="Client status" sx={{ display: 'flex', gap: 0.75, mb: 0.75, flexWrap: 'wrap' }}>
@@ -605,7 +594,7 @@ function SharePaymentDialog({ id, account, onClose }: { id: Id; account: ShareAc
         {!receipt && (
           <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
             <Box sx={{ fontSize: 13 }}>{account.type ?? 'Share capital'} {account.refNoText ?? account.refNo} · balance {peso(account.balance)}</Box>
-            <TextField label="Amount" type="number" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
+            <MoneyField label="Amount" autoFocus value={amount} onValueChange={(v) => setAmount(v)} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
             <TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} helperText="Up to 8 letters or digits. Left empty, the system numbers it." />
             <TextField label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="SC" />
             <Box sx={{ fontSize: 12 }}>Cash goes into your own drawer and is posted to the ledger at once.</Box>
@@ -665,7 +654,7 @@ function ShareWithdrawalDialog({ id, account, onClose }: { id: Id; account: Shar
         {!done && (
           <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
             <Box sx={{ fontSize: 13 }}>{account.type ?? 'Share capital'} {account.refNoText ?? account.refNo} · balance {peso(account.balance)}</Box>
-            <TextField label="Amount" type="number" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
+            <MoneyField label="Amount" autoFocus value={amount} onValueChange={(v) => setAmount(v)} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
             <TextField label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="SC WITHDRAWAL" />
             <Box sx={{ fontSize: 12 }}>This creates a Cash Voucher that credits the member's vouchers-payable account. Nothing is posted until two other people approve and post it on the Disburse tab.</Box>
           </Box>
@@ -840,7 +829,7 @@ function SavingsCashDialog({ id, account, mode, onClose }: { id: Id; account: Sa
         {!receipt && (
           <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
             <Box sx={{ fontSize: 13 }}>{account.type ?? 'Savings'} {account.refNoText ?? account.refNo} · balance {peso(account.balance)}{account.held ? ` · on hold ${peso(account.held)}` : ''} · available {peso(account.available)}</Box>
-            <TextField label="Amount" type="number" autoFocus value={amount} onChange={(e) => { setAmount(e.target.value); setAskConfirm(false); setError(null) }} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
+            <MoneyField label="Amount" autoFocus value={amount} onValueChange={(v) => { setAmount(v); setAskConfirm(false); setError(null) }} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
             <TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} helperText="Up to 8 letters or digits. Left empty, the system numbers it." />
             <TextField label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder={withdraw ? 'SD WTH' : 'SD DEP'} />
             <Box sx={{ fontSize: 12 }}>{withdraw ? 'Cash is paid out of your own drawer and posted to the ledger at once.' : 'Cash goes into your own drawer and is posted to the ledger at once.'}</Box>
