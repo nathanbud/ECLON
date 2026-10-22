@@ -13,4 +13,15 @@ test.describe('sign-in', () => {
     await expect(page.getByRole('alert')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Sign in to Coop Platform' })).toBeVisible() // still signed out
   })
+
+  test('Arrow Down and Arrow Up move between the fields', async ({ page }) => {
+    await page.goto('/')
+    const username = page.getByLabel('Username')
+    const password = page.getByLabel('Password')
+    await username.click()
+    await page.keyboard.press('ArrowDown')
+    await expect(password).toBeFocused()
+    await page.keyboard.press('ArrowUp')
+    await expect(username).toBeFocused()
+  })
 })
