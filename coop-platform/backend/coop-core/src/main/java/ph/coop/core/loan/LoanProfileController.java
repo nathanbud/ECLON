@@ -81,8 +81,8 @@ class LoanProfileController {
         Setup setup = s.get(0);
 
         List<CoMaker> coMakers = jdbc.query("""
-                SELECT ClientIDCoMaker, CoMakerClientName, CONCAT_WS(', ', NULLIF(CoMakerAddress1, ''), NULLIF(CoMakerAddress2, '')) FROM comaker
-                WHERE CoMakerBR_CODE = ? AND CoMakerClientID = ? AND CoMakerSLC_CODE = 12 AND CoMakerSLT_CODE = ? AND CoMakerREF_NO = ? ORDER BY ID
+                SELECT CoMakerClientID, CoMakerClientName, CONCAT_WS(', ', NULLIF(CoMakerAddress1, ''), NULLIF(CoMakerAddress2, '')) FROM comaker
+                WHERE CoMakerBR_CODE = ? AND ClientIDCoMaker = ? AND CoMakerSLC_CODE = 12 AND CoMakerSLT_CODE = ? AND CoMakerREF_NO = ? ORDER BY ID
                 """, (rs, i) -> new CoMaker((Integer) rs.getObject(1), rs.getString(2), rs.getString(3)), branchCode, clientId, typeCode, refNo);
 
         List<Collateral> coll = jdbc.query("""

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createLoanApplication, getLoanAppTemplate, getLoanTypes, searchMembers, type LoanAppCreated, type Member } from './api'
 import { displayName, memberNo, statusOf } from './clients'
 import LoanApplicantCard from './LoanApplicantCard'
+import LoanRelatedTabs, { CoMakerPicker, CoMakerRows, type CoMakerHoldInput } from './LoanRelatedTabs'
 import { appear } from './motion'
 import { announceLoanApplicationSaved, openLoanApplicationWindow } from './detachedWindow'
 import type { ReactNode } from 'react'
@@ -58,7 +59,10 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
   const [collDesc, setCollDesc] = useState('')
   const [remarks, setRemarks] = useState('')
   const [coMakers, setCoMakers] = useState('')
+  const [coHolds, setCoHolds] = useState<Record<number, CoMakerHoldInput>>({})
   const [ded, setDed] = useState<Record<number, string>>({})
+  // Co-makers are kept as a comma-separated list of client numbers, which is what the save expects.
+  const coMakerIds = coMakers.split(/[\s,]+/).filter(Boolean).map(Number).filter((n) => Number.isInteger(n) && n > 0)
   const unitOf = (x: { termUnit: number }) => (unit ? Number(unit) : x.termUnit === 7 ? 7 : 4)
   const [done, setDone] = useState<LoanAppCreated | null>(null)
   const [cls, setCls] = useState('1')
@@ -69,12 +73,16 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
       typeCode, amount: Number(amount), terms: terms ? Number(terms) : null, termUnit: unit ? Number(unit) : null, purpose: purpose ? Number(purpose) : null, loanClass: 1, borrowerClass: Number(cls),
       collateralType: collType ? Number(collType) : null, collateralAmount: collAmount ? Number(collAmount) : null, collateralDescription: collDesc || null, remarks: remarks || null,
       coMakers: coMakers.split(/[\s,]+/).filter(Boolean).map(Number),
+      coMakerHolds: coMakerIds.filter((id) => Number(coHolds[id]?.amount) > 0 && coHolds[id]?.account).map((id) => {
+        const [slc, slt, refNo] = coHolds[id].account.split('/').map(Number)
+        return { clientId: id, amount: Number(coHolds[id].amount), slc, slt, refNo }
+      }),
       deductions: Object.entries(ded).filter(([, v]) => Number(v) > 0).map(([id, v]) => ({ id: Number(id), amount: Number(v) })),
       payoffs: Object.entries(paid).map(([k, v]) => { const [typeCode, refNo] = k.split('/').map(Number); return { typeCode, refNo, principal: Number(v.principal) || 0, interest: Number(v.interest) || 0, penalty: Number(v.penalty) || 0 } }),
     }),
     onSuccess: (r) => { setDone(r); qc.invalidateQueries({ queryKey: ['member-loans', branchCode, clientId] }); if (embedded) announceLoanApplicationSaved(); onSaved?.(r) },
   })
-  const clear = () => { setAmount(''); setTerms(''); setUnit(''); setPurpose(''); setCollType(''); setCollAmount(''); setCollDesc(''); setRemarks(''); setCoMakers(''); setDed({}); setDone(null); setCls('1'); setPaid({}); save.reset() }
+  const clear = () => { setAmount(''); setTerms(''); setUnit(''); setPurpose(''); setCollType(''); setCollAmount(''); setCollDesc(''); setRemarks(''); setCoMakers(''); setCoHolds({}); setDed({}); setDone(null); setCls('1'); setPaid({}); save.reset() }
   const pick = (m: Member | null) => { clear(); setPicked(m); if (m == null) { setText(''); setQ('') } }
   const paidTotal = Object.values(paid).reduce((s, v) => s + (Number(v.principal) || 0) + (Number(v.interest) || 0) + (Number(v.penalty) || 0), 0)
   const total = Object.values(ded).reduce((s, v) => s + (Number(v) || 0), 0) + paidTotal
@@ -150,35 +158,52 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
               </Box>
               {t.setup.unsupported && <Alert severity="warning" sx={{ mt: 1.25 }}>{t.setup.unsupported}</Alert>}
             </Box>
-            <TextField size="small" select label="Loan classification" value={cls} onChange={(e) => setCls(e.target.value)} sx={{ maxWidth: 260 }}
-              helperText={cls === '3' ? 'A restructured loan must pay off the loan it restructures.' : undefined}>
-              <MenuItem value="1">New</MenuItem><MenuItem value="2">Renewal</MenuItem><MenuItem value="3">Restructured</MenuItem>
-            </TextField>
-            {!t.hasVouchersPayable && <Alert severity="info">This member has no vouchers-payable account yet. Saving the application opens one, as the old system does.</Alert>}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 1.25 }}>
-              <MoneyField size="small" label="Principal" value={amount} onValueChange={(v) => setAmount(v)} required />
-              {/* One field: the number and its unit share a single outline. */}
-              <TextField size="small" label="Term" type="number" value={terms} onChange={(e) => setTerms(e.target.value)} placeholder={unitOf(t) === t.termUnit ? String(t.terms) : undefined}
-                slotProps={{ input: { endAdornment: (
-                  <InputAdornment position="end">
-                    <Select variant="standard" disableUnderline value={String(unitOf(t))} onChange={(e) => setUnit(String(e.target.value))} inputProps={{ 'aria-label': 'Term unit' }}
-                      sx={{ fontSize: 14, color: 'text.secondary', '& .MuiSelect-select': { py: 0, pr: '20px !important' } }}>
-                      <MenuItem value="4">Months</MenuItem><MenuItem value="7">Years</MenuItem>
-                    </Select>
-                  </InputAdornment>
-                ) } }} />
-              <TextField size="small" label="Interest % p.a." value={t.interestRate.toFixed(5)} slotProps={{ input: { readOnly: true } }} />
-              <TextField size="small" select label="Purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)}>
-                {t.purposes.map((p) => <MenuItem key={p.id} value={String(p.id)}>{p.name}</MenuItem>)}
-              </TextField>
-              <TextField size="small" select label="Collateral type" value={collType} onChange={(e) => setCollType(e.target.value)}>
-                {t.collateralTypes.map((p) => <MenuItem key={p.id} value={String(p.id)}>{p.name}</MenuItem>)}
-              </TextField>
-              <MoneyField size="small" label="Collateral amount" value={collAmount} onValueChange={(v) => setCollAmount(v)} />
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, alignItems: 'start' }}>
+              {/* Left half: the loan itself. Right half: everything related to it, one tab each. */}
+              <Box sx={{ display: 'grid', gap: 1.5 }}>
+                <TextField size="small" select label="Loan classification" value={cls} onChange={(e) => setCls(e.target.value)} fullWidth
+                  helperText={cls === '3' ? 'A restructured loan must pay off the loan it restructures.' : undefined}>
+                  <MenuItem value="1">New</MenuItem><MenuItem value="2">Renewal</MenuItem><MenuItem value="3">Restructured</MenuItem>
+                </TextField>
+                {!t.hasVouchersPayable && <Alert severity="info">This member has no vouchers-payable account yet. Saving the application opens one, as the old system does.</Alert>}
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25 }}>
+                  <MoneyField size="small" label="Principal" value={amount} onValueChange={(v) => setAmount(v)} required />
+                  {/* One field: the number and its unit share a single outline. */}
+                  <TextField size="small" label="Term" type="number" value={terms} onChange={(e) => setTerms(e.target.value)} placeholder={unitOf(t) === t.termUnit ? String(t.terms) : undefined}
+                    slotProps={{ input: { endAdornment: (
+                      <InputAdornment position="end">
+                        <Select variant="standard" disableUnderline value={String(unitOf(t))} onChange={(e) => setUnit(String(e.target.value))} inputProps={{ 'aria-label': 'Term unit' }}
+                          sx={{ fontSize: 14, color: 'text.secondary', '& .MuiSelect-select': { py: 0, pr: '20px !important' } }}>
+                          <MenuItem value="4">Months</MenuItem><MenuItem value="7">Years</MenuItem>
+                        </Select>
+                      </InputAdornment>
+                    ) } }} />
+                  <TextField size="small" label="Interest % p.a." value={t.interestRate.toFixed(5)} slotProps={{ input: { readOnly: true } }} />
+                  <TextField size="small" select label="Purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)}>
+                    {t.purposes.map((p) => <MenuItem key={p.id} value={String(p.id)}>{p.name}</MenuItem>)}
+                  </TextField>
+                </Box>
+                <TextField size="small" label="Remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} multiline minRows={2} />
+              </Box>
+              <LoanRelatedTabs branchCode={branchCode} clientId={clientId}
+                coMakers={
+                  <>
+                    <CoMakerPicker applicant={clientId} ids={coMakerIds} onAdd={(id) => setCoMakers([...coMakerIds, id].join(','))} />
+                    <CoMakerRows branchCode={branchCode} applicant={clientId} ids={coMakerIds} holds={coHolds}
+                      onChange={(id, v) => setCoHolds({ ...coHolds, [id]: v })}
+                      onRemove={(id) => { setCoMakers(coMakerIds.filter((x) => x !== id).join(',')); const next = { ...coHolds }; delete next[id]; setCoHolds(next) }} />
+                  </>
+                }
+                collateral={
+                  <Box sx={{ display: 'grid', gap: 1.25 }}>
+                    <TextField size="small" select label="Collateral type" value={collType} onChange={(e) => setCollType(e.target.value)}>
+                      {t.collateralTypes.map((p) => <MenuItem key={p.id} value={String(p.id)}>{p.name}</MenuItem>)}
+                    </TextField>
+                    <MoneyField size="small" label="Collateral amount" value={collAmount} onValueChange={(v) => setCollAmount(v)} />
+                    <TextField size="small" label="Collateral description" value={collDesc} onChange={(e) => setCollDesc(e.target.value)} multiline minRows={2} />
+                  </Box>
+                } />
             </Box>
-            <TextField size="small" label="Collateral description" value={collDesc} onChange={(e) => setCollDesc(e.target.value)} />
-            <TextField size="small" label="Remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
-            <TextField size="small" label="Co-maker client IDs (separated by commas)" value={coMakers} onChange={(e) => setCoMakers(e.target.value)} />
             </>}
             {showDeduction && <>
             {!showProfile && (

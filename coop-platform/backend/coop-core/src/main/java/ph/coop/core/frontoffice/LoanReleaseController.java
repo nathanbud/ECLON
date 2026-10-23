@@ -48,9 +48,11 @@ class LoanReleaseController {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final SingleHandGrants single;
+    private final ph.coop.core.loan.CoMakerHolds coMakerHolds;
 
-    LoanReleaseController(FrontOfficeAccess access, MemberLedgerPoster poster, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, SingleHandGrants single) {
+    LoanReleaseController(FrontOfficeAccess access, MemberLedgerPoster poster, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, SingleHandGrants single, ph.coop.core.loan.CoMakerHolds coMakerHolds) {
         this.single = single;
+        this.coMakerHolds = coMakerHolds;
         this.access = access;
         this.poster = poster;
         this.jdbc = jdbc;
@@ -124,7 +126,8 @@ class LoanReleaseController {
                 }
                 poster.writeGlLine(p.branch(), l.account(), day, CODE, l.dept(), l.amount(), stamp);
             }
-            audit(auth, "loan.release.post", p, year, controlNo, "client " + v.clientId() + " loan " + v.loanAmount().toPlainString() + " doc " + v.documentNo());
+            int held = coMakerHolds.placeForVoucher(p.branch(), year, controlNo, p.id(), day);
+            audit(auth, "loan.release.post", p, year, controlNo, "client " + v.clientId() + " loan " + v.loanAmount().toPlainString() + " doc " + v.documentNo() + (held > 0 ? " co-maker holds " + held : ""));
             return load(p.branch(), year, controlNo, false);
         });
     }

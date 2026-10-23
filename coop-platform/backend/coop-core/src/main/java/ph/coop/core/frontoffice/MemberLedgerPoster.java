@@ -75,9 +75,8 @@ class MemberLedgerPoster {
     Account account(Master m, int branch, int clientId, int typeCode, int refNo) {
         String p = m.prefix();
         String maxCol = m.slc() == 31 ? "s.SCMAX_BAL" : "NULL";
-        String holds = m.slc() == 22
-            ? "(SELECT COALESCE(SUM(h.HHELD_AMT), 0) FROM hold h WHERE h.HBR_CODE = s." + p + "BR_CODE AND h.ClientID" + "H = s.ClientID" + p + " AND h.HSLC_CODE = s." + p + "SLC_CODE AND h.HSLT_CODE = s." + p + "SLT_CODE AND h.HREF_NO = s." + p + "REF_NO)"
-            : "0";
+        // savings and share capital both carry holds (a co-maker's agreed amount sits on share capital)
+        String holds = "(SELECT COALESCE(SUM(h.HHELD_AMT), 0) FROM hold h WHERE h.HBR_CODE = s." + p + "BR_CODE AND h.ClientID" + "H = s.ClientID" + p + " AND h.HSLC_CODE = s." + p + "SLC_CODE AND h.HSLT_CODE = s." + p + "SLT_CODE AND h.HREF_NO = s." + p + "REF_NO)";
         List<Account> found = jdbc.query("SELECT s." + p + "STATUS, s." + p + "MIN_BAL, " + maxCol + ", t.SLTypeM_DESC, s." + p + "REF_NOX, "
             + "(SELECT COALESCE(-SUM(d.AMT), 0) FROM sldtl d WHERE d.SL_BRCODE = s." + p + "BR_CODE AND d.SL_CLIENTID = s.ClientID" + p + " AND d.SLC_CODE = s." + p + "SLC_CODE"
             + " AND d.SLT_CODE = s." + p + "SLT_CODE AND d.REF_NO = s." + p + "REF_NO AND d.SLE_CODE = 11), " + holds

@@ -494,7 +494,7 @@ export const getOperations = (branchCode: number, from: string, to: string) =>
 
 export interface ShareAccount {
   typeCode: number; type: string | null; refNo: number; refNoText: string | null; opened: string | null
-  status: number; statusName: string; minimumBalance: number | null; balance: number; lastActivity: string | null
+  status: number; statusName: string; minimumBalance: number | null; balance: number; lastActivity: string | null; held: number
 }
 export interface ShareSummary { accounts: ShareAccount[]; totalBalance: number }
 export interface ShareEntry { date: string; glDate: string | null; transactionCode: number; transaction: string | null; documentNo: string | null; amount: number; balanceAfter: number }
@@ -651,15 +651,19 @@ export interface LoanAppIn {
   typeCode: number; amount: number; terms: number | null; termUnit: number | null; purpose: number | null; loanClass: number | null; borrowerClass: number | null; collateralType: number | null
   collateralAmount: number | null; collateralDescription: string | null; remarks: string | null; coMakers: number[]; deductions: { id: number; amount: number }[]
   payoffs: { typeCode: number; refNo: number; principal: number; interest: number; penalty: number }[]
+  coMakerHolds: { clientId: number; amount: number; slc: number; slt: number; refNo: number }[]
 }
 export interface LoanAppCreated { applicationId: number; documentNo: string; refNo: number; firstDue: string; maturity: string; totalInterest: number; totalDeductions: number; netProceeds: number; scheduleRows: number }
 export interface LoanTypeOption { code: number; name: string; terms: number | null; rate: number | null; loans: number; available: boolean }
 export const getLoanTypes = (b: number, c: number) => getJson<LoanTypeOption[]>(`/api/members/${b}/${c}/loan-applications/types`)
+export interface CoMakerAccount { slc: number; slt: number; refNo: number; type: string | null; balance: number; held: number; available: number; preferred: boolean }
+export const getCoMakerAccounts = (b: number, c: number, comaker: number) => getJson<CoMakerAccount[]>(`/api/members/${b}/${c}/loan-applications/comaker-accounts?comaker=${comaker}`)
 export const getLoanAppTemplate = (b: number, c: number, type: number) => getJson<LoanAppTemplate>(`/api/members/${b}/${c}/loan-applications/template?type=${type}`)
 export const createLoanApplication = (b: number, c: number, body: LoanAppIn) => send<LoanAppCreated>('POST', `/api/members/${b}/${c}/loan-applications`, body)
 
 export interface LoanApplicationItem { id: number; documentNo: string; clientId: number; clientName: string | null; typeCode: number; typeName: string | null; refNo: number; amount: number; terms: number; status: number; statusName: string; encodedByName: string | null; date: string; voucherYear: number | null; voucherControlNo: number | null; branchCode: number }
-export interface LoanApplicationDetail { item: LoanApplicationItem; lines: { account: string | null; description: string; amount: number }[]; totalDeductions: number; netProceeds: number; problems: string[] }
+export interface CoMakerHoldSaved { clientId: number; name: string | null; amount: number; slc: number; slt: number; refNo: number; accountType: string | null; placed: boolean }
+export interface LoanApplicationDetail { item: LoanApplicationItem; lines: { account: string | null; description: string; amount: number }[]; totalDeductions: number; netProceeds: number; problems: string[]; coMakerHolds: CoMakerHoldSaved[] }
 export const getLoanApplications = () => getJson<LoanApplicationItem[]>('/api/loan-applications/pending')
 export const getLoanApplication = (id: number) => getJson<LoanApplicationDetail>(`/api/loan-applications/${id}`)
 export const verifyLoanApplication = (id: number) => send<LoanApplicationItem>('POST', `/api/loan-applications/${id}/verify`)
@@ -671,3 +675,68 @@ export const grantSingleHand = (username: string, reason: string) => send<Single
 export const revokeSingleHand = (username: string) => send<void>('DELETE', `/api/admin/single-hand-loans/${encodeURIComponent(username)}`)
 export const cancelLoanApplication = (id: number, reason: string) => send<LoanApplicationItem>('POST', `/api/loan-applications/${id}/cancel`, { reason })
 export const disapproveLoanApplication = (id: number, reason: string) => send<LoanApplicationItem>('POST', `/api/loan-applications/${id}/disapprove`, { reason })
+
+// ---- audit log (administrators) -----------------------------------------------------------------------------------
+
+export interface AuditEntry {
+  id: number; at: string; username: string; action: string; entity: string; entityId: string
+  previous: string | null; current: string | null; reason: string | null
+}
+export interface AuditFilter { user?: string; entity?: string; action?: string; q?: string; from?: string; to?: string }
+export const getAuditLog = (f: AuditFilter, page: number, size: number) => {
+  const p = new URLSearchParams({ page: String(page), size: String(size) })
+  for (const [k, v] of Object.entries(f)) if (v) p.set(k, v)
+  return getJson<{ content: AuditEntry[]; totalElements: number; number: number; size: number }>(`/api/admin/audit-log?${p}`)
+}
+export const getAuditFacets = () => getJson<{ entities: string[]; actions: string[]; users: string[] }>('/api/admin/audit-log/facets')
+
+// ---- loan setup (administrators) ----------------------------------------------------------------------------------
+
+export interface LoanSetupType {
+  code: number; name: string; fullName: string | null; terms: number | null; termUnit: number | null; principalMode: number | null; interestMode: number | null
+  amortization: number | null; interestRate: number | null; penaltyRate: number | null; serviceFeeRate: number | null; minCoMakers: number | null
+  requireCollateral: boolean; priority: number | null; yearDays: number | null; disabled: boolean; loans: number; applications: number; unavailable: string | null
+}
+export type LoanSetupForm = Omit<LoanSetupType, 'code' | 'loans' | 'applications' | 'unavailable'> & { reason: string }
+export interface SetupOption { id: number; name: string }
+export interface LoanSetupLists { termUnits: SetupOption[]; paymentModes: SetupOption[]; amortizations: SetupOption[]; loanClasses: SetupOption[] }
+export interface SetupNamed { id: number; name: string; loanClass: number | null; uses: number }
+
+const SETUP = '/api/admin/loan-setup'
+export const getLoanSetupTypes = () => getJson<LoanSetupType[]>(`${SETUP}/types`)
+export const getLoanSetupLists = () => getJson<LoanSetupLists>(`${SETUP}/lists`)
+export const createLoanType = (copyFrom: number, f: LoanSetupForm) => send<LoanSetupType>('POST', `${SETUP}/types?copyFrom=${copyFrom}`, f)
+export const updateLoanType = (code: number, f: LoanSetupForm) => send<LoanSetupType>('PUT', `${SETUP}/types/${code}`, f)
+export const getSetupPurposes = () => getJson<SetupNamed[]>(`${SETUP}/purposes`)
+export const getSetupCollateral = () => getJson<SetupNamed[]>(`${SETUP}/collateral-types`)
+export const saveSetupNamed = (kind: 'purposes' | 'collateral-types', id: number | null, v: { name: string; loanClass: number | null; reason: string }) =>
+  send<SetupNamed>(id == null ? 'POST' : 'PUT', id == null ? `${SETUP}/${kind}` : `${SETUP}/${kind}/${id}`, v)
+export const deleteSetupNamed = (kind: 'purposes' | 'collateral-types', id: number, reason: string) =>
+  send<void>('DELETE', `${SETUP}/${kind}/${id}?reason=${encodeURIComponent(reason)}`)
+
+// ---- co-maker holds: the note on a member's accounts, and the setup of which deposits can be held ------------------------------------------
+
+export interface CoMakerPlaced { amount: number; slc: number; slt: number; refNo: number; accountType: string | null; borrower: string; reference: string | null; since: string | null }
+export interface CoMakerPending { amount: number; slc: number; slt: number; refNo: number; accountType: string | null; borrower: string | null; applicationId: number }
+export interface CoMakerNotice { placed: CoMakerPlaced[]; pending: CoMakerPending[]; totalHeld: number; totalPending: number }
+export const getCoMakerNotice = (b: number, c: number) => getJson<CoMakerNotice>(`/api/members/${b}/${c}/comaker-holds`)
+
+export interface HoldSetupRow { slc: number; slt: number; group: string; name: string; holdable: boolean; isDefault: boolean; holds: number }
+export const getHoldSetup = () => getJson<HoldSetupRow[]>('/api/admin/hold-setup')
+export const setHoldable = (slc: number, slt: number, holdable: boolean, reason: string) => send<HoldSetupRow>('PUT', `/api/admin/hold-setup/${slc}/${slt}`, { holdable, reason })
+export const setHoldDefault = (slc: number, slt: number, reason: string) => send<HoldSetupRow>('PUT', '/api/admin/hold-setup/default', { slc, slt, reason })
+
+// ---- chart of accounts (administrators and accountants) -------------------------------------------------------------
+
+export interface ChartAccount {
+  code: string; name: string | null; type: number; typeName: string | null; summary: boolean; parent: string | null
+  disabled: boolean; glOnly: boolean; hasChildren: boolean; inUse: boolean
+}
+export interface ChartUsage { code: string; entries: number; children: number; usedBy: string[] }
+export interface ChartForm { code?: string; name?: string; summary?: boolean; parent?: string | null; glOnly?: boolean; disabled?: boolean; reason: string }
+
+const CHART = '/api/accounting/chart'
+export const getChart = () => getJson<ChartAccount[]>(CHART)
+export const getChartUsage = (code: string) => getJson<ChartUsage>(`${CHART}/${encodeURIComponent(code)}/usage`)
+export const createChartAccount = (f: ChartForm) => send<ChartAccount>('POST', CHART, f)
+export const updateChartAccount = (code: string, f: ChartForm) => send<ChartAccount>('PUT', `${CHART}/${encodeURIComponent(code)}`, f)

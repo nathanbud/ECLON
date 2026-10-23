@@ -1,19 +1,17 @@
 import { Alert, Box, Button, Chip, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   approveLoanApplication, approveLoanRelease, cancelLoanApplication, disapproveLoanApplication, getLoanApplication, getLoanRelease, postLoanRelease, verifyLoanApplication,
   type LoanApplicationDetail,
 } from './api'
-import { announceLoanApplicationSaved, FORM_SIZE, resizeThisWindow, SEARCH_SIZE } from './detachedWindow'
+import { announceLoanApplicationSaved, closeThisWindow, FORM_SIZE, resizeThisWindow, SEARCH_SIZE } from './detachedWindow'
 import { appear } from './motion'
 import { money } from './FoTransactionForm'
 import LoanApplicationDialog from './LoanApplicationDialog'
 import LoanApplicantCard from './LoanApplicantCard'
 import LoanStepper from './LoanStepper'
 
-const inTauri = '__TAURI_INTERNALS__' in window
 
 const STEPS = [{ label: 'Profiling' }, { label: 'Deduction' }, { label: 'Verification' }, { label: 'Approval' }, { label: 'Loan Release' }]
 const NEW = 1, VERIFIED = 2, APPROVED = 3, DISAPPROVED = 4, CANCELLED = 5
@@ -45,6 +43,16 @@ function Summary({ d }: { d: LoanApplicationDetail }) {
       <Typography sx={{ fontSize: 13 }} color="text.secondary">
         {a.documentNo} · {a.typeName} · {a.terms} months · loan ref {a.refNo} · encoded by {a.encodedByName ?? '—'} on {a.date}
       </Typography>
+      {d.coMakerHolds.length > 0 && (
+        <Box sx={{ mt: 1 }}>
+          <Typography sx={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }} color="text.secondary">Co-maker holds</Typography>
+          {d.coMakerHolds.map((h) => (
+            <Typography key={h.clientId} sx={{ fontSize: 13, ...cell }}>
+              {h.name ?? `Client ${h.clientId}`} · {money(h.amount)} on {h.accountType ?? h.slt} {h.refNo} · {h.placed ? 'held' : 'held when the release is posted'}
+            </Typography>
+          ))}
+        </Box>
+      )}
     </Box>
   )
 }
@@ -83,7 +91,7 @@ export default function LoanApplicationWindow() {
   const [error, setError] = useState<string | null>(null)
   const [ending, setEnding] = useState<'cancel' | 'disapprove' | null>(null)
   const [reason, setReason] = useState('')
-  const close = () => { if (inTauri) void getCurrentWindow().close(); else window.close() }
+  const close = () => { void closeThisWindow() }
 
   const detail = useQuery({ queryKey: ['loan-application', appId], queryFn: () => getLoanApplication(appId!), enabled: appId != null, retry: false })
   const d = detail.data

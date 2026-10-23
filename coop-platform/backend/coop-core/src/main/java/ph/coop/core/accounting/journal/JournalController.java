@@ -5,6 +5,7 @@ import ph.coop.core.db.Db;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -244,8 +245,10 @@ class JournalController {
 
     private void requireKnownAccounts(int branch, List<JournalLine> lines) {
         for (JournalLine l : lines) {
-            Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM coa WHERE COABR_CODE = ? AND COAID = ?", Integer.class, branch, l.accountCode());
-            if (n == null || n == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown account " + l.accountCode() + ".");
+            List<Map<String, Object>> a = jdbc.queryForList("SELECT COAacct_tag, COALESCE(COAisdisabled, 0) AS off FROM coa WHERE COABR_CODE = ? AND COAID = ?", branch, l.accountCode());
+            if (a.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown account " + l.accountCode() + ".");
+            if ("S".equals(a.get(0).get("COAacct_tag"))) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account " + l.accountCode() + " is a summary account and takes no postings.");
+            if (((Number) a.get(0).get("off")).intValue() != 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account " + l.accountCode() + " is switched off.");
         }
     }
 

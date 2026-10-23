@@ -11,12 +11,14 @@ import FrontOfficePage from './FrontOfficePage'
 import LoanApplicationDialog from './LoanApplicationDialog'
 import TopBar from './TopBar'
 import UsersPage from './UsersPage'
+import AuditLogPage from './AuditLogPage'
+import LoanSetupPage from './LoanSetupPage'
 import AccountingPage from './AccountingPage'
 import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
 const titles: Record<View, string> = {
-  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', frontoffice: 'Front Office', loanapp: 'Coop Platform',
+  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', frontoffice: 'Front Office', loanapp: 'Coop Platform',
 }
 
 function Signed() {
@@ -43,6 +45,8 @@ function Signed() {
         {view === 'accounting' && <AccountingPage />}
         {view === 'approvals' && <ApprovalsPage onOpenClient={openClient} />}
         {view === 'users' && <UsersPage />}
+        {view === 'audit' && <AuditLogPage />}
+        {view === 'loansetup' && <LoanSetupPage />}
         {view === 'frontoffice' && <FrontOfficePage />}
       </ErrorBoundary>
     </ToolbarSlotProvider>

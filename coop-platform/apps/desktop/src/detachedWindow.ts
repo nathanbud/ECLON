@@ -10,7 +10,7 @@ const CLOSE_ALL = 'coop:close-detached'
 export const LOAN_APP_ROUTE = '#/loan-application'
 
 export const SEARCH_SIZE = { w: 560, h: 520 }
-export const FORM_SIZE = { w: 900, h: 760 }
+export const FORM_SIZE = { w: 1120, h: 780 }
 
 interface Start { branchCode?: number; clientId?: number; typeCode?: number; applicationId?: number }
 
@@ -27,7 +27,7 @@ export function openLoanApplicationWindow(start: Start): boolean {
   if (!inTauri) return window.open(`${window.location.pathname}${hash}`, '_blank', 'popup,width=900,height=760') != null
   import('@tauri-apps/api/webviewWindow').then(({ WebviewWindow }) => {
     const w = new WebviewWindow(`loanapp-${Date.now()}`, {
-      url: `index.html${hash}`, title: 'New loan application', width: small ? SEARCH_SIZE.w : FORM_SIZE.w, height: small ? SEARCH_SIZE.h : FORM_SIZE.h, minWidth: 480, minHeight: 400, decorations: true, center: true,
+      url: `index.html${hash}`, title: 'New loan application', visible: false, width: small ? SEARCH_SIZE.w : FORM_SIZE.w, height: small ? SEARCH_SIZE.h : FORM_SIZE.h, minWidth: 480, minHeight: 400, decorations: true, center: true,
     })
     w.once('tauri://error', (e) => console.error('Could not open the loan application window', e))
   })
@@ -55,8 +55,7 @@ export async function serveDetachedWindows(onSaved: () => void): Promise<() => v
 export async function adoptSessionFromMainWindow(): Promise<void> {
   if (currentCredentials() || !inTauri) return
   const { listen, emit } = await import('@tauri-apps/api/event')
-  const { getCurrentWindow } = await import('@tauri-apps/api/window')
-  await listen(CLOSE_ALL, () => { void getCurrentWindow().close() })
+  await listen(CLOSE_ALL, () => { void closeThisWindow() })
   await new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, 2000) // no main window answered: the normal sign-in screen shows
     void listen<string>(SESSION, (e) => { adoptCredentials(e.payload); clearTimeout(timer); resolve() }).then(() => emit(NEED_SESSION))
@@ -101,4 +100,39 @@ export async function resizeThisWindow(to: { w: number; h: number }): Promise<vo
     }
     requestAnimationFrame(step)
   })
+}
+
+/**
+ * In a detached window, once the first screen has painted: shows the window (it is created hidden so there is no blank flash) and lets the
+ * content ease in. If anything goes wrong the window is shown anyway after a few seconds.
+ */
+let revealed = false
+
+export async function revealThisWindow(): Promise<void> {
+  if (revealed) return
+  revealed = true
+  const root = document.documentElement
+  if (!inTauri) { root.dataset.win = 'in'; return }
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  const win = getCurrentWindow()
+  // Closing by the title bar goes through the same fade as the Close button.
+  await win.onCloseRequested((e) => { e.preventDefault(); void closeThisWindow() })
+  await win.show()
+  root.dataset.win = 'in'
+  await win.setFocus()
+}
+
+let closing = false
+
+/** Eases the content out, then closes this window. Closes at once when the system asks for less motion. */
+export async function closeThisWindow(): Promise<void> {
+  if (closing) return
+  closing = true
+  if (!inTauri) { window.close(); return }
+  if (!reducedMotion()) {
+    document.documentElement.dataset.win = 'out'
+    await new Promise((r) => setTimeout(r, 180))
+  }
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  await getCurrentWindow().destroy()
 }

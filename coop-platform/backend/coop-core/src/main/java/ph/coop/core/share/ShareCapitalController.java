@@ -37,7 +37,7 @@ class ShareCapitalController {
     }
 
     record Account(int typeCode, String type, int refNo, String refNoText, LocalDate opened, int status, String statusName,
-                   BigDecimal minimumBalance, BigDecimal balance, LocalDate lastActivity) {}
+                   BigDecimal minimumBalance, BigDecimal balance, LocalDate lastActivity, BigDecimal held) {}
 
     record Summary(List<Account> accounts, BigDecimal totalBalance) {}
 
@@ -58,7 +58,9 @@ class ShareCapitalController {
                        AND d.SLT_CODE = s.SCSLT_CODE AND d.REF_NO = s.SCREF_NO),
                    (SELECT MAX(d.TR_DATE) FROM sldtl d
                      WHERE d.SL_BRCODE = s.SCBR_CODE AND d.SL_CLIENTID = s.ClientIDSC AND d.SLC_CODE = s.SCSLC_CODE
-                       AND d.SLT_CODE = s.SCSLT_CODE AND d.REF_NO = s.SCREF_NO)
+                       AND d.SLT_CODE = s.SCSLT_CODE AND d.REF_NO = s.SCREF_NO),
+                   (SELECT COALESCE(SUM(h.HHELD_AMT), 0) FROM hold h WHERE h.HBR_CODE = s.SCBR_CODE AND h.ClientIDH = s.ClientIDSC AND h.HSLC_CODE = s.SCSLC_CODE
+                       AND h.HSLT_CODE = s.SCSLT_CODE AND h.HREF_NO = s.SCREF_NO)
             FROM sc s
             LEFT JOIN sltype t ON t.SLTypeBR_CODE = s.SCBR_CODE AND t.SLTypeSLC_CODE = s.SCSLC_CODE AND t.SLTypeSLT_CODE = s.SCSLT_CODE
             WHERE s.SCBR_CODE = ? AND s.ClientIDSC = ? AND s.SCSLC_CODE = ?
@@ -69,7 +71,7 @@ class ShareCapitalController {
         java.sql.Date last = rs.getDate(9);
         int status = rs.getInt(6);
         return new Account(rs.getInt(1), rs.getString(2), rs.getInt(3), rs.getString(4), opened == null ? null : opened.toLocalDate(), status, statusName(status),
-                rs.getBigDecimal(7), rs.getBigDecimal(8), last == null ? null : last.toLocalDate());
+                rs.getBigDecimal(7), rs.getBigDecimal(8), last == null ? null : last.toLocalDate(), rs.getBigDecimal(10));
     }
 
     @GetMapping

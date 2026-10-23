@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
 import {
-  getCapabilities, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
+  getCapabilities, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, getCoMakerNotice, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
   type Change, type DetailField, type Lookups, type Member, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck, type ShareAccount,
 } from './api'
 import { appBackground, glass } from './glass'
@@ -513,6 +513,34 @@ function BillingTab({ id }: { id: Id }) {
 
 const peso = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
 
+/** Says on a member's accounts when part of the money is held because they are a co-maker for someone else's loan, or has agreed to be. */
+function CoMakerNote({ id }: { id: Id }) {
+  const { data } = useQuery({ queryKey: ['comaker-notice', id], queryFn: () => getCoMakerNotice(id.branchCode, id.clientId), staleTime: 60_000 })
+  if (!data || (data.placed.length === 0 && data.pending.length === 0)) return null
+  return (
+    <Alert severity="info" icon={<FiInfo />} sx={{ mb: 1.5, alignItems: 'flex-start' }}>
+      {data.placed.length > 0 && (
+        <Box>
+          <strong>{peso(data.totalHeld)} is on hold because this member is a co-maker.</strong>
+          {data.placed.map((p, i) => (
+            <Box key={i} sx={{ fontSize: 13 }}>
+              {peso(p.amount)} on {p.accountType ?? 'account'} {p.refNo} · co-maker for {p.borrower}{p.reference ? ` (${p.reference})` : ''}{p.since ? ` since ${fmtDate(p.since)}` : ''}
+            </Box>
+          ))}
+        </Box>
+      )}
+      {data.pending.length > 0 && (
+        <Box sx={{ mt: data.placed.length > 0 ? 1 : 0 }}>
+          <strong>Agreed to co-make, not held yet.</strong> It will be put on hold when the loan is released.
+          {data.pending.map((p, i) => (
+            <Box key={i} sx={{ fontSize: 13 }}>{peso(p.amount)} on {p.accountType ?? 'account'} {p.refNo} · co-maker for {p.borrower ?? 'a borrower'} (application {p.applicationId})</Box>
+          ))}
+        </Box>
+      )}
+    </Alert>
+  )
+}
+
 function ShareCapitalTab({ id }: { id: Id }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
   const [withdrawing, setWithdrawing] = useState<ShareAccount | null>(null)
@@ -523,12 +551,13 @@ function ShareCapitalTab({ id }: { id: Id }) {
   if (!data || data.accounts.length === 0) return <EmptyState icon={<FiInfo />} title="No share capital" hint="This client has no share capital accounts." />
   return (
     <>
+      <CoMakerNote id={id} />
       <TableCard>
         <Table size="small" aria-label="Share capital accounts">
           <TableHead>
             <TableRow>
               <TableCell>Type</TableCell><TableCell>Account no.</TableCell><TableCell>Opened</TableCell><TableCell>Status</TableCell>
-              <TableCell>Last activity</TableCell><TableCell align="right">Minimum</TableCell><TableCell align="right">Balance</TableCell><TableCell />
+              <TableCell>Last activity</TableCell><TableCell align="right">Minimum</TableCell><TableCell align="right">On hold</TableCell><TableCell align="right">Balance</TableCell><TableCell />
             </TableRow>
           </TableHead>
           <TableBody>
@@ -537,15 +566,16 @@ function ShareCapitalTab({ id }: { id: Id }) {
                 <TableCell>{a.type ?? `Type ${a.typeCode}`}</TableCell><TableCell>{a.refNoText ?? a.refNo}</TableCell>
                 <TableCell>{fmtDate(a.opened) ?? '—'}</TableCell><TableCell>{a.statusName}</TableCell><TableCell>{fmtDate(a.lastActivity) ?? '—'}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{peso(a.minimumBalance)}</TableCell>
+                <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{a.held > 0 ? peso(a.held) : '—'}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{peso(a.balance)}</TableCell>
                 <TableCell align="right">
                   {a.status === 15 && <Button size="small" onClick={(e) => { e.stopPropagation(); setPaying(a) }}>Post payment</Button>}
-                  {a.status === 15 && a.balance > 0 && <Button size="small" onClick={(e) => { e.stopPropagation(); setWithdrawing(a) }}>Withdraw</Button>}
+                  {a.status === 15 && a.balance - a.held > 0 && <Button size="small" onClick={(e) => { e.stopPropagation(); setWithdrawing(a) }}>Withdraw</Button>}
                 </TableCell>
               </TableRow>
             ))}
             <TableRow>
-              <TableCell colSpan={6} sx={{ fontWeight: 700 }}>Total share capital</TableCell>
+              <TableCell colSpan={7} sx={{ fontWeight: 700 }}>Total share capital</TableCell>
               <TableCell align="right" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{peso(data.totalBalance)}</TableCell>
               <TableCell />
             </TableRow>
@@ -653,7 +683,7 @@ function ShareWithdrawalDialog({ id, account, onClose }: { id: Id; account: Shar
       <DialogContent>
         {!done && (
           <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
-            <Box sx={{ fontSize: 13 }}>{account.type ?? 'Share capital'} {account.refNoText ?? account.refNo} · balance {peso(account.balance)}</Box>
+            <Box sx={{ fontSize: 13 }}>{account.type ?? 'Share capital'} {account.refNoText ?? account.refNo} · balance {peso(account.balance)}{account.held ? ` · on hold ${peso(account.held)} (co-maker) · available ${peso(account.balance - account.held)}` : ''}</Box>
             <MoneyField label="Amount" autoFocus value={amount} onValueChange={(v) => setAmount(v)} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
             <TextField label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="SC WITHDRAWAL" />
             <Box sx={{ fontSize: 12 }}>This creates a Cash Voucher that credits the member's vouchers-payable account. Nothing is posted until two other people approve and post it on the Disburse tab.</Box>
@@ -726,6 +756,7 @@ function SavingsTab({ id }: { id: Id }) {
   const num = { fontVariantNumeric: 'tabular-nums' } as const
   return (
     <>
+      <CoMakerNote id={id} />
       <TableCard>
         <Table size="small" aria-label="Savings accounts">
           <TableHead>

@@ -14,19 +14,21 @@ final class ShareWithdrawalRules {
 
     /**
      * Problems with a withdrawal, empty when it is fine. {@code balance} is the ledger balance and {@code pending} the amount already asked for
-     * in vouchers that are not posted yet, so the same capital is not promised twice.
+     * in vouchers that are not posted yet, so the same capital is not promised twice. {@code held} is what is on hold on the account (for example
+     * what the member agreed to cover as a co-maker); it cannot be withdrawn.
      */
-    static List<String> check(BigDecimal amount, int accountStatus, BigDecimal balance, BigDecimal pending, int clientStatus) {
+    static List<String> check(BigDecimal amount, int accountStatus, BigDecimal balance, BigDecimal held, BigDecimal pending, int clientStatus) {
         List<String> p = new ArrayList<>();
         if (amount == null || amount.signum() <= 0) {
             p.add("Enter an amount above zero.");
         } else {
             if (amount.stripTrailingZeros().scale() > 2) p.add("The amount can have at most 2 decimal places.");
             if (amount.compareTo(SharePaymentRules.MAX_PAYMENT) > 0) p.add("The amount is too large.");
-            BigDecimal available = balance.subtract(pending);
+            BigDecimal available = balance.subtract(held).subtract(pending);
             if (amount.compareTo(available) > 0) {
                 p.add("The withdrawal is more than the available capital of " + available.max(BigDecimal.ZERO).setScale(2, java.math.RoundingMode.HALF_UP).toPlainString()
-                    + (pending.signum() > 0 ? " (" + pending.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + " is already waiting in other vouchers)." : "."));
+                    + (held.signum() > 0 ? " " + held.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + " of the balance is on hold." : "")
+                    + (pending.signum() > 0 ? " " + pending.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + " is already waiting in other vouchers." : ""));
             }
         }
         if (accountStatus != SharePaymentRules.ACTIVE) p.add("This share capital account is not active, so nothing can be withdrawn.");

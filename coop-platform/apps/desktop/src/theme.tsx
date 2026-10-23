@@ -85,7 +85,11 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
         MuiTableCell: { styleOverrides: { root: { fontSize: 13, padding: '6px 12px' }, head: { fontWeight: 600, fontSize: 12, color: dark ? '#98989D' : '#6E6E73' } } },
         MuiTablePagination: { styleOverrides: { root: { fontSize: 12.5 }, selectLabel: { fontSize: 12.5 }, displayedRows: { fontSize: 12.5 } } },
         MuiAlert: { styleOverrides: { root: { fontSize: 13, padding: '2px 12px', borderRadius: RADIUS } } },
-        MuiDialog: { styleOverrides: { paper: { borderRadius: RADIUS } } },
+        // A dialog settles in with a slight scale as it fades in, and fades out a little faster than it came.
+        MuiDialog: {
+          defaultProps: { transitionDuration: { enter: 260, exit: 160 } },
+          styleOverrides: { paper: { borderRadius: RADIUS, animation: 'coop-pop 260ms cubic-bezier(0.22, 1, 0.36, 1) both', '@media (prefers-reduced-motion: reduce)': { animation: 'none' } } },
+        },
       },
     })
   }, [resolved])

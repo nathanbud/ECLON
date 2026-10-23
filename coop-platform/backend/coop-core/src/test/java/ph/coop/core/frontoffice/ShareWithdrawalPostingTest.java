@@ -64,6 +64,7 @@ class ShareWithdrawalPostingTest {
                 JOIN glcontrol g ON g.GLControlBR_CODE = s.SCBR_CODE AND g.GLControlSLC_CODE = 31 AND g.GLControlSLT_CODE = s.SCSLT_CODE AND g.GLControlSLE_CODE = 11 AND g.GLControlCTS_NUM = 15
                 WHERE s.SCBR_CODE = 1 AND s.SCSLC_CODE = 31 AND s.SCSTATUS = 15 AND s.SCSLT_CODE = 1
                   AND (SELECT -SUM(d.AMT) FROM sldtl d WHERE d.SL_BRCODE = 1 AND d.SL_CLIENTID = s.ClientIDSC AND d.SLC_CODE = 31 AND d.SLT_CODE = 1 AND d.REF_NO = s.SCREF_NO AND d.SLE_CODE = 11) >= 1000
+                  AND NOT EXISTS (SELECT 1 FROM hold h WHERE h.HBR_CODE = s.SCBR_CODE AND h.ClientIDH = s.ClientIDSC AND h.HSLC_CODE = 31 AND h.HSLT_CODE = s.SCSLT_CODE AND h.HREF_NO = s.SCREF_NO)
                 ORDER BY s.ClientIDSC DESC LIMIT 1
                 """);
         assumeTrue(!a.isEmpty(), "no active share capital account with capital and a vouchers-payable account");
@@ -124,5 +125,17 @@ class ShareWithdrawalPostingTest {
         withdrawals.encode(new Request(client, type, ref, balance, "itest"), encoder);
         assertThrows(ResponseStatusException.class, () -> withdrawals.encode(new Request(client, type, ref, new BigDecimal("1.00"), "itest"), encoder),
             "the capital is already promised to the first voucher");
+    }
+
+    @Test
+    void whatIsOnHoldCannotBeWithdrawn() {
+        BigDecimal balance = balance(31, type, ref);
+        BigDecimal held = balance.subtract(new BigDecimal("100.00"));
+        jdbc.update("INSERT INTO hold (HBR_CODE, HSLC_CODE, HSLT_CODE, HREF_NO, ClientIDH, HHELD_AMT, HHOLD_CODE, HHOLDDESCR, HHOLDDATE, HOL_REFNO) VALUES (1, 31, ?, ?, ?, ?, 1, 'CM to Test Borrower', '2026-04-24', 'CV#1')",
+            type, ref, client, held);
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> withdrawals.encode(new Request(client, type, ref, new BigDecimal("100.01"), "itest"), encoder));
+        assertTrue(e.getReason().contains("on hold"), e.getReason());
+        Encoded ok = withdrawals.encode(new Request(client, type, ref, new BigDecimal("100.00"), "itest"), encoder); // exactly what is free
+        assertEquals(0, BigDecimal.ZERO.compareTo(ok.availableAfter()));
     }
 }

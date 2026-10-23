@@ -62,6 +62,7 @@ class LoanWorkflowTest {
     @Autowired LoanReleaseController releases;
     @Autowired JdbcTemplate jdbc;
     @Autowired Db db;
+    @Autowired ph.coop.core.loan.CoMakerHolds coMakerHolds;
 
     private Authentication encoder, verifier, approver;
     private int[] ids = new int[3];
@@ -140,6 +141,51 @@ class LoanWorkflowTest {
         workflow.verify(c.applicationId(), verifier);
         ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> workflow.approve(c.applicationId(), verifier));
         assertTrue(e.getReason().contains("verified"));
+    }
+
+    /** A co-maker (not the borrower) with an active account that has at least this much free, or null. */
+    private ph.coop.core.loan.CoMakerHolds.HoldAccount accountWithFree(int[] who, BigDecimal least) {
+        for (Map<String, Object> r : jdbc.queryForList("SELECT ClientIDSC c FROM sc WHERE SCBR_CODE = 1 AND SCSTATUS = 15 AND ClientIDSC <> ? ORDER BY ClientIDSC DESC LIMIT 300", client)) {
+            int c = ((Number) r.get("c")).intValue();
+            for (ph.coop.core.loan.CoMakerHolds.HoldAccount a : coMakerHolds.accounts(1, c)) {
+                if (a.available().compareTo(least) >= 0) { who[0] = c; return a; }
+            }
+        }
+        return null;
+    }
+
+    @Test
+    void aCoMakersAgreedAmountBecomesAHoldWhenTheReleaseIsPosted() {
+        int[] cm = new int[1];
+        var acct = accountWithFree(cm, new BigDecimal("1000.00"));
+        assumeTrue(acct != null, "no co-maker with 1,000 free");
+        var req = new ph.coop.core.loan.CoMakerHolds.Request(cm[0], new BigDecimal("1000.00"), acct.slc(), acct.slt(), acct.refNo());
+        Created c = applications.create(1, client, new Create(48, new BigDecimal("5000.00"), 5, 5, 1, 1, null, null, null, null, List.of(cm[0]),
+            List.of(new DeductionAmount(feeRow, new BigDecimal("50.00"))), List.of(), null, List.of(req)), encoder);
+        workflow.verify(c.applicationId(), verifier);
+        Approved a = workflow.approve(c.applicationId(), approver);
+        String ref = "CV#" + a.voucherControlNo();
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM hold WHERE HOL_REFNO = ?", Integer.class, ref)); // nothing is held before the release is posted
+        releases.approve(a.year(), a.voucherControlNo(), verifier);
+        releases.post(a.year(), a.voucherControlNo(), approver);
+        Map<String, Object> h = jdbc.queryForMap("SELECT * FROM hold WHERE HOL_REFNO = ?", ref);
+        assertEquals(cm[0], ((Number) h.get("ClientIDH")).intValue());
+        assertEquals(0, new BigDecimal("1000.00").compareTo((BigDecimal) h.get("HHELD_AMT")));
+        assertEquals(1, ((Number) h.get("HHOLD_CODE")).intValue());
+        assertTrue(((String) h.get("HHOLDDESCR")).startsWith("CM to "));
+        assertEquals(acct.refNo(), ((Number) h.get("HREF_NO")).intValue());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_loan_comaker WHERE application_id = ? AND placed_at IS NOT NULL", Integer.class, c.applicationId()));
+    }
+
+    @Test
+    void anAmountOverWhatTheCoMakerHasFreeIsRefused() {
+        int[] cm = new int[1];
+        var acct = accountWithFree(cm, new BigDecimal("1.00"));
+        assumeTrue(acct != null, "no co-maker with a free balance");
+        var req = new ph.coop.core.loan.CoMakerHolds.Request(cm[0], acct.available().add(new BigDecimal("1.00")), acct.slc(), acct.slt(), acct.refNo());
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> applications.create(1, client, new Create(48, new BigDecimal("5000.00"), 5, 5, 1, 1, null, null, null, null,
+            List.of(cm[0]), List.of(), List.of(), null, List.of(req)), encoder));
+        assertTrue(e.getReason().contains("free"));
     }
 
     @Test

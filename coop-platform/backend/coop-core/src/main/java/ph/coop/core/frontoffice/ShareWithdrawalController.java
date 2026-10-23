@@ -73,7 +73,7 @@ class ShareWithdrawalController {
                     SELECT COALESCE(SUM(DTAMT), 0) FROM transdt WHERE DTTR_BRCODE = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTUPD_TAG = ? AND DTAMT > 0
                       AND ClientIDDT = ? AND DTSLC_CODE = ? AND DTSLT_CODE = ? AND DTREF_NO = ? AND DTSLE_CODE = ?
                     """, BigDecimal.class, branch, MODULE, ShareWithdrawalRules.CASH_VOUCHER, PENDING, req.clientId(), SHARE, req.typeCode(), req.refNo(), PRINCIPAL);
-            var problems = ShareWithdrawalRules.check(amount, a.status(), a.balance(), pending, c.status());
+            var problems = ShareWithdrawalRules.check(amount, a.status(), a.balance(), a.held(), pending, c.status());
             if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
             List<Integer> payable = jdbc.queryForList("SELECT MREF_NO FROM slmastersum WHERE MBR_CODE = ? AND MCLIENTID = ? AND MSLC_CODE = ? AND MSLT_CODE = 1 ORDER BY MREF_NO DESC LIMIT 1",
                 Integer.class, branch, req.clientId(), PAYABLE);
@@ -106,7 +106,7 @@ class ShareWithdrawalController {
             jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, 'share.withdrawal.encode', 'transsum', ?, ?)",
                 Timestamp.valueOf(now), auth.getName(), branch + "/" + year + "/" + MODULE + "/" + ShareWithdrawalRules.CASH_VOUCHER + "/" + ctl,
                 "client " + req.clientId() + " type " + req.typeCode() + " ref " + req.refNo() + " amount " + amount.toPlainString() + " doc " + docNo);
-            return new Encoded(branch, year, ctl, docNo, req.clientId(), c.name(), amount, a.balance().subtract(pending).subtract(amount));
+            return new Encoded(branch, year, ctl, docNo, req.clientId(), c.name(), amount, a.balance().subtract(a.held()).subtract(pending).subtract(amount));
         });
     }
 }

@@ -55,15 +55,21 @@ public class LoanApplicationController {
     public record DeductionAmount(long id, BigDecimal amount) {}
 
     public record Create(int typeCode, BigDecimal amount, Integer terms, Integer purpose, Integer loanClass, Integer borrowerClass, Integer collateralType, BigDecimal collateralAmount,
-                  String collateralDescription, String remarks, List<Integer> coMakers, List<DeductionAmount> deductions, List<Payoff> payoffs, Integer termUnit) {
+                  String collateralDescription, String remarks, List<Integer> coMakers, List<DeductionAmount> deductions, List<Payoff> payoffs, Integer termUnit,
+                  List<CoMakerHolds.Request> coMakerHolds) {
+        /** With the amounts each co-maker agreed to cover. */
+        public Create(int typeCode, BigDecimal amount, Integer terms, Integer purpose, Integer loanClass, Integer borrowerClass, Integer collateralType, BigDecimal collateralAmount,
+                      String collateralDescription, String remarks, List<Integer> coMakers, List<DeductionAmount> deductions, List<Payoff> payoffs, Integer termUnit) {
+            this(typeCode, amount, terms, purpose, loanClass, borrowerClass, collateralType, collateralAmount, collateralDescription, remarks, coMakers, deductions, payoffs, termUnit, null);
+        }
         /** Without a term unit, the loan type's own unit is used. */
         public Create(int typeCode, BigDecimal amount, Integer terms, Integer purpose, Integer loanClass, Integer borrowerClass, Integer collateralType, BigDecimal collateralAmount,
                       String collateralDescription, String remarks, List<Integer> coMakers, List<DeductionAmount> deductions, List<Payoff> payoffs) {
-            this(typeCode, amount, terms, purpose, loanClass, borrowerClass, collateralType, collateralAmount, collateralDescription, remarks, coMakers, deductions, payoffs, null);
+            this(typeCode, amount, terms, purpose, loanClass, borrowerClass, collateralType, collateralAmount, collateralDescription, remarks, coMakers, deductions, payoffs, null, null);
         }
         public Create(int typeCode, BigDecimal amount, Integer terms, Integer purpose, Integer loanClass, Integer borrowerClass, Integer collateralType, BigDecimal collateralAmount,
                       String collateralDescription, String remarks, List<Integer> coMakers, List<DeductionAmount> deductions) {
-            this(typeCode, amount, terms, purpose, loanClass, borrowerClass, collateralType, collateralAmount, collateralDescription, remarks, coMakers, deductions, List.of(), null);
+            this(typeCode, amount, terms, purpose, loanClass, borrowerClass, collateralType, collateralAmount, collateralDescription, remarks, coMakers, deductions, List.of(), null, null);
         }
     }
 
@@ -75,9 +81,11 @@ public class LoanApplicationController {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final LoanBook book;
+    private final CoMakerHolds holds;
 
-    LoanApplicationController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, LoanBook book) {
+    LoanApplicationController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, LoanBook book, CoMakerHolds holds) {
         this.book = book;
+        this.holds = holds;
         this.jdbc = jdbc;
         this.tx = new TransactionTemplate(txm);
         this.clock = clock;
@@ -101,6 +109,12 @@ public class LoanApplicationController {
                 d.put("SLTypeTERMS", terms); d.put("SLTypeINT_RATE", rate); d.put("SLTypeTERM_PERD", rs.getObject(5)); d.put("SLTypePPMT_MODE", rs.getObject(6)); d.put("SLTypeAMORTYPE", rs.getObject(7));
                 return new TypeOption(rs.getInt(1), rs.getString(2), terms, rate, rs.getLong(8), unsupported(d) == null);
             }, branchCode, LOAN_CLASS);
+    }
+
+    /** The accounts of a would-be co-maker that an amount can be held on, with what is free on each. */
+    @GetMapping("/comaker-accounts")
+    public List<CoMakerHolds.HoldAccount> comakerAccounts(@PathVariable int branchCode, @RequestParam int comaker) {
+        return holds.accounts(branchCode, comaker);
     }
 
     /** What the clerk starts from: the type's defaults and the deductions list, with what the member lacks. */
@@ -283,15 +297,18 @@ public class LoanApplicationController {
                           DeductClass, IsIncludeEffectiveIntRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, row);
             }
+            holds.validate(branchCode, clientId, in.coMakers(), in.coMakerHolds());
             if (in.coMakers() != null) {
                 for (Integer cm : in.coMakers()) {
                     List<String> names = jdbc.query("SELECT CONCAT_WS(' ', CONCAT(LName, ','), FName, MName) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", (rs, i) -> rs.getString(1), branchCode, cm);
                     if (names.isEmpty()) throw bad("Co-maker " + cm + " is not a member.");
                     if (cm == clientId) throw bad("A borrower cannot be their own co-maker.");
                     jdbc.update("INSERT INTO comaker (CoMakerBR_CODE, CoMakerClientID, CoMakerSLC_CODE, CoMakerSLT_CODE, CoMakerREF_NO, ClientIDCoMaker, CoMakerClientName) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        branchCode, clientId, LOAN_CLASS, in.typeCode(), ref, cm, names.get(0));
+                        // In the old data CoMakerClientID is the co-maker and ClientIDCoMaker is the borrower (the loan's own client): 16,471 of 16,594 rows
+                        branchCode, cm, LOAN_CLASS, in.typeCode(), ref, clientId, names.get(0));
                 }
             }
+            holds.save(branchCode, appId, in.coMakerHolds());
             jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, 'loan.application.create', 'loanapp', ?, ?)",
                 Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), branchCode + "/" + appId,
                 "client " + clientId + " type " + in.typeCode() + " ref " + ref + " amount " + in.amount().toPlainString() + " terms " + terms + " deductions " + total.toPlainString());

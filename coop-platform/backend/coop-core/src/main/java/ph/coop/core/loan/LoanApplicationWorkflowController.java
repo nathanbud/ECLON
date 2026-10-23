@@ -40,7 +40,7 @@ public class LoanApplicationWorkflowController {
 
     record Row(String account, String description, BigDecimal amount) {}
 
-    record Detail(Item item, List<Row> lines, BigDecimal totalDeductions, BigDecimal netProceeds, List<String> problems) {}
+    record Detail(Item item, List<Row> lines, BigDecimal totalDeductions, BigDecimal netProceeds, List<String> problems, List<CoMakerHolds.Saved> coMakerHolds) {}
 
     public record Approved(long applicationId, int year, long voucherControlNo, String voucherDocumentNo) {}
 
@@ -58,9 +58,11 @@ public class LoanApplicationWorkflowController {
     private final Db db;
     private final SingleHandGrants single;
     private final LoanBook book;
+    private final CoMakerHolds holds;
 
-    LoanApplicationWorkflowController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, SingleHandGrants single, LoanBook book) {
+    LoanApplicationWorkflowController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, SingleHandGrants single, LoanBook book, CoMakerHolds holds) {
         this.book = book;
+        this.holds = holds;
         this.jdbc = jdbc;
         this.tx = new TransactionTemplate(txm);
         this.clock = clock;
@@ -100,7 +102,7 @@ public class LoanApplicationWorkflowController {
         Staff s = staff(auth.getName());
         if (!s.canVerify() && !s.canApprove()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not verify or approve loan applications.");
         Prepared p = prepare(s.branch(), id, false);
-        return new Detail(p.item(), rows(p), p.deductions(), p.net(), p.problems());
+        return new Detail(p.item(), rows(p), p.deductions(), p.net(), p.problems(), holds.forApplication(s.branch(), id));
     }
 
     @PostMapping("/{id}/verify")
