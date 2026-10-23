@@ -119,18 +119,23 @@ class LoanProfileController {
     /** Builds the schedule the old rules give for this loan and compares it with the stored one; only the mapped cases (monthly, quarterly, lump sum, diminishing balance) are checked. */
     private ScheduleCheck check(int branch, int clientId, int typeCode, int refNo) {
         List<Object[]> l = jdbc.query("""
-                SELECT LoanPAMT, LoanTERMS, LoanTERM_PERD, LoanPPMT_MODE, LoanINT_RATE, LoanTR_DATE, LoanAMORTYPE, LoanIPMT_MODE FROM loan
+                SELECT LoanPAMT, LoanTERMS, LoanTERM_PERD, LoanPPMT_MODE, LoanINT_RATE, LoanTR_DATE, LoanAMORTYPE, LoanIPMT_MODE, LoanND_FLAG FROM loan
                 WHERE LoanBR_CODE = ? AND ClientIDLoan = ? AND LoanSLC_CODE = 12 AND LoanSLT_CODE = ? AND LoanREF_NO = ?
-                """, (rs, i) -> new Object[] {rs.getBigDecimal(1), rs.getInt(2), rs.getInt(3), rs.getInt(4), rs.getBigDecimal(5), rs.getDate(6), rs.getInt(7), rs.getInt(8)}, branch, clientId, typeCode, refNo);
+                """, (rs, i) -> new Object[] {rs.getBigDecimal(1), rs.getInt(2), rs.getInt(3), rs.getInt(4), rs.getBigDecimal(5), rs.getDate(6), rs.getInt(7), rs.getInt(8), rs.getInt(9)}, branch, clientId, typeCode, refNo);
         if (l.isEmpty()) return new ScheduleCheck(false, false, "No loan.");
         Object[] x = l.get(0);
         int unit = (Integer) x[2], mode = (Integer) x[3], amor = (Integer) x[6], imode = (Integer) x[7];
-        if (unit != 4 || amor != LoanSchedule.DIMINISHING || imode != mode || (mode != LoanSchedule.MONTHLY && mode != LoanSchedule.QUARTERLY && mode != LoanSchedule.LUMP_SUM)) {
+        boolean annuity = amor == LoanSchedule.ANNUITY;
+        boolean modeKnown = mode == LoanSchedule.MONTHLY || mode == LoanSchedule.QUARTERLY || mode == LoanSchedule.LUMP_SUM || (annuity && mode == LoanSchedule.SEMIANNUAL);
+        if ((unit != 4 && unit != 7) || (amor != LoanSchedule.DIMINISHING && !annuity) || imode != mode || !modeKnown || (unit == 7 && !annuity)) {
             return new ScheduleCheck(false, false, "This kind of schedule is not checked yet.");
         }
         List<LoanSchedule.Row> built;
         try {
-            built = LoanSchedule.diminishing((BigDecimal) x[0], (Integer) x[1], mode, (BigDecimal) x[4], ((java.sql.Date) x[5]).toLocalDate());
+            int months = unit == 7 ? (Integer) x[1] * 12 : (Integer) x[1];
+            built = annuity
+                ? LoanSchedule.annuity((BigDecimal) x[0], months, mode, (BigDecimal) x[4], ((java.sql.Date) x[5]).toLocalDate(), (Integer) x[8] == 1)
+                : LoanSchedule.diminishing((BigDecimal) x[0], months, mode, (BigDecimal) x[4], ((java.sql.Date) x[5]).toLocalDate());
         } catch (IllegalArgumentException e) {
             return new ScheduleCheck(false, false, e.getMessage());
         }

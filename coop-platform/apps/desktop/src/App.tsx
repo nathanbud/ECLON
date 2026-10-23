@@ -13,12 +13,13 @@ import TopBar from './TopBar'
 import UsersPage from './UsersPage'
 import AuditLogPage from './AuditLogPage'
 import LoanSetupPage from './LoanSetupPage'
+import SettingsPage from './SettingsPage'
 import AccountingPage from './AccountingPage'
 import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
 const titles: Record<View, string> = {
-  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', frontoffice: 'Front Office', loanapp: 'Coop Platform',
+  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform',
 }
 
 function Signed() {
@@ -32,11 +33,13 @@ function Signed() {
   // The open client lives here so the app-wide search can open a profile from any screen.
   const [client, setClient] = useState<Id | null>(null)
   // The Loan Application tile goes straight to the form in its own window; the in-app dialog is only the fallback if that window cannot open.
-  const navigate = (v: View) => { if (v === 'loanapp' && openLoanApplicationWindow({})) return; setView(v) }
+  // Screens opened from Settings go back to Settings, not to the dashboard.
+  const [cameFromSettings, setCameFromSettings] = useState(false)
+  const navigate = (v: View) => { if (v === 'loanapp' && openLoanApplicationWindow({})) return; setCameFromSettings(view === 'settings' && v !== 'home'); setView(v) }
   const openClient = (id: Id) => { setClient(id); setView('members') }
   return (
     <ToolbarSlotProvider>
-      <TopBar title={titles[view]} onHome={view === 'home' ? undefined : () => setView('home')} onNavigate={navigate} onOpenClient={openClient} />
+      <TopBar title={titles[view]} onHome={view === 'home' ? undefined : () => { if (cameFromSettings && view !== 'settings') { setCameFromSettings(false); setView('settings') } else setView('home') }} onNavigate={navigate} onOpenClient={openClient} />
       <ErrorBoundary resetKey={view}>
         {(view === 'home' || view === 'loanapp') && <Dashboard onOpen={navigate} />}
         {view === 'loanapp' && <LoanApplicationDialog onClose={() => setView('home')} />}
@@ -47,6 +50,7 @@ function Signed() {
         {view === 'users' && <UsersPage />}
         {view === 'audit' && <AuditLogPage />}
         {view === 'loansetup' && <LoanSetupPage />}
+        {view === 'settings' && <SettingsPage onOpen={navigate} />}
         {view === 'frontoffice' && <FrontOfficePage />}
       </ErrorBoundary>
     </ToolbarSlotProvider>

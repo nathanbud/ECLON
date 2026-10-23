@@ -89,6 +89,32 @@ class LoanApplicationCreateTest {
     }
 
     @Test
+    void anAnnuityTypeGivesALevelPaymentSchedule() {
+        jdbc.update("UPDATE sltype SET SLTypeAMORTYPE = 3, SLTypeND_FLAG = 1 WHERE SLTypeBR_CODE = 1 AND SLTypeSLC_CODE = 12 AND SLTypeSLT_CODE = 48");
+        Created c = applications.create(1, client, new Create(48, new BigDecimal("12000.00"), 12, 5, 1, 1, null, null, null, null, List.of(), List.of()), clerk);
+        assertEquals(13, c.scheduleRows());
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT PRINDUE p, INTDUE i, PRINBAL b FROM amortsched WHERE BR_CODE = 1 AND SLC_CODE = 12 AND SLT_CODE = 48 AND REF_NO = ? ORDER BY DUEDATE", c.refNo());
+        BigDecimal first = ((BigDecimal) rows.get(1).get("p")).add((BigDecimal) rows.get(1).get("i"));
+        BigDecimal second = ((BigDecimal) rows.get(2).get("p")).add((BigDecimal) rows.get(2).get("i"));
+        assertTrue(first.subtract(second).abs().compareTo(new BigDecimal("0.01")) <= 0, "the payment is the same every time");
+        assertTrue(((BigDecimal) rows.get(2).get("p")).compareTo((BigDecimal) rows.get(1).get("p")) > 0, "the principal part grows");
+        assertEquals(0, ((BigDecimal) rows.get(12).get("b")).signum());
+        assertEquals(3, ((Number) jdbc.queryForObject("SELECT LoanAMORTYPE FROM loan WHERE LoanBR_CODE = 1 AND LoanSLC_CODE = 12 AND LoanSLT_CODE = 48 AND LoanREF_NO = ?", Integer.class, c.refNo())).intValue());
+    }
+
+    @Test
+    void annuityTypesAreOfferedAndOtherKindsStillRefused() {
+        Map<String, Object> d = new java.util.HashMap<>(Map.of("SLTypeTERMS", 12, "SLTypeINT_RATE", new BigDecimal("10"), "SLTypeTERM_PERD", 4, "SLTypePPMT_MODE", 4, "SLTypeAMORTYPE", 3));
+        assertEquals(null, LoanApplicationController.unsupported(d));
+        d.put("SLTypePPMT_MODE", 6); // half-yearly is mapped for annuity only
+        assertEquals(null, LoanApplicationController.unsupported(d));
+        d.put("SLTypeAMORTYPE", 1);
+        assertTrue(LoanApplicationController.unsupported(d) != null);
+        d.put("SLTypeAMORTYPE", 2); // straight line
+        assertTrue(LoanApplicationController.unsupported(d).contains("annuity"));
+    }
+
+    @Test
     void countsATermGivenInYearsAsTwelveMonthsEach() {
         Created c = applications.create(1, client, new Create(48, new BigDecimal("5000.00"), 2, 5, 1, 1, null, null, null, null, List.of(), List.of(), List.of(), 7), clerk);
         assertEquals(25, c.scheduleRows()); // the release row and 24 monthly instalments

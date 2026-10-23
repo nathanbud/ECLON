@@ -85,17 +85,34 @@ export interface Me {
   canEdit: boolean
   canApprove: boolean
   admin: boolean
+  /** Signed in with a temporary password: nothing else opens until it is replaced. */
+  mustChangePassword: boolean
 }
 
 export async function signIn(username: string, password: string): Promise<Me> {
   const token = btoa(unescape(encodeURIComponent(`${username}:${password}`)))
   const res = await fetch('/api/me', { headers: { Authorization: `Basic ${token}` } })
-  if (res.status === 401) throw new Error('The username or password is wrong.')
+  if (res.status === 401) {
+    if (res.headers.get('X-Auth-Reason') === 'TEMPORARY_PASSWORD_EXPIRED') throw new Error('Your temporary password has expired. Ask an administrator to issue a new one.')
+    throw new Error('The username or password is wrong.')
+  }
   if (!res.ok) throw new Error(`Sign-in failed (${res.status}).`)
   credentials = token
   try { sessionStorage.setItem(SESSION_KEY, token) } catch { /* storage unavailable */ }
   return res.json()
 }
+
+/** The password this window signed in with, read back from the saved sign-in. Used to replace a temporary one without asking for it again. */
+export function currentPassword(): string | null {
+  if (!credentials) return null
+  try {
+    const plain = decodeURIComponent(escape(atob(credentials)))
+    return plain.slice(plain.indexOf(':') + 1)
+  } catch { return null }
+}
+
+/** A person replaces their own password. */
+export const changeOwnPassword = (current: string, next: string) => send<void>('POST', '/api/me/password', { current, next })
 
 /** The signed-in person, or null when there is no saved sign-in or the server no longer accepts it. */
 export async function restoreSession(): Promise<Me | null> {
@@ -286,12 +303,17 @@ export interface AdminUser {
   enabled: boolean
   canEdit: boolean
   hasPassword: boolean
+  /** NONE, ACTIVE (their own), TEMPORARY (issued, not yet replaced) or EXPIRED (issued, ran out unused). */
+  passwordState: 'NONE' | 'ACTIVE' | 'TEMPORARY' | 'EXPIRED'
+  tempExpiresAt: string | null
   roles: string[]
 }
 
 export const listUsers = () => getJson<AdminUser[]>('/api/admin/users')
-export const setUserPassword = (username: string, password: string) =>
-  send<void>('PUT', `/api/admin/users/${encodeURIComponent(username)}/password`, { password })
+export interface TemporaryPassword { username: string; password: string; validityHours: number; expiresAt: string }
+/** The system makes the password; it is in this reply only. */
+export const issueTemporaryPassword = (username: string, validityHours: number) =>
+  send<TemporaryPassword>('PUT', `/api/admin/users/${encodeURIComponent(username)}/password`, { validityHours })
 export const grantRole = (username: string, role: string) => send<void>('PUT', `/api/admin/users/${encodeURIComponent(username)}/roles/${role}`)
 export const revokeRole = (username: string, role: string) => send<void>('DELETE', `/api/admin/users/${encodeURIComponent(username)}/roles/${role}`)
 

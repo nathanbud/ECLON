@@ -2,16 +2,16 @@ import { Box, ButtonBase, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import {
-  FiBarChart2, FiBookOpen, FiDollarSign, FiDownloadCloud, FiFilePlus, FiFileText, FiList,
-  FiCheckSquare, FiMonitor, FiClipboard, FiSliders, FiShoppingCart, FiUserCheck, FiUsers,
+  FiBarChart2, FiBookOpen, FiDollarSign, FiFilePlus, FiFileText, FiList,
+  FiCheckSquare, FiSettings, FiShoppingCart, FiTrendingUp, FiUsers,
 } from 'react-icons/fi'
 import { getPendingCount } from './api'
 import { useMe } from './session'
 import { tileFill, useThemeMode, type Tint } from './theme'
 
-export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'frontoffice' | 'loanapp'
+export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'settings' | 'frontoffice' | 'loanapp'
 
-// Every item is a square of 1x1 or 2x2 cells on a landscape 5 x 4 grid (2 x 4 + 12 = 20 cells, no gaps).
+// Every item is a square of 1x1 or 2x2 cells on a landscape 5 x 4 grid (3 x 4 + 8 = 20 cells, no gaps).
 type Size = 'md' | 'sm'
 type Group = 'members' | 'operations' | 'accounting' | 'commerce' | 'admin'
 interface TileSpec { label: string; icon: ReactNode; group: Group; area: string; size: Size; view?: View; adminOnly?: boolean }
@@ -35,19 +35,16 @@ const tiles: TileSpec[] = [
   { label: 'POS', icon: <FiShoppingCart />, group: 'commerce', area: 'pos', size: 'sm' },
   { label: 'Back Office', icon: <FiBookOpen />, group: 'accounting', area: 'bo', size: 'sm', view: 'accounts' },
   { label: 'Reports', icon: <FiFileText />, group: 'accounting', area: 'rep', size: 'sm', view: 'accounting' },
-  { label: 'Loan Setup', icon: <FiSliders />, group: 'admin', area: 'set', size: 'sm', view: 'loansetup', adminOnly: true },
-  { label: 'System', icon: <FiMonitor />, group: 'admin', area: 'sys', size: 'sm' },
-  { label: 'Backup', icon: <FiDownloadCloud />, group: 'admin', area: 'bak', size: 'sm' },
-  { label: 'Users', icon: <FiUserCheck />, group: 'admin', area: 'usr', size: 'sm', view: 'users', adminOnly: true },
-  { label: 'Audit Log', icon: <FiClipboard />, group: 'admin', area: 'oth', size: 'sm', view: 'audit', adminOnly: true },
+  { label: 'Settings', icon: <FiSettings />, group: 'admin', area: 'set', size: 'md', view: 'settings' },
+  { label: 'Treasury', icon: <FiTrendingUp />, group: 'accounting', area: 'tre', size: 'sm' },
   { label: 'Approvals', icon: <FiCheckSquare />, group: 'admin', area: 'apr', size: 'md', view: 'approvals' },
 ]
 
 const areas = `
   "cp   cp   fo   rec  pay"
   "cp   cp   bo   rep  inv"
-  "apr  apr  usr  set  pos"
-  "apr  apr  sys  bak  oth"
+  "apr  apr  set  set  pos"
+  "apr  apr  set  set  tre"
 `
 
 // One shared motion rhythm: 220ms ease-out, items staggered 35ms apart.
@@ -59,11 +56,11 @@ const enter = (i: number) => ({
   '@media (prefers-reduced-motion: reduce)': { animation: 'none', transition: 'none' },
 })
 
-function Tile({ spec, index, onOpen, badge, isAdmin }: { spec: TileSpec; index: number; onOpen: (v: View) => void; badge?: number; isAdmin: boolean }) {
+function Tile({ spec, index, onOpen, badge, allowed }: { spec: TileSpec; index: number; onOpen: (v: View) => void; badge?: number; allowed: boolean }) {
   const { resolved } = useThemeMode()
   const dark = resolved === 'dark'
   const c = tileFill[groups[spec.group].color]
-  const enabled = !!spec.view && (!spec.adminOnly || isAdmin)
+  const enabled = !!spec.view && allowed
   const md = spec.size === 'md'
   return (
     <ButtonBase
@@ -107,6 +104,8 @@ export default function Dashboard({ onOpen }: { onOpen: (v: View) => void }) {
   const user = me.name
   const { data: count } = useQuery({ queryKey: ['pending-count'], queryFn: getPendingCount, refetchInterval: 30_000 })
   const pending = count?.pending
+  // administrators and accountants open Settings; what is inside is checked again per item
+  const settingsAllowed = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
 
   return (
     <Box component="main" sx={{
@@ -124,7 +123,7 @@ export default function Dashboard({ onOpen }: { onOpen: (v: View) => void }) {
         <Typography color="text.secondary" sx={{ mb: 2, fontSize: 13 }}>Choose a module to get started.</Typography>
 
         <Box sx={{ display: 'grid', gap: 'var(--gap)', gridTemplateColumns: 'repeat(5, var(--cell))', gridAutoRows: 'var(--cell)', gridTemplateAreas: areas }}>
-          {tiles.map((t, i) => <Tile key={t.label} spec={t} index={i} onOpen={onOpen} badge={t.view === 'approvals' ? pending : undefined} isAdmin={me.admin} />)}
+          {tiles.map((t, i) => <Tile key={t.label} spec={t} index={i} onOpen={onOpen} badge={t.view === 'approvals' ? pending : undefined} allowed={t.view === 'settings' ? settingsAllowed : !t.adminOnly || me.admin} />)}
         </Box>
 
         <Box component="ul" aria-label="Colour key" sx={{ listStyle: 'none', m: 0, mt: 2, p: 0, display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>

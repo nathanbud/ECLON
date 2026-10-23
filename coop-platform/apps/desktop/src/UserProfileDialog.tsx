@@ -12,6 +12,7 @@ import {
   type AdminUser, type UserField, type UserSection,
 } from './api'
 import { glass } from './glass'
+import PasswordChip from './PasswordChip'
 import { tileFill } from './theme'
 
 const TABS = [
@@ -354,12 +355,12 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
                   <Box sx={{ flex: 1, minWidth: 220 }}>
                     <Typography sx={{ fontWeight: 600, fontSize: 14 }}>Sign-in for this app</Typography>
                     <Typography sx={{ fontSize: 12.5 }} color="text.secondary">
-                      This is separate from the old iAccs password, which does not work here.
+                      They choose their own password. You can only issue a temporary one, which they replace the first time they sign in.
                     </Typography>
                   </Box>
-                  <Chip size="small" variant="outlined" color={profile.hasPassword ? 'success' : 'default'} label={profile.hasPassword ? 'Password set' : 'No password yet'} />
+                  <PasswordChip u={user} />
                   <Button size="small" variant="outlined" startIcon={<FiLock />} disabled={!profile.enabled} onClick={() => onSetPassword(user)}>
-                    {profile.hasPassword ? 'Reset password' : 'Set password'}
+                    {user.passwordState === 'NONE' ? 'Issue temporary password' : 'Reissue temporary password'}
                   </Button>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Typography id="officer-label" sx={{ fontSize: 13.5 }}>Membership Officer</Typography>

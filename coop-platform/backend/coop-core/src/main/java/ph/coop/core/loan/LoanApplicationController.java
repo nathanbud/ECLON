@@ -138,6 +138,8 @@ public class LoanApplicationController {
     }
 
     private static final java.util.Set<Integer> SCHEDULED_MODES = java.util.Set.of(LoanSchedule.MONTHLY, LoanSchedule.QUARTERLY, LoanSchedule.LUMP_SUM);
+    /** An annuity can also be paid half-yearly (seen on real loans). */
+    private static final java.util.Set<Integer> ANNUITY_MODES = java.util.Set.of(LoanSchedule.MONTHLY, LoanSchedule.QUARTERLY, LoanSchedule.SEMIANNUAL, LoanSchedule.LUMP_SUM);
 
     /** Why a schedule cannot be built for this setup yet, or null. Mirrors what {@link #create} refuses. */
     static String unsupported(Map<String, Object> d) {
@@ -145,8 +147,12 @@ public class LoanApplicationController {
         if (terms == null || ((Number) terms).intValue() <= 0) return "The setup has no term.";
         if (rate == null) return "The setup has no interest rate.";
         if (unit == null || (((Number) unit).intValue() != MONTHS && ((Number) unit).intValue() != YEARS)) return "Only loan types counted in months or years can be applied for here so far.";
-        if (am == null || ((Number) am).intValue() != LoanSchedule.DIMINISHING) return "Only diminishing-balance loan types can be applied for here so far.";
-        if (pm == null || !SCHEDULED_MODES.contains(((Number) pm).intValue())) return "Only monthly, quarterly and lump-sum payment modes can be scheduled here so far.";
+        int kind = am == null ? 0 : ((Number) am).intValue();
+        if (kind != LoanSchedule.DIMINISHING && kind != LoanSchedule.ANNUITY) return "Only diminishing-balance and annuity loan types can be applied for here so far.";
+        boolean annuity = kind == LoanSchedule.ANNUITY;
+        if (pm == null || !(annuity ? ANNUITY_MODES : SCHEDULED_MODES).contains(((Number) pm).intValue())) {
+            return annuity ? "Only monthly, quarterly, half-yearly and lump-sum payment modes can be scheduled here so far." : "Only monthly, quarterly and lump-sum payment modes can be scheduled here so far.";
+        }
         return null;
     }
 
@@ -193,8 +199,15 @@ public class LoanApplicationController {
         LocalDate today = LocalDate.now(clock);
         List<LoanSchedule.Row> schedule;
         try {
-            if (num(t.d(), "SLTypeAMORTYPE") != 1) throw new IllegalArgumentException("Only diminishing-balance loan types can be applied for here so far.");
-            schedule = LoanSchedule.diminishing(in.amount(), termMonths, pmode, rate, today);
+            int kind = num(t.d(), "SLTypeAMORTYPE");
+            if (kind == LoanSchedule.ANNUITY) {
+                Object nd = t.d().get("SLTypeND_FLAG");
+                schedule = LoanSchedule.annuity(in.amount(), termMonths, pmode, rate, today, nd != null && ((Number) nd).intValue() == 1);
+            } else if (kind == LoanSchedule.DIMINISHING) {
+                schedule = LoanSchedule.diminishing(in.amount(), termMonths, pmode, rate, today);
+            } else {
+                throw new IllegalArgumentException("Only diminishing-balance and annuity loan types can be applied for here so far.");
+            }
         } catch (IllegalArgumentException e) {
             throw bad(e.getMessage());
         }

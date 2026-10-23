@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { restoreSession, signIn, signOut, SIGNED_OUT, type Me } from './api'
 import { appBackground, glass } from './glass'
+import ChangePasswordScreen from './ChangePasswordScreen'
 import { Logo, WindowControls } from './TopBar'
 
 const SessionCtx = createContext<Me | null>(null)
@@ -67,7 +68,7 @@ function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
             {busy ? <CircularProgress size={20} /> : 'Sign in'}
           </Button>
           <Typography sx={{ mt: 2, fontSize: 12.5 }} color="text.secondary">
-            Use your own account. If you do not have a password yet, ask an administrator to set one.
+            Use your own account. If you do not have a password yet, or yours expired, ask an administrator to issue a temporary one.
           </Typography>
         </Box>
       </Box>
@@ -153,5 +154,6 @@ export function SessionGate({ children }: { children: ReactNode }) {
     return <Box sx={{ minHeight: '100dvh', display: 'grid', placeItems: 'center' }}><CircularProgress aria-label="Loading" /></Box>
   }
   if (state.status === 'out') return <SignInPage onSignedIn={(me) => setState({ status: 'in', me })} />
+  if (state.me.mustChangePassword) return <ChangePasswordScreen me={state.me} onDone={(me) => setState({ status: 'in', me })} />
   return <SessionCtx.Provider value={state.me}><IdleLock me={state.me}>{children}</IdleLock></SessionCtx.Provider>
 }
