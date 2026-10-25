@@ -91,6 +91,13 @@ that are late show an event 41 line (loan 11016, paid 2026-01-09, four instalmen
 interest, the days counted from the due date or from the end of the grace period) was **not** reproduced: the plain variants (36 per cent a year on the late principal or on the late instalments, with and without the 15 days) come
 close (about 470) but not to the cent. Do not post penalties until this is pinned down.
 
+**Penalty fit, 2026-10-25 (mode 4 loans, 36 per cent, 15 days grace, type 48, payments since 2025, 760 penalty payments):**
+* Where the instalment that is late is wholly unpaid (the simple case), the penalty is **scheduled principal due + scheduled interest due (`amortsched`) x 36% x calendar days from the due date to the payment date / 365, rounded half up**. No grace days are taken off the amount (grace only decides whether a penalty applies). It matches to the cent in 38 of 53 such cases (72%); 11 more are higher than the formula.
+* Across all penalty payments the same family of formulas matches to the cent in only about 6% and within 1 peso in about 28%. Where earlier payments overpaid or part-paid an instalment, the old penalty is usually **higher** than the formula after crediting those payments (142 of 245 such single-instalment cases), so the old system does not credit them the way a first-in-first-out split does.
+* Tried and rejected: grace days deducted, 360-day year, principal only, principal and interest credited separately, days counted from the last payment. Only 5% of penalties are whole pesos, so they are not mostly typed by hand.
+* Still unknown: how partial and excess payments reduce the base, multi-instalment arrears, `PEN_MODE` 1/5/6 versus 4, and event 42 (waiver, 1,066 rows).
+
+
 ## The repayment schedule (`amortsched`) for the common loans
 
 Checked against the real schedules of 600 recent loans (types 48, 49, 4, 3; term in months; diminishing balance `LoanAMORTYPE` 1; monthly payment mode 4), read only:
