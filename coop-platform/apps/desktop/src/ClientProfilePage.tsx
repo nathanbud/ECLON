@@ -19,6 +19,7 @@ import { tileFill } from './theme'
 import { displayName, memberNo, statusOf, type Id } from './clients'
 import LoansTab from './LoansTab'
 import FindClientDialog, { FindBody } from './FindClientDialog'
+import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
 import { useMemberImage } from './memberImage'
 import { useMe } from './session'
@@ -598,13 +599,14 @@ function SharePaymentDialog({ id, account, onClose }: { id: Id; account: ShareAc
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [askConfirm, setAskConfirm] = useState(false)
+  const [cheques, setCheques] = useState<ChequeRow[]>([])
   const value = Number(amount)
-  const valid = amount.trim() !== '' && Number.isFinite(value) && value > 0
+  const valid = amount.trim() !== '' && Number.isFinite(value) && value > 0 && chequeSum(cheques) <= value + 0.001
 
   const submit = async (confirmDuplicate: boolean) => {
     setBusy(true); setError(null)
     try {
-      const r = await postSharePayment({ clientId: id.clientId, typeCode: account.typeCode, refNo: account.refNo, amount: value, explanation, receiptNo, confirmDuplicate })
+      const r = await postSharePayment({ clientId: id.clientId, typeCode: account.typeCode, refNo: account.refNo, amount: value, explanation, receiptNo, confirmDuplicate, cheques: chequesToApi(cheques) })
       setReceipt(r)
       qc.invalidateQueries({ queryKey: ['member-shares'] })
       qc.invalidateQueries({ queryKey: ['member-share-history'] })
@@ -625,9 +627,10 @@ function SharePaymentDialog({ id, account, onClose }: { id: Id; account: ShareAc
           <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
             <Box sx={{ fontSize: 13 }}>{account.type ?? 'Share capital'} {account.refNoText ?? account.refNo} · balance {peso(account.balance)}</Box>
             <MoneyField label="Amount" autoFocus value={amount} onValueChange={(v) => setAmount(v)} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
+            <ChequeFields rows={cheques} onChange={(r) => { setCheques(r); setAskConfirm(false); setError(null) }} total={valid || value > 0 ? value : 0} />
             <TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} helperText="Up to 8 letters or digits. Left empty, the system numbers it." />
             <TextField label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="SC" />
-            <Box sx={{ fontSize: 12 }}>Cash goes into your own drawer and is posted to the ledger at once.</Box>
+            <Box sx={{ fontSize: 12 }}>Cash and cheques go into your own drawer and are posted to the ledger at once.</Box>
           </Box>
         )}
         {receipt && (
@@ -811,8 +814,9 @@ function SavingsCashDialog({ id, account, mode, onClose }: { id: Id; account: Sa
   const [busy, setBusy] = useState(false)
   const [askConfirm, setAskConfirm] = useState(false)
   const [check, setCheck] = useState<SavingsWithdrawalCheck | null>(null)
+  const [cheques, setCheques] = useState<ChequeRow[]>([])
   const value = Number(amount)
-  const valid = amount.trim() !== '' && Number.isFinite(value) && value > 0
+  const valid = amount.trim() !== '' && Number.isFinite(value) && value > 0 && chequeSum(cheques) <= value + 0.001
   const body = { clientId: id.clientId, typeCode: account.typeCode, refNo: account.refNo, amount: value, explanation, receiptNo }
 
   // For a withdrawal, ask the server what stands in the way and what a supervisor has to allow; look again while a request waits.
@@ -840,7 +844,7 @@ function SavingsCashDialog({ id, account, mode, onClose }: { id: Id; account: Sa
   const submit = async (confirmDuplicate: boolean) => {
     setBusy(true); setError(null)
     try {
-      const r = await (withdraw ? postSavingsWithdrawal : postSavingsDeposit)({ ...body, confirmDuplicate })
+      const r = await (withdraw ? postSavingsWithdrawal : postSavingsDeposit)({ ...body, confirmDuplicate, ...(withdraw ? {} : { cheques: chequesToApi(cheques) }) })
       setReceipt(r)
       qc.invalidateQueries({ queryKey: ['member-savings'] })
       qc.invalidateQueries({ queryKey: ['member-savings-history'] })
@@ -861,6 +865,7 @@ function SavingsCashDialog({ id, account, mode, onClose }: { id: Id; account: Sa
           <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
             <Box sx={{ fontSize: 13 }}>{account.type ?? 'Savings'} {account.refNoText ?? account.refNo} · balance {peso(account.balance)}{account.held ? ` · on hold ${peso(account.held)}` : ''} · available {peso(account.available)}</Box>
             <MoneyField label="Amount" autoFocus value={amount} onValueChange={(v) => { setAmount(v); setAskConfirm(false); setError(null) }} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
+            {!withdraw && <ChequeFields rows={cheques} onChange={(r) => { setCheques(r); setAskConfirm(false); setError(null) }} total={value > 0 ? value : 0} />}
             <TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} helperText="Up to 8 letters or digits. Left empty, the system numbers it." />
             <TextField label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder={withdraw ? 'SD WTH' : 'SD DEP'} />
             <Box sx={{ fontSize: 12 }}>{withdraw ? 'Cash is paid out of your own drawer and posted to the ledger at once.' : 'Cash goes into your own drawer and is posted to the ledger at once.'}</Box>

@@ -35,7 +35,12 @@ import ph.coop.core.frontoffice.SavingsRules.Need;
 @RequestMapping("/api/front-office/savings")
 class SavingsPostingController {
 
-    record Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate) {}
+    /** cheques (deposits only) is the part of the amount paid by cheque; the rest is cash. */
+    record Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate, java.util.List<ChequeRules.Input> cheques) {
+        Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate) {
+            this(clientId, typeCode, refNo, amount, explanation, receiptNo, confirmDuplicate, null);
+        }
+    }
 
     /** status is NONE, PENDING, APPROVED or REJECTED for this very withdrawal; description is what to send when asking. */
     record NeedStatus(String kind, String title, String description, BigDecimal amount, BigDecimal limit, String status) {}
@@ -79,7 +84,7 @@ class SavingsPostingController {
             List<String> problems = SavingsRules.checkDeposit(amount, a.status(), c.status());
             if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
             Posted r = poster.post(new Entry(Master.SAVINGS, Direction.IN, p.branch(), req.clientId(), req.typeCode(), req.refNo(), amount,
-                req.explanation(), req.receiptNo(), req.confirmDuplicate()), p, a, auth.getName());
+                req.explanation(), req.receiptNo(), req.confirmDuplicate(), poster.cheques(req.cheques(), req.confirmDuplicate())), p, a, auth.getName());
             return receipt("DEPOSIT", r, req, c, a, amount, a.balance().add(amount), p);
         });
     }

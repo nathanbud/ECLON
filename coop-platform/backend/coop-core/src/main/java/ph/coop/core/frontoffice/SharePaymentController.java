@@ -28,7 +28,12 @@ import ph.coop.core.frontoffice.MemberLedgerPoster.Posted;
 @RequestMapping("/api/front-office/share-payments")
 class SharePaymentController {
 
-    record Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate) {}
+    /** cheques is the part of the amount paid by cheque; the rest is cash. */
+    record Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate, java.util.List<ChequeRules.Input> cheques) {
+        Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate) {
+            this(clientId, typeCode, refNo, amount, explanation, receiptNo, confirmDuplicate, null);
+        }
+    }
 
     record Receipt(int branchCode, int year, long controlNo, String documentNo, String date, int clientId, String clientName,
                    String account, BigDecimal amount, BigDecimal balanceAfter, String cashier) {}
@@ -57,7 +62,7 @@ class SharePaymentController {
             var problems = SharePaymentRules.check(amount, a.status(), a.balance(), a.maxBalance(), c.status());
             if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
             Posted r = poster.post(new Entry(Master.SHARE_CAPITAL, Direction.IN, p.branch(), req.clientId(), req.typeCode(), req.refNo(), amount,
-                req.explanation(), req.receiptNo(), req.confirmDuplicate()), p, a, auth.getName());
+                req.explanation(), req.receiptNo(), req.confirmDuplicate(), poster.cheques(req.cheques(), req.confirmDuplicate())), p, a, auth.getName());
             return new Receipt(r.branch(), r.year(), r.controlNo(), r.documentNo(), r.date().toString(), req.clientId(), c.name(),
                 (a.type() == null ? "Share capital" : a.type()) + (a.refText() == null ? " " + req.refNo() : " " + a.refText()), amount, a.balance().add(amount), p.name());
         });

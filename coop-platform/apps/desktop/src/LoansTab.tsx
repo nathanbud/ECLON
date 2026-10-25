@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import LoanApplicationDialog from './LoanApplicationDialog'
 import LoanProfileDialog from './LoanProfileDialog'
 import { askFoOverride, checkLoanPayment, getLoanDetail, getLoans, getLoanTypes, postLoanPayment, type LoanItem, type LoanPaymentBreakdown, type LoanPaymentReceipt, type LoanScheduleRow } from './api'
+import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
 
 const money = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
@@ -84,10 +85,12 @@ function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan
   const [askConfirm, setAskConfirm] = useState(false)
   // empty = take the suggested penalty; a typed figure that differs needs a supervisor
   const [penaltyText, setPenaltyText] = useState('')
+  const [cheques, setCheques] = useState<ChequeRow[]>([])
   const value = Number(amount)
   const valid = amount.trim() !== '' && Number.isFinite(value) && value > 0
   const penaltyTyped = penaltyText.trim() !== '' && Number.isFinite(Number(penaltyText)) ? Number(penaltyText) : undefined
-  const body = { clientId, typeCode: loan.typeCode, refNo: loan.refNo, amount: value, explanation, receiptNo, penalty: penaltyTyped }
+  const body = { clientId, typeCode: loan.typeCode, refNo: loan.refNo, amount: value, explanation, receiptNo, penalty: penaltyTyped, cheques: chequesToApi(cheques) }
+  const chequesTotal = chequeSum(cheques)
 
   // the server works the split out (penalty, then interest on the days since interest was last paid, then principal); look again as the amount or penalty changes, and while a supervisor decides
   const waiting = check?.approval?.status === 'PENDING'
@@ -99,7 +102,7 @@ function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan
     const poll = waiting ? setInterval(run, 4000) : undefined
     return () => { live = false; clearTimeout(t); if (poll) clearInterval(poll) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [valid, value, penaltyTyped, waiting, receipt])
+  }, [valid, value, penaltyTyped, waiting, receipt, chequesTotal])
 
   const ask = async () => {
     const a = check?.approval
@@ -132,6 +135,7 @@ function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan
           <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
             <Box sx={{ fontSize: 13 }}>{loan.type ?? `Type ${loan.typeCode}`} #{loan.refNo} · owes {money(loan.outstanding)} · {loan.interestRate?.toFixed(2)}% a year</Box>
             <MoneyField label="Amount" autoFocus value={amount} onValueChange={(v) => { setAmount(v); setAskConfirm(false); setError(null) }} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
+            <ChequeFields rows={cheques} onChange={(r) => { setCheques(r); setAskConfirm(false); setError(null) }} total={value > 0 ? value : 0} />
             {check && (
               <Table size="small" aria-label="How the payment is split">
                 <TableBody>

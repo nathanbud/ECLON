@@ -526,7 +526,12 @@ export const getShares = (branchCode: number, clientId: number) => send<ShareSum
 export const getShareHistory = (branchCode: number, clientId: number, typeCode: number, refNo: number, page: number, size: number) =>
   send<ShareHistory>('GET', `/api/members/${branchCode}/${clientId}/shares/${typeCode}/${refNo}?page=${page}&size=${size}`)
 
-export interface SharePaymentIn { clientId: number; typeCode: number; refNo: number; amount: number; explanation?: string; receiptNo?: string; confirmDuplicate?: boolean }
+/** A cheque taken at the window; the part of a payment the cheques do not cover is cash. */
+export interface ChequeIn { number: string; bankCode: number | null; date: string | null; kind: number | null; amount: number | null }
+export interface ChequeSetup { kinds: { id: number; name: string; days: number }[]; banks: { id: number; name: string }[] }
+export const getChequeSetup = () => send<ChequeSetup>('GET', '/api/front-office/cheque-setup')
+
+export interface SharePaymentIn { clientId: number; typeCode: number; refNo: number; amount: number; explanation?: string; receiptNo?: string; confirmDuplicate?: boolean; cheques?: ChequeIn[] }
 export interface SharePaymentReceipt {
   branchCode: number; year: number; controlNo: number; documentNo: string; date: string; clientId: number; clientName: string
   account: string; amount: number; balanceAfter: number; cashier: string
@@ -560,7 +565,7 @@ export const getSavings = (branchCode: number, clientId: number) => send<Savings
 export const getSavingsHistory = (branchCode: number, clientId: number, typeCode: number, refNo: number, page: number, size: number) =>
   send<SavingsHistory>('GET', `/api/members/${branchCode}/${clientId}/savings/${typeCode}/${refNo}?page=${page}&size=${size}`)
 
-export interface SavingsCashIn { clientId: number; typeCode: number; refNo: number; amount: number; explanation?: string; receiptNo?: string; confirmDuplicate?: boolean }
+export interface SavingsCashIn { clientId: number; typeCode: number; refNo: number; amount: number; explanation?: string; receiptNo?: string; confirmDuplicate?: boolean; cheques?: ChequeIn[] }
 export interface SavingsReceipt {
   kind: 'DEPOSIT' | 'WITHDRAWAL'; branchCode: number; year: number; controlNo: number; documentNo: string; date: string; clientId: number; clientName: string
   account: string; amount: number; balanceAfter: number; cashier: string
@@ -622,7 +627,7 @@ export const getLoans = (branchCode: number, clientId: number, includePaid: bool
 export const getLoanDetail = (branchCode: number, clientId: number, typeCode: number, refNo: number) =>
   send<LoanDetail>('GET', `/api/members/${branchCode}/${clientId}/loans/${typeCode}/${refNo}`)
 
-export interface LoanPaymentIn { clientId: number; typeCode: number; refNo: number; amount: number; explanation?: string; receiptNo?: string; confirmDuplicate?: boolean; penalty?: number }
+export interface LoanPaymentIn { clientId: number; typeCode: number; refNo: number; amount: number; explanation?: string; receiptNo?: string; confirmDuplicate?: boolean; penalty?: number; cheques?: ChequeIn[] }
 export interface LoanPaymentBreakdown {
   outstanding: number; interestFrom: string; days: number; interestDue: number; payoff: number; pastDuePrincipal: number; daysPastDue: number; graceDays: number
   suggestedPenalty: number | null; penalty: number; approval: { kind: string; title: string; description: string; amount: number; status: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' } | null

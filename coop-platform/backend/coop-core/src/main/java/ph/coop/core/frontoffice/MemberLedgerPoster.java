@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.db.Db;
+import ph.coop.core.frontoffice.ChequeRules.Cheque;
 
 /**
  * Writes a cash payment into, or a cash withdrawal out of, a member's subsidiary ledger account exactly as the old system did
@@ -42,7 +43,13 @@ class MemberLedgerPoster {
 
     record Client(int status, String name) {}
 
-    record Entry(Master master, Direction direction, int branch, int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate) {}
+    /** cheques is the part of a receipt paid by cheque (the rest is cash); empty for cash only and for every withdrawal. */
+    record Entry(Master master, Direction direction, int branch, int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate,
+                 List<Cheque> cheques) {
+        Entry(Master master, Direction direction, int branch, int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate) {
+            this(master, direction, branch, clientId, typeCode, refNo, amount, explanation, receiptNo, confirmDuplicate, List.of());
+        }
+    }
 
     record Posted(int branch, int year, long controlNo, String documentNo, LocalDate date) {}
 
@@ -107,7 +114,9 @@ class MemberLedgerPoster {
     }
 
     /** One line on a member's account: debit positive, credit negative, as the ledger stores it. */
-    record MemberLine(int slc, int typeCode, int refNo, int event, int cts, String account, BigDecimal amount) {}
+    record MemberLine(int slc, int typeCode, int refNo, int event, int cts, String account, BigDecimal amount) {
+        MemberLine withAmount(BigDecimal other) { return new MemberLine(slc, typeCode, refNo, event, cts, account, other); }
+    }
 
     /** A cash payment into, or out of, one member account (share capital or savings): a single member line. */
     Posted post(Entry e, Person p, Account a, String username) {
@@ -117,7 +126,7 @@ class MemberLedgerPoster {
         String what = e.master().slc() == 31 ? "share.payment.post" : in ? "savings.deposit.post" : "savings.withdrawal.post";
         MemberLine line = new MemberLine(e.master().slc(), e.typeCode(), e.refNo(), PRINCIPAL, a.status(), memberAccount, in ? e.amount().negate() : e.amount());
         return postVoucher(e.direction(), p, e.clientId(), explanation, e.receiptNo(), e.confirmDuplicate(), List.of(line), what, username,
-            "type " + e.typeCode() + " ref " + e.refNo() + " amount " + e.amount().toPlainString());
+            "type " + e.typeCode() + " ref " + e.refNo() + " amount " + e.amount().toPlainString() + (e.cheques().isEmpty() ? "" : " cheques " + describe(e.cheques())), e.cheques());
     }
 
     /**
@@ -127,6 +136,17 @@ class MemberLedgerPoster {
      */
     Posted postVoucher(Direction direction, Person p, int clientId, String explanationText, String receiptNo, boolean confirmDuplicate, List<MemberLine> lines,
                        String auditAction, String username, String auditDetail) {
+        return postVoucher(direction, p, clientId, explanationText, receiptNo, confirmDuplicate, lines, auditAction, username, auditDetail, List.of());
+    }
+
+    /**
+     * As above, for a receipt paid partly or wholly by cheque (documentation/cheque-receipt-posting-map.md): each cheque is a debit on the
+     * cheque account of the poster's drawer (100112 cashier, 100113 teller; sub-ledger type 3, same event and drawer number as the cash),
+     * written before the cash entry; the cash pays the member lines first, in order, and the cheques the rest, in order, one ledger row
+     * and one general ledger credit per tender. Every receipt also gets its tender rows in transck (cash row first, then the cheques).
+     */
+    Posted postVoucher(Direction direction, Person p, int clientId, String explanationText, String receiptNo, boolean confirmDuplicate, List<MemberLine> lines,
+                       String auditAction, String username, String auditDetail, List<Cheque> cheques) {
         int branch = p.branch();
         List<Integer> events = HandoverController.eventsOf(p.head(), p.assignment());
         if (p.number() <= 0 || events.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only a cashier or teller with a drawer can take or pay out cash.");
@@ -160,7 +180,16 @@ class MemberLedgerPoster {
         explanation = explanation.substring(0, Math.min(explanation.length(), 200));
 
         BigDecimal memberTotal = lines.stream().map(MemberLine::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal cashAmount = memberTotal.negate();
+        BigDecimal received = memberTotal.negate();
+        BigDecimal chequeTotal = cheques.stream().map(Cheque::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (!cheques.isEmpty()) {
+            if (!in) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cheques can be received here, not paid out.");
+            if (!db.canInsertInto("transck")) throw new ResponseStatusException(HttpStatus.CONFLICT, "Cheques cannot be taken yet: the database user needs V024_cheque_receipts.sql.");
+            if (event != 52 && event != 53) throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a cashier or a teller takes cheques at the window.");
+            if (chequeTotal.compareTo(received) > 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The cheques add up to " + chequeTotal.toPlainString() + ", more than the payment of " + received.toPlainString() + ".");
+        }
+        BigDecimal cashAmount = received.subtract(chequeTotal);
+        String chequeAccount = event == 52 ? "100112" : "100113";
 
         jdbc.update("""
                 INSERT INTO transsum (TR_BRCODE, TR_YEAR, TR_MODULE, TR_CODE, TR_CTLNO, TR_DOCNO, TR_DATE, TR_TIME, TR_CLIENTID, BATCH_NO, EXPLANATION, IS_FO, DATETIMEADDED)
@@ -176,22 +205,67 @@ class MemberLedgerPoster {
         String memberSql = """
                 INSERT INTO transdt (DTTR_BRCODE, DTTR_YEAR, DTTR_MODULE, DTTR_CODE, DTTR_CTLNO, DTSEQ_NO, DTDEPT, DTACCT_CODE, ClientIDDT, DTSLC_CODE, DTSLT_CODE, DTREF_NO,
                   DTSLE_CODE, DTCTS_NUM, DTSL_DATE, DTADJ_FLAG, DTCOCI_TYPE, DTAMT, DTENCDBY, DTPOSTBY, DTUPD_TAG, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?, 1, 0, 0, 0)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 1, 0, 0, 0)
                 """;
+        String chequeSql = """
+                INSERT INTO transdt (DTTR_BRCODE, DTTR_YEAR, DTTR_MODULE, DTTR_CODE, DTTR_CTLNO, DTSEQ_NO, DTDEPT, DTACCT_CODE, DTSLC_CODE, DTSLT_CODE, DTREF_NO,
+                  DTSLE_CODE, DTCTS_NUM, DTCOCI_TYPE, DTAMT, DTENCDBY, DTPOSTBY, DTUPD_TAG, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 11, 3, 1, ?, ?, 2, ?, ?, ?, 1, 0, 0, 0)
+                """;
+        int memberTender = cheques.isEmpty() ? 1 : 2;
+        boolean cashLine = cashAmount.signum() > 0 || cheques.isEmpty();
         int seq = 0;
-        if (in) jdbc.update(cashSql, branch, year, module, code, ctl, seq++, p.dept(), cashAccount, event, p.number(), cashAmount, p.id(), p.id());
+        if (in) {
+            for (Cheque c : cheques) jdbc.update(chequeSql, branch, year, module, code, ctl, seq++, p.dept(), chequeAccount, event, p.number(), c.amount(), p.id(), p.id());
+            if (cashLine) jdbc.update(cashSql, branch, year, module, code, ctl, seq++, p.dept(), cashAccount, event, p.number(), cashAmount, p.id(), p.id());
+        }
         for (MemberLine l : lines) {
-            jdbc.update(memberSql, branch, year, module, code, ctl, seq++, p.dept(), l.account(), clientId, l.slc(), l.typeCode(), l.refNo(), l.event(), l.cts(), day.toString(), l.amount(), p.id(), p.id());
+            jdbc.update(memberSql, branch, year, module, code, ctl, seq++, p.dept(), l.account(), clientId, l.slc(), l.typeCode(), l.refNo(), l.event(), l.cts(), day.toString(), memberTender, l.amount(), p.id(), p.id());
         }
         if (!in) jdbc.update(cashSql, branch, year, module, code, ctl, seq, p.dept(), cashAccount, event, p.number(), cashAmount, p.id(), p.id());
 
-        // the member's ledger rows; the sequence runs on over all dates and all events of the account
-        for (MemberLine l : lines) writeLedgerRow(branch, clientId, l, day, code, ctl, docNo);
+        // the member's ledger rows; the sequence runs on over all dates and all events of the account. With cheques the cash pays the lines first,
+        // in order, and the cheques the rest, in order: one row, and one general ledger credit, for each piece.
+        List<Object[]> glCredits = new java.util.ArrayList<>();
+        if (cheques.isEmpty()) {
+            for (MemberLine l : lines) {
+                writeLedgerRow(branch, clientId, l, day, code, ctl, docNo, null);
+                glCredits.add(new Object[] {l.account(), l.amount()});
+            }
+        } else {
+            BigDecimal cashLeft = cashAmount;
+            int ci = 0;
+            BigDecimal chequeLeft = cheques.get(0).amount();
+            for (MemberLine l : lines) {
+                BigDecimal need = l.amount().negate();
+                BigDecimal take = cashLeft.min(need);
+                if (take.signum() > 0) {
+                    writeLedgerRow(branch, clientId, l.withAmount(take.negate()), day, code, ctl, docNo, null);
+                    glCredits.add(new Object[] {l.account(), take.negate()});
+                    cashLeft = cashLeft.subtract(take);
+                    need = need.subtract(take);
+                }
+                while (need.signum() > 0) {
+                    take = chequeLeft.min(need);
+                    writeLedgerRow(branch, clientId, l.withAmount(take.negate()), day, code, ctl, docNo, cheques.get(ci));
+                    glCredits.add(new Object[] {l.account(), take.negate()});
+                    chequeLeft = chequeLeft.subtract(take);
+                    need = need.subtract(take);
+                    if (chequeLeft.signum() == 0 && ci + 1 < cheques.size()) chequeLeft = cheques.get(++ci).amount();
+                }
+            }
+        }
+        if (in && db.canInsertInto("transck")) {
+            int k = 0;
+            if (cashLine) writeTender(branch, year, module, code, ctl, k++, p, cashAmount, null);
+            for (Cheque c : cheques) writeTender(branch, year, module, code, ctl, k++, p, c.amount(), c);
+        }
 
         Timestamp stamp = Timestamp.valueOf(now);
         // debit positive in DR, credit negative in CR
-        writeGlLine(branch, cashAccount, day, code, p.dept(), cashAmount, stamp);
-        for (MemberLine l : lines) writeGlLine(branch, l.account(), day, code, p.dept(), l.amount(), stamp);
+        for (Cheque c : cheques) writeGlLine(branch, chequeAccount, day, code, p.dept(), c.amount(), stamp);
+        if (cashLine) writeGlLine(branch, cashAccount, day, code, p.dept(), cashAmount, stamp);
+        for (Object[] g : glCredits) writeGlLine(branch, (String) g[0], day, code, p.dept(), (BigDecimal) g[1], stamp);
 
         jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'transsum', ?, ?)",
             stamp, username, auditAction, branch + "/" + year + "/" + module + "/" + code + "/" + ctl, "client " + clientId + " " + auditDetail + " doc " + docNo);
@@ -200,6 +274,11 @@ class MemberLedgerPoster {
 
     /** One sldtl row on a member account, with its slsum row if this is the first entry of the event; the sequence runs on over all events. */
     void writeLedgerRow(int branch, int clientId, MemberLine l, LocalDate day, int trCode, long ctl, String docNo) {
+        writeLedgerRow(branch, clientId, l, day, trCode, ctl, docNo, null);
+    }
+
+    /** As above; a cheque (null for cash) sets the row's tender, the days left to clear, the cheque number and the bank. */
+    void writeLedgerRow(int branch, int clientId, MemberLine l, LocalDate day, int trCode, long ctl, String docNo, Cheque cheque) {
         // the ledger needs a slsum row for each account and event, dated by its first entry; the first use of an event adds it
         Integer known = jdbc.queryForObject("SELECT COUNT(*) FROM slsum WHERE SL_BRCODE = ? AND SL_CLIENTID = ? AND SLC_CODE = ? AND SLT_CODE = ? AND REF_NO = ? AND SLE_CODE = ?",
             Integer.class, branch, clientId, l.slc(), l.typeCode(), l.refNo(), l.event());
@@ -213,9 +292,56 @@ class MemberLedgerPoster {
                 """, Integer.class, branch, clientId, l.slc(), l.typeCode(), l.refNo());
         int next = (top.isEmpty() ? 0 : top.get(0)) + 1;
         jdbc.update("""
-                INSERT INTO sldtl (SL_BRCODE, SL_CLIENTID, SLC_CODE, SLT_CODE, REF_NO, SLE_CODE, TR_DATE, SEQNO, GL_DATE, TR_CODE, TR_CTLNO, TR_DOCNO, AMT, ADJ_FLAG, COCI_TYPE, CLRG_DAYS)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 0)
-                """, branch, clientId, l.slc(), l.typeCode(), l.refNo(), l.event(), day.toString(), next, day.toString(), trCode, ctl, docNo, l.amount());
+                INSERT INTO sldtl (SL_BRCODE, SL_CLIENTID, SLC_CODE, SLT_CODE, REF_NO, SLE_CODE, TR_DATE, SEQNO, GL_DATE, TR_CODE, TR_CTLNO, TR_DOCNO, AMT, ADJ_FLAG, COCI_TYPE, CLRG_DAYS, CHECKNO, BANK_CODE)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+                """, branch, clientId, l.slc(), l.typeCode(), l.refNo(), l.event(), day.toString(), next, day.toString(), trCode, ctl, docNo, l.amount(),
+            cheque == null ? 1 : 2, cheque == null ? 0 : ChequeRules.ledgerDays(cheque.clearingDays()), cheque == null ? null : cheque.number(), cheque == null ? null : cheque.bankCode());
+    }
+
+    /** One transck row: the cash taken (cheque null) or one cheque. Not cleared yet; the poster is both encoder and poster, nobody has approved. */
+    private void writeTender(int branch, int year, int module, int code, long ctl, int seq, Person p, BigDecimal amount, Cheque c) {
+        jdbc.update("""
+                INSERT INTO transck (CKTR_BRCODE, CKTR_YEAR, CKTR_MODULE, CKTR_CODE, CKTR_CTLNO, CKSEQ_NO, CKDEPT, CKCOCI_TYPE, CKCHECKTYPE, CKCLRG_DAYS, CKCHECKNO, CKBANK_CODE,
+                  CKCHECKDATE, CKAMT, CKUPD_TAG, CKENCDBY, CKPOSTBY, CKISCLEARED, CKPAYEE)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 0, '')
+                """, branch, year, module, code, ctl, seq, p.dept(), c == null ? 1 : 2, c == null ? null : c.kind(), c == null ? null : c.clearingDays(), c == null ? "" : c.number(),
+            c == null ? null : c.bankCode(), c == null ? null : c.date().toString(), amount, p.id(), p.id());
+    }
+
+    /**
+     * Checks the cheques typed at the window against the bank list and the cheque kinds, and against cheques received before (the same
+     * bank and number again needs a confirmation). Throws a 400 listing every problem.
+     */
+    List<Cheque> cheques(List<ChequeRules.Input> typed, boolean confirmDuplicate) {
+        if (typed == null || typed.isEmpty()) return List.of();
+        LocalDate today = LocalDate.now(clock);
+        List<String> problems = new java.util.ArrayList<>(ChequeRules.repeats(typed));
+        List<Cheque> out = new java.util.ArrayList<>();
+        for (int i = 0; i < typed.size(); i++) {
+            ChequeRules.Input c = typed.get(i);
+            Integer days = c.kind() == null ? null : jdbc.queryForList("SELECT ChkTypeDays FROM chktype WHERE ChkTypeID = ?", Integer.class, c.kind()).stream().findFirst().orElse(null);
+            boolean bank = c.bankCode() != null && jdbc.queryForObject("SELECT COUNT(*) FROM bankcode WHERE BCID = ?", Integer.class, c.bankCode()) > 0;
+            List<String> mine = ChequeRules.check(c, i + 1, today, days, bank);
+            problems.addAll(mine);
+            if (mine.isEmpty()) {
+                String number = ChequeRules.number(c.number());
+                if (!confirmDuplicate) {
+                    List<java.sql.Date> before = jdbc.queryForList("""
+                            SELECT m.TR_DATE FROM transck k JOIN transsum m ON m.TR_BRCODE = k.CKTR_BRCODE AND m.TR_YEAR = k.CKTR_YEAR AND m.TR_MODULE = k.CKTR_MODULE
+                              AND m.TR_CODE = k.CKTR_CODE AND m.TR_CTLNO = k.CKTR_CTLNO
+                            WHERE k.CKCOCI_TYPE = 2 AND k.CKBANK_CODE = ? AND k.CKCHECKNO = ? ORDER BY m.TR_DATE DESC LIMIT 1
+                            """, java.sql.Date.class, c.bankCode(), number);
+                    if (!before.isEmpty()) problems.add("Cheque " + (i + 1) + ": a cheque with this bank and number was already received on " + before.get(0) + ". If you really mean to take it again, confirm it.");
+                }
+                out.add(new Cheque(number, c.bankCode(), c.date(), c.kind(), c.amount().setScale(2, java.math.RoundingMode.HALF_UP), days));
+            }
+        }
+        if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
+        return out;
+    }
+
+    static String describe(List<Cheque> cheques) {
+        return cheques.stream().map((c) -> c.number() + " bank " + c.bankCode() + " " + c.amount().toPlainString()).collect(java.util.stream.Collectors.joining("; "));
     }
 
     /** One gltrans line: a debit goes in the DR column, a credit (negative) in the CR column. */

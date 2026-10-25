@@ -38,9 +38,13 @@ import ph.coop.core.loan.LoanRules;
 class LoanPaymentController {
 
     /** penalty empty means "the suggested one". */
-    record Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate, BigDecimal penalty) {
+    /** cheques is the part of the amount paid by cheque; the rest is cash (which pays the penalty, interest and principal first, as the old system did). */
+    record Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate, BigDecimal penalty, java.util.List<ChequeRules.Input> cheques) {
+        Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate, BigDecimal penalty) {
+            this(clientId, typeCode, refNo, amount, explanation, receiptNo, confirmDuplicate, penalty, null);
+        }
         Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate) {
-            this(clientId, typeCode, refNo, amount, explanation, receiptNo, confirmDuplicate, null);
+            this(clientId, typeCode, refNo, amount, explanation, receiptNo, confirmDuplicate, null, null);
         }
     }
 
@@ -121,10 +125,12 @@ class LoanPaymentController {
                 spent = found.get(0);
             }
             String explanation = req.explanation() == null || req.explanation().isBlank() ? "LOAN PAYMENT" : req.explanation();
+            List<ChequeRules.Cheque> cheques = poster.cheques(req.cheques(), req.confirmDuplicate());
             Posted r = poster.postVoucher(Direction.IN, p, req.clientId(), explanation, req.receiptNo(), req.confirmDuplicate(), lines, "loan.payment.post", auth.getName(),
                 "loan " + req.typeCode() + "/" + req.refNo() + " amount " + amount.toPlainString() + " penalty " + b.penalty().toPlainString()
                     + (b.suggestedPenalty() == null ? " (no suggestion)" : " (suggested " + b.suggestedPenalty().toPlainString() + ")")
-                    + " interest " + b.interest().toPlainString() + " principal " + b.principal().toPlainString());
+                    + " interest " + b.interest().toPlainString() + " principal " + b.principal().toPlainString()
+                    + (cheques.isEmpty() ? "" : " cheques " + MemberLedgerPoster.describe(cheques)), cheques);
             if (spent != null) {
                 String ref = r.branch() + "/" + r.year() + "/3/10/" + r.controlNo();
                 jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", ref, spent[0]);
@@ -164,6 +170,10 @@ class LoanPaymentController {
             approval = new Approval(PENALTY_KIND, title, description, diff, approvalStatus(p, diff, description));
         }
 
+        if (amount != null && req.cheques() != null) {
+            BigDecimal byCheque = req.cheques().stream().map((ch) -> ch.amount() == null ? BigDecimal.ZERO : ch.amount()).reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (byCheque.compareTo(amount) > 0) problems.add("The cheques add up to " + byCheque.toPlainString() + ", more than the payment of " + amount.toPlainString() + ".");
+        }
         BigDecimal interest = BigDecimal.ZERO, principal = BigDecimal.ZERO;
         if (amount != null && amount.signum() > 0) {
             if (penalty.compareTo(amount) > 0) problems.add("The amount has to cover the penalty of " + penalty.toPlainString() + " first.");
