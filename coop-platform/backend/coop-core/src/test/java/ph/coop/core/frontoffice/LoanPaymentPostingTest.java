@@ -185,13 +185,93 @@ class LoanPaymentPostingTest {
         assertEquals(0, BigDecimal.ZERO.compareTo(outstanding(l[0], l[1], l[2])));
     }
 
+    /** A loan that is late beyond its grace period and has a penalty suggestion above zero. */
+    private int[] lateLoanWithSuggestion() {
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT l.ClientIDLoan AS c, l.LoanSLT_CODE AS t, l.LoanREF_NO AS r FROM loan l JOIN client k ON k.ClientIDBrCode = l.LoanBR_CODE AND k.ClientID = l.ClientIDLoan AND k.AccountStatus = 1
+                WHERE l.LoanBR_CODE = 1 AND l.LoanSTATUS = 11 AND l.LoanPEN_MODE = 4 AND l.LoanTR_DATE BETWEEN '2025-03-01' AND '2026-01-31' AND l.LoanPAMT > 5000 ORDER BY l.LoanREF_NO DESC LIMIT 600
+                """);
+        for (Map<String, Object> r : rows) {
+            int c = ((Number) r.get("c")).intValue(), t = ((Number) r.get("t")).intValue(), ref = ((Number) r.get("r")).intValue();
+            var terms = book.terms(1, c, t, ref).orElse(null);
+            if (terms == null || terms.outstanding().compareTo(new BigDecimal("3000")) < 0) continue;
+            var q = book.quote(1, c, t, ref, terms, TODAY);
+            if (q.suggestedPenalty() != null && q.suggestedPenalty().signum() > 0 && q.interestDue().signum() > 0) return new int[] {c, t, ref};
+        }
+        assumeTrue(false, "no late loan with a suggested penalty");
+        return null;
+    }
+
     @Test
-    void refusesALoanThatIsLateBeyondItsGracePeriodBecauseThePenaltyIsNotKnown() {
-        int[] l = loan(true);
-        Breakdown b = payments.check(new Request(l[0], l[1], l[2], new BigDecimal("1000.00"), null, null, false), as(teller));
+    void aLateLoanSuggestsAPenaltyThatIsTakenFirstAndPostedAsEvent41() {
+        int[] l = lateLoanWithSuggestion();
+        var terms = book.terms(1, l[0], l[1], l[2]).orElseThrow();
+        var q = book.quote(1, l[0], l[1], l[2], terms, TODAY);
+        BigDecimal penalty = q.suggestedPenalty();
+        BigDecimal amount = penalty.add(q.interestDue()).add(new BigDecimal("500.00"));
+        BigDecimal before = outstanding(l[0], l[1], l[2]);
+
+        Request req = new Request(l[0], l[1], l[2], amount, "itest", null, false);
+        Breakdown b = payments.check(req, as(teller));
+        assertTrue(b.ready(), String.valueOf(b.problems()));
+        assertEquals(0, penalty.compareTo(b.suggestedPenalty()));
+        assertEquals(0, penalty.compareTo(b.penalty()));
+        assertEquals(null, b.approval(), "the suggested figure needs no approval");
+        assertEquals(0, q.interestDue().compareTo(b.interest()));
+        assertEquals(0, new BigDecimal("500.00").compareTo(b.principal()));
+
+        Receipt r = payments.post(req, as(teller));
+        assertEquals(0, penalty.compareTo(r.penalty()));
+        assertEquals(0, before.subtract(new BigDecimal("500.00")).compareTo(outstanding(l[0], l[1], l[2])));
+        List<Map<String, Object>> dt = jdbc.queryForList("SELECT * FROM transdt WHERE DTTR_BRCODE = 1 AND DTTR_YEAR = ? AND DTTR_MODULE = 3 AND DTTR_CODE = 10 AND DTTR_CTLNO = ? ORDER BY DTSEQ_NO", r.year(), r.controlNo());
+        assertEquals(4, dt.size());
+        assertEquals(41, ((Number) dt.get(3).get("DTSLE_CODE")).intValue());
+        assertEquals(99, ((Number) dt.get(3).get("DTCTS_NUM")).intValue());
+        assertEquals(0, penalty.negate().compareTo((BigDecimal) dt.get(3).get("DTAMT")));
+        assertEquals(0, dt.stream().map((x) -> (BigDecimal) x.get("DTAMT")).reduce(BigDecimal.ZERO, BigDecimal::add).signum(), "the entries cancel out");
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 12 AND SLT_CODE = ? AND REF_NO = ? AND TR_CTLNO = ? AND TR_CODE = 10 AND SLE_CODE = 41 AND AMT = ?",
+            Integer.class, l[0], l[1], l[2], r.controlNo(), penalty.negate()));
+    }
+
+    @Test
+    void aPenaltyOtherThanTheSuggestedOneNeedsASupervisorAndTheApprovalIsSpentOnce() {
+        int[] l = lateLoanWithSuggestion();
+        var terms = book.terms(1, l[0], l[1], l[2]).orElseThrow();
+        var q = book.quote(1, l[0], l[1], l[2], terms, TODAY);
+        BigDecimal typed = q.suggestedPenalty().add(new BigDecimal("10.00"));
+        BigDecimal amount = typed.add(q.interestDue()).add(new BigDecimal("100.00"));
+        Request req = new Request(l[0], l[1], l[2], amount, "itest", null, false, typed);
+
+        Breakdown b = payments.check(req, as(teller));
         assertFalse(b.ready());
-        assertTrue(b.problems().stream().anyMatch((p) -> p.contains("past due") && p.contains("penalty")));
-        assertThrows(ResponseStatusException.class, () -> payments.post(new Request(l[0], l[1], l[2], new BigDecimal("1000.00"), null, null, false), as(teller)));
+        assertEquals("NONE", b.approval().status());
+        assertEquals(0, new BigDecimal("10.00").compareTo(b.approval().amount()));
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> payments.post(req, as(teller)));
+        assertTrue(e.getReason().contains("supervisor"), e.getReason());
+
+        // a supervisor other than the cashier allows exactly this figure
+        int boss = jdbc.queryForObject("SELECT AccessID FROM access WHERE AccessBR_CODE = 1 AND AccessID <> ? ORDER BY AccessID LIMIT 1", Integer.class, tellerId);
+        jdbc.update("INSERT INTO ecis_fo_override (branch_code, kind, description, amount, requested_by, requested_at, status, decided_by, decided_at) VALUES (1, 'LOAN_PENALTY', ?, ?, ?, NOW(), 'APPROVED', ?, NOW())",
+            b.approval().description(), b.approval().amount(), tellerId, boss);
+        assertTrue(payments.check(req, as(teller)).ready());
+        Receipt r = payments.post(req, as(teller));
+        assertEquals(0, typed.compareTo(r.penalty()));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_fo_override WHERE kind = 'LOAN_PENALTY' AND requested_by = ? AND used_ref IS NOT NULL", Integer.class, tellerId));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'loan.payment.override.used' AND username = ? AND at >= ?", Integer.class, teller, java.sql.Timestamp.valueOf(LocalDateTime.now().minusMinutes(5))));
+
+        // the same approval cannot be used again
+        assertFalse(payments.check(req, as(teller)).ready());
+    }
+
+    @Test
+    void aPenaltyHigherThanThePaymentIsRefused() {
+        int[] l = lateLoanWithSuggestion();
+        var q = book.quote(1, l[0], l[1], l[2], book.terms(1, l[0], l[1], l[2]).orElseThrow(), TODAY);
+        BigDecimal tooSmall = q.suggestedPenalty().subtract(new BigDecimal("0.01"));
+        assumeTrue(tooSmall.signum() > 0);
+        Breakdown b = payments.check(new Request(l[0], l[1], l[2], tooSmall, null, null, false), as(teller));
+        assertFalse(b.ready());
+        assertTrue(b.problems().stream().anyMatch((p) -> p.contains("cover the penalty")));
     }
 
     @Test

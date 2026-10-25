@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import LoanApplicationDialog from './LoanApplicationDialog'
 import LoanProfileDialog from './LoanProfileDialog'
-import { checkLoanPayment, getLoanDetail, getLoans, getLoanTypes, postLoanPayment, type LoanItem, type LoanPaymentBreakdown, type LoanPaymentReceipt, type LoanScheduleRow } from './api'
+import { askFoOverride, checkLoanPayment, getLoanDetail, getLoans, getLoanTypes, postLoanPayment, type LoanItem, type LoanPaymentBreakdown, type LoanPaymentReceipt, type LoanScheduleRow } from './api'
 import MoneyField from './MoneyField'
 
 const money = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
@@ -82,18 +82,34 @@ function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [askConfirm, setAskConfirm] = useState(false)
+  // empty = take the suggested penalty; a typed figure that differs needs a supervisor
+  const [penaltyText, setPenaltyText] = useState('')
   const value = Number(amount)
   const valid = amount.trim() !== '' && Number.isFinite(value) && value > 0
-  const body = { clientId, typeCode: loan.typeCode, refNo: loan.refNo, amount: value, explanation, receiptNo }
+  const penaltyTyped = penaltyText.trim() !== '' && Number.isFinite(Number(penaltyText)) ? Number(penaltyText) : undefined
+  const body = { clientId, typeCode: loan.typeCode, refNo: loan.refNo, amount: value, explanation, receiptNo, penalty: penaltyTyped }
 
-  // the server works the split out (interest first, on the days since interest was last paid); look again as the amount changes
+  // the server works the split out (penalty, then interest on the days since interest was last paid, then principal); look again as the amount or penalty changes, and while a supervisor decides
+  const waiting = check?.approval?.status === 'PENDING'
   useEffect(() => {
     if (!valid || receipt) { setCheck(null); return }
     let live = true
-    const t = setTimeout(() => { checkLoanPayment(body).then((c) => { if (live) setCheck(c) }).catch((e: Error) => { if (live) setError(e.message) }) }, 400)
-    return () => { live = false; clearTimeout(t) }
+    const run = () => { checkLoanPayment(body).then((c) => { if (live) setCheck(c) }).catch((e: Error) => { if (live) setError(e.message) }) }
+    const t = setTimeout(run, 400)
+    const poll = waiting ? setInterval(run, 4000) : undefined
+    return () => { live = false; clearTimeout(t); if (poll) clearInterval(poll) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [valid, value, receipt])
+  }, [valid, value, penaltyTyped, waiting, receipt])
+
+  const ask = async () => {
+    const a = check?.approval
+    if (!a) return
+    setBusy(true); setError(null)
+    try {
+      await askFoOverride({ draftId: null, kind: a.kind, description: a.description, amount: a.amount, limitAmount: null })
+      setCheck(await checkLoanPayment(body))
+    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
 
   const submit = async (confirmDuplicate: boolean) => {
     setBusy(true); setError(null)
@@ -120,12 +136,27 @@ function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan
               <Table size="small" aria-label="How the payment is split">
                 <TableBody>
                   <TableRow><TableCell>Interest due ({check.days} days since {check.interestFrom})</TableCell><TableCell align="right" sx={num}>{money(check.interestDue)}</TableCell></TableRow>
+                  <TableRow><TableCell>Goes to penalty</TableCell><TableCell align="right" sx={num}>{money(check.penalty)}</TableCell></TableRow>
                   <TableRow><TableCell>Goes to interest</TableCell><TableCell align="right" sx={num}>{money(check.interest)}</TableCell></TableRow>
                   <TableRow><TableCell>Goes to principal</TableCell><TableCell align="right" sx={num}>{money(check.principal)}</TableCell></TableRow>
                   <TableRow><TableCell sx={{ fontWeight: 700 }}>Principal left</TableCell><TableCell align="right" sx={{ fontWeight: 700, ...num }}>{money(check.balanceAfter)}</TableCell></TableRow>
                   <TableRow><TableCell>To pay it off today</TableCell><TableCell align="right" sx={num}>{money(check.payoff)}</TableCell></TableRow>
                 </TableBody>
               </Table>
+            )}
+            {check && (check.daysPastDue > 0 || check.penalty > 0) && (
+              <TextField label="Penalty" type="number" value={penaltyText} onChange={(e) => { setPenaltyText(e.target.value); setAskConfirm(false); setError(null) }}
+                slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
+                placeholder={check.suggestedPenalty == null ? '0.00' : check.suggestedPenalty.toFixed(2)}
+                helperText={check.suggestedPenalty == null
+                  ? 'No suggestion for this type of penalty: type the penalty. Any amount needs a supervisor.'
+                  : `Suggested ${money(check.suggestedPenalty)} (${check.daysPastDue} days late, grace ${check.graceDays}). It matches the old system in simple cases only; a different figure needs a supervisor.`} />
+            )}
+            {check?.approval && (
+              <Alert severity={check.approval.status === 'APPROVED' ? 'success' : check.approval.status === 'REJECTED' ? 'error' : 'warning'}>
+                A supervisor has to allow this: {check.approval.title}.{' '}
+                <strong>{check.approval.status === 'APPROVED' ? 'Allowed.' : check.approval.status === 'PENDING' ? 'Waiting for a supervisor...' : check.approval.status === 'REJECTED' ? 'Refused. You can ask again.' : 'Not asked yet.'}</strong>
+              </Alert>
             )}
             {check && check.problems.map((p) => <Alert key={p} severity="error">{p}</Alert>)}
             <TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} helperText="Up to 8 letters or digits. Left empty, the system numbers it." />
@@ -138,7 +169,7 @@ function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan
             <Box>Receipt <strong>{receipt.documentNo}</strong> (control {receipt.controlNo}) dated {receipt.date}</Box>
             <Box>{receipt.clientName}</Box>
             <Box>{receipt.loan}</Box>
-            <Box>Received <strong>{money(receipt.amount)}</strong>: interest {money(receipt.interest)}, principal {money(receipt.principal)}</Box>
+            <Box>Received <strong>{money(receipt.amount)}</strong>: {receipt.penalty > 0 ? `penalty ${money(receipt.penalty)}, ` : ''}interest {money(receipt.interest)}, principal {money(receipt.principal)}</Box>
             <Box>Principal left <strong>{money(receipt.balanceAfter)}</strong></Box>
             <Box>By {receipt.cashier}</Box>
           </Box>
@@ -151,7 +182,9 @@ function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan
             <Button onClick={onClose} disabled={busy}>Cancel</Button>
             {askConfirm
               ? <Button variant="contained" color="warning" disabled={busy} onClick={() => submit(true)}>Post anyway</Button>
-              : <Button variant="contained" disabled={busy || !valid || !check || !check.ready} onClick={() => submit(false)}>Post payment</Button>}
+              : check?.approval && (check.approval.status === 'NONE' || check.approval.status === 'REJECTED') && check.problems.length === 0
+                ? <Button variant="contained" disabled={busy} onClick={ask}>Ask a supervisor</Button>
+                : <Button variant="contained" disabled={busy || !valid || !check || !check.ready} onClick={() => submit(false)}>Post payment</Button>}
           </>
         )}
       </DialogActions>

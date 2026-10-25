@@ -622,14 +622,15 @@ export const getLoans = (branchCode: number, clientId: number, includePaid: bool
 export const getLoanDetail = (branchCode: number, clientId: number, typeCode: number, refNo: number) =>
   send<LoanDetail>('GET', `/api/members/${branchCode}/${clientId}/loans/${typeCode}/${refNo}`)
 
-export interface LoanPaymentIn { clientId: number; typeCode: number; refNo: number; amount: number; explanation?: string; receiptNo?: string; confirmDuplicate?: boolean }
+export interface LoanPaymentIn { clientId: number; typeCode: number; refNo: number; amount: number; explanation?: string; receiptNo?: string; confirmDuplicate?: boolean; penalty?: number }
 export interface LoanPaymentBreakdown {
   outstanding: number; interestFrom: string; days: number; interestDue: number; payoff: number; pastDuePrincipal: number; daysPastDue: number; graceDays: number
+  suggestedPenalty: number | null; penalty: number; approval: { kind: string; title: string; description: string; amount: number; status: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' } | null
   interest: number; principal: number; balanceAfter: number; problems: string[]; ready: boolean
 }
 export interface LoanPaymentReceipt {
   branchCode: number; year: number; controlNo: number; documentNo: string; date: string; clientId: number; clientName: string; loan: string
-  amount: number; interest: number; principal: number; balanceAfter: number; cashier: string
+  amount: number; penalty: number; interest: number; principal: number; balanceAfter: number; cashier: string
 }
 export const checkLoanPayment = (b: LoanPaymentIn) => send<LoanPaymentBreakdown>('POST', '/api/front-office/loan-payments/check', b)
 export const postLoanPayment = (b: LoanPaymentIn) => send<LoanPaymentReceipt>('POST', '/api/front-office/loan-payments', b)
