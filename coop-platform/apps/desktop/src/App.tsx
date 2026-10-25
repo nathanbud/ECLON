@@ -19,7 +19,7 @@ import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
 const titles: Record<View, string> = {
-  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform',
+  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform',
 }
 
 function Signed() {
@@ -49,7 +49,8 @@ function Signed() {
         {view === 'approvals' && <ApprovalsPage onOpenClient={openClient} />}
         {view === 'users' && <UsersPage />}
         {view === 'audit' && <AuditLogPage />}
-        {view === 'loansetup' && <LoanSetupPage />}
+        {view === 'loansetup' && <LoanSetupPage key="types" />}
+        {view === 'amortization' && <LoanSetupPage key="amortization" initialTab="amortization" />}
         {view === 'settings' && <SettingsPage onOpen={navigate} />}
         {view === 'frontoffice' && <FrontOfficePage />}
       </ErrorBoundary>

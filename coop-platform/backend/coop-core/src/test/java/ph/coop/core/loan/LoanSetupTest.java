@@ -63,6 +63,19 @@ class LoanSetupTest {
         assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'loan.type.create' AND entity = 'loan_type' AND reason = 'pilot product' AND username = 'tester'", Integer.class));
     }
 
+    @Test void theDayCountIsSavedAndKeptWhenTheFormDoesNotSayAndRefusedWhenWrong() {
+        var made = setup.create(form("ZZ Test Loan", "pilot"), source, me());
+        var with = new LoanSetupController.TypeForm("ZZ Test Loan", null, 12, 4, 4, 4, 3, new BigDecimal("9.50"), new BigDecimal("36.00"), new BigDecimal("1.00"), 2, true, 50, 365, false, "annuity", 1);
+        assertEquals(1, setup.update(made.code(), with, me()).dayCount());
+        assertEquals(3, setup.update(made.code(), with, me()).amortization());
+        var real = new LoanSetupController.TypeForm("ZZ Test Loan", null, 12, 4, 4, 4, 3, new BigDecimal("9.50"), new BigDecimal("36.00"), new BigDecimal("1.00"), 2, true, 50, 365, false, "real days", 2);
+        assertEquals(2, setup.update(made.code(), real, me()).dayCount());
+        // a form that does not carry it leaves it alone
+        assertEquals(2, setup.update(made.code(), form("ZZ Test Loan", "no change to days"), me()).dayCount());
+        var bad = new LoanSetupController.TypeForm("ZZ Test Loan", null, 12, 4, 4, 4, 3, new BigDecimal("9.50"), null, null, null, false, null, 365, false, "r", 3);
+        assertThrows(ResponseStatusException.class, () -> setup.update(made.code(), bad, me()));
+    }
+
     @Test void editingChangesOnlyWhatWasGivenAndRecordsBeforeAndAfter() {
         var made = setup.create(form("ZZ Test Loan", "pilot"), source, me());
         var f = new LoanSetupController.TypeForm("ZZ Test Loan", null, 12, 4, 4, 4, 1, new BigDecimal("11.00"), new BigDecimal("36.00"), new BigDecimal("1.00"), 2, true, 50, 365, false, "rate review");

@@ -718,6 +718,8 @@ export interface LoanSetupType {
   code: number; name: string; fullName: string | null; terms: number | null; termUnit: number | null; principalMode: number | null; interestMode: number | null
   amortization: number | null; interestRate: number | null; penaltyRate: number | null; serviceFeeRate: number | null; minCoMakers: number | null
   requireCollateral: boolean; priority: number | null; yearDays: number | null; disabled: boolean; loans: number; applications: number; unavailable: string | null
+  /** 1 = interest on 30 days a month, 2 = on the real days (matters for annuity). */
+  dayCount: number | null
 }
 export type LoanSetupForm = Omit<LoanSetupType, 'code' | 'loans' | 'applications' | 'unavailable'> & { reason: string }
 export interface SetupOption { id: number; name: string }
@@ -762,3 +764,13 @@ export const getChart = () => getJson<ChartAccount[]>(CHART)
 export const getChartUsage = (code: string) => getJson<ChartUsage>(`${CHART}/${encodeURIComponent(code)}/usage`)
 export const createChartAccount = (f: ChartForm) => send<ChartAccount>('POST', CHART, f)
 export const updateChartAccount = (code: string, f: ChartForm) => send<ChartAccount>('PUT', `${CHART}/${encodeURIComponent(code)}`, f)
+
+// ---- amortization reference and preview (administrators) ------------------------------------------------------------
+
+export interface AmortKind { id: number; name: string; supported: boolean; formula: string; types: string[]; loans: number }
+export interface AmortTry { kind: number; amount: number; termMonths: number; paymentMode: number; ratePercent: number; release: string | null; dayCount: number | null }
+export interface AmortRow { dueDate: string; principalDue: number; interestDue: number; principalBalance: number }
+export interface AmortPreview { rows: AmortRow[]; payments: number; payment: number; totalInterest: number; totalPaid: number; maturity: string }
+
+export const getAmortKinds = () => getJson<AmortKind[]>('/api/admin/loan-setup/amortization')
+export const previewAmortization = (t: AmortTry) => send<AmortPreview>('POST', '/api/admin/loan-setup/amortization/preview', t)

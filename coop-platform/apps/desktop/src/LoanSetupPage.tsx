@@ -9,6 +9,7 @@ import {
   createLoanType, deleteSetupNamed, getHoldSetup, setHoldable, setHoldDefault, getLoanSetupLists, getLoanSetupTypes, getSetupCollateral, getSetupPurposes, saveSetupNamed, updateLoanType,
   type HoldSetupRow, type LoanSetupForm, type LoanSetupLists, type LoanSetupType, type SetupNamed,
 } from './api'
+import AmortizationTab from './AmortizationTab'
 import { Dot, listTable, PageTitle, ReasonDialog, SearchField, SectionLabel, Segmented, Surface } from './appleUi'
 import { appBackground } from './glass'
 import { useMe } from './session'
@@ -18,13 +19,13 @@ const pct = (v: number | null) => (v == null ? '—' : `${v.toFixed(2)}%`)
 
 const blank: LoanSetupForm = {
   name: '', fullName: '', terms: null, termUnit: null, principalMode: null, interestMode: null, amortization: null, interestRate: null, penaltyRate: null,
-  serviceFeeRate: null, minCoMakers: null, requireCollateral: false, priority: null, yearDays: 365, disabled: false, reason: '',
+  serviceFeeRate: null, minCoMakers: null, requireCollateral: false, priority: null, yearDays: 365, disabled: false, reason: '', dayCount: null,
 }
 
 const toForm = (t: LoanSetupType): LoanSetupForm => ({
   name: t.name, fullName: t.fullName, terms: t.terms, termUnit: t.termUnit, principalMode: t.principalMode, interestMode: t.interestMode, amortization: t.amortization,
   interestRate: t.interestRate, penaltyRate: t.penaltyRate, serviceFeeRate: t.serviceFeeRate, minCoMakers: t.minCoMakers, requireCollateral: t.requireCollateral,
-  priority: t.priority, yearDays: t.yearDays, disabled: t.disabled, reason: '',
+  priority: t.priority, yearDays: t.yearDays, disabled: t.disabled, reason: '', dayCount: t.dayCount,
 })
 
 /** A titled group of fields inside the loan type form. Two columns of fields keep the whole form on one screen. */
@@ -116,7 +117,11 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
               <FormSection title="Term">
                 <TextField type="number" size="small" label="Term" value={form.terms ?? ''} onChange={(e) => set('terms', numberOrNull(e.target.value))} slotProps={{ htmlInput: { min: 1, max: 600 } }} />
                 {select('Counted in', 'termUnit', lists?.termUnits)}
-                <Box sx={{ gridColumn: 'span 2', display: 'grid' }}>{select('Amortization', 'amortization', lists?.amortizations)}</Box>
+                {select('Amortization', 'amortization', lists?.amortizations)}
+                <TextField select size="small" label="Interest days" value={form.dayCount ?? ''} onChange={(e) => set('dayCount', e.target.value === '' ? null : Number(e.target.value))}
+                  helperText="Annuity: 30 days a month, or the real days">
+                  <MenuItem value="">As it is</MenuItem><MenuItem value={1}>30 days a month</MenuItem><MenuItem value={2}>Real days</MenuItem>
+                </TextField>
               </FormSection>
               <FormSection title="Payment">
                 {select('Principal paid', 'principalMode', lists?.paymentModes)}
@@ -373,6 +378,7 @@ function HoldsTab({ onNotice }: { onNotice: (m: string) => void }) {
 
 const TABS = [
   { value: 'types', label: 'Loan types' },
+  { value: 'amortization', label: 'Amortization' },
   { value: 'purposes', label: 'Purposes' },
   { value: 'collateral', label: 'Collateral' },
   { value: 'holds', label: 'Co-maker holds' },
@@ -380,9 +386,9 @@ const TABS = [
 type Tab = (typeof TABS)[number]['value']
 
 /** Loan setup for administrators: loan types and the lists clerks choose from. Every change is audited. */
-export default function LoanSetupPage() {
+export default function LoanSetupPage({ initialTab = 'types' }: { initialTab?: Tab }) {
   const me = useMe()
-  const [tab, setTab] = useState<Tab>('types')
+  const [tab, setTab] = useState<Tab>(initialTab)
   const [notice, setNotice] = useState<string | null>(null)
   const lists = useQuery({ queryKey: ['loan-setup-lists'], queryFn: getLoanSetupLists, enabled: me.admin, staleTime: 5 * 60_000 })
   return (
@@ -397,6 +403,7 @@ export default function LoanSetupPage() {
               '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
             }}>
               {tab === 'types' && <TypesTab lists={lists.data} onNotice={setNotice} />}
+              {tab === 'amortization' && <AmortizationTab lists={lists.data} />}
               {tab === 'purposes' && <NamedTab kind="purposes" noun="loan purpose" lists={lists.data} onNotice={setNotice} />}
               {tab === 'collateral' && <NamedTab kind="collateral-types" noun="collateral type" lists={lists.data} onNotice={setNotice} />}
               {tab === 'holds' && <HoldsTab onNotice={setNotice} />}

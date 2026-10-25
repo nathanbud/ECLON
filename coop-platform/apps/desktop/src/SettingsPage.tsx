@@ -1,6 +1,6 @@
 import { Box, ButtonBase, InputAdornment, TextField, Typography } from '@mui/material'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { FiBookOpen, FiChevronRight, FiClipboard, FiDownloadCloud, FiLock, FiMonitor, FiSearch, FiShield, FiSliders, FiUserCheck, FiUsers } from 'react-icons/fi'
+import { FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiLock, FiMonitor, FiSearch, FiShield, FiSliders, FiUserCheck, FiUsers } from 'react-icons/fi'
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
@@ -24,6 +24,7 @@ const categories: Category[] = [
   {
     id: 'loans', label: 'Loans', icon: <FiSliders />, color: '#34C759',
     items: [
+      { label: 'Amortization', note: 'How each kind of schedule is worked out, and a calculator to try one', icon: <FiPercent />, color: '#AF52DE', view: 'amortization', who: 'admin' },
       { label: 'Loan Setup', note: 'Loan types, purposes, collateral types and the deposits that can be held for co-makers', icon: <FiSliders />, color: '#34C759', view: 'loansetup', who: 'admin' },
     ],
   },

@@ -58,11 +58,19 @@ public class LoanSetupController {
     /** What an administrator sets on a loan type. Every other column of the type is left as it is. */
     public record TypeForm(String name, String fullName, Integer terms, Integer termUnit, Integer principalMode, Integer interestMode, Integer amortization,
                            BigDecimal interestRate, BigDecimal penaltyRate, BigDecimal serviceFeeRate, Integer minCoMakers, Boolean requireCollateral,
-                           Integer priority, Integer yearDays, Boolean disabled, String reason) {}
+                           Integer priority, Integer yearDays, Boolean disabled, String reason, Integer dayCount) {
+        /** Without the day count: it is left as it is. */
+        public TypeForm(String name, String fullName, Integer terms, Integer termUnit, Integer principalMode, Integer interestMode, Integer amortization,
+                        BigDecimal interestRate, BigDecimal penaltyRate, BigDecimal serviceFeeRate, Integer minCoMakers, Boolean requireCollateral,
+                        Integer priority, Integer yearDays, Boolean disabled, String reason) {
+            this(name, fullName, terms, termUnit, principalMode, interestMode, amortization, interestRate, penaltyRate, serviceFeeRate, minCoMakers, requireCollateral,
+                priority, yearDays, disabled, reason, null);
+        }
+    }
 
     public record TypeRow(int code, String name, String fullName, Integer terms, Integer termUnit, Integer principalMode, Integer interestMode, Integer amortization,
                           BigDecimal interestRate, BigDecimal penaltyRate, BigDecimal serviceFeeRate, Integer minCoMakers, boolean requireCollateral,
-                          Integer priority, Integer yearDays, boolean disabled, long loans, long applications, String unavailable) {}
+                          Integer priority, Integer yearDays, boolean disabled, long loans, long applications, String unavailable, Integer dayCount) {}
 
     public record Option(int id, String name) {}
 
@@ -103,7 +111,8 @@ public class LoanSetupController {
                    s.SLTypeINT_RATE, s.SLTypePEN_RATE, s.SLTypeSF_RATE, s.SLTypeMINCOMKR, s.SLTypeRequireCollateral, s.SLTypePriority, s.SLTypeNDAYS_1YEAR_INTLOAN,
                    s.SLTypeIsDisabled,
                    (SELECT COUNT(*) FROM loan l WHERE l.LoanBR_CODE = s.SLTypeBR_CODE AND l.LoanSLC_CODE = s.SLTypeSLC_CODE AND l.LoanSLT_CODE = s.SLTypeSLT_CODE),
-                   (SELECT COUNT(*) FROM loanapp a WHERE a.BR_CODE = s.SLTypeBR_CODE AND a.SLC_CODE = s.SLTypeSLC_CODE AND a.SLT_CODE = s.SLTypeSLT_CODE)
+                   (SELECT COUNT(*) FROM loanapp a WHERE a.BR_CODE = s.SLTypeBR_CODE AND a.SLC_CODE = s.SLTypeSLC_CODE AND a.SLT_CODE = s.SLTypeSLT_CODE),
+                   s.SLTypeND_FLAG
             FROM sltype s WHERE s.SLTypeBR_CODE = ? AND s.SLTypeSLC_CODE = ?""";
 
     private static Integer intOf(java.sql.ResultSet rs, int col) throws java.sql.SQLException {
@@ -117,7 +126,7 @@ public class LoanSetupController {
         d.put("SLTypeAMORTYPE", rs.getObject(8)); d.put("SLTypeINT_RATE", rs.getBigDecimal(9));
         return new TypeRow(rs.getInt(1), rs.getString(2), rs.getString(3), intOf(rs, 4), intOf(rs, 5), intOf(rs, 6), intOf(rs, 7), intOf(rs, 8), rs.getBigDecimal(9),
             rs.getBigDecimal(10), rs.getBigDecimal(11), intOf(rs, 12), rs.getInt(13) != 0, intOf(rs, 14), intOf(rs, 15), rs.getInt(16) != 0, rs.getLong(17), rs.getLong(18),
-            LoanApplicationController.unsupported(d));
+            LoanApplicationController.unsupported(d), intOf(rs, 19));
     }
 
     /** Every loan type of the branch, disabled ones included, with how many loans and applications use it and whether the application screen can use it yet. */
@@ -153,6 +162,7 @@ public class LoanSetupController {
         if (f.minCoMakers() != null && (f.minCoMakers() < 0 || f.minCoMakers() > 20)) throw bad("The minimum number of co-makers is 0 to 20.");
         if (f.priority() != null && (f.priority() < 0 || f.priority() > 999)) throw bad("The order number is 0 to 999.");
         if (f.yearDays() != null && !YEAR_DAYS.contains(f.yearDays())) throw bad("Days in a year for interest is 360 or 365.");
+        if (f.dayCount() != null && f.dayCount() != 1 && f.dayCount() != 2) throw bad("Interest days is 30 days a month or the real days.");
         Map<String, Object> c = new LinkedHashMap<>();
         c.put("SLTypeM_DESC", name);
         c.put("SLTypeM_DESC2", full);
@@ -169,6 +179,7 @@ public class LoanSetupController {
         c.put("SLTypePriority", f.priority());
         c.put("SLTypeNDAYS_1YEAR_INTLOAN", f.yearDays());
         c.put("SLTypeIsDisabled", Boolean.TRUE.equals(f.disabled()) ? 1 : 0);
+        if (f.dayCount() != null) c.put("SLTypeND_FLAG", f.dayCount()); // left as it is when the form does not say
         return c;
     }
 
