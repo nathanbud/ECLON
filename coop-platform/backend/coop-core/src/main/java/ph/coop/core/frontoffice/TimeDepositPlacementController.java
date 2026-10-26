@@ -80,15 +80,16 @@ class TimeDepositPlacementController {
 
     /** The terms used for a type in the year up to the latest placement, with the rates used for each (a rate counts when at least three certificates have it). */
     private Map<Integer, TermRates> termsOf(int branch, int typeCode) {
-        java.sql.Date last = jdbc.queryForObject("SELECT MAX(TDTR_DATE) FROM td WHERE TDBR_CODE = ?", java.sql.Date.class, branch);
+        // one old certificate is dated in 2027, so only dates up to today count as the latest placement
+        java.sql.Date last = jdbc.queryForObject("SELECT MAX(TDTR_DATE) FROM td WHERE TDBR_CODE = ? AND TDTR_DATE <= ?", java.sql.Date.class, branch, java.sql.Date.valueOf(LocalDate.now(clock)));
         LocalDate latest = last == null ? null : last.toLocalDate();
         LocalDate from = (latest == null ? LocalDate.now(clock) : latest).minusDays(365);
         Map<Integer, List<Object[]>> byTerm = new LinkedHashMap<>();
         jdbc.query("""
-                SELECT TDTERMS, TDINT_RATE, COUNT(*) FROM td WHERE TDBR_CODE = ? AND TDSLC_CODE = ? AND TDSLT_CODE = ? AND TDTR_DATE >= ? AND TDINT_RATE > 0
+                SELECT TDTERMS, TDINT_RATE, COUNT(*) FROM td WHERE TDBR_CODE = ? AND TDSLC_CODE = ? AND TDSLT_CODE = ? AND TDTR_DATE >= ? AND TDTR_DATE <= ? AND TDINT_RATE > 0
                 GROUP BY TDTERMS, TDINT_RATE HAVING COUNT(*) >= 3 ORDER BY TDTERMS, TDINT_RATE
                 """, (rs) -> { byTerm.computeIfAbsent(rs.getInt(1), (k) -> new ArrayList<>()).add(new Object[] {rs.getBigDecimal(2), rs.getLong(3)}); },
-            branch, CLASS_TD, typeCode, java.sql.Date.valueOf(from));
+            branch, CLASS_TD, typeCode, java.sql.Date.valueOf(from), java.sql.Date.valueOf(latest == null ? LocalDate.now(clock) : latest));
         Map<Integer, TermRates> out = new LinkedHashMap<>();
         byTerm.forEach((days, rates) -> {
             BigDecimal min = rates.get(0)[0] == null ? BigDecimal.ZERO : (BigDecimal) rates.get(0)[0], max = (BigDecimal) rates.get(rates.size() - 1)[0], usual = min;
