@@ -94,6 +94,10 @@ export async function signIn(username: string, password: string): Promise<Me> {
   const res = await fetch('/api/me', { headers: { Authorization: `Basic ${token}` } })
   if (res.status === 401) {
     if (res.headers.get('X-Auth-Reason') === 'TEMPORARY_PASSWORD_EXPIRED') throw new Error('Your temporary password has expired. Ask an administrator to issue a new one.')
+    if (res.headers.get('X-Auth-Reason') === 'ACCOUNT_LOCKED') {
+      const minutes = Math.max(1, Math.ceil(Number(res.headers.get('Retry-After') ?? '900') / 60))
+      throw new Error(`Too many wrong passwords. This sign-in is locked for about ${minutes} minute${minutes === 1 ? '' : 's'}, or until an administrator unlocks it.`)
+    }
     throw new Error('The username or password is wrong.')
   }
   if (!res.ok) throw new Error(`Sign-in failed (${res.status}).`)
@@ -808,3 +812,8 @@ export const findReturnableCheques = (number: string) => getJson<ChequeReturnCan
 export const checkChequeReturn = (b: ChequeReturnReq) => send<ChequeReturnCheck>('POST', '/api/front-office/cheque-returns/check', b)
 export const askChequeReturn = (b: ChequeReturnReq) => send<FoOverride>('POST', '/api/front-office/cheque-returns/ask', b)
 export const postChequeReturn = (b: ChequeReturnReq) => send<{ year: number; controlNo: number; documentNo: string; client: string; amount: number; where: string }>('POST', '/api/front-office/cheque-returns/post', b)
+
+// ---- locked sign-ins ---------------------------------------------------------------------------------------------------
+export interface LockedUser { username: string; secondsLeft: number }
+export const listLockedUsers = () => getJson<LockedUser[]>('/api/admin/locked-users')
+export const unlockUser = (username: string) => send<LockedUser>('POST', `/api/admin/users/${encodeURIComponent(username)}/unlock`)

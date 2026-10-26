@@ -18,6 +18,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.authentication.CredentialsExpiredException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -41,6 +42,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *       "can edit client" flag, and any role granted in {@code ecis_user_role} (such as MEMBERSHIP_OFFICER).</li>
  *   <li>A password an administrator issued is temporary: it stops working after its expiry (the sign-in answer carries {@code X-Auth-Reason: TEMPORARY_PASSWORD_EXPIRED}),
  *       and until the person replaces it they can reach only their own sign-in details and the password change.</li>
+ *   <li>Five wrong passwords for a name within 15 minutes lock it for 15 minutes ({@link LoginAttempts}); an administrator can lift the lock.</li>
  *   <li>The env-configured dev user remains as a bootstrap administrator, used to set up the first passwords.</li>
  * </ul>
  */
@@ -49,22 +51,27 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, LoginAttempts attempts) throws Exception {
         http.csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(a -> a
                 .requestMatchers("/actuator/health").permitAll()
                 .anyRequest().authenticated())
-            .httpBasic(b -> b.authenticationEntryPoint(entryPoint()))
+            .httpBasic(b -> b.authenticationEntryPoint(entryPoint(attempts)))
             .addFilterAfter(new TemporaryPasswordGate(), BasicAuthenticationFilter.class);
         return http.build();
     }
 
     /** The usual 401, plus a reason when the password was right but the temporary one has run out, so the sign-in screen can say so. */
-    private static BasicAuthenticationEntryPoint entryPoint() {
+    private BasicAuthenticationEntryPoint entryPoint(LoginAttempts attempts) {
         BasicAuthenticationEntryPoint e = new BasicAuthenticationEntryPoint() {
             @Override
             public void commence(HttpServletRequest request, HttpServletResponse response, org.springframework.security.core.AuthenticationException ex) throws IOException {
                 if (ex instanceof CredentialsExpiredException) response.setHeader("X-Auth-Reason", "TEMPORARY_PASSWORD_EXPIRED");
+                if (ex instanceof LockedException) {
+                    response.setHeader("X-Auth-Reason", "ACCOUNT_LOCKED");
+                    String typed = ex.getAuthenticationRequest() == null ? null : ex.getAuthenticationRequest().getName();
+                    response.setHeader("Retry-After", String.valueOf(Math.max(1, attempts.secondsLeft(typed))));
+                }
                 super.commence(request, response, ex);
             }
         };
@@ -97,12 +104,12 @@ public class SecurityConfig {
     @Bean
     UserDetailsService users(@Value("${coop.dev-auth.username}") String devUser,
                              @Value("${coop.dev-auth.password}") String devPassword,
-                             PasswordEncoder encoder, JdbcTemplate jdbc, Clock clock) {
+                             PasswordEncoder encoder, JdbcTemplate jdbc, Clock clock, LoginAttempts attempts) {
         String devHash = encoder.encode(devPassword);
         return (username) -> {
             // A fresh object each time: Spring wipes the password from the user it authenticated, so a shared one
             // would stop working after the first sign-in.
-            if (username.equals(devUser)) return User.withUsername(devUser).password(devHash).roles("ADMIN").build();
+            if (username.equals(devUser)) return User.withUsername(devUser).password(devHash).roles("ADMIN").accountLocked(attempts.isLocked(devUser)).build();
             List<UserDetails> found = jdbc.query("""
                     SELECT a.AccessUserName, c.password_hash, a.AccessLevel, a.AccessCanEditClient, c.must_change, c.expires_at
                     FROM access a JOIN ecis_user_credential c ON c.username = a.AccessUserName
@@ -123,7 +130,7 @@ public class SecurityConfig {
                     Timestamp expires = rs.getTimestamp(6);
                     boolean expired = temporary && expires != null && expires.toLocalDateTime().isBefore(LocalDateTime.now(clock));
                     if (temporary && !expired) roles.add(new SimpleGrantedAuthority("PWD_CHANGE_REQUIRED"));
-                    return User.withUsername(name).password(rs.getString(2)).authorities(roles).credentialsExpired(expired).build();
+                    return User.withUsername(name).password(rs.getString(2)).authorities(roles).credentialsExpired(expired).accountLocked(attempts.isLocked(name)).build();
                 }, username);
             if (found.isEmpty()) throw new UsernameNotFoundException("Unknown or disabled user");
             return found.get(0);

@@ -5,7 +5,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { FiLock, FiSearch } from 'react-icons/fi'
-import { grantRole, grantSingleHand, listSingleHand, listUsers, revokeRole, revokeSingleHand, type AdminUser } from './api'
+import { grantRole, grantSingleHand, listLockedUsers, listSingleHand, listUsers, revokeRole, revokeSingleHand, unlockUser, type AdminUser } from './api'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
 import PasswordChip from './PasswordChip'
@@ -68,6 +68,11 @@ export default function UsersPage() {
 
   const { data, error: loadError, isLoading } = useQuery({ queryKey: ['users'], queryFn: listUsers, enabled: me.admin })
   const single = useQuery({ queryKey: ['single-hand'], queryFn: listSingleHand, enabled: me.admin })
+  const locked = useQuery({ queryKey: ['locked-users'], queryFn: listLockedUsers, enabled: me.admin, refetchInterval: 20_000 })
+  const isLocked = (name: string) => (locked.data ?? []).some((l) => l.username === name.toLowerCase())
+  const unlock = async (u: AdminUser) => {
+    try { await unlockUser(u.username); setNotice(`${u.username} can sign in again`); void qc.invalidateQueries({ queryKey: ['locked-users'] }) } catch (e) { setNotice((e as Error).message) }
+  }
   const grants = useMemo(() => new Map((single.data ?? []).map((g) => [g.username.toLowerCase(), g])), [single.data])
   const rows = useMemo(() => {
     const f = filter.trim().toLowerCase()
@@ -145,6 +150,7 @@ export default function UsersPage() {
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <PasswordChip u={u} />
+                            {isLocked(u.username) && <Button size="small" color="warning" onClick={() => void unlock(u)}>Locked: unlock</Button>}
                             <Button size="small" startIcon={<FiLock />} disabled={!u.enabled} onClick={() => setTarget(u)}>
                               {u.passwordState === 'NONE' ? 'Issue' : 'Reissue'}
                             </Button>
