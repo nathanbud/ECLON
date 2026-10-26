@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
 import {
-  getCapabilities, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, getTimeDeposits, getTimeDepositHistory, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, getCoMakerNotice, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
+  getCapabilities, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, getTimeDeposits, getTimeDepositHistory, type TimeDeposit, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, getCoMakerNotice, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
   type Change, type DetailField, type Lookups, type Member, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck, type ShareAccount,
 } from './api'
 import { appBackground, glass } from './glass'
@@ -22,6 +22,7 @@ import FindClientDialog, { FindBody } from './FindClientDialog'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
 import TimeDepositPlaceDialog from './TimeDepositPlaceDialog'
+import TimeDepositCloseDialog from './TimeDepositCloseDialog'
 import { useMemberImage } from './memberImage'
 import { useMe } from './session'
 import { ToolbarPortal } from './toolbarSlot'
@@ -812,6 +813,7 @@ function TimeDepositsTab({ id }: { id: Id }) {
   const [showClosed, setShowClosed] = useState(false)
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
   const [placing, setPlacing] = useState(false)
+  const [closing, setClosing] = useState<{ d: TimeDeposit; mode: 'PAYOUT' | 'RENEW' } | null>(null)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-time-deposits', id, showClosed], queryFn: () => getTimeDeposits(id.branchCode, id.clientId, showClosed), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
   if (isLoading) return <Skeleton variant="rounded" height={160} />
@@ -828,7 +830,7 @@ function TimeDepositsTab({ id }: { id: Id }) {
             <TableHead>
               <TableRow>
                 <TableCell>Type</TableCell><TableCell>Certificate</TableCell><TableCell>Placed</TableCell><TableCell>Matures</TableCell><TableCell align="right">Term (days)</TableCell>
-                <TableCell align="right">Rate %</TableCell><TableCell>Status</TableCell><TableCell align="right">Balance</TableCell><TableCell align="right">Accrued interest</TableCell><TableCell align="right">Interest at maturity (estimate)</TableCell>
+                <TableCell align="right">Rate %</TableCell><TableCell>Status</TableCell><TableCell align="right">Balance</TableCell><TableCell align="right">Accrued interest</TableCell><TableCell align="right">Interest at maturity (estimate)</TableCell><TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
@@ -842,6 +844,14 @@ function TimeDepositsTab({ id }: { id: Id }) {
                   <TableCell align="right" sx={num}>{d.status === 'NO_LEDGER' ? (d.principal == null ? '—' : peso(d.principal)) : peso(d.balance)}</TableCell>
                   <TableCell align="right" sx={num}>{d.accruedInterest ? peso(d.accruedInterest) : '—'}</TableCell>
                   <TableCell align="right" sx={num}>{d.estimatedInterest == null ? '—' : peso(d.estimatedInterest)}</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    {d.status === 'MATURED' && (d.typeCode === 1 || d.typeCode === 3) && (
+                      <>
+                        <Button size="small" onClick={(e) => { e.stopPropagation(); setClosing({ d, mode: 'PAYOUT' }) }}>Pay out</Button>
+                        <Button size="small" onClick={(e) => { e.stopPropagation(); setClosing({ d, mode: 'RENEW' }) }}>Renew</Button>
+                      </>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
               <TableRow>
@@ -849,16 +859,19 @@ function TimeDepositsTab({ id }: { id: Id }) {
                 <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{peso(data.totalBalance)}</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{data.totalAccrued ? peso(data.totalAccrued) : '—'}</TableCell>
                 <TableCell />
+                <TableCell />
               </TableRow>
             </TableBody>
           </Table>
         </TableCard>
       )}
       <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
-        Interest at maturity is an estimate: the rate over the term on a 30-day month, 360-day year. The old system keeps back a flat 10.00 when it rolls the interest into the new certificate. Rolling over and paying out time deposits are not done here yet.
+        Interest at maturity is an estimate: the rate over the term on a 30-day month, 360-day year. A renewal also carries a 10.00 certificate fee. A matured certificate is paid out or renewed only when someone asks for it here; the voucher then waits on the Front Office Disburse tab. The TD Maturities tab of the Front Office lists what is due.
       </Typography>
       {open && <TimeDepositHistoryDialog id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
       {placing && <TimeDepositPlaceDialog clientId={id.clientId} onClose={() => setPlacing(false)} />}
+      {closing && <TimeDepositCloseDialog clientId={id.clientId} typeCode={closing.d.typeCode} refNo={closing.d.refNo} initialMode={closing.mode}
+        label={`${closing.d.type ?? 'Time deposit'} ${closing.d.certificate ?? closing.d.refNo}`} onClose={() => setClosing(null)} />}
     </>
   )
 }

@@ -868,3 +868,24 @@ export const getTdSetup = () => send<TdSetup>('GET', '/api/front-office/time-dep
 export const checkTdPlacement = (b: TdPlaceIn) => send<TdPlaceCheck>('POST', '/api/front-office/time-deposits/check', b)
 export const askTdRate = (b: TdPlaceIn) => send<FoOverride>('POST', '/api/front-office/time-deposits/ask', b)
 export const placeTimeDeposit = (b: TdPlaceIn) => send<TdPlaceReceipt>('POST', '/api/front-office/time-deposits', b)
+
+// ---- paying out and renewing a matured time deposit, and the maturity notices ---------------------------------------------
+export interface TdCloseReq {
+  clientId: number; typeCode: number; refNo: number; mode: 'PAYOUT' | 'RENEW'; termDays?: number; ratePercent?: number; withdraw?: number; renewalFee?: boolean; explanation?: string
+}
+export interface TdCloseQuote {
+  mode: string; clientId: number; clientName: string; typeCode: number; type: string | null; refNo: number; certificate: string | null; maturity: string | null; termDays: number
+  ratePercent: number | null; principal: number; interest: number; accrued: number; expense: number; due: number; newPrincipal: number | null; newMaturity: string | null
+  fee: number | null; withdraw: number | null; terms: number[]; problems: string[]; ready: boolean
+}
+export interface TdCloseEncoded { branchCode: number; year: number; controlNo: number; documentNo: string; mode: string; clientId: number; clientName: string; due: number; newCertificate: number | null; newPrincipal: number | null; paidToPayable: number }
+export const quoteTdClose = (b: TdCloseReq) => send<TdCloseQuote>('POST', '/api/front-office/time-deposit-closures/quote', b)
+export const encodeTdClose = (b: TdCloseReq) => send<TdCloseEncoded>('POST', '/api/front-office/time-deposit-closures', b)
+
+export interface TdNotice {
+  clientId: number; client: string | null; typeCode: number; type: string | null; refNo: number; certificate: string | null; placed: string | null; maturity: string; daysLeft: number; termDays: number
+  ratePercent: number | null; balance: number; accruedInterest: number; estimatedInterest: number; overdue: boolean; canClose: boolean
+}
+export interface TdNotices { asOf: string; days: number; notices: TdNotice[]; overdue: number; maturingSoon: number; totalBalance: number }
+export const getTdMaturities = (days: number) => getJson<TdNotices>(`/api/time-deposits/maturities?days=${days}`)
+export const getTdMaturityCount = () => getJson<number[]>('/api/time-deposits/maturities/count')

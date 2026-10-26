@@ -11,7 +11,7 @@ import java.time.LocalDate;
  */
 public final class TimeDepositRules {
 
-    /** The flat amount the old system keeps back from the interest it rolls into the new certificate (seen on 1,181 of 1,629 real rollovers). */
+    /** The renewal certificate fee of the old rollover: credited to 442202 and taken from the new certificate, so the interest rolled in is the term interest less this (1,181 of 1,629 real rollovers). */
     public static final BigDecimal ROLLOVER_FEE = new BigDecimal("10.00");
 
     private TimeDepositRules() {}

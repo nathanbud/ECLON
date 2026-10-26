@@ -8,11 +8,13 @@ import { FiChevronDown, FiChevronUp, FiCopy, FiEdit2, FiPlus, FiPrinter, FiSave,
 import {
   createFoDraft, deleteFoDraft, getFoDraft, getFoDuplicates, getFoSetup, getFoTellerTotals, getFoTransaction, getLookups, listFoTransactions, updateFoDraft,
   type FoClientAccount, type FoColumn, type FoDraftPayload, type FoDraftRow, type FoSetup, type FoSummary,
+  getTdMaturityCount,
 } from './api'
 import CashHandoverPanel from './CashHandoverPanel'
 import { BankCashPanel } from './BankCashPanel'
 import { ChequeClearingPanel } from './ChequeClearingPanel'
 import { ChequeReturnPanel } from './ChequeReturnPanel'
+import { TimeDepositNoticesPanel } from './TimeDepositNoticesPanel'
 import DrawerClose from './DrawerClose'
 import FoFindDialog from './FoFindDialog'
 import { LoanApplicationsPanel } from './LoanApplicationsPanel'
@@ -208,6 +210,7 @@ export default function FrontOfficePage() {
   const templates = useTemplates(me.username)
   const [receipt, setReceipt] = useState(false)
   // Live: a short poll of a cheap endpoint tells this screen when cash has been handed to this person or a supervisor is asked.
+  const { data: tdCount } = useQuery({ queryKey: ['td-maturity-count'], queryFn: getTdMaturityCount, refetchInterval: 60_000, retry: false })
   const pulse = usePulse((p) => setNotice(`Cash from ${p.latestFrom} is waiting for you to count: ${money(p.latestAmount ?? 0)}`))
 
   const departments = useMemo(() => Object.entries(lk?.department ?? {}), [lk])
@@ -505,7 +508,7 @@ export default function FrontOfficePage() {
       >
         {setup.tabs.map((t, i) => {
           // A badge shows what needs attention: cash to count (or a count that differs) on Cash Handover, requests to approve on Summary.
-          const waiting = t.key === 'handover' ? (pulse?.incoming ?? 0) + (pulse?.disputed ?? 0) : t.key === 'summary' ? (pulse?.overrides ?? 0) : 0
+          const waiting = t.key === 'handover' ? (pulse?.incoming ?? 0) + (pulse?.disputed ?? 0) : t.key === 'summary' ? (pulse?.overrides ?? 0) : t.key === 'tdmaturity' ? (tdCount?.[0] ?? 0) : 0
           return (
             <Tab
               key={t.key} value={t.key} title={i < 9 ? `${MOD}${i + 1}` : undefined}
@@ -567,6 +570,8 @@ export default function FrontOfficePage() {
           ? <><CashHandoverPanel setup={setup} onNotice={setNotice} /><BankCashPanel setup={setup} /><ChequeClearingPanel /><ChequeReturnPanel /></>
           : tab === 'disburse' && shown.kind === 'none'
           ? <><LoanApplicationsPanel /><LoanReleasePanel /></>
+          : tab === 'tdmaturity'
+          ? <TimeDepositNoticesPanel />
           : tab === 'passbook'
           ? <Typography sx={{ p: 4, textAlign: 'center' }} color="text.secondary">Passbook printing is coming soon.</Typography>
           : txn.isLoading && shown.kind === 'txn'
@@ -581,7 +586,7 @@ export default function FrontOfficePage() {
                   quickSide={quickSide} onQuickAdd={quickAdd}
                 />
               )}
-      {!summary && tab !== 'passbook' && tab !== 'handover' && shown.kind === 'none' && (
+      {!summary && tab !== 'passbook' && tab !== 'handover' && tab !== 'tdmaturity' && shown.kind === 'none' && (
         <Typography sx={{ fontSize: 12.5, textAlign: 'center', flexShrink: 0 }} color="text.secondary">
           {hasFind ? `Press ${MOD}F to find a transaction` : ''}{hasFind && canNewHere ? ' or ' : ''}{canNewHere ? `${MOD}N to start a draft.` : ''}
         </Typography>

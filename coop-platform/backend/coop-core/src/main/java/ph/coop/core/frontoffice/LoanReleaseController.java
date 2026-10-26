@@ -24,7 +24,7 @@ import ph.coop.core.frontoffice.MemberLedgerPoster.Person;
 import ph.coop.core.loan.SingleHandGrants;
 
 /**
- * Approves and posts a loan release voucher the old system already encoded (Cash Voucher, module 2 type 21, every line tagged 2; see
+ * Approves and posts a loan release voucher the old system already encoded (also a share withdrawal or a time deposit payout or renewal voucher, which have a debit on class 31 or 24) (Cash Voucher, module 2 type 21, every line tagged 2; see
  * documentation/loan-posting-map.md). Approving sets DTAPPRVBY. Posting sets DTPOSTBY, moves the lines to tag 1 and writes the
  * member ledger rows (sldtl, slsum) and the general ledger lines, dated today. Encoder, approver and poster must be three different people;
  * each needs "new" rights on transaction type 21. The vouchers, and the loan row and schedule behind them, are never created or edited here.
@@ -137,7 +137,7 @@ class LoanReleaseController {
     private static final String VOUCHER_SQL = """
             SELECT s.TR_BRCODE, s.TR_YEAR, s.TR_CTLNO, s.TR_DOCNO, s.TR_DATE, s.TR_CLIENTID, COALESCE(s.EXPLANATION, ''),
               (SELECT COALESCE(MAX(d.DTAMT), 0) FROM transdt d WHERE d.DTTR_BRCODE = s.TR_BRCODE AND d.DTTR_YEAR = s.TR_YEAR AND d.DTTR_MODULE = s.TR_MODULE
-                 AND d.DTTR_CODE = s.TR_CODE AND d.DTTR_CTLNO = s.TR_CTLNO AND d.DTSLC_CODE IN (12, 31) AND d.DTSLE_CODE = 11),
+                 AND d.DTTR_CODE = s.TR_CODE AND d.DTTR_CTLNO = s.TR_CTLNO AND d.DTSLC_CODE IN (12, 24, 31) AND d.DTSLE_CODE = 11),
               (SELECT COALESCE(MAX(d.DTENCDBY), 0) FROM transdt d WHERE d.DTTR_BRCODE = s.TR_BRCODE AND d.DTTR_YEAR = s.TR_YEAR AND d.DTTR_MODULE = s.TR_MODULE
                  AND d.DTTR_CODE = s.TR_CODE AND d.DTTR_CTLNO = s.TR_CTLNO),
               (SELECT MAX(d.DTAPPRVBY) FROM transdt d WHERE d.DTTR_BRCODE = s.TR_BRCODE AND d.DTTR_YEAR = s.TR_YEAR AND d.DTTR_MODULE = s.TR_MODULE
@@ -178,7 +178,7 @@ class LoanReleaseController {
             if (states == null || states != 1 || pending == null || pending != lines.size()) problems.add("The lines of this voucher are not waiting to be posted.");
         }
         if (lines.stream().map(Line::amount).reduce(BigDecimal.ZERO, BigDecimal::add).signum() != 0) problems.add("The voucher does not balance.");
-        if (lines.stream().noneMatch((l) -> l.slc() != null && (l.slc() == 12 || l.slc() == 31) && l.event() != null && l.event() == 11 && l.amount().signum() > 0)) problems.add("This is not a loan release or share withdrawal voucher.");
+        if (lines.stream().noneMatch((l) -> l.slc() != null && (l.slc() == 12 || l.slc() == 24 || l.slc() == 31) && l.event() != null && l.event() == 11 && l.amount().signum() > 0)) problems.add("This is not a loan release, share withdrawal or time deposit voucher.");
         if (lines.stream().anyMatch((l) -> l.slc() != null && l.slc() > 0 && (l.slt() == null || l.refNo() == null || l.event() == null))) problems.add("A line has an incomplete ledger account.");
         if (v.clientId() <= 0) problems.add("The voucher has no client.");
         Integer cancelled = jdbc.queryForObject("SELECT COUNT(*) FROM loanapp WHERE BR_CODE = ? AND TR_CODE = ? AND TR_CTLNO = ? AND STATUSID = 5 AND APPRV_DATE >= ? AND APPRV_DATE < ?",

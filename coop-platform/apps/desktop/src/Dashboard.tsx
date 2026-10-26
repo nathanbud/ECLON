@@ -5,7 +5,7 @@ import {
   FiBarChart2, FiBookOpen, FiDollarSign, FiFilePlus, FiFileText, FiList,
   FiCheckSquare, FiSettings, FiShoppingCart, FiTrendingUp, FiUsers,
 } from 'react-icons/fi'
-import { getPendingCount } from './api'
+import { getPendingCount, getTdMaturityCount } from './api'
 import { useMe } from './session'
 import { tileFill, useThemeMode, type Tint } from './theme'
 
@@ -104,6 +104,7 @@ export default function Dashboard({ onOpen }: { onOpen: (v: View) => void }) {
   const user = me.name
   const { data: count } = useQuery({ queryKey: ['pending-count'], queryFn: getPendingCount, refetchInterval: 30_000 })
   const pending = count?.pending
+  const { data: tdCount } = useQuery({ queryKey: ['td-maturity-count'], queryFn: getTdMaturityCount, refetchInterval: 60_000, retry: false })
   // administrators and accountants open Settings; what is inside is checked again per item
   const settingsAllowed = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
 
@@ -123,7 +124,7 @@ export default function Dashboard({ onOpen }: { onOpen: (v: View) => void }) {
         <Typography color="text.secondary" sx={{ mb: 2, fontSize: 13 }}>Choose a module to get started.</Typography>
 
         <Box sx={{ display: 'grid', gap: 'var(--gap)', gridTemplateColumns: 'repeat(5, var(--cell))', gridAutoRows: 'var(--cell)', gridTemplateAreas: areas }}>
-          {tiles.map((t, i) => <Tile key={t.label} spec={t} index={i} onOpen={onOpen} badge={t.view === 'approvals' ? pending : undefined} allowed={t.view === 'settings' ? settingsAllowed : !t.adminOnly || me.admin} />)}
+          {tiles.map((t, i) => <Tile key={t.label} spec={t} index={i} onOpen={onOpen} badge={t.view === 'approvals' ? pending : t.view === 'frontoffice' ? tdCount?.[0] : undefined} allowed={t.view === 'settings' ? settingsAllowed : !t.adminOnly || me.admin} />)}
         </Box>
 
         <Box component="ul" aria-label="Colour key" sx={{ listStyle: 'none', m: 0, mt: 2, p: 0, display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
