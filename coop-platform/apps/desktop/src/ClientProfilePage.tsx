@@ -1,7 +1,7 @@
 import {
   Alert, Avatar, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Divider, ListItemIcon, ListItemText, Menu, MenuItem, Skeleton, Tab, Table, TableBody,
   Snackbar, TableCell, TableHead, TableRow, Tabs, TextField,
-  ToggleButton, ToggleButtonGroup, Tooltip, Typography,
+  ToggleButton, ToggleButtonGroup, Tooltip, Typography, FormControlLabel, Switch,
 } from '@mui/material'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
 import {
-  getCapabilities, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, getCoMakerNotice, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
+  getCapabilities, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, getTimeDeposits, getTimeDepositHistory, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, getCoMakerNotice, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
   type Change, type DetailField, type Lookups, type Member, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck, type ShareAccount,
 } from './api'
 import { appBackground, glass } from './glass'
@@ -27,7 +27,7 @@ import { ToolbarPortal } from './toolbarSlot'
 
 const TABS = [
   'Personal', 'Business / Employment', 'Education', 'Contacts & IDs', 'Spouse Info', 'Groups',
-  'History', 'Closed', 'Pledges / Insurances', 'Others', 'Sketch', 'Billing', 'Share Capital', 'Savings', 'Loans',
+  'History', 'Closed', 'Pledges / Insurances', 'Others', 'Sketch', 'Billing', 'Share Capital', 'Savings', 'Time Deposits', 'Loans',
 ]
 
 // ---- formatting helpers -------------------------------------------------------------------------------------------
@@ -393,7 +393,7 @@ function ClientMenu({ onFind, actions, editOn, pendingNote }: { onFind: () => vo
 // ---- the other tabs -----------------------------------------------------------------------------------------------
 
 // Same order as TABS. A key names a tab of the details endpoint; the rest have their own content.
-const TAB_KEYS = ['personal', 'business', 'education', 'contacts', 'spouse', 'groups', 'history', 'closed', 'pledges', 'others', 'sketch', 'billing', 'shares', 'savings', 'loans']
+const TAB_KEYS = ['personal', 'business', 'education', 'contacts', 'spouse', 'groups', 'history', 'closed', 'pledges', 'others', 'sketch', 'billing', 'shares', 'savings', 'timedeposits', 'loans']
 
 function formatField(f: DetailField): string | null {
   if (f.value == null) return null
@@ -803,6 +803,103 @@ function SavingsTab({ id }: { id: Id }) {
   )
 }
 
+
+const TD_STATUS: Record<string, string> = { ACTIVE: 'Running', MATURED: 'Matured', CLOSED: 'Closed', NO_LEDGER: 'Certificate only' }
+
+/** Time deposits of the member, read only. The old master row is never closed when a certificate is paid out, so the status is worked out from the ledger. */
+function TimeDepositsTab({ id }: { id: Id }) {
+  const [showClosed, setShowClosed] = useState(false)
+  const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
+  const { data, error, isLoading } = useQuery({ queryKey: ['member-time-deposits', id, showClosed], queryFn: () => getTimeDeposits(id.branchCode, id.clientId, showClosed), staleTime: 60_000 })
+  if (error) return <Alert severity="error">{(error as Error).message}</Alert>
+  if (isLoading) return <Skeleton variant="rounded" height={160} />
+  const num = { fontVariantNumeric: 'tabular-nums' } as const
+  return (
+    <>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0.5 }}>
+        <FormControlLabel control={<Switch size="small" checked={showClosed} onChange={(_, v) => setShowClosed(v)} />} label="Show closed certificates" />
+      </Box>
+      {!data || data.deposits.length === 0 ? <EmptyState icon={<FiInfo />} title="No time deposits" hint="This client has no running time deposit certificates." /> : (
+        <TableCard>
+          <Table size="small" aria-label="Time deposits">
+            <TableHead>
+              <TableRow>
+                <TableCell>Type</TableCell><TableCell>Certificate</TableCell><TableCell>Placed</TableCell><TableCell>Matures</TableCell><TableCell align="right">Term (days)</TableCell>
+                <TableCell align="right">Rate %</TableCell><TableCell>Status</TableCell><TableCell align="right">Balance</TableCell><TableCell align="right">Accrued interest</TableCell><TableCell align="right">Interest at maturity (estimate)</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {data.deposits.map((d) => (
+                <TableRow key={`${d.typeCode}-${d.refNo}`} hover sx={{ cursor: 'pointer' }} onClick={() => setOpen({ typeCode: d.typeCode, refNo: d.refNo })}>
+                  <TableCell>{d.type ?? `Type ${d.typeCode}`}</TableCell><TableCell>{d.certificate ?? d.refNo}</TableCell>
+                  <TableCell>{fmtDate(d.placed) ?? '—'}</TableCell><TableCell>{fmtDate(d.maturity) ?? '—'}</TableCell>
+                  <TableCell align="right" sx={num}>{d.termDays}</TableCell>
+                  <TableCell align="right" sx={num}>{d.ratePercent == null ? '—' : d.ratePercent.toFixed(2)}</TableCell>
+                  <TableCell>{TD_STATUS[d.status] ?? d.status}</TableCell>
+                  <TableCell align="right" sx={num}>{d.status === 'NO_LEDGER' ? (d.principal == null ? '—' : peso(d.principal)) : peso(d.balance)}</TableCell>
+                  <TableCell align="right" sx={num}>{d.accruedInterest ? peso(d.accruedInterest) : '—'}</TableCell>
+                  <TableCell align="right" sx={num}>{d.estimatedInterest == null ? '—' : peso(d.estimatedInterest)}</TableCell>
+                </TableRow>
+              ))}
+              <TableRow>
+                <TableCell colSpan={7} sx={{ fontWeight: 700 }}>Total time deposits</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{peso(data.totalBalance)}</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{data.totalAccrued ? peso(data.totalAccrued) : '—'}</TableCell>
+                <TableCell />
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableCard>
+      )}
+      <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
+        Interest at maturity is an estimate: the rate over the term on a 30-day month, 360-day year. The old system keeps back a flat 10.00 when it rolls the interest into the new certificate. Placing, rolling over and paying out time deposits are not done here yet.
+      </Typography>
+      {open && <TimeDepositHistoryDialog id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
+    </>
+  )
+}
+
+function TimeDepositHistoryDialog({ id, typeCode, refNo, onClose }: { id: Id; typeCode: number; refNo: number; onClose: () => void }) {
+  const [page, setPage] = useState(0)
+  const size = 25
+  const { data, error } = useQuery({ queryKey: ['member-td-history', id, typeCode, refNo, page], queryFn: () => getTimeDepositHistory(id.branchCode, id.clientId, typeCode, refNo, page, size) })
+  const num = { fontVariantNumeric: 'tabular-nums' } as const
+  return (
+    <Dialog open onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>{data ? `${data.deposit.type ?? 'Time deposit'} ${data.deposit.certificate ?? ''}` : 'Time deposit'}</DialogTitle>
+      <DialogContent>
+        {error && <Alert severity="error">{(error as Error).message}</Alert>}
+        {data && data.entries.length === 0 && <Alert severity="info">This certificate has no entries in the ledger.</Alert>}
+        {data && data.entries.length > 0 && (
+          <Table size="small" aria-label="Time deposit entries">
+            <TableHead>
+              <TableRow><TableCell>Date</TableCell><TableCell>Transaction</TableCell><TableCell>Document</TableCell><TableCell>Entry</TableCell><TableCell align="right">Amount</TableCell><TableCell align="right">Principal after</TableCell></TableRow>
+            </TableHead>
+            <TableBody>
+              {data.entries.map((e, i) => (
+                <TableRow key={`${e.documentNo}-${i}`}>
+                  <TableCell>{fmtDate(e.date) ?? '—'}</TableCell><TableCell>{e.transaction ?? `Code ${e.transactionCode}`}</TableCell><TableCell>{e.documentNo ?? '—'}</TableCell><TableCell>{e.eventName}</TableCell>
+                  <TableCell align="right" sx={{ color: e.amount < 0 ? 'error.main' : undefined, ...num }}>{peso(e.amount)}</TableCell>
+                  <TableCell align="right" sx={num}>{e.event === 11 ? peso(e.balanceAfter) : ''}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </DialogContent>
+      <DialogActions>
+        {data && data.totalEntries > size && (
+          <>
+            <Button disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Newer</Button>
+            <Button disabled={(page + 1) * size >= data.totalEntries} onClick={() => setPage((p) => p + 1)}>Older</Button>
+          </>
+        )}
+        <Button onClick={onClose}>Close</Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
 function SavingsCashDialog({ id, account, mode, onClose }: { id: Id; account: SavingsAccount; mode: 'deposit' | 'withdraw'; onClose: () => void }) {
   const qc = useQueryClient()
   const withdraw = mode === 'withdraw'
@@ -956,6 +1053,7 @@ function TabContent({ tab, m, lk }: { tab: number; m: Member; lk?: Lookups }) {
   if (key === 'billing') return <BillingTab id={m.id} />
   if (key === 'shares') return <ShareCapitalTab id={m.id} />
   if (key === 'savings') return <SavingsTab id={m.id} />
+  if (key === 'timedeposits') return <TimeDepositsTab id={m.id} />
   if (key === 'loans') return <LoansTab branchCode={m.id.branchCode} clientId={m.id.clientId} />
   if (key === 'sketch') return <EmptyState icon={<FiInfo />} title="No sketch" hint="Residence sketches are not stored in the database yet." />
   return <DetailsTab id={m.id} tab={key} title={TABS[tab]} lk={lk} />

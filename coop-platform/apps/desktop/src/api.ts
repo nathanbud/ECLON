@@ -834,3 +834,16 @@ export const askPenaltyWaiver = (b: PenaltyWaiverReq) => send<{ status: string }
 export const postPenaltyWaiver = (b: PenaltyWaiverReq) => send<{ year: number; controlNo: number; documentNo: string; amount: number }>('POST', '/api/loan-penalty-waivers/post', b)
 export const getPenaltyWaiversPending = () => getJson<PenaltyWaiverPending[]>('/api/loan-penalty-waivers/pending')
 export const decidePenaltyWaiver = (id: number, approve: boolean, note: string) => send<{ status: string }>('POST', `/api/loan-penalty-waivers/${id}/decide`, { approve, note })
+
+// ---- time deposits (read only) ---------------------------------------------------------------------------------------
+export interface TimeDeposit {
+  typeCode: number; type: string | null; refNo: number; certificate: string | null; placed: string | null; maturity: string | null; termDays: number; ratePercent: number | null
+  principal: number | null; balance: number; accruedInterest: number; estimatedInterest: number | null; status: 'ACTIVE' | 'MATURED' | 'CLOSED' | 'NO_LEDGER'; remarks: string | null
+}
+export interface TimeDepositSummary { deposits: TimeDeposit[]; totalBalance: number; totalAccrued: number; asOf: string }
+export interface TimeDepositEntry { date: string; glDate: string | null; transactionCode: number; transaction: string | null; documentNo: string | null; event: number; eventName: string; amount: number; balanceAfter: number }
+export interface TimeDepositHistory { deposit: TimeDeposit; entries: TimeDepositEntry[]; page: number; size: number; totalEntries: number }
+export const getTimeDeposits = (branchCode: number, clientId: number, includeClosed: boolean) =>
+  send<TimeDepositSummary>('GET', `/api/members/${branchCode}/${clientId}/time-deposits?includeClosed=${includeClosed}`)
+export const getTimeDepositHistory = (branchCode: number, clientId: number, typeCode: number, refNo: number, page: number, size: number) =>
+  send<TimeDepositHistory>('GET', `/api/members/${branchCode}/${clientId}/time-deposits/${typeCode}/${refNo}?page=${page}&size=${size}`)
