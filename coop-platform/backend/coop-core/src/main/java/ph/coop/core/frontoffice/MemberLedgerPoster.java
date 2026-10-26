@@ -29,9 +29,12 @@ class MemberLedgerPoster {
         static final Master SAVINGS = new Master("sd", "SD", 22);
     }
 
-    /** IN: cash comes in and the member's account is credited (Cash Receipt, module 3, type 10). OUT: cash goes out and it is debited (Deposit Withdrawal, module 2, type 23). */
+    /**
+     * IN: cash comes in and the member's account is credited (Cash Receipt, module 3, type 10). OUT: cash goes out and it is debited (Deposit Withdrawal,
+     * module 2, type 23). PAYABLE_OUT: the same shape, paying a vouchers-payable balance out (Cash Voucher payment, module 2, type 24).
+     */
     enum Direction {
-        IN(3, 10), OUT(2, 23);
+        IN(3, 10), OUT(2, 23), PAYABLE_OUT(2, 24);
         final int module;
         final int code;
         Direction(int module, int code) { this.module = module; this.code = code; }

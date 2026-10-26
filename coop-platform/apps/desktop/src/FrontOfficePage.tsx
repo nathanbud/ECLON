@@ -19,6 +19,7 @@ import DrawerClose from './DrawerClose'
 import FoFindDialog from './FoFindDialog'
 import { LoanApplicationsPanel } from './LoanApplicationsPanel'
 import { LoanReleasePanel } from './LoanReleasePanel'
+import { VoucherPayoutPanel } from './VoucherPayoutPanel'
 import { OverrideAsk, OverridesCard } from './Overrides'
 import { usePulse } from './pulse'
 import ReceiptDialog from './Receipt'
@@ -569,7 +570,7 @@ export default function FrontOfficePage() {
         : tab === 'handover' && shown.kind === 'none'
           ? <><CashHandoverPanel setup={setup} onNotice={setNotice} /><BankCashPanel setup={setup} /><ChequeClearingPanel /><ChequeReturnPanel /></>
           : tab === 'disburse' && shown.kind === 'none'
-          ? <><LoanApplicationsPanel /><LoanReleasePanel /></>
+          ? <><LoanApplicationsPanel /><LoanReleasePanel /><VoucherPayoutPanel /></>
           : tab === 'tdmaturity'
           ? <TimeDepositNoticesPanel />
           : tab === 'passbook'

@@ -889,3 +889,15 @@ export interface TdNotice {
 export interface TdNotices { asOf: string; days: number; notices: TdNotice[]; overdue: number; maturingSoon: number; totalBalance: number }
 export const getTdMaturities = (days: number) => getJson<TdNotices>(`/api/time-deposits/maturities?days=${days}`)
 export const getTdMaturityCount = () => getJson<number[]>('/api/time-deposits/maturities/count')
+
+// ---- paying vouchers payable out in cash ---------------------------------------------------------------------------
+
+export interface VoucherPayable { clientId: number; client: string | null; refNo: number; status: number; balance: number; lastCredit: string | null }
+export interface VoucherPayoutCheck { payable: VoucherPayable; problems: string[]; needs: SavingsNeed[]; drawerCash: number; ready: boolean }
+export interface VoucherPayoutReceipt { branchCode: number; year: number; controlNo: number; documentNo: string; date: string; clientId: number; clientName: string | null; refNo: number; amount: number; cashier: string }
+export interface VoucherPayoutIn { clientId: number; refNo: number; explanation?: string; receiptNo?: string }
+
+export const getVoucherPayablesWaiting = () => getJson<VoucherPayable[]>('/api/front-office/voucher-payouts/waiting')
+export const getVoucherPayablesOf = (clientId: number) => getJson<VoucherPayable[]>(`/api/front-office/voucher-payouts/member/${clientId}`)
+export const checkVoucherPayout = (b: VoucherPayoutIn) => send<VoucherPayoutCheck>('POST', '/api/front-office/voucher-payouts/check', b)
+export const postVoucherPayout = (b: VoucherPayoutIn) => send<VoucherPayoutReceipt>('POST', '/api/front-office/voucher-payouts', b)
