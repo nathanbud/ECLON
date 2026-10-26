@@ -17,7 +17,7 @@ person (the head cashier, no approver), `DTUPD_TAG` 1, `DTCOCI_TYPE` 1:
   Examples: BPI-LTB 36 -> `10020209`, LBP-LTB 37 -> `10020216`, PNB-BC 52 -> `10020224`, BDO-Pangasinan 31 -> `10020104` (event 61).
 * `gltrans`: one line per account, type 33 or 35. A cash count by note and coin is stored in `denomsum` / `denomdtl` (deposit: `TO_USERID` the head cashier; withdrawal: `FROM_USERID`).
 * Explanations read "CIB-<bank> <note>" for deposits and "BW <bank> <note>" for withdrawals.
-* About 500 of the 800 deposits take the money not from the vault but from `100111` (checks and collections on hand, event 51) and carry no cash count. Those are **not built**.
+* About 500 of the 800 deposits (497 in 2026) take cheques instead: the same two lines, but seq 0 is on `100111` (checks and collections on hand) with **sub-ledger type 3**, event 51, number 99, and there is no `denomsum` and no `transck` row. The app builds these (`cheques: true` on the deposit request): the vault's cheque balance must cover the amount, and cash and cheques are never mixed on one deposit (all 497 have exactly two lines).
 
 ## What the app does
 
@@ -27,4 +27,4 @@ Test: `BankCashPostingTest` (posts, compares, rolls back).
 
 ## Not built
 
-Deposits of checks and collections (event 51), bank charges and interest, check clearing, a screen for it (the endpoints exist).
+Bank charges and interest, check clearing, a screen for it (the endpoints exist).

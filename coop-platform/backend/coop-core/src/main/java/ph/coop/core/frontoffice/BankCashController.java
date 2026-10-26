@@ -28,7 +28,7 @@ import ph.coop.core.frontoffice.MemberLedgerPoster.Person;
 /**
  * Moves cash between the vault and a bank account, as the old system's Bank Deposit (module 5, type 33) and Bank Withdrawal (type 35) did; see
  * documentation/bank-cash-posting-map.md. Only the head cashier does it, it posts at once, and each posting is two transdt lines (vault, bank), two gltrans
- * lines and the count by note and coin in denomsum / denomdtl. Deposits of cheques and collections (event 51) are not built.
+ * lines and the count by note and coin in denomsum / denomdtl. A deposit of cheques takes them from the vault's cheque account (100111, sub-ledger type 3, event 51) with no count.
  */
 @RestController
 @RequestMapping("/api/front-office/bank-cash")
@@ -38,7 +38,10 @@ class BankCashController {
 
     record BankRow(int bankId, String name, String ledgerAccount, int event) {}
 
-    record Request(int bankId, BigDecimal amount, Map<Integer, Integer> counts, String remarks) {}
+    /** cheques: the deposit takes the cheques the vault holds (100111, event 51) instead of cash; no count by note and coin is needed. */
+    record Request(int bankId, BigDecimal amount, Map<Integer, Integer> counts, String remarks, boolean cheques) {
+        Request(int bankId, BigDecimal amount, Map<Integer, Integer> counts, String remarks) { this(bankId, amount, counts, remarks, false); }
+    }
 
     record Posted(int year, long controlNo, String documentNo, String bank, BigDecimal amount, BigDecimal vaultAfter) {}
 
@@ -99,7 +102,11 @@ class BankCashController {
         Map<Integer, BigDecimal> faces = new LinkedHashMap<>();
         jdbc.query("SELECT ID, AMOUNT FROM denomtype ORDER BY ID", (rs) -> { faces.put(rs.getInt(1), rs.getBigDecimal(2)); });
         List<String> problems = new java.util.ArrayList<>();
-        if (counts.isEmpty()) problems.add("Count the notes and coins.");
+        boolean cheques = req.cheques();
+        if (cheques && code != DEPOSIT) problems.add("Cheques can only be deposited, not withdrawn.");
+        if (cheques) {
+            // cheques are an amount only; there is nothing to count
+        } else if (counts.isEmpty()) problems.add("Count the notes and coins.");
         else {
             BigDecimal counted = HandoverRules.total(counts, faces);
             if (counted.compareTo(amount) != 0) problems.add("The notes and coins add up to " + counted.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + ", not " + amount.toPlainString() + ".");
@@ -112,10 +119,10 @@ class BankCashController {
             BankRow bank = banksOf(branch).stream().filter((b) -> b.bankId() == req.bankId()).findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "That bank account is not set up in the ledger."));
             Drawer vault = new Drawer(HandoverRules.VAULT, HandoverRules.VAULT_NUMBER);
-            BigDecimal vaultBefore = balances.of(branch, vault);
-            boolean in = code == DEPOSIT; // a deposit takes cash out of the vault
+            BigDecimal vaultBefore = cheques ? balances.chequesOf(branch, vault) : balances.of(branch, vault);
+            boolean in = code == DEPOSIT; // a deposit takes cash (or cheques) out of the vault
             if (in && vaultBefore.compareTo(amount) < 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The vault holds only " + vaultBefore.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + ".");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The vault holds only " + vaultBefore.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + (cheques ? " in cheques." : "."));
             }
             if (!in) {
                 BigDecimal book = jdbc.queryForObject("SELECT COALESCE(SUM(GLTransDR_AMT) + SUM(GLTransCR_AMT), 0) FROM gltrans WHERE GLTransBR_CODE = ? AND GLTransACCT_CODE = ?", BigDecimal.class, branch, bank.ledgerAccount());
@@ -133,7 +140,8 @@ class BankCashController {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                     """, branch, year, MODULE, code, ctl, docNo, day.toString(), now.format(DateTimeFormatter.ofPattern("HH:mm:ss")), day.format(DateTimeFormatter.BASIC_ISO_DATE),
                 explanation, Timestamp.valueOf(now));
-            String vaultAccount = HandoverRules.account(HandoverRules.VAULT);
+            String vaultAccount = cheques ? HandoverRules.chequeAccount(HandoverRules.VAULT) : HandoverRules.account(HandoverRules.VAULT);
+            int vaultType = cheques ? 3 : 1, vaultEvent = cheques ? HandoverRules.chequeEvent(HandoverRules.VAULT) : HandoverRules.VAULT;
             String sql = """
                     INSERT INTO transdt (DTTR_BRCODE, DTTR_YEAR, DTTR_MODULE, DTTR_CODE, DTTR_CTLNO, DTSEQ_NO, DTDEPT, DTACCT_CODE, DTSLC_CODE, DTSLT_CODE, DTREF_NO,
                       DTSLE_CODE, DTCTS_NUM, DTCOCI_TYPE, DTAMT, DTENCDBY, DTPOSTBY, DTUPD_TAG, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
@@ -141,18 +149,20 @@ class BankCashController {
                     """;
             // deposit: the vault is credited and the bank debited; withdrawal: the other way round
             BigDecimal vaultAmount = in ? amount.negate() : amount;
-            jdbc.update(sql, branch, year, MODULE, code, ctl, 0, p.dept(), vaultAccount, 1, HandoverRules.VAULT, HandoverRules.VAULT_NUMBER, vaultAmount, p.id(), p.id());
+            jdbc.update(sql, branch, year, MODULE, code, ctl, 0, p.dept(), vaultAccount, vaultType, vaultEvent, HandoverRules.VAULT_NUMBER, vaultAmount, p.id(), p.id());
             jdbc.update(sql, branch, year, MODULE, code, ctl, 1, p.dept(), bank.ledgerAccount(), BANK_TYPE, bank.event(), bank.bankId(), vaultAmount.negate(), p.id(), p.id());
             Timestamp stamp = Timestamp.valueOf(now);
             poster.writeGlLine(branch, vaultAccount, day, code, p.dept(), vaultAmount, stamp);
             poster.writeGlLine(branch, bank.ledgerAccount(), day, code, p.dept(), vaultAmount.negate(), stamp);
+            if (!cheques) {
             long denomSum = db.insertReturningId("INSERT INTO denomsum (BR_CODE, TR_CODE, TR_CTLNO, FROM_USERID, TO_USERID) VALUES (?, ?, ?, ?, ?)", "ID",
                 branch, code, ctl, in ? null : p.id(), in ? p.id() : null);
             for (int typeId : faces.keySet()) jdbc.update("INSERT INTO denomdtl (DENOMSUMID, DENOMTYPEID, QTY) VALUES (?, ?, ?)", denomSum, typeId, counts.getOrDefault(typeId, 0));
+            }
             balances.changed();
             jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'transsum', ?, ?)",
                 stamp, auth.getName(), in ? "bank.deposit.post" : "bank.withdrawal.post", branch + "/" + year + "/" + MODULE + "/" + code + "/" + ctl,
-                bank.name() + " " + amount.toPlainString() + " doc " + docNo);
+                bank.name() + " " + amount.toPlainString() + (cheques ? " (cheques)" : "") + " doc " + docNo);
             return new Posted(year, ctl, docNo, bank.name(), amount, in ? vaultBefore.subtract(amount) : vaultBefore.add(amount));
         });
     }

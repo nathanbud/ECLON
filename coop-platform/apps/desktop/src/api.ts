@@ -551,7 +551,7 @@ export interface ShareWithdrawalOut { branchCode: number; year: number; controlN
 export const postShareWithdrawal = (body: ShareWithdrawalIn) => send<ShareWithdrawalOut>('POST', '/api/front-office/share-withdrawals', body)
 
 export interface BankCashBank { bankId: number; name: string; ledgerAccount: string; event: number }
-export interface BankCashIn { bankId: number; amount: number; counts: Record<number, number>; remarks?: string }
+export interface BankCashIn { bankId: number; amount: number; counts: Record<number, number>; remarks?: string; /** Deposit the vault's cheques instead of cash (no count). */ cheques?: boolean }
 export interface BankCashOut { year: number; controlNo: number; documentNo: string; bank: string; amount: number; vaultAfter: number }
 export const getBankCashBanks = () => send<BankCashBank[]>('GET', '/api/front-office/bank-cash/banks')
 export const postBankDeposit = (body: BankCashIn) => send<BankCashOut>('POST', '/api/front-office/bank-cash/deposits', body)
