@@ -52,7 +52,7 @@ The owner asked that rollover is **never automatic**: a person asks for each pay
 ## Not built, and open
 
 1. **Pre-termination** (voucher 39897: the old certificate is cut, interest is paid at a reduced rate typed in the explanation, 1% there, for the days kept; a 100.00 charge is credited to 442201), and partial withdrawals.
-2. **Year-end accrual** (the run that credits event 71 on 12/31 and debits the interest expense).
+2. (Built since: the accrual run, see time-deposit-accrual-map.md.)
 3. **Lock In** certificates (types 2 and 4): how their interest is paid.
 4. (Built since: paying the cash out of vouchers payable, see voucher-payout-map.md.)
 5. Event 72 and the unused `TDRO_*` / `TDAI_*` (auto roll over, auto interest) columns; the rule for the 28% of rollovers that do not match.

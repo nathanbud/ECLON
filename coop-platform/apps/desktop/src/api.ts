@@ -901,3 +901,16 @@ export const getVoucherPayablesWaiting = () => getJson<VoucherPayable[]>('/api/f
 export const getVoucherPayablesOf = (clientId: number) => getJson<VoucherPayable[]>(`/api/front-office/voucher-payouts/member/${clientId}`)
 export const checkVoucherPayout = (b: VoucherPayoutIn) => send<VoucherPayoutCheck>('POST', '/api/front-office/voucher-payouts/check', b)
 export const postVoucherPayout = (b: VoucherPayoutIn) => send<VoucherPayoutReceipt>('POST', '/api/front-office/voucher-payouts', b)
+
+// ---- time deposit interest accruals (module 8, type 52) ------------------------------------------------------------
+
+export type AccrualGroup = 'LOCK_IN' | 'SHORT_TERM'
+export interface AccrualTypeRow { typeCode: number; type: string; certificates: number; total: number; alreadyEncoded: boolean; vouchers: number }
+export interface AccrualSummary { group: AccrualGroup; accrualType: string; from: string; to: string; types: AccrualTypeRow[]; certificates: number; total: number; withoutDepartment: number }
+export interface AccrualVoucher { year: number; controlNo: number; documentNo: string; typeCode: number; lines: number; total: number; encodedBy: number; approvedBy: number | null; status: 'WAITING FOR APPROVAL' | 'APPROVED' | 'POSTED' }
+
+export const getAccrualPreview = (group: AccrualGroup, to: string) => getJson<AccrualSummary>(`/api/front-office/time-deposit-accruals/preview?group=${group}&to=${to}`)
+export const getAccrualVouchers = (group: AccrualGroup, to: string) => getJson<AccrualVoucher[]>(`/api/front-office/time-deposit-accruals/vouchers?group=${group}&to=${to}`)
+export const encodeAccrual = (b: { group: AccrualGroup; to: string; types: number[] }) => send<AccrualVoucher[]>('POST', '/api/front-office/time-deposit-accruals/encode', b)
+export const approveAccrual = (year: number, controlNo: number) => send<AccrualVoucher>('POST', `/api/front-office/time-deposit-accruals/${year}/${controlNo}/approve`)
+export const postAccrual = (year: number, controlNo: number) => send<AccrualVoucher>('POST', `/api/front-office/time-deposit-accruals/${year}/${controlNo}/post`)
