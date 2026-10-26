@@ -62,7 +62,9 @@ class SavingsController {
                        AND d.SLT_CODE = s.SDSLT_CODE AND d.REF_NO = s.SDREF_NO AND d.SLE_CODE = 11),
                    (SELECT COALESCE(SUM(h.HHELD_AMT), 0) FROM hold h
                      WHERE h.HBR_CODE = s.SDBR_CODE AND h.ClientIDH = s.ClientIDSD AND h.HSLC_CODE = s.SDSLC_CODE
-                       AND h.HSLT_CODE = s.SDSLT_CODE AND h.HREF_NO = s.SDREF_NO),
+                       AND h.HSLT_CODE = s.SDSLT_CODE AND h.HREF_NO = s.SDREF_NO)
+                   + """ + ph.coop.core.frontoffice.ChequeRules.unclearedSql("s") + """
+                   ,
                    (SELECT MAX(d.TR_DATE) FROM sldtl d
                      WHERE d.SL_BRCODE = s.SDBR_CODE AND d.SL_CLIENTID = s.ClientIDSD AND d.SLC_CODE = s.SDSLC_CODE
                        AND d.SLT_CODE = s.SDSLT_CODE AND d.REF_NO = s.SDREF_NO AND d.SLE_CODE = 11)

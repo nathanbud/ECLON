@@ -45,6 +45,17 @@ class ChequeClearingTest {
     }
 
     @Test
+    void moneyPaidInByAnOpenChequeIsHeldBackFromTheAvailableBalance() {
+        // The old data has savings credits paid by cheques that are still marked not cleared (April 2026); the hold-back must find them and nothing negative.
+        List<java.math.BigDecimal> found = jdbc.query("SELECT " + ChequeRules.unclearedSql("s") + " FROM sd s WHERE s.SDBR_CODE = 1 AND s.SDSLC_CODE = 22 AND EXISTS "
+            + "(SELECT 1 FROM sldtl x WHERE x.SL_BRCODE = s.SDBR_CODE AND x.SL_CLIENTID = s.ClientIDSD AND x.SLC_CODE = s.SDSLC_CODE AND x.SLT_CODE = s.SDSLT_CODE AND x.REF_NO = s.SDREF_NO "
+            + "AND x.COCI_TYPE = 2 AND x.TR_DATE >= '2026-04-01') ORDER BY 1 DESC LIMIT 20", (rs, i) -> rs.getBigDecimal(1));
+        assumeTrue(!found.isEmpty(), "no savings account took a cheque in April 2026");
+        assertTrue(found.stream().allMatch((v) -> v.signum() >= 0));
+        assertTrue(found.get(0).signum() > 0, "at least one account has money waiting on an open cheque");
+    }
+
+    @Test
     void anOrdinaryUserCannotSeeOrClear() {
         Authentication nobody = new TestingAuthenticationToken("nobody-at-all", null);
         assertThrows(ResponseStatusException.class, () -> clearing.list(nobody, false));

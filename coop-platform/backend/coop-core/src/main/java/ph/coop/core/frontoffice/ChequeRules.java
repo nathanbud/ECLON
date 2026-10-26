@@ -12,7 +12,7 @@ import java.util.List;
  * (the oldest in the real data) and at most 30 days ahead (the real data goes to 9; the limit is this program's own), and it has a clearing
  * kind (chktype: Local 3 days, Regional 7, Out of Town 15, Foreign 45, On Us and Good Check 0).
  */
-final class ChequeRules {
+public final class ChequeRules {
 
     private ChequeRules() {}
 
@@ -27,6 +27,18 @@ final class ChequeRules {
     record Cheque(String number, int bankCode, LocalDate date, int kind, BigDecimal amount, int clearingDays) {}
 
     /** The 15-digit form of a typed number, or null when it is not 1 to 15 digits. */
+    /**
+     * SQL for the money in a savings account that came by cheque and has not cleared: the account's credit rows paid by cheque whose
+     * receipt cheque is still marked not cleared in transck. The old system's own rule for withholding it is not known, so the app
+     * treats it like a hold: it counts in the balance but not in the available amount. {@code s} is the sd table alias.
+     */
+    public static String unclearedSql(String s) {
+        return "(SELECT COALESCE(-SUM(u.AMT), 0) FROM sldtl u WHERE u.SL_BRCODE = " + s + ".SDBR_CODE AND u.SL_CLIENTID = " + s + ".ClientIDSD AND u.SLC_CODE = " + s + ".SDSLC_CODE"
+            + " AND u.SLT_CODE = " + s + ".SDSLT_CODE AND u.REF_NO = " + s + ".SDREF_NO AND u.SLE_CODE = 11 AND u.COCI_TYPE = 2"
+            + " AND EXISTS (SELECT 1 FROM transck k WHERE k.CKTR_BRCODE = u.SL_BRCODE AND k.CKTR_YEAR = EXTRACT(YEAR FROM u.TR_DATE) AND k.CKTR_CODE = u.TR_CODE"
+            + " AND k.CKTR_CTLNO = u.TR_CTLNO AND k.CKCHECKNO = u.CHECKNO AND k.CKCOCI_TYPE = 2 AND COALESCE(k.CKISCLEARED, 0) = 0))";
+    }
+
     static String number(String typed) {
         String t = typed == null ? "" : typed.trim();
         if (!t.matches("[0-9]{1,15}")) return null;
