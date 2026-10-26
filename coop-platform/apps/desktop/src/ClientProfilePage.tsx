@@ -21,6 +21,7 @@ import LoansTab from './LoansTab'
 import FindClientDialog, { FindBody } from './FindClientDialog'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
+import TimeDepositPlaceDialog from './TimeDepositPlaceDialog'
 import { useMemberImage } from './memberImage'
 import { useMe } from './session'
 import { ToolbarPortal } from './toolbarSlot'
@@ -810,13 +811,15 @@ const TD_STATUS: Record<string, string> = { ACTIVE: 'Running', MATURED: 'Matured
 function TimeDepositsTab({ id }: { id: Id }) {
   const [showClosed, setShowClosed] = useState(false)
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
+  const [placing, setPlacing] = useState(false)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-time-deposits', id, showClosed], queryFn: () => getTimeDeposits(id.branchCode, id.clientId, showClosed), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
   if (isLoading) return <Skeleton variant="rounded" height={160} />
   const num = { fontVariantNumeric: 'tabular-nums' } as const
   return (
     <>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0.5 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, mb: 0.5 }}>
+        <Button size="small" variant="outlined" startIcon={<FiPlus />} onClick={() => setPlacing(true)}>Place a time deposit</Button>
         <FormControlLabel control={<Switch size="small" checked={showClosed} onChange={(_, v) => setShowClosed(v)} />} label="Show closed certificates" />
       </Box>
       {!data || data.deposits.length === 0 ? <EmptyState icon={<FiInfo />} title="No time deposits" hint="This client has no running time deposit certificates." /> : (
@@ -852,9 +855,10 @@ function TimeDepositsTab({ id }: { id: Id }) {
         </TableCard>
       )}
       <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
-        Interest at maturity is an estimate: the rate over the term on a 30-day month, 360-day year. The old system keeps back a flat 10.00 when it rolls the interest into the new certificate. Placing, rolling over and paying out time deposits are not done here yet.
+        Interest at maturity is an estimate: the rate over the term on a 30-day month, 360-day year. The old system keeps back a flat 10.00 when it rolls the interest into the new certificate. Rolling over and paying out time deposits are not done here yet.
       </Typography>
       {open && <TimeDepositHistoryDialog id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
+      {placing && <TimeDepositPlaceDialog clientId={id.clientId} onClose={() => setPlacing(false)} />}
     </>
   )
 }

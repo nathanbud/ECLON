@@ -847,3 +847,24 @@ export const getTimeDeposits = (branchCode: number, clientId: number, includeClo
   send<TimeDepositSummary>('GET', `/api/members/${branchCode}/${clientId}/time-deposits?includeClosed=${includeClosed}`)
 export const getTimeDepositHistory = (branchCode: number, clientId: number, typeCode: number, refNo: number, page: number, size: number) =>
   send<TimeDepositHistory>('GET', `/api/members/${branchCode}/${clientId}/time-deposits/${typeCode}/${refNo}?page=${page}&size=${size}`)
+
+// ---- placing a time deposit --------------------------------------------------------------------------------------------
+export interface TdTermRates { termDays: number; min: number; max: number; usual: number }
+export interface TdTypeSetup { typeCode: number; name: string; minAmount: number; terms: TdTermRates[] }
+export interface TdSetup { types: TdTypeSetup[]; certificateFee: number }
+export interface TdPlaceIn {
+  clientId: number; typeCode: number; termDays: number; ratePercent: number; amount: number; certificate: boolean; explanation?: string; receiptNo?: string
+  confirmDuplicate?: boolean; cheques?: ChequeIn[]
+}
+export interface TdPlaceCheck {
+  problems: string[]; maturity: string | null; estimatedInterest: number | null; fee: number; total: number
+  rateDescription: string | null; rateApproval: 'NOT_NEEDED' | 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED'; ready: boolean
+}
+export interface TdPlaceReceipt {
+  branchCode: number; year: number; controlNo: number; documentNo: string; date: string; clientId: number; clientName: string; type: string; certificate: number
+  maturity: string; termDays: number; ratePercent: number; amount: number; fee: number; total: number; cashier: string
+}
+export const getTdSetup = () => send<TdSetup>('GET', '/api/front-office/time-deposits/setup')
+export const checkTdPlacement = (b: TdPlaceIn) => send<TdPlaceCheck>('POST', '/api/front-office/time-deposits/check', b)
+export const askTdRate = (b: TdPlaceIn) => send<FoOverride>('POST', '/api/front-office/time-deposits/ask', b)
+export const placeTimeDeposit = (b: TdPlaceIn) => send<TdPlaceReceipt>('POST', '/api/front-office/time-deposits', b)

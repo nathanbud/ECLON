@@ -27,9 +27,21 @@ Examples: client 1637, certificate 2403 to 11617 (2023 to 2026); client 36306, c
 * **Status** from the ledger: Running (money in, maturity not passed), Matured (money in, maturity passed, waiting for rollover or payout), Closed (the master says 17, or the ledger is empty again), Certificate only (no ledger rows).
 * **Balance** = minus the sum of event 11. **Accrued interest** = minus the sum of event 71. **Interest at maturity (estimate)** = balance x rate x term days / 360.
 
+## Placing a certificate (built, needs V027)
+
+Mapped from real placements of 24 April 2026 (e.g. Cash Receipt 352754, "NEW TD FOR 6 MONTHS", client 14261, certificate 1/12110) and the 521 placements of 2026:
+
+* **Receipt** (module 3, type 10, `TR_CLIENTID` the member, `IS_FO` 1, the poster's own drawer). `transdt`: seq 0 the cash debit on 10002/10003 for the **amount plus the certificate fee**; seq 1 the certificate credited (class 24, type, reference = the new certificate number, event 11, number 15, `DTCOCI_TYPE` 1); seq 2 the fee credited to **442202 "Other income - certificates"** as a plain line (no sub-ledger, but `ClientIDDT`, `DTADJ_FLAG` 1 and the date like the member line). One `sldtl` row (event 11, sequence 1, `COCI_TYPE` 1), one `slsum` row, `gltrans` for the three lines, and the cash row in `transck`.
+* **Fee**: 25.00 on 346 receipts that issued a certificate, 10.00 on 11, 50.00 on 2; none on the "ADD'L TD" placements. The app charges 25.00 when the cashier ticks "issue a certificate".
+* **New rows**: `slmastersum` (the account master, which the ledger needs first) and **`td`**: `TDPAMT` the amount, `TDTR_DATE` today, `TDSTATUS` 15, `TDINT_RATE`, `TDTERMS` days, `TDTERM_PERD` 1, `TDMAT_DATE` = placement date + term days (checked on the 2025 and 2026 certificates), `TDCERT_NUM` = the certificate number as text; every other column empty. **Certificate numbers run on for each type** (type 1 was at 12,114, type 2 at 1,214): the app takes the highest plus one with a row lock.
+* **Rate and term**: no rate table was found (`sltype.SLTypeINT_RATE_CODE` 27 points at nothing readable), so the cashier types the rate. Terms in use for TD - Short Term are 90, 180, 270, 360 and 365 days; rates vary by term and by the size of the deposit (90 days: 1.50 to 2.00, 360 days: 2.25 to 3.00, lock in 1,826 days: 5.00). The app lists the terms used in the year up to the latest placement and the rates used by at least three certificates, defaults to the commonest rate, and asks a supervisor to allow a rate outside the range (`ecis_fo_override` kind `TD_RATE`, spent once, audit `td.rate.override.used`). Interest uses a 360-day year (`SLTypeNDAYS_1YEAR_INTDEPO`).
+* **Minimum**: the type's `SLTypeMIN_BAL` (5,000.00 for TD - Short Term). The app refuses less; a few real placements are below it, so this is stricter than the old window.
+* **Cheques** are accepted for the payment (the plain fee line takes part in the cash and cheque split like any other line).
+* Code: `TimeDepositPlacementController` (`/api/front-office/time-deposits`: `setup`, `check`, `ask`, and `POST` to place), `TimeDepositPlacementRules`, the plain-line support in `MemberLedgerPoster.postVoucher` (a `MemberLine` with class 0); the dialog is `TimeDepositPlaceDialog` on the Time Deposits tab. Needs `V027_time_deposit_placement.sql` (INSERT on `td`, run by an administrator); tests `TimeDepositPlacementPostingTest` skip until it is applied.
+
 ## Not built, and open
 
-1. **Placing a certificate** (cash receipt into class 24, new `td` row, `slsum`). Needs a real placement receipt mapped and INSERT on `td`.
-2. **Rollover and payout at maturity**, **pre-termination** (the reduced rate), **year-end accrual** (event 71).
-3. What the flat 10.00 is, and the rule for the 28% of rollovers that do not match.
-4. Event 72 and the unused `TDRO_*` / `TDAI_*` (auto roll over, auto interest) columns.
+1. **Rollover and payout at maturity**, **pre-termination** (the reduced rate), **year-end accrual** (event 71).
+2. What the flat 10.00 is, and the rule for the 28% of rollovers that do not match.
+3. Event 72 and the unused `TDRO_*` / `TDAI_*` (auto roll over, auto interest) columns.
+4. Where the old window got its rates, and whether the minimum is really enforced there.

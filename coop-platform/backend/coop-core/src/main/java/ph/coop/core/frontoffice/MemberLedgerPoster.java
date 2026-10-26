@@ -221,7 +221,10 @@ class MemberLedgerPoster {
             if (cashLine) jdbc.update(cashSql, branch, year, module, code, ctl, seq++, p.dept(), cashAccount, event, p.number(), cashAmount, p.id(), p.id());
         }
         for (MemberLine l : lines) {
-            jdbc.update(memberSql, branch, year, module, code, ctl, seq++, p.dept(), l.account(), clientId, l.slc(), l.typeCode(), l.refNo(), l.event(), l.cts(), day.toString(), memberTender, l.amount(), p.id(), p.id());
+            // a line with class 0 is a plain general ledger line (a fee into an income account): the same entry with no sub-ledger fields
+            boolean plain = l.slc() == 0;
+            jdbc.update(memberSql, branch, year, module, code, ctl, seq++, p.dept(), l.account(), clientId, plain ? null : l.slc(), plain ? null : l.typeCode(), plain ? null : l.refNo(),
+                plain ? null : l.event(), plain ? null : l.cts(), day.toString(), memberTender, l.amount(), p.id(), p.id());
         }
         if (!in) jdbc.update(cashSql, branch, year, module, code, ctl, seq, p.dept(), cashAccount, event, p.number(), cashAmount, p.id(), p.id());
 
@@ -285,6 +288,7 @@ class MemberLedgerPoster {
 
     /** As above with the tender type set by the caller; a General Journal row has none (null), as in the old data. */
     void writeLedgerRow(int branch, int clientId, MemberLine l, LocalDate day, int trCode, long ctl, String docNo, Cheque cheque, Integer cociType) {
+        if (l.slc() == 0) return; // a plain general ledger line has no member ledger row
         // the ledger needs a slsum row for each account and event, dated by its first entry; the first use of an event adds it
         Integer known = jdbc.queryForObject("SELECT COUNT(*) FROM slsum WHERE SL_BRCODE = ? AND SL_CLIENTID = ? AND SLC_CODE = ? AND SLT_CODE = ? AND REF_NO = ? AND SLE_CODE = ?",
             Integer.class, branch, clientId, l.slc(), l.typeCode(), l.refNo(), l.event());
