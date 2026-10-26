@@ -195,6 +195,42 @@ class HandoverPostingTest {
     }
 
     @Test
+    void chequesMoveFromTheHeadCashierToTheVaultOnTheirOwnAccounts() {
+        Integer hasColumn = jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ecis_cash_handover' AND column_name = 'cheque_amount'", Integer.class);
+        assumeTrue(hasColumn != null && hasColumn > 0, "V025_cheque_handover.sql has not been run");
+        BigDecimal headCheques = balances.chequesOf(branch, head);
+        assumeTrue(headCheques.compareTo(new BigDecimal("100")) >= 0, "the head cashier holds no cheques in this database");
+        BigDecimal vaultBefore = balances.chequesOf(branch, new Drawer(50, 99));
+
+        Issue give = new Issue(52, 50, 99, BigDecimal.ZERO, Map.of(), "integration test", "it-chq-" + System.nanoTime(), "integration test", new BigDecimal("100.00"));
+        Handover moved = handover.issue(give, as(headName));
+        assertEquals("POSTED", moved.status());
+        sameAmount("100", moved.cheques());
+        sameAmount("-100", balances.chequesOf(branch, head).subtract(headCheques));
+        sameAmount("100", balances.chequesOf(branch, new Drawer(50, 99)).subtract(vaultBefore));
+
+        // Cheques only: no cash pair, the cheque pair starts at sequence 0, on the cheque accounts with the vault's own event 51.
+        List<Map<String, Object>> l = lines(32, moved.ctlNo());
+        assertEquals(2, l.size());
+        assertEquals(0, ((Number) l.get(0).get("DTSEQ_NO")).intValue());
+        assertEquals("100112", l.get(0).get("DTACCT_CODE"));
+        sameAmount("-100", (BigDecimal) l.get(0).get("DTAMT"));
+        assertEquals(52, ((Number) l.get(0).get("DTSLE_CODE")).intValue());
+        assertEquals("100111", l.get(1).get("DTACCT_CODE"));
+        sameAmount("100", (BigDecimal) l.get(1).get("DTAMT"));
+        assertEquals(51, ((Number) l.get(1).get("DTSLE_CODE")).intValue());
+        assertEquals(99, ((Number) l.get(1).get("DTCTS_NUM")).intValue());
+        // Cash balances are untouched, because cheque lines are a different sub-ledger type.
+        Integer cashLines = jdbc.queryForObject("SELECT COUNT(*) FROM transdt WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = 4 AND DTTR_CODE = 32 AND DTTR_CTLNO = ? AND DTSLT_CODE = 1", Integer.class,
+            branch, LocalDate.now().getYear(), moved.ctlNo());
+        assertEquals(0, cashLines);
+
+        // More than the drawer holds is refused.
+        assertThrows(ResponseStatusException.class, () -> handover.issue(
+            new Issue(52, 50, 99, BigDecimal.ZERO, Map.of(), "x", "it-chq2-" + System.nanoTime(), "integration test", headCheques.add(BigDecimal.ONE)), as(headName)));
+    }
+
+    @Test
     void theRulesAreEnforcedOnTheServer() {
         // A teller cannot touch the vault.
         assertThrows(ResponseStatusException.class, () -> handover.issue(give(53, 50, 99, "100", Map.of(3, 0, 4, 1), "it-r1-" + System.nanoTime(), null), as(tellerName)));

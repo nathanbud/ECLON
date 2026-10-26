@@ -426,6 +426,8 @@ export interface FoDrawer {
   event: number; number: number; label: string; who: string; balance: number | null; pendingIn: number | null; pendingOut: number | null
   /** The most cash this drawer should hold (null for none), today's count (time and difference) when there was one, and whether it is the head cashier's. */
   limit: number | null; closedAt: string | null; variance: number | null; head: boolean
+  /** Cheques held in this drawer (an amount only; cheques travel with the cash on a hand-off). */
+  cheques: number | null
 }
 export interface FoLimit { event: number; number: number; maxCash: number }
 export interface FoCloseResult { expected: number; counted: number; variance: number; closedAt: string }
@@ -446,12 +448,16 @@ export const decideFoOverride = (id: number, approve: boolean, note: string) => 
 export interface FoHandover {
   id: number; trCode: number; from: string; to: string; amount: number; status: 'PENDING' | 'POSTED' | 'DISPUTED' | 'CANCELLED'; issuedBy: string; issuedAt: string
   remarks: string | null; counted: number | null; note: string | null; ctlNo: number | null; incoming: boolean; outgoing: boolean
+  /** Cheques given together with the cash. */
+  cheques: number
 }
 export interface FoHandoverMine { ready: boolean; notReady: string | null; drawers: FoDrawer[]; headCashier: boolean; incoming: FoHandover[]; outgoing: FoHandover[]; today: FoHandover[] }
 export interface FoHandoverIssue {
   fromEvent: number; toEvent: number; toNumber: number | null; amount: number; counts: Record<number, number>; remarks: string
   /** Made once per attempt so a repeated click or retry cannot post twice; the reason is needed to return cash to the vault before the day is ready to close. */
   requestKey: string; overrideReason?: string
+  /** Cheques given with (or instead of) the cash; the cash may then be zero. */
+  cheques?: number
 }
 export interface FoSlipLine { kind: string; description: string; face: number; qty: number; amount: number }
 export interface FoSlip {
@@ -462,7 +468,7 @@ export const getFoHandoverSlip = (id: number) => getJson<FoSlip>(`/api/front-off
 export const getFoHandoverMine =() => getJson<FoHandoverMine>('/api/front-office/handover/mine')
 export const getFoHandoverDrawers = () => getJson<FoDrawer[]>('/api/front-office/handover/drawers')
 export const issueFoHandover = (b: FoHandoverIssue) => send<FoHandover>('POST', '/api/front-office/handover', b)
-export const acceptFoHandover = (id: number, counts: Record<number, number>) => send<FoHandover>('POST', `/api/front-office/handover/${id}/accept`, { counts })
+export const acceptFoHandover = (id: number, counts: Record<number, number>, cheques?: number) => send<FoHandover>('POST', `/api/front-office/handover/${id}/accept`, { counts, cheques })
 export const cancelFoHandover = (id: number) => send<FoHandover>('POST', `/api/front-office/handover/${id}/cancel`)
 export const getFoDuplicates = (clientId: number, date: string, amount: string) =>
   getJson<FoSummary[]>(`/api/front-office/duplicates?clientId=${clientId}&date=${date}&amount=${encodeURIComponent(amount)}`)

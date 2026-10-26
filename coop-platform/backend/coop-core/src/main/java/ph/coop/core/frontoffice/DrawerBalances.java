@@ -122,6 +122,26 @@ class DrawerBalances {
         return (base == null ? BigDecimal.ZERO : base).add(delta == null ? BigDecimal.ZERO : delta);
     }
 
+    /**
+     * Cheques held in every drawer: the cheque lines (sub-ledger type 3) of the same drawers. Cheque lines are few, so this is a
+     * plain sum over the ledger and needs no snapshot.
+     */
+    Map<Drawer, BigDecimal> allCheques(int branch) {
+        Map<Drawer, BigDecimal> sum = new LinkedHashMap<>();
+        jdbc.query("""
+                SELECT x.DTSLE_CODE, x.DTCTS_NUM, SUM(x.DTAMT) FROM transdt x
+                WHERE x.DTTR_BRCODE = ? AND x.DTSLC_CODE = 11 AND x.DTSLT_CODE = 3 AND x.DTSLE_CODE IN (51, 52, 53)
+                GROUP BY 1, 2
+                """,
+            (rs) -> { sum.put(new Drawer(rs.getInt(1) == 51 ? HandoverRules.VAULT : rs.getInt(1), rs.getInt(2)), rs.getBigDecimal(3)); }, branch);
+        return sum;
+    }
+
+    /** Cheques in one drawer as of now. */
+    BigDecimal chequesOf(int branch, Drawer d) {
+        return allCheques(branch).getOrDefault(d, BigDecimal.ZERO);
+    }
+
     private boolean hasAnySnapshot(int branch) {
         try {
             Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_drawer_snapshot WHERE branch_code = ? AND EXTRACT(YEAR FROM as_of) = ?", Integer.class, branch, LocalDate.now().getYear() - 1);
