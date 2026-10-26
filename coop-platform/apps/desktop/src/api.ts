@@ -817,3 +817,20 @@ export const postChequeReturn = (b: ChequeReturnReq) => send<{ year: number; con
 export interface LockedUser { username: string; secondsLeft: number }
 export const listLockedUsers = () => getJson<LockedUser[]>('/api/admin/locked-users')
 export const unlockUser = (username: string) => send<LockedUser>('POST', `/api/admin/users/${encodeURIComponent(username)}/unlock`)
+
+// ---- penalty waivers -------------------------------------------------------------------------------------------------
+export interface PenaltyWaived {
+  at: string; receipt: string; cashier: string; clientId: number; client: string; typeCode: number; refNo: number
+  paid: number; suggested: number; charged: number; waived: number; allowedBy: string | null
+}
+export interface PenaltyWaiverReport { from: string; to: string; rows: PenaltyWaived[]; total: number }
+export interface PenaltyWaiverReq { clientId: number; typeCode: number; refNo: number; amount: number; expenseAccount: string; reason: string }
+export interface PenaltyWaiverCheck { description: string; suggestedPenalty: number | null; approval: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED'; problems: string[]; ready: boolean }
+export interface PenaltyWaiverPending { id: number; description: string; amount: number; requested_at: string; requested_by: string }
+export const getPenaltyWaiverReport = (from: string, to: string) => getJson<PenaltyWaiverReport>(`/api/loan-penalty-waivers/report?from=${from}&to=${to}`)
+export const getWaiverExpenseAccounts = () => getJson<{ code: string; name: string }[]>('/api/loan-penalty-waivers/expense-accounts')
+export const checkPenaltyWaiver = (b: PenaltyWaiverReq) => send<PenaltyWaiverCheck>('POST', '/api/loan-penalty-waivers/check', b)
+export const askPenaltyWaiver = (b: PenaltyWaiverReq) => send<{ status: string }>('POST', '/api/loan-penalty-waivers/ask', b)
+export const postPenaltyWaiver = (b: PenaltyWaiverReq) => send<{ year: number; controlNo: number; documentNo: string; amount: number }>('POST', '/api/loan-penalty-waivers/post', b)
+export const getPenaltyWaiversPending = () => getJson<PenaltyWaiverPending[]>('/api/loan-penalty-waivers/pending')
+export const decidePenaltyWaiver = (id: number, approve: boolean, note: string) => send<{ status: string }>('POST', `/api/loan-penalty-waivers/${id}/decide`, { approve, note })

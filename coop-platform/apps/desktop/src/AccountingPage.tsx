@@ -9,6 +9,7 @@ import {
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
 import BanksTab from './BanksTab'
+import PenaltyWaiversTab from './PenaltyWaiversTab'
 import TrialBalancePage from './TrialBalancePage'
 import MoneyField from './MoneyField'
 
@@ -21,7 +22,7 @@ export default function AccountingPage() {
   const me = useMe()
   const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
   const [tab, setTab] = useState(0)
-  const tabs = ['Trial balance', ...(accountant ? ['Statements', 'Journals', 'Periods', 'Banks'] : [])]
+  const tabs = ['Trial balance', ...(accountant ? ['Statements', 'Journals', 'Periods', 'Banks', 'Penalty waivers'] : [])]
   const [branch, setBranch] = useState('1')
   const branchCode = Number(branch)
   const ok = Number.isInteger(branchCode) && branchCode > 0
@@ -39,6 +40,7 @@ export default function AccountingPage() {
         {tab === 2 && ok && <Journals branchCode={branchCode} />}
         {tab === 3 && ok && <Periods branchCode={branchCode} />}
         {tab === 4 && ok && <BanksTab branchCode={branchCode} />}
+        {tab === 5 && <PenaltyWaiversTab />}
       </Box>
     </Box>
   )
