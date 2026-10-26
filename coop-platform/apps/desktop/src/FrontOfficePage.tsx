@@ -11,6 +11,7 @@ import {
 } from './api'
 import CashHandoverPanel from './CashHandoverPanel'
 import { BankCashPanel } from './BankCashPanel'
+import { ChequeClearingPanel } from './ChequeClearingPanel'
 import DrawerClose from './DrawerClose'
 import FoFindDialog from './FoFindDialog'
 import { LoanApplicationsPanel } from './LoanApplicationsPanel'
@@ -562,7 +563,7 @@ export default function FrontOfficePage() {
       {summary
         ? <SummaryPanel setup={setup} onOpen={openTxn} />
         : tab === 'handover' && shown.kind === 'none'
-          ? <><CashHandoverPanel setup={setup} onNotice={setNotice} /><BankCashPanel setup={setup} /></>
+          ? <><CashHandoverPanel setup={setup} onNotice={setNotice} /><BankCashPanel setup={setup} /><ChequeClearingPanel /></>
           : tab === 'disburse' && shown.kind === 'none'
           ? <><LoanApplicationsPanel /><LoanReleasePanel /></>
           : tab === 'passbook'

@@ -104,6 +104,19 @@ public class Db {
         return true;
     }
 
+    /** True when the signed-in database user may UPDATE the column (a column grant or a grant on the whole table). */
+    public boolean canUpdateColumn(String table, String column) {
+        if (isPostgres()) {
+            Integer n = jdbc.queryForObject("SELECT CASE WHEN has_column_privilege(?, ?, 'UPDATE') THEN 1 ELSE 0 END", Integer.class, table, column);
+            return n != null && n > 0;
+        }
+        Integer c = jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.COLUMN_PRIVILEGES WHERE TABLE_SCHEMA = DATABASE() AND PRIVILEGE_TYPE = 'UPDATE' AND TABLE_NAME = ? AND COLUMN_NAME = ?"
+            + " AND REPLACE(GRANTEE, '''', '') = CURRENT_USER()", Integer.class, table, column);
+        Integer t = jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLE_PRIVILEGES WHERE TABLE_SCHEMA = DATABASE() AND PRIVILEGE_TYPE = 'UPDATE' AND TABLE_NAME = ?"
+            + " AND REPLACE(GRANTEE, '''', '') = CURRENT_USER()", Integer.class, table);
+        return (c != null && c > 0) || (t != null && t > 0);
+    }
+
     private boolean isPostgres() {
         return Boolean.TRUE.equals(jdbc.execute((ConnectionCallback<Boolean>) (c) -> c.getMetaData().getDatabaseProductName().toLowerCase().contains("postgres")));
     }

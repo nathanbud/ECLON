@@ -786,3 +786,12 @@ export interface AmortPreview { rows: AmortRow[]; payments: number; payment: num
 
 export const getAmortKinds = () => getJson<AmortKind[]>('/api/admin/loan-setup/amortization')
 export const previewAmortization = (t: AmortTry) => send<AmortPreview>('POST', '/api/admin/loan-setup/amortization/preview', t)
+
+// ---- cheque clearing -------------------------------------------------------------------------------------------------
+export interface ChequeClearRow {
+  year: number; ctlNo: number; seq: number; documentNo: string; receiptDate: string; client: string | null; number: string; bank: string | null
+  chequeDate: string | null; kind: string | null; amount: number; clearsOn: string; due: boolean; cleared: boolean
+}
+export const getChequeClearing = () => getJson<ChequeClearRow[]>('/api/front-office/cheque-clearing')
+export const clearCheques = (items: { year: number; ctlNo: number; seq: number }[], reason: string) =>
+  send<{ cleared: number; skipped: number }>('POST', '/api/front-office/cheque-clearing', { items, reason })

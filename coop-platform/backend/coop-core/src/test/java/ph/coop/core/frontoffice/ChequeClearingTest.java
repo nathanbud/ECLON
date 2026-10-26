@@ -1,0 +1,74 @@
+package ph.coop.core.frontoffice;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+import java.time.LocalDate;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import ph.coop.core.db.Db;
+import ph.coop.core.frontoffice.ChequeClearingController.ClearRequest;
+import ph.coop.core.frontoffice.ChequeClearingController.Item;
+import ph.coop.core.frontoffice.ChequeClearingController.Row;
+
+/** Lists and clears real cheques through the real code, then rolls back. Clearing needs the V026 grant; those tests skip until it is applied. */
+@SpringBootTest(properties = {"DEV_API_USER=itest", "DEV_API_PASSWORD=itest-unused", "coop.drawer-snapshot.on-start=false"})
+@EnabledIfEnvironmentVariable(named = "DB_PASSWORD", matches = ".+")
+@Transactional
+class ChequeClearingTest {
+
+    @Autowired ChequeClearingController clearing;
+    @Autowired JdbcTemplate jdbc;
+    @Autowired Db db;
+
+    private static Authentication admin() {
+        return new TestingAuthenticationToken("itest-admin", null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+    }
+
+    @Test
+    void theExpectedDayIsTheReceiptDatePlusTheKindDaysPlusTwo() {
+        assertEquals(LocalDate.of(2026, 4, 29), ChequeClearingController.clearsOn(LocalDate.of(2026, 4, 24), 3));
+        assertEquals(LocalDate.of(2026, 5, 3), ChequeClearingController.clearsOn(LocalDate.of(2026, 4, 24), 7));
+        assertEquals(LocalDate.of(2026, 4, 24), ChequeClearingController.clearsOn(LocalDate.of(2026, 4, 24), 0), "kinds with no wait clear at once");
+    }
+
+    @Test
+    void anOrdinaryUserCannotSeeOrClear() {
+        Authentication nobody = new TestingAuthenticationToken("nobody-at-all", null);
+        assertThrows(ResponseStatusException.class, () -> clearing.list(nobody, false));
+        assertThrows(ResponseStatusException.class, () -> clearing.clear(new ClearRequest(List.of(new Item(2026, 1, 0)), null), nobody));
+    }
+
+    @Test
+    void uncleared_cheques_list_and_clear_with_a_reason_when_early() {
+        assumeTrue(db.canUpdateColumn("transck", "CKISCLEARED"), "V026_cheque_clearing.sql has not been run");
+        List<Row> open = clearing.list(admin(), false);
+        assumeTrue(!open.isEmpty(), "no uncleared cheques in this database");
+        assertTrue(open.stream().noneMatch(Row::cleared));
+        Row r = open.get(0);
+        Item item = new Item(r.year(), r.ctlNo(), r.seq());
+        if (!r.due()) {
+            assertThrows(ResponseStatusException.class, () -> clearing.clear(new ClearRequest(List.of(item), null), admin()), "early clearing needs a reason");
+        }
+        var done = clearing.clear(new ClearRequest(List.of(item), "integration test"), admin());
+        assertEquals(1, done.cleared());
+        Integer flag = jdbc.queryForObject("SELECT CKISCLEARED FROM transck WHERE CKTR_YEAR = ? AND CKTR_CODE = 10 AND CKTR_CTLNO = ? AND CKSEQ_NO = ?", Integer.class, r.year(), r.ctlNo(), r.seq());
+        assertEquals(1, flag);
+        assertFalse(clearing.list(admin(), false).stream().anyMatch((x) -> x.year() == r.year() && x.ctlNo() == r.ctlNo() && x.seq() == r.seq()));
+        assertEquals(0, clearing.clear(new ClearRequest(List.of(item), "integration test"), admin()).cleared(), "a cleared cheque is skipped the second time");
+        Integer audit = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'cheque.clear' AND username = 'itest-admin'", Integer.class);
+        assertEquals(1, audit);
+    }
+}
