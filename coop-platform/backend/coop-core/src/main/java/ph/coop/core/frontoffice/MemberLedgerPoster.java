@@ -280,6 +280,11 @@ class MemberLedgerPoster {
 
     /** As above; a cheque (null for cash) sets the row's tender, the days left to clear, the cheque number and the bank. */
     void writeLedgerRow(int branch, int clientId, MemberLine l, LocalDate day, int trCode, long ctl, String docNo, Cheque cheque) {
+        writeLedgerRow(branch, clientId, l, day, trCode, ctl, docNo, cheque, cheque == null ? 1 : 2);
+    }
+
+    /** As above with the tender type set by the caller; a General Journal row has none (null), as in the old data. */
+    void writeLedgerRow(int branch, int clientId, MemberLine l, LocalDate day, int trCode, long ctl, String docNo, Cheque cheque, Integer cociType) {
         // the ledger needs a slsum row for each account and event, dated by its first entry; the first use of an event adds it
         Integer known = jdbc.queryForObject("SELECT COUNT(*) FROM slsum WHERE SL_BRCODE = ? AND SL_CLIENTID = ? AND SLC_CODE = ? AND SLT_CODE = ? AND REF_NO = ? AND SLE_CODE = ?",
             Integer.class, branch, clientId, l.slc(), l.typeCode(), l.refNo(), l.event());
@@ -296,7 +301,7 @@ class MemberLedgerPoster {
                 INSERT INTO sldtl (SL_BRCODE, SL_CLIENTID, SLC_CODE, SLT_CODE, REF_NO, SLE_CODE, TR_DATE, SEQNO, GL_DATE, TR_CODE, TR_CTLNO, TR_DOCNO, AMT, ADJ_FLAG, COCI_TYPE, CLRG_DAYS, CHECKNO, BANK_CODE)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
                 """, branch, clientId, l.slc(), l.typeCode(), l.refNo(), l.event(), day.toString(), next, day.toString(), trCode, ctl, docNo, l.amount(),
-            cheque == null ? 1 : 2, cheque == null ? 0 : ChequeRules.ledgerDays(cheque.clearingDays()), cheque == null ? null : cheque.number(), cheque == null ? null : cheque.bankCode());
+            cociType, cheque == null ? 0 : ChequeRules.ledgerDays(cheque.clearingDays()), cheque == null ? null : cheque.number(), cheque == null ? null : cheque.bankCode());
     }
 
     /** One transck row: the cash taken (cheque null) or one cheque. Not cleared yet; the poster is both encoder and poster, nobody has approved. */

@@ -795,3 +795,16 @@ export interface ChequeClearRow {
 export const getChequeClearing = () => getJson<ChequeClearRow[]>('/api/front-office/cheque-clearing')
 export const clearCheques = (items: { year: number; ctlNo: number; seq: number }[], reason: string) =>
   send<{ cleared: number; skipped: number }>('POST', '/api/front-office/cheque-clearing', { items, reason })
+
+// ---- returned cheques ---------------------------------------------------------------------------------------------------
+export interface ChequeReturnCandidate {
+  year: number; ctlNo: number; seq: number; documentNo: string; receiptDate: string; clientId: number; client: string; number: string; bank: string | null
+  amount: number; typeCode: number | null; refNo: number | null; returned: boolean; problem: string | null
+}
+/** Where the cheque is now: with a cashier or teller (event 52 or 53 and the number), in the vault, or in a bank account. */
+export interface ChequeReturnReq { year: number; ctlNo: number; seq: number; where: 'DRAWER' | 'VAULT' | 'BANK'; event?: number; number?: number; bankId?: number }
+export interface ChequeReturnCheck { description: string; amount: number; approval: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED'; problems: string[]; ready: boolean }
+export const findReturnableCheques = (number: string) => getJson<ChequeReturnCandidate[]>(`/api/front-office/cheque-returns/find?number=${encodeURIComponent(number)}`)
+export const checkChequeReturn = (b: ChequeReturnReq) => send<ChequeReturnCheck>('POST', '/api/front-office/cheque-returns/check', b)
+export const askChequeReturn = (b: ChequeReturnReq) => send<FoOverride>('POST', '/api/front-office/cheque-returns/ask', b)
+export const postChequeReturn = (b: ChequeReturnReq) => send<{ year: number; controlNo: number; documentNo: string; client: string; amount: number; where: string }>('POST', '/api/front-office/cheque-returns/post', b)
