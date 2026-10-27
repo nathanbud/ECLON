@@ -38,12 +38,18 @@ class TimeDepositClosureController {
 
     private static final int MODULE = 2, CODE = 21, PENDING = 2, CLASS_TD = 24, PAYABLE = 29, PRINCIPAL = 11, ACCRUED = 71, ACTIVE = 15;
 
-    record Request(int clientId, int typeCode, int refNo, String mode, Integer termDays, BigDecimal ratePercent, BigDecimal withdraw, Boolean renewalFee, String explanation) {}
+    /** newTypeCode (the certificate a Lock In is renewed into) and interestYears (Lock In: years of interest paid, 1 by default) are only read for Lock In certificates. */
+    record Request(int clientId, int typeCode, int refNo, String mode, Integer termDays, BigDecimal ratePercent, BigDecimal withdraw, Boolean renewalFee, String explanation,
+                   Integer newTypeCode, Integer interestYears) {
+        Request(int clientId, int typeCode, int refNo, String mode, Integer termDays, BigDecimal ratePercent, BigDecimal withdraw, Boolean renewalFee, String explanation) {
+            this(clientId, typeCode, refNo, mode, termDays, ratePercent, withdraw, renewalFee, explanation, null, null);
+        }
+    }
 
     /** newPrincipal, newMaturity, fee and withdraw are filled for a renewal. */
     record Quote(String mode, int clientId, String clientName, int typeCode, String type, int refNo, String certificate, LocalDate maturity, int termDays, BigDecimal ratePercent,
                  BigDecimal principal, BigDecimal interest, BigDecimal accrued, BigDecimal expense, BigDecimal due, BigDecimal newPrincipal, LocalDate newMaturity, BigDecimal fee,
-                 BigDecimal withdraw, List<Integer> terms, List<String> problems, boolean ready) {}
+                 BigDecimal withdraw, List<Integer> terms, List<String> problems, boolean ready, boolean lockIn, int interestYears, int maxYears, int newTypeCode) {}
 
     record Encoded(int branchCode, int year, long controlNo, String documentNo, String mode, int clientId, String clientName, BigDecimal due, Integer newCertificate, BigDecimal newPrincipal,
                    BigDecimal paidToPayable) {}
@@ -93,9 +99,17 @@ class TimeDepositClosureController {
         return n != null && n > 0;
     }
 
+    /** Terms in use for the type: up to 365 days for Short Term; Lock In terms are the ones used at least three times (a few odd ones exist). */
     private List<Integer> knownTerms(int branch, int typeCode) {
+        if (TimeDepositClosureRules.isLockIn(typeCode))
+            return jdbc.queryForList("SELECT TDTERMS FROM td WHERE TDBR_CODE = ? AND TDSLC_CODE = ? AND TDSLT_CODE = ? AND TDTR_DATE <= ? AND TDTERMS > 365 GROUP BY TDTERMS HAVING COUNT(*) >= 3 ORDER BY TDTERMS",
+                Integer.class, branch, CLASS_TD, typeCode, java.sql.Date.valueOf(LocalDate.now(clock)));
         return jdbc.queryForList("SELECT DISTINCT TDTERMS FROM td WHERE TDBR_CODE = ? AND TDSLC_CODE = ? AND TDSLT_CODE = ? AND TDTR_DATE <= ? AND TDTERMS > 0 ORDER BY TDTERMS",
             Integer.class, branch, CLASS_TD, typeCode, java.sql.Date.valueOf(LocalDate.now(clock))).stream().filter((d) -> d <= 365).toList();
+    }
+
+    private int newType(Request r) {
+        return TimeDepositClosureRules.isLockIn(r.typeCode()) && r.newTypeCode() != null ? r.newTypeCode() : r.typeCode();
     }
 
     /** What the voucher would be, and why it cannot be encoded when it cannot. */
@@ -113,19 +127,27 @@ class TimeDepositClosureController {
         Client client = poster.client(p.branch(), r.clientId());
         boolean renew = "RENEW".equalsIgnoreCase(r.mode());
         BigDecimal balance = c.balance();
-        Amounts a = TimeDepositClosureRules.amounts(balance, c.rate(), c.termDays(), c.accrued());
+        boolean lockIn = TimeDepositClosureRules.isLockIn(r.typeCode());
+        int years = lockIn ? (r.interestYears() == null ? 1 : r.interestYears()) : 0;
+        Amounts a = lockIn ? TimeDepositClosureRules.lockInAmounts(balance, c.rate(), years, c.accrued()) : TimeDepositClosureRules.amounts(balance, c.rate(), c.termDays(), c.accrued());
         String status = c.status() == 17 ? "CLOSED" : !c.hasLedger() ? "NO_LEDGER" : balance.compareTo(new BigDecimal("0.005")) < 0 ? "CLOSED" : c.maturity() != null && c.maturity().isBefore(today) ? "MATURED" : "ACTIVE";
         List<String> problems = new ArrayList<>(TimeDepositClosureRules.problems(r.typeCode(), status, c.maturity(), today, a, payableAccount(p.branch(), r.clientId()) != null, voucherWaiting(p.branch(), today.getYear(), r)));
         if (client.status() == 3 || client.status() == 98 || client.status() == 99) problems.add("This client's account is closed, disapproved or not yet approved.");
-        List<Integer> terms = knownTerms(p.branch(), r.typeCode());
+        problems.addAll(TimeDepositClosureRules.yearsProblems(r.typeCode(), years, c.termDays()));
+        int nt = newType(r);
+        List<Integer> terms = knownTerms(p.branch(), nt);
         BigDecimal newPrincipal = null, fee = null, withdraw = null;
         LocalDate newMaturity = null;
         if (renew) {
-            withdraw = (r.withdraw() == null ? BigDecimal.ZERO : r.withdraw()).setScale(Math.max(2, (r.withdraw() == null ? 0 : r.withdraw().scale())), RoundingMode.UNNECESSARY);
-            boolean charge = r.renewalFee() == null || r.renewalFee();
+            // a Lock In renewal rolls the principal and pays the interest out unless the clerk says otherwise; the old vouchers charge no renewal fee on it
+            BigDecimal asked = r.withdraw() == null ? (lockIn ? a.interest() : BigDecimal.ZERO) : r.withdraw();
+            withdraw = asked.setScale(Math.max(2, asked.scale()), RoundingMode.UNNECESSARY);
+            boolean charge = !lockIn && (r.renewalFee() == null || r.renewalFee());
+            if (nt < 1 || nt > 4 || jdbc.queryForList("SELECT 1 FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", Integer.class, p.branch(), CLASS_TD, nt).isEmpty())
+                problems.add("That kind of certificate does not exist.");
             int term = r.termDays() == null ? c.termDays() : r.termDays();
             BigDecimal rate = r.ratePercent() == null ? c.rate() : r.ratePercent();
-            BigDecimal min = jdbc.queryForList("SELECT COALESCE(SLTypeMIN_BAL, 0) FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", BigDecimal.class, p.branch(), CLASS_TD, r.typeCode())
+            BigDecimal min = jdbc.queryForList("SELECT COALESCE(SLTypeMIN_BAL, 0) FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", BigDecimal.class, p.branch(), CLASS_TD, nt)
                 .stream().findFirst().orElse(null);
             problems.addAll(TimeDepositClosureRules.renewalProblems(a, withdraw, charge, min, term, rate, terms));
             var rn = TimeDepositClosureRules.renewal(a, withdraw, charge);
@@ -134,7 +156,7 @@ class TimeDepositClosureController {
             newMaturity = today.plusDays(Math.max(term, 0));
         }
         return new Quote(renew ? "RENEW" : "PAYOUT", r.clientId(), client.name(), r.typeCode(), c.type(), r.refNo(), c.certificate(), c.maturity(), renew && r.termDays() != null ? r.termDays() : c.termDays(),
-            renew && r.ratePercent() != null ? r.ratePercent() : c.rate(), a.principal(), a.interest(), a.accrued(), a.expense(), a.due(), newPrincipal, newMaturity, fee, withdraw, terms, problems, problems.isEmpty());
+            renew && r.ratePercent() != null ? r.ratePercent() : c.rate(), a.principal(), a.interest(), a.accrued(), a.expense(), a.due(), newPrincipal, newMaturity, fee, withdraw, terms, problems, problems.isEmpty(), lockIn, years, lockIn ? TimeDepositClosureRules.maxYears(c.termDays()) : 0, nt);
     }
 
     private static final String LINE = """
@@ -162,7 +184,7 @@ class TimeDepositClosureController {
             long ctl = db.nextControlNumber(branch, MODULE, CODE, year);
             String docNo = SharePaymentRules.documentNo(null, ctl);
             String text = req.explanation() == null || req.explanation().isBlank()
-                ? (renew ? "RENEWAL OF MATURED TD " + q.termDays() + " DAYS @ " + q.ratePercent().stripTrailingZeros().toPlainString() + "%" + (q.withdraw().signum() > 0 ? "; " + q.withdraw().toPlainString() + " WITHDRAWAL" : "") : "MATURED TD WITHDRAWAL")
+                ? (renew ? "RENEWAL OF MATURED " + (q.lockIn() ? "LOCK IN" : "TD") + " " + q.termDays() + " DAYS @ " + q.ratePercent().stripTrailingZeros().toPlainString() + "%" + (q.withdraw().signum() > 0 ? "; " + q.withdraw().toPlainString() + " WITHDRAWAL" : "") : (q.lockIn() ? "MATURED LOCK IN WITHDRAWAL, " + q.interestYears() + " YEARS INTEREST" : "MATURED TD WITHDRAWAL"))
                 : req.explanation().trim();
             text = text.substring(0, Math.min(text.length(), 200));
             jdbc.update("""
@@ -178,22 +200,23 @@ class TimeDepositClosureController {
                     plain ? null : spec[3], plain ? null : spec[5], day.toString(), amount, p.id(), PENDING);
             };
             String tdGl = poster.glAccount(branch, CLASS_TD, req.typeCode(), PRINCIPAL, ACTIVE);
+            int nt = q.newTypeCode();
             line.accept(new Object[] {CLASS_TD, req.typeCode(), req.refNo(), PRINCIPAL, tdGl, ACTIVE}, q.principal());
             if (q.accrued().signum() > 0) line.accept(new Object[] {CLASS_TD, req.typeCode(), req.refNo(), ACCRUED, poster.glAccount(branch, CLASS_TD, req.typeCode(), ACCRUED, 99), 99}, q.accrued());
-            if (q.expense().signum() > 0) line.accept(new Object[] {0, 0, 0, 0, TimeDepositClosureRules.INTEREST_EXPENSE, 0}, q.expense());
+            if (q.expense().signum() != 0) line.accept(new Object[] {0, 0, 0, 0, TimeDepositClosureRules.INTEREST_EXPENSE, 0}, q.expense());
             Integer payable = payableAccount(branch, req.clientId());
             String payableGl = poster.glAccount(branch, PAYABLE, 1, PRINCIPAL, ACTIVE);
             Integer newRef = null;
             BigDecimal toPayable;
             if (renew) {
-                List<Integer> top = jdbc.queryForList("SELECT TDREF_NO FROM td WHERE TDBR_CODE = ? AND TDSLC_CODE = ? AND TDSLT_CODE = ? ORDER BY TDREF_NO DESC LIMIT 1 FOR UPDATE", Integer.class, branch, CLASS_TD, req.typeCode());
+                List<Integer> top = jdbc.queryForList("SELECT TDREF_NO FROM td WHERE TDBR_CODE = ? AND TDSLC_CODE = ? AND TDSLT_CODE = ? ORDER BY TDREF_NO DESC LIMIT 1 FOR UPDATE", Integer.class, branch, CLASS_TD, nt);
                 newRef = (top.isEmpty() ? 0 : top.get(0)) + 1;
-                jdbc.update("INSERT INTO slmastersum (MBR_CODE, MSLC_CODE, MSLT_CODE, MREF_NO, MCLIENTID) VALUES (?, ?, ?, ?, ?)", branch, CLASS_TD, req.typeCode(), newRef, req.clientId());
+                jdbc.update("INSERT INTO slmastersum (MBR_CODE, MSLC_CODE, MSLT_CODE, MREF_NO, MCLIENTID) VALUES (?, ?, ?, ?, ?)", branch, CLASS_TD, nt, newRef, req.clientId());
                 jdbc.update("""
                         INSERT INTO td (TDBR_CODE, TDSLC_CODE, TDSLT_CODE, TDREF_NO, ClientIDTD, TDPAMT, TDTR_DATE, TDSTATUS, TDINT_RATE, TDTERMS, TDTERM_PERD, TDMAT_DATE, TDCERT_NUM)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-                        """, branch, CLASS_TD, req.typeCode(), newRef, req.clientId(), q.newPrincipal(), day.toString(), ACTIVE, q.ratePercent(), q.termDays(), q.newMaturity().toString(), String.valueOf(newRef));
-                line.accept(new Object[] {CLASS_TD, req.typeCode(), newRef, PRINCIPAL, tdGl, ACTIVE}, q.newPrincipal().negate());
+                        """, branch, CLASS_TD, nt, newRef, req.clientId(), q.newPrincipal(), day.toString(), ACTIVE, q.ratePercent(), q.termDays(), q.newMaturity().toString(), String.valueOf(newRef));
+                line.accept(new Object[] {CLASS_TD, nt, newRef, PRINCIPAL, poster.glAccount(branch, CLASS_TD, nt, PRINCIPAL, ACTIVE), ACTIVE}, q.newPrincipal().negate());
                 if (q.fee().signum() > 0) line.accept(new Object[] {0, 0, 0, 0, TimeDepositPlacementRules.FEE_ACCOUNT, 0}, q.fee().negate());
                 toPayable = q.withdraw();
                 if (toPayable.signum() > 0) line.accept(new Object[] {PAYABLE, 1, payable, PRINCIPAL, payableGl, ACTIVE}, toPayable.negate());
@@ -204,7 +227,7 @@ class TimeDepositClosureController {
             jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'transsum', ?, ?)", Timestamp.valueOf(now), auth.getName(),
                 renew ? "td.renewal.encode" : "td.payout.encode", branch + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl,
                 "client " + req.clientId() + " certificate " + req.typeCode() + "/" + req.refNo() + " principal " + q.principal().toPlainString() + " interest " + q.interest().toPlainString()
-                    + (renew ? " new certificate " + newRef + " " + q.newPrincipal().toPlainString() : "") + " doc " + docNo);
+                    + (q.lockIn() ? " lock in years " + q.interestYears() : "") + (renew ? " new certificate " + nt + "/" + newRef + " " + q.newPrincipal().toPlainString() : "") + " doc " + docNo);
             return new Encoded(branch, year, ctl, docNo, q.mode(), req.clientId(), q.clientName(), q.due(), newRef, q.newPrincipal(), toPayable);
         });
     }

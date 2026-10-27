@@ -57,7 +57,7 @@ export function TimeDepositNoticesPanel() {
                       <Button size="small" onClick={() => setAct({ n, mode: 'PAYOUT' })}>Pay out</Button>
                       <Button size="small" onClick={() => setAct({ n, mode: 'RENEW' })}>Renew</Button>
                     </>
-                  ) : <Typography component="span" sx={{ fontSize: 12 }} color="text.secondary">{n.typeCode === 2 || n.typeCode === 4 ? 'Lock In' : 'Not due yet'}</Typography>}
+                  ) : <Typography component="span" sx={{ fontSize: 12 }} color="text.secondary">Not due yet</Typography>}
                 </TableCell>
               </TableRow>
             ))}

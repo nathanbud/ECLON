@@ -14,8 +14,10 @@ import ph.coop.core.deposit.TimeDepositRules;
 final class TimeDepositClosureRules {
 
     static final String INTEREST_EXPENSE = "50105";
-    /** Short Term (1) and Short Term New (3). Lock In certificates (2 and 4) are not handled: their interest is not paid at the end of the term. */
-    static final List<Integer> HANDLED_TYPES = List.of(1, 3);
+    /** Short Term (1), Lock In (2), Short Term New (3) and Lock In New (4). */
+    static final List<Integer> HANDLED_TYPES = List.of(1, 2, 3, 4);
+    /** Lock In pays its interest a year at a time, so a closing voucher pays the years still unpaid (documentation/time-deposit-map.md). */
+    static final List<Integer> LOCK_IN_TYPES = List.of(2, 4);
 
     private TimeDepositClosureRules() {}
 
@@ -29,15 +31,36 @@ final class TimeDepositClosureRules {
         return new Amounts(balance, interest, accrued, interest.subtract(accrued));
     }
 
+    static boolean isLockIn(int typeCode) { return LOCK_IN_TYPES.contains(typeCode); }
+
+    /** Years of interest a Lock In closing can pay: the term in whole years, at least 1. */
+    static int maxYears(int termDays) { return Math.max(1, (int) Math.round(termDays / 365.0)); }
+
+    /**
+     * Lock In closing, mapped from real vouchers 2026/21/37997, 38370, 39485, 36232 and 34648: the interest paid is balance x rate% for each unpaid year (the clerk says how
+     * many, 1 for the last year), what the monthly accrual already booked is taken back, and the difference goes to 50105 (a credit when the accrual was more).
+     */
+    static Amounts lockInAmounts(BigDecimal balance, BigDecimal ratePercent, int years, BigDecimal accrued) {
+        BigDecimal interest = balance.multiply(ratePercent).multiply(BigDecimal.valueOf(years)).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        return new Amounts(balance, interest, accrued, interest.subtract(accrued));
+    }
+
+    static List<String> yearsProblems(int typeCode, Integer years, int termDays) {
+        if (!isLockIn(typeCode)) return List.of();
+        int max = maxYears(termDays);
+        if (years == null || years < 1 || years > max) return List.of("Choose how many years of interest are paid, from 1 to " + max + ".");
+        return List.of();
+    }
+
     /** Why a certificate cannot be closed, empty when it can. */
     static List<String> problems(int typeCode, String status, LocalDate maturity, LocalDate today, Amounts a, boolean hasPayableAccount, boolean voucherWaiting) {
         List<String> p = new ArrayList<>();
-        if (!HANDLED_TYPES.contains(typeCode)) p.add("Lock In certificates are not paid out or renewed here yet.");
+        if (!HANDLED_TYPES.contains(typeCode)) p.add("This kind of certificate is not paid out or renewed here.");
         if (!"ACTIVE".equals(status) && !"MATURED".equals(status)) p.add("This certificate holds no money.");
         if (maturity == null || maturity.isAfter(today)) p.add("This certificate matures on " + maturity + ". Paying it out before then is a pre-termination, which is not built yet.");
         if (voucherWaiting) p.add("A voucher for this certificate is already waiting to be approved and posted.");
         if (!hasPayableAccount) p.add("This member has no vouchers-payable account to credit.");
-        if (a.expense().signum() < 0) p.add("The interest already accrued (" + a.accrued().toPlainString() + ") is more than the interest for the term (" + a.interest().toPlainString() + "). Ask an accountant to look at it.");
+        if (a.expense().signum() < 0 && !isLockIn(typeCode)) p.add("The interest already accrued (" + a.accrued().toPlainString() + ") is more than the interest for the term (" + a.interest().toPlainString() + "). Ask an accountant to look at it.");
         return p;
     }
 

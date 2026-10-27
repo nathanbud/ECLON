@@ -19,15 +19,21 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
   const [rate, setRate] = useState('')
   const [withdraw, setWithdraw] = useState('')
   const [fee, setFee] = useState(true)
+  const [years, setYears] = useState(1)
+  const [newType, setNewType] = useState<number | ''>('')
   const [explanation, setExplanation] = useState('')
   const [quote, setQuote] = useState<TdCloseQuote | null>(null)
   const [done, setDone] = useState<TdCloseEncoded | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  const isLockIn = typeCode === 2 || typeCode === 4
   const body: TdCloseReq = {
     clientId, typeCode, refNo, mode,
-    ...(mode === 'RENEW' ? { termDays: term === '' ? undefined : term, ratePercent: rate.trim() === '' ? undefined : Number(rate), withdraw: Number(withdraw) || 0, renewalFee: fee } : {}),
+    // a Lock In pays interest by the year; left blank, "take out" is the interest and the principal is renewed (what the old vouchers did)
+    ...(isLockIn ? { interestYears: years } : {}),
+    ...(mode === 'RENEW' ? { termDays: term === '' ? undefined : term, ratePercent: rate.trim() === '' ? undefined : Number(rate), withdraw: isLockIn && withdraw.trim() === '' ? undefined : Number(withdraw) || 0,
+      renewalFee: isLockIn ? false : fee, ...(isLockIn && newType !== '' ? { newTypeCode: newType } : {}) } : {}),
     explanation,
   }
   const key = JSON.stringify(body)
@@ -40,8 +46,9 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
       quoteTdClose(body).then((q) => {
         if (!live) return
         setQuote(q); setError(null)
-        if (term === '' && q.termDays) setTerm(q.termDays)
-        if (rate === '' && q.ratePercent != null) setRate(String(q.ratePercent))
+        if (term === '' && q.termDays && (!q.lockIn || q.terms.includes(q.termDays))) setTerm(q.termDays)
+        if (rate === '' && q.ratePercent != null && (!q.lockIn || q.newTypeCode === typeCode)) setRate(String(q.ratePercent))
+        if (q.lockIn && newType === '') setNewType(q.newTypeCode)
       }).catch((e: Error) => { if (live) setError(e.message) })
     }, 300)
     return () => { live = false; clearTimeout(t) }
@@ -89,21 +96,35 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
               <span>Certificate</span><b>{quote.type} {quote.certificate ?? quote.refNo}</b>
               <span>Matured</span><b>{quote.maturity}</b>
               <span>Balance</span><b>{peso(quote.principal)}</b>
-              <span>Interest for the term ({quote.termDays} days, {quote.ratePercent}%)</span><b>{peso(quote.interest)}</b>
-              <span>of which accrued at year end</span><span>{peso(quote.accrued)}</span>
+              {quote.lockIn
+                ? <><span>Interest for {quote.interestYears} year{quote.interestYears === 1 ? '' : 's'} at {quote.ratePercent}%</span><b>{peso(quote.interest)}</b></>
+                : <><span>Interest for the term ({quote.termDays} days, {quote.ratePercent}%)</span><b>{peso(quote.interest)}</b></>}
+              <span>of which already accrued</span><span>{peso(quote.accrued)}</span>
               <span>Money due to the member</span><b>{peso(quote.due)}</b>
             </Box>
           )}
+          {quote?.lockIn && (
+            <TextField select size="small" label="Years of interest paid now" value={years} onChange={(e) => setYears(Number(e.target.value))}
+              helperText="1 for the last year; more when earlier years were never withdrawn">
+              {Array.from({ length: quote.maxYears }, (_, i) => i + 1).map((y) => <MenuItem key={y} value={y}>{y}</MenuItem>)}
+            </TextField>
+          )}
           {renew && (
             <>
+              {isLockIn && (
+                <TextField select size="small" label="Renew into" value={newType} onChange={(e) => { setNewType(Number(e.target.value)); setTerm(''); setRate('') }}>
+                  <MenuItem value={1}>TD - Short Term</MenuItem>
+                  <MenuItem value={2}>TD - Lock In</MenuItem>
+                </TextField>
+              )}
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1.5 }}>
                 <TextField select size="small" label="New term" value={term} onChange={(e) => setTerm(Number(e.target.value))}>
                   {(quote?.terms ?? []).map((d) => <MenuItem key={d} value={d}>{d} days</MenuItem>)}
                 </TextField>
                 <TextField size="small" label="Rate % a year" value={rate} onChange={(e) => setRate(e.target.value.replace(/[^0-9.]/g, ''))} />
-                <MoneyField size="small" label="Take out" value={withdraw} onValueChange={(v) => setWithdraw(v)} />
+                <MoneyField size="small" label={isLockIn ? 'Take out (blank = the interest)' : 'Take out'} value={withdraw} onValueChange={(v) => setWithdraw(v)} />
               </Box>
-              <FormControlLabel control={<Checkbox checked={fee} onChange={(_, v) => setFee(v)} />} label="Renewal certificate fee 10.00 (taken from the new certificate)" />
+              {!isLockIn && <FormControlLabel control={<Checkbox checked={fee} onChange={(_, v) => setFee(v)} />} label="Renewal certificate fee 10.00 (taken from the new certificate)" />}
               {quote?.newPrincipal != null && (
                 <Typography sx={{ fontSize: 13.5 }}>The new certificate is <b>{peso(quote.newPrincipal)}</b>, maturing <b>{quote.newMaturity}</b>.
                   {quote.withdraw != null && quote.withdraw > 0 && <> {peso(quote.withdraw)} goes to the member vouchers payable.</>}</Typography>

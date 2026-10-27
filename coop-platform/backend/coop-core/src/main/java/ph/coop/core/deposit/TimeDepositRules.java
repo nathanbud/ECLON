@@ -35,6 +35,12 @@ public final class TimeDepositRules {
         return amount.multiply(ratePercent).multiply(BigDecimal.valueOf(termDays)).divide(BigDecimal.valueOf(36000), 2, RoundingMode.HALF_UP);
     }
 
+    /** What a closing would pay as interest: a Lock In pays a year at a time (balance x rate), the others the whole term. */
+    public static BigDecimal maturityInterest(int typeCode, BigDecimal amount, BigDecimal ratePercent, int termDays) {
+        if (typeCode == 2 || typeCode == 4) return amount == null || ratePercent == null ? BigDecimal.ZERO : amount.multiply(ratePercent).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        return termInterest(amount, ratePercent, termDays);
+    }
+
     /** What a rollover credits as interest into the new certificate: the term interest less the flat fee, never below zero. */
     public static BigDecimal rolledInterest(BigDecimal amount, BigDecimal ratePercent, int termDays) {
         return termInterest(amount, ratePercent, termDays).subtract(ROLLOVER_FEE).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);

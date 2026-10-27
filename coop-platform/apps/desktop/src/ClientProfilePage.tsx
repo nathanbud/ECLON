@@ -845,7 +845,7 @@ function TimeDepositsTab({ id }: { id: Id }) {
                   <TableCell align="right" sx={num}>{d.accruedInterest ? peso(d.accruedInterest) : '—'}</TableCell>
                   <TableCell align="right" sx={num}>{d.estimatedInterest == null ? '—' : peso(d.estimatedInterest)}</TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    {d.status === 'MATURED' && (d.typeCode === 1 || d.typeCode === 3) && (
+                    {d.status === 'MATURED' && [1, 2, 3, 4].includes(d.typeCode) && (
                       <>
                         <Button size="small" onClick={(e) => { e.stopPropagation(); setClosing({ d, mode: 'PAYOUT' }) }}>Pay out</Button>
                         <Button size="small" onClick={(e) => { e.stopPropagation(); setClosing({ d, mode: 'RENEW' }) }}>Renew</Button>

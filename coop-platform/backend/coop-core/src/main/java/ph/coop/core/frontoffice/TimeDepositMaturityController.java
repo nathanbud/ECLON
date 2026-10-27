@@ -79,7 +79,7 @@ class TimeDepositMaturityController {
                     int terms = rs.getInt(9);
                     int slt = rs.getInt(3);
                     return new Notice(rs.getInt(1), rs.getString(2), slt, rs.getString(4), rs.getInt(5), rs.getString(6), rs.getDate(7) == null ? null : rs.getDate(7).toLocalDate(), mat,
-                        (int) ChronoUnit.DAYS.between(today, mat), terms, rate, bal, rs.getBigDecimal(12), TimeDepositRules.termInterest(bal, rate, terms), mat.isBefore(today),
+                        (int) ChronoUnit.DAYS.between(today, mat), terms, rate, bal, rs.getBigDecimal(12), TimeDepositRules.maturityInterest(slt, bal, rate, terms), mat.isBefore(today),
                         TimeDepositClosureRules.HANDLED_TYPES.contains(slt) && !mat.isAfter(today));
                 }, branch, java.sql.Date.valueOf(today.minusDays(LOOK_BACK_DAYS)), java.sql.Date.valueOf(today.plusDays(days)));
         int overdue = (int) all.stream().filter(Notice::overdue).count();
