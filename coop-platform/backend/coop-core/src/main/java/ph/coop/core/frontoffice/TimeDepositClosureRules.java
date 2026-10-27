@@ -22,8 +22,44 @@ final class TimeDepositClosureRules {
     private TimeDepositClosureRules() {}
 
     /** What a closing voucher is made of. {@code interest} is for the whole term; {@code expense} is the part not accrued yet. */
-    record Amounts(BigDecimal principal, BigDecimal interest, BigDecimal accrued, BigDecimal expense) {
-        BigDecimal due() { return principal.add(interest); }
+    record Amounts(BigDecimal principal, BigDecimal interest, BigDecimal accrued, BigDecimal expense, BigDecimal termFee) {
+        Amounts(BigDecimal principal, BigDecimal interest, BigDecimal accrued, BigDecimal expense) { this(principal, interest, accrued, expense, BigDecimal.ZERO); }
+
+        /** What the member is owed: principal plus interest, less the pre-termination charge. */
+        BigDecimal due() { return principal.add(interest).subtract(termFee); }
+    }
+
+    /** Credited to 442201 on a pre-termination (the same account as every real one: vouchers 2025 and 2026). */
+    static final String TERMINATION_FEE_ACCOUNT = "442201";
+    static final BigDecimal SHORT_TERM_FEE = new BigDecimal("100.00");
+    static final BigDecimal SHORT_TERM_RATE = BigDecimal.ONE;
+
+    /**
+     * Pre-termination, mapped on 2026-10-27 from 153 real vouchers of 2025 and 2026 (documentation/time-deposit-map.md). Short Term: interest = balance x 1% x days since
+     * placement / 360 (exact on 100 of 131), a flat 100.00 charge. Lock In: the charge is 1% of the principal in the first year and 5% after, and the accrued interest is
+     * normally taken back with nothing paid ({@code interestPaid}, typed, defaults to 0). What was accrued is debited back and the difference goes to 50105 (a credit when
+     * the accrual was more than what is paid).
+     */
+    static Amounts pretermAmounts(int typeCode, BigDecimal balance, int daysHeld, BigDecimal accrued, BigDecimal pretermRate, BigDecimal interestPaid) {
+        if (isLockIn(typeCode)) {
+            BigDecimal paid = interestPaid == null ? BigDecimal.ZERO : interestPaid;
+            BigDecimal pct = daysHeld <= 365 ? BigDecimal.ONE : new BigDecimal("5");
+            return new Amounts(balance, paid, accrued, paid.subtract(accrued), balance.multiply(pct).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
+        }
+        BigDecimal rate = pretermRate == null ? SHORT_TERM_RATE : pretermRate;
+        BigDecimal interest = balance.multiply(rate).multiply(BigDecimal.valueOf(Math.max(daysHeld, 0))).divide(BigDecimal.valueOf(36000), 2, RoundingMode.HALF_UP);
+        return new Amounts(balance, interest, accrued, interest.subtract(accrued), SHORT_TERM_FEE);
+    }
+
+    static List<String> pretermProblems(int typeCode, BigDecimal certRate, BigDecimal pretermRate, BigDecimal interestPaid, BigDecimal accrued, LocalDate placed, LocalDate today) {
+        List<String> p = new ArrayList<>();
+        if (placed == null || placed.isAfter(today)) p.add("This certificate has no valid placement date.");
+        if (isLockIn(typeCode)) {
+            if (interestPaid != null && (interestPaid.signum() < 0 || interestPaid.compareTo(accrued) > 0 || interestPaid.stripTrailingZeros().scale() > 2))
+                p.add("The interest paid on a pre-terminated Lock In must be from 0 to what was accrued (" + accrued.toPlainString() + ").");
+        } else if (pretermRate != null && (pretermRate.signum() < 0 || (certRate != null && pretermRate.compareTo(certRate) > 0)))
+            p.add("The pre-termination rate must be from 0 to the certificate's own rate.");
+        return p;
     }
 
     static Amounts amounts(BigDecimal balance, BigDecimal ratePercent, int termDays, BigDecimal accrued) {
@@ -57,10 +93,10 @@ final class TimeDepositClosureRules {
         List<String> p = new ArrayList<>();
         if (!HANDLED_TYPES.contains(typeCode)) p.add("This kind of certificate is not paid out or renewed here.");
         if (!"ACTIVE".equals(status) && !"MATURED".equals(status)) p.add("This certificate holds no money.");
-        if (maturity == null || maturity.isAfter(today)) p.add("This certificate matures on " + maturity + ". Paying it out before then is a pre-termination, which is not built yet.");
+        if (maturity == null) p.add("This certificate has no maturity date.");
         if (voucherWaiting) p.add("A voucher for this certificate is already waiting to be approved and posted.");
         if (!hasPayableAccount) p.add("This member has no vouchers-payable account to credit.");
-        if (a.expense().signum() < 0 && !isLockIn(typeCode)) p.add("The interest already accrued (" + a.accrued().toPlainString() + ") is more than the interest for the term (" + a.interest().toPlainString() + "). Ask an accountant to look at it.");
+        if (a.expense().signum() < 0 && !isLockIn(typeCode) && (maturity == null || !maturity.isAfter(today))) p.add("The interest already accrued (" + a.accrued().toPlainString() + ") is more than the interest for the term (" + a.interest().toPlainString() + "). Ask an accountant to look at it.");
         return p;
     }
 

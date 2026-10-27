@@ -20,6 +20,8 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
   const [withdraw, setWithdraw] = useState('')
   const [fee, setFee] = useState(true)
   const [years, setYears] = useState(1)
+  const [pretermRate, setPretermRate] = useState('')
+  const [interestPaid, setInterestPaid] = useState('')
   const [newType, setNewType] = useState<number | ''>('')
   const [explanation, setExplanation] = useState('')
   const [quote, setQuote] = useState<TdCloseQuote | null>(null)
@@ -32,8 +34,11 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
     clientId, typeCode, refNo, mode,
     // a Lock In pays interest by the year; left blank, "take out" is the interest and the principal is renewed (what the old vouchers did)
     ...(isLockIn ? { interestYears: years } : {}),
+    // a certificate that has not matured is pre-terminated: Short Term pays a typed rate (1% unless changed), Lock In pays a typed amount (0 unless changed)
+    ...(pretermRate.trim() !== '' && !isLockIn ? { pretermRate: Number(pretermRate) } : {}),
+    ...(interestPaid.trim() !== '' && isLockIn ? { interestPaid: Number(interestPaid) } : {}),
     ...(mode === 'RENEW' ? { termDays: term === '' ? undefined : term, ratePercent: rate.trim() === '' ? undefined : Number(rate), withdraw: isLockIn && withdraw.trim() === '' ? undefined : Number(withdraw) || 0,
-      renewalFee: isLockIn ? false : fee, ...(isLockIn && newType !== '' ? { newTypeCode: newType } : {}) } : {}),
+      renewalFee: isLockIn || quote?.preterm ? false : fee, ...(isLockIn && newType !== '' ? { newTypeCode: newType } : {}) } : {}),
     explanation,
   }
   const key = JSON.stringify(body)
@@ -94,16 +99,27 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
           {quote && (
             <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25, fontSize: 14 }}>
               <span>Certificate</span><b>{quote.type} {quote.certificate ?? quote.refNo}</b>
-              <span>Matured</span><b>{quote.maturity}</b>
+              <span>{quote.preterm ? 'Matures' : 'Matured'}</span><b>{quote.maturity}</b>
+              {quote.preterm && <><span>Held</span><b>{quote.daysHeld} days: a pre-termination</b></>}
               <span>Balance</span><b>{peso(quote.principal)}</b>
-              {quote.lockIn
+              {quote.preterm
+                ? <><span>Interest paid ({quote.lockIn ? 'typed' : `${quote.pretermRate}% for ${quote.daysHeld} days`})</span><b>{peso(quote.interest)}</b></>
+                : quote.lockIn
                 ? <><span>Interest for {quote.interestYears} year{quote.interestYears === 1 ? '' : 's'} at {quote.ratePercent}%</span><b>{peso(quote.interest)}</b></>
                 : <><span>Interest for the term ({quote.termDays} days, {quote.ratePercent}%)</span><b>{peso(quote.interest)}</b></>}
               <span>of which already accrued</span><span>{peso(quote.accrued)}</span>
+              {quote.preterm && <><span>Termination charge</span><b>−{peso(quote.terminationFee)}</b></>}
               <span>Money due to the member</span><b>{peso(quote.due)}</b>
             </Box>
           )}
-          {quote?.lockIn && (
+          {quote?.preterm && !quote.lockIn && (
+            <TextField size="small" label="Interest rate % a year for the days held" value={pretermRate} placeholder={String(quote.pretermRate ?? 1)} onChange={(e) => setPretermRate(e.target.value.replace(/[^0-9.]/g, ''))}
+              helperText="1% is what the old vouchers used; never above the certificate's own rate" />
+          )}
+          {quote?.preterm && quote.lockIn && (
+            <MoneyField size="small" label="Interest paid (blank = none, the accrual is taken back)" value={interestPaid} onValueChange={(v) => setInterestPaid(v)} />
+          )}
+          {quote?.lockIn && !quote.preterm && (
             <TextField select size="small" label="Years of interest paid now" value={years} onChange={(e) => setYears(Number(e.target.value))}
               helperText="1 for the last year; more when earlier years were never withdrawn">
               {Array.from({ length: quote.maxYears }, (_, i) => i + 1).map((y) => <MenuItem key={y} value={y}>{y}</MenuItem>)}
@@ -124,15 +140,15 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
                 <TextField size="small" label="Rate % a year" value={rate} onChange={(e) => setRate(e.target.value.replace(/[^0-9.]/g, ''))} />
                 <MoneyField size="small" label={isLockIn ? 'Take out (blank = the interest)' : 'Take out'} value={withdraw} onValueChange={(v) => setWithdraw(v)} />
               </Box>
-              {!isLockIn && <FormControlLabel control={<Checkbox checked={fee} onChange={(_, v) => setFee(v)} />} label="Renewal certificate fee 10.00 (taken from the new certificate)" />}
+              {!isLockIn && !quote?.preterm && <FormControlLabel control={<Checkbox checked={fee} onChange={(_, v) => setFee(v)} />} label="Renewal certificate fee 10.00 (taken from the new certificate)" />}
               {quote?.newPrincipal != null && (
                 <Typography sx={{ fontSize: 13.5 }}>The new certificate is <b>{peso(quote.newPrincipal)}</b>, maturing <b>{quote.newMaturity}</b>.
                   {quote.withdraw != null && quote.withdraw > 0 && <> {peso(quote.withdraw)} goes to the member vouchers payable.</>}</Typography>
               )}
             </>
           )}
-          {!renew && quote && <Typography sx={{ fontSize: 13.5 }}>All of it, <b>{peso(quote.due)}</b>, goes to the member vouchers payable account to be paid out.</Typography>}
-          <TextField size="small" label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder={renew ? 'RENEWAL OF MATURED TD' : 'MATURED TD WITHDRAWAL'} />
+          {!renew && quote && <Typography sx={{ fontSize: 13.5 }}>{quote.preterm ? 'This ends the certificate early. ' : ''}All of it, <b>{peso(quote.due)}</b>, goes to the member vouchers payable account to be paid out.</Typography>}
+          <TextField size="small" label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder={quote?.preterm ? 'PRE-TERMINATION OF TD' : renew ? 'RENEWAL OF MATURED TD' : 'MATURED TD WITHDRAWAL'} />
           {quote?.problems.map((p) => <Alert key={p} severity="warning">{p}</Alert>)}
         </Box>
       </DialogContent>

@@ -845,6 +845,9 @@ function TimeDepositsTab({ id }: { id: Id }) {
                   <TableCell align="right" sx={num}>{d.accruedInterest ? peso(d.accruedInterest) : '—'}</TableCell>
                   <TableCell align="right" sx={num}>{d.estimatedInterest == null ? '—' : peso(d.estimatedInterest)}</TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    {d.status === 'ACTIVE' && [1, 2, 3, 4].includes(d.typeCode) && (
+                      <Button size="small" color="warning" onClick={(e) => { e.stopPropagation(); setClosing({ d, mode: 'PAYOUT' }) }}>Pre-terminate</Button>
+                    )}
                     {d.status === 'MATURED' && [1, 2, 3, 4].includes(d.typeCode) && (
                       <>
                         <Button size="small" onClick={(e) => { e.stopPropagation(); setClosing({ d, mode: 'PAYOUT' }) }}>Pay out</Button>
@@ -866,7 +869,7 @@ function TimeDepositsTab({ id }: { id: Id }) {
         </TableCard>
       )}
       <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
-        Interest at maturity is an estimate: the rate over the term on a 30-day month, 360-day year. A renewal also carries a 10.00 certificate fee. A matured certificate is paid out or renewed only when someone asks for it here; the voucher then waits on the Front Office Disburse tab. The TD Maturities tab of the Front Office lists what is due.
+        Interest at maturity is an estimate: the rate over the term on a 30-day month, 360-day year. A renewal also carries a 10.00 certificate fee. A matured certificate is paid out or renewed, and a running one pre-terminated (a termination charge, and interest at a reduced rate for the days held), only when someone asks for it here; the voucher then waits on the Front Office Disburse tab. The TD Maturities tab of the Front Office lists what is due.
       </Typography>
       {open && <TimeDepositHistoryDialog id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
       {placing && <TimeDepositPlaceDialog clientId={id.clientId} onClose={() => setPlacing(false)} />}

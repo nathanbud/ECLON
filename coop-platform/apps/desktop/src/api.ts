@@ -872,13 +872,14 @@ export const placeTimeDeposit = (b: TdPlaceIn) => send<TdPlaceReceipt>('POST', '
 // ---- paying out and renewing a matured time deposit, and the maturity notices ---------------------------------------------
 export interface TdCloseReq {
   clientId: number; typeCode: number; refNo: number; mode: 'PAYOUT' | 'RENEW'; termDays?: number; ratePercent?: number; withdraw?: number; renewalFee?: boolean; explanation?: string
-  newTypeCode?: number; interestYears?: number
+  newTypeCode?: number; interestYears?: number; pretermRate?: number; interestPaid?: number
 }
 export interface TdCloseQuote {
   mode: string; clientId: number; clientName: string; typeCode: number; type: string | null; refNo: number; certificate: string | null; maturity: string | null; termDays: number
   ratePercent: number | null; principal: number; interest: number; accrued: number; expense: number; due: number; newPrincipal: number | null; newMaturity: string | null
   fee: number | null; withdraw: number | null; terms: number[]; problems: string[]; ready: boolean
   lockIn: boolean; interestYears: number; maxYears: number; newTypeCode: number
+  preterm: boolean; terminationFee: number; pretermRate: number | null; daysHeld: number
 }
 export interface TdCloseEncoded { branchCode: number; year: number; controlNo: number; documentNo: string; mode: string; clientId: number; clientName: string; due: number; newCertificate: number | null; newPrincipal: number | null; paidToPayable: number }
 export const quoteTdClose = (b: TdCloseReq) => send<TdCloseQuote>('POST', '/api/front-office/time-deposit-closures/quote', b)

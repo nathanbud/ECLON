@@ -78,12 +78,12 @@ class TimeDepositClosureTest {
     }
 
     @Test
-    void aCertificateThatHasNotMaturedIsRefused() {
+    void aCertificateThatCannotBeClosedIsRefused() {
         Amounts a = TimeDepositClosureRules.amounts(d("100000.00"), d("2"), 90, BigDecimal.ZERO);
-        assertTrue(TimeDepositClosureRules.problems(1, "ACTIVE", TODAY.plusDays(3), TODAY, a, true, false).get(0).contains("pre-termination"));
+        assertTrue(TimeDepositClosureRules.problems(1, "ACTIVE", TODAY.plusDays(3), TODAY, a, true, false).isEmpty(), "not matured is a pre-termination, handled by the controller");
+        assertFalse(TimeDepositClosureRules.problems(1, "ACTIVE", null, TODAY, a, true, false).isEmpty(), "no maturity date");
         assertTrue(TimeDepositClosureRules.problems(1, "MATURED", TODAY.minusDays(1), TODAY, a, true, false).isEmpty());
         assertTrue(TimeDepositClosureRules.problems(2, "MATURED", TODAY.minusDays(1), TODAY, a, true, false).isEmpty(), "lock in matured");
-        assertFalse(TimeDepositClosureRules.problems(2, "ACTIVE", TODAY.plusDays(30), TODAY, a, true, false).isEmpty(), "lock in not matured: pre-termination");
         assertFalse(TimeDepositClosureRules.problems(9, "MATURED", TODAY.minusDays(1), TODAY, a, true, false).isEmpty(), "unknown kind");
         assertFalse(TimeDepositClosureRules.problems(1, "MATURED", TODAY.minusDays(1), TODAY, a, false, false).isEmpty(), "no vouchers payable account");
         assertFalse(TimeDepositClosureRules.problems(1, "MATURED", TODAY.minusDays(1), TODAY, a, true, true).isEmpty(), "a voucher is already waiting");
@@ -184,6 +184,103 @@ class TimeDepositClosureTest {
         release.post(re.year(), re.controlNo(), as(poster));
         BigDecimal fresh = jdbc.queryForObject("SELECT COALESCE(-SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 24 AND SLT_CODE = 1 AND REF_NO = ? AND SLE_CODE = 11", BigDecimal.class, c2, re.newCertificate());
         assertEquals(0, rq.newPrincipal().compareTo(fresh));
+    }
+
+    @Test
+    void preTerminationFollowsTheOldVouchers() {
+        // 2025/21/20665: 155,000 held 94 days at the 1% termination rate = the 404.72 accrued; 2025/21/20711: 249,329.06 held 60 days = 415.55, 857.07 accrued, 441.52 credited back
+        Amounts a = TimeDepositClosureRules.pretermAmounts(1, d("155000.00"), 94, d("404.72"), null, null);
+        assertEquals(d("404.72"), a.interest());
+        assertEquals(d("0.00"), a.expense());
+        assertEquals(d("100.00"), a.termFee());
+        Amounts b = TimeDepositClosureRules.pretermAmounts(1, d("249329.06"), 60, d("857.07"), null, null);
+        assertEquals(d("415.55"), b.interest());
+        assertEquals(d("-441.52"), b.expense());
+        assertEquals(d("249329.06").add(d("415.55")).subtract(d("100.00")), b.due());
+        // 2025/21/21659: 100,000 for 126 days @ 1% = 350.00 with nothing taken back; 2026/21/38798: 390,000 for 82 days = 888.33, paid 390,700 with 88.33 rounded to HABP
+        assertEquals(d("350.00"), TimeDepositClosureRules.pretermAmounts(1, d("100000.00"), 126, d("350.00"), null, null).interest());
+        assertEquals(d("888.33"), TimeDepositClosureRules.pretermAmounts(1, d("390000.00"), 82, BigDecimal.ZERO, null, null).interest());
+        // Lock In: 2025/21/24493 1,000,000 after 343 days pays 1% = 10,000 and takes the 30,166.68 accrual back; 28882: 201,500 after 896 days pays 5% = 10,075
+        Amounts c = TimeDepositClosureRules.pretermAmounts(2, d("1000000.00"), 343, d("30166.68"), null, null);
+        assertEquals(d("10000.00"), c.termFee());
+        assertEquals(d("-30166.68"), c.expense());
+        assertEquals(d("990000.00"), c.due());
+        assertEquals(d("10075.00"), TimeDepositClosureRules.pretermAmounts(2, d("201500.00"), 896, d("2037.40"), null, null).termFee());
+        assertEquals(d("3800.00"), TimeDepositClosureRules.pretermAmounts(2, d("380000.00"), 205, d("7684.45"), null, null).termFee());
+        // the typed rate cannot exceed the certificate's, and a Lock In cannot pay more than it accrued
+        assertFalse(TimeDepositClosureRules.pretermProblems(1, d("2"), d("3"), null, BigDecimal.ZERO, LocalDate.of(2026, 1, 1), TODAY).isEmpty());
+        assertTrue(TimeDepositClosureRules.pretermProblems(1, d("2"), d("1"), null, BigDecimal.ZERO, LocalDate.of(2026, 1, 1), TODAY).isEmpty());
+        assertFalse(TimeDepositClosureRules.pretermProblems(2, d("4"), null, d("800"), d("700"), LocalDate.of(2026, 1, 1), TODAY).isEmpty());
+        assertTrue(TimeDepositClosureRules.pretermProblems(2, d("4"), null, d("700"), d("700"), LocalDate.of(2026, 1, 1), TODAY).isEmpty());
+    }
+
+    private void makeCertificate(int client, int type, int ref, String placed, String maturity, int terms, String rate, String accrued) {
+        jdbc.update("INSERT INTO slmastersum (MBR_CODE, MSLC_CODE, MSLT_CODE, MREF_NO, MCLIENTID) VALUES (1, 24, ?, ?, ?)", type, ref, client);
+        jdbc.update("INSERT INTO td (TDBR_CODE, TDSLC_CODE, TDSLT_CODE, TDREF_NO, ClientIDTD, TDPAMT, TDTR_DATE, TDSTATUS, TDINT_RATE, TDTERMS, TDTERM_PERD, TDMAT_DATE, TDCERT_NUM) VALUES (1, 24, ?, ?, ?, 100000.00, ?, 15, ?, ?, 1, ?, ?)",
+            type, ref, client, placed, rate, terms, maturity, String.valueOf(ref));
+        for (int ev : new int[] {11, 71}) jdbc.update("INSERT INTO slsum (SL_BRCODE, SL_CLIENTID, SLC_CODE, SLT_CODE, REF_NO, SLE_CODE, TR_DATE) VALUES (1, ?, 24, ?, ?, ?, ?)", client, type, ref, ev, placed);
+        jdbc.update("INSERT INTO sldtl (SL_BRCODE, SL_CLIENTID, SLC_CODE, SLT_CODE, REF_NO, SLE_CODE, TR_DATE, SEQNO, GL_DATE, TR_CODE, TR_CTLNO, TR_DOCNO, AMT, ADJ_FLAG) VALUES (1, ?, 24, ?, ?, 11, ?, 1, ?, 96, 1, '00000001', -100000.00, 1)", client, type, ref, placed, placed);
+        if (accrued != null)
+            jdbc.update("INSERT INTO sldtl (SL_BRCODE, SL_CLIENTID, SLC_CODE, SLT_CODE, REF_NO, SLE_CODE, TR_DATE, SEQNO, GL_DATE, TR_CODE, TR_CTLNO, TR_DOCNO, AMT, ADJ_FLAG) VALUES (1, ?, 24, ?, ?, 71, '2026-03-31', 2, '2026-03-31', 52, 1, '00000001', ?, 1)", client, type, ref, new BigDecimal(accrued).negate());
+    }
+
+    @Test
+    void aShortTermAndALockInArePreTerminatedThenApprovedAndPostedByThreePeople() {
+        assumeTrue(db.canInsertInto("td", "slmastersum"), "needs V027_time_deposit_placement.sql and V028");
+        List<Map<String, Object>> people = jdbc.queryForList("""
+                SELECT a.AccessID, a.AccessUserName FROM access a JOIN access_trans x ON x.USERID = a.AccessID AND x.BR_CODE = a.AccessBR_CODE AND x.TR_CODE = 21 AND x.CAN_NEW = 1
+                WHERE a.AccessBR_CODE = 1 AND COALESCE(a.AccessIsDisabled, 0) = 0 AND COALESCE(a.AccessCanAccessFrontOffice, 0) = 1 AND COALESCE(a.AccessDepartment, 0) > 0 ORDER BY a.AccessID LIMIT 3
+                """);
+        assumeTrue(people.size() == 3, "need three people who may add cash vouchers");
+        String encoder = (String) people.get(0).get("AccessUserName"), approver = (String) people.get(1).get("AccessUserName"), poster = (String) people.get(2).get("AccessUserName");
+        List<Map<String, Object>> owner = jdbc.queryForList("""
+                SELECT k.ClientID AS c FROM client k WHERE k.ClientIDBrCode = 1 AND k.AccountStatus = 1
+                  AND EXISTS (SELECT 1 FROM slmastersum m WHERE m.MBR_CODE = 1 AND m.MCLIENTID = k.ClientID AND m.MSLC_CODE = 29 AND m.MSLT_CODE = 1) ORDER BY k.ClientID LIMIT 1
+                """);
+        assumeTrue(!owner.isEmpty(), "no active member with a vouchers-payable account");
+        int client = ((Number) owner.get(0).get("c")).intValue();
+        int topShort = jdbc.queryForObject("SELECT COALESCE(MAX(TDREF_NO), 0) FROM td WHERE TDBR_CODE = 1 AND TDSLC_CODE = 24 AND TDSLT_CODE = 1", Integer.class);
+        int topLock = jdbc.queryForObject("SELECT COALESCE(MAX(TDREF_NO), 0) FROM td WHERE TDBR_CODE = 1 AND TDSLC_CODE = 24 AND TDSLT_CODE = 2", Integer.class);
+        int rs = topShort + 1, rl = topLock + 1;
+        // Short Term: 100,000 at 2% placed 24 days ago, nothing accrued; Lock In: 100,000 at 4% placed 206 days ago with 700.00 accrued
+        makeCertificate(client, 1, rs, "2026-04-01", "2026-06-30", 90, "2", null);
+        makeCertificate(client, 2, rl, "2025-10-01", "2028-10-01", 1096, "4", "700.00");
+
+        // Short Term, part of the money taken out and the rest placed again: no renewal fee, 100.00 termination charge
+        Request shortReq = new Request(client, 1, rs, "RENEW", 90, d("2"), d("10000.00"), null, null);
+        Quote sq = closures.quote(shortReq, as(encoder));
+        assertTrue(sq.problems().isEmpty(), sq.problems().toString());
+        assertTrue(sq.preterm());
+        assertEquals(24, sq.daysHeld());
+        assertEquals(0, d("66.67").compareTo(sq.interest()), "100,000 x 1% x 24 / 360");
+        assertEquals(0, d("100.00").compareTo(sq.terminationFee()));
+        assertEquals(0, d("0.00").compareTo(sq.fee()), "no renewal fee on a pre-termination");
+        assertEquals(0, d("89966.67").compareTo(sq.newPrincipal()), "balance + interest - 100.00 - 10,000.00");
+        Encoded se = closures.encode(shortReq, as(encoder));
+        List<Map<String, Object>> dt = jdbc.queryForList("SELECT * FROM transdt WHERE DTTR_BRCODE = 1 AND DTTR_YEAR = ? AND DTTR_MODULE = 2 AND DTTR_CODE = 21 AND DTTR_CTLNO = ? ORDER BY DTSEQ_NO", se.year(), se.controlNo());
+        BigDecimal sum = BigDecimal.ZERO;
+        for (Map<String, Object> l : dt) sum = sum.add((BigDecimal) l.get("DTAMT"));
+        assertEquals(0, sum.signum(), "the voucher balances");
+        assertTrue(dt.stream().anyMatch((l) -> "442201".equals(l.get("DTACCT_CODE")) && ((BigDecimal) l.get("DTAMT")).compareTo(d("-100.00")) == 0), "the termination charge");
+        assertTrue(dt.stream().anyMatch((l) -> "50105".equals(l.get("DTACCT_CODE")) && ((BigDecimal) l.get("DTAMT")).compareTo(d("66.67")) == 0), "the interest expense");
+        release.approve(se.year(), se.controlNo(), as(approver));
+        release.post(se.year(), se.controlNo(), as(poster));
+        assertEquals(0, jdbc.queryForObject("SELECT COALESCE(-SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 24 AND SLT_CODE = 1 AND REF_NO = ? AND SLE_CODE = 11", BigDecimal.class, client, rs).signum());
+        assertEquals(0, d("89966.67").compareTo(jdbc.queryForObject("SELECT COALESCE(-SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 24 AND SLT_CODE = 1 AND REF_NO = ? AND SLE_CODE = 11", BigDecimal.class, client, se.newCertificate())));
+
+        // Lock In, paid out: 1% of 100,000 in the first year, the accrual taken back and none paid
+        Request lockReq = new Request(client, 2, rl, "PAYOUT", null, null, null, null, null);
+        Quote lq = closures.quote(lockReq, as(encoder));
+        assertTrue(lq.problems().isEmpty(), lq.problems().toString());
+        assertEquals(206, lq.daysHeld());
+        assertEquals(0, d("1000.00").compareTo(lq.terminationFee()), "1% in the first year");
+        assertEquals(0, d("-700.00").compareTo(lq.expense()));
+        assertEquals(0, d("99000.00").compareTo(lq.due()));
+        Encoded le = closures.encode(lockReq, as(encoder));
+        release.approve(le.year(), le.controlNo(), as(approver));
+        release.post(le.year(), le.controlNo(), as(poster));
+        assertEquals(0, jdbc.queryForObject("SELECT COALESCE(-SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 24 AND SLT_CODE = 2 AND REF_NO = ? AND SLE_CODE = 11", BigDecimal.class, client, rl).signum());
+        assertEquals(0, jdbc.queryForObject("SELECT COALESCE(-SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 24 AND SLT_CODE = 2 AND REF_NO = ? AND SLE_CODE = 71", BigDecimal.class, client, rl).signum(), "the accrual is taken back");
     }
 
     private Authentication as(String name) { return new TestingAuthenticationToken(name, null); }
