@@ -214,6 +214,76 @@ class TimeDepositClosureTest {
         assertTrue(TimeDepositClosureRules.pretermProblems(2, d("4"), null, d("700"), d("700"), LocalDate.of(2026, 1, 1), TODAY).isEmpty());
     }
 
+    @Test
+    void lockInInterestWithdrawnOnAnAnniversaryFollowsTheOldVouchers() {
+        // 2026/21/39465: 437,000 at 4% paid a year, 17,043.00 of it accrued, 437.00 to 50105; 39680: 1,000,000 at 4%, 37,222.18 accrued, 2,777.82 to 50105; 39794: 600,000 at 6% = 36,000.00
+        assertEquals(d("17480.00"), TimeDepositClosureRules.yearInterest(d("437000.00"), d("4")));
+        var a = TimeDepositClosureRules.interestAmounts(d("17480.00"), d("17043.00"));
+        assertEquals(d("17043.00"), a.fromAccrual());
+        assertEquals(d("437.00"), a.expense());
+        assertEquals(d("2777.82"), TimeDepositClosureRules.interestAmounts(TimeDepositClosureRules.yearInterest(d("1000000.00"), d("4")), d("37222.18")).expense());
+        assertEquals(d("36000.00"), TimeDepositClosureRules.yearInterest(d("600000.00"), d("6")));
+        // with more accrued than paid only the amount is taken from the accrual, and nothing goes to 50105
+        var b = TimeDepositClosureRules.interestAmounts(d("417.50"), d("452.50"));
+        assertEquals(d("417.50"), b.fromAccrual());
+        assertEquals(0, b.expense().signum());
+        // anniversaries: one passed after a year, or 15 days short of it (a real withdrawal came at 350 days)
+        assertEquals(1, TimeDepositClosureRules.completedYears(TODAY.minusDays(365), TODAY));
+        assertEquals(1, TimeDepositClosureRules.completedYears(TODAY.minusDays(350), TODAY));
+        assertEquals(0, TimeDepositClosureRules.completedYears(TODAY.minusDays(349), TODAY));
+        assertEquals(3, TimeDepositClosureRules.completedYears(TODAY.minusDays(1100), TODAY));
+        assertEquals(d("4000.00"), TimeDepositClosureRules.interestAvailable(d("100000.00"), d("4"), TODAY.minusDays(380), TODAY, BigDecimal.ZERO));
+        assertEquals(d("500.00"), TimeDepositClosureRules.interestAvailable(d("100000.00"), d("4"), TODAY.minusDays(380), TODAY, d("3500.00")));
+        assertEquals(0, TimeDepositClosureRules.interestAvailable(d("100000.00"), d("4"), TODAY.minusDays(380), TODAY, d("5000.00")).signum());
+        assertTrue(TimeDepositClosureRules.interestProblems(2, "ACTIVE", TODAY.plusDays(400), TODAY, d("4000.00"), d("4000.00"), true, false).isEmpty());
+        assertFalse(TimeDepositClosureRules.interestProblems(2, "ACTIVE", TODAY.plusDays(400), TODAY, d("4000.01"), d("4000.00"), true, false).isEmpty(), "more than has fallen due");
+        assertFalse(TimeDepositClosureRules.interestProblems(1, "ACTIVE", TODAY.plusDays(40), TODAY, d("10.00"), d("100.00"), true, false).isEmpty(), "Short Term");
+        assertFalse(TimeDepositClosureRules.interestProblems(2, "MATURED", TODAY.minusDays(1), TODAY, d("10.00"), d("100.00"), true, false).isEmpty(), "matured is paid out");
+        assertFalse(TimeDepositClosureRules.interestProblems(2, "ACTIVE", TODAY.plusDays(40), TODAY, d("10.00"), d("100.00"), true, true).isEmpty(), "a voucher waits");
+    }
+
+    @Test
+    void aLockInAnniversaryInterestIsEncodedApprovedAndPostedAndTheCertificateIsUntouched() {
+        assumeTrue(db.canInsertInto("transsum", "transdt", "td", "slmastersum"), "needs the voucher and certificate grants");
+        List<Map<String, Object>> people = jdbc.queryForList("""
+                SELECT a.AccessID, a.AccessUserName FROM access a JOIN access_trans x ON x.USERID = a.AccessID AND x.BR_CODE = a.AccessBR_CODE AND x.TR_CODE = 21 AND x.CAN_NEW = 1
+                WHERE a.AccessBR_CODE = 1 AND COALESCE(a.AccessIsDisabled, 0) = 0 AND COALESCE(a.AccessCanAccessFrontOffice, 0) = 1 AND COALESCE(a.AccessDepartment, 0) > 0 ORDER BY a.AccessID LIMIT 3
+                """);
+        assumeTrue(people.size() == 3, "need three people who may add cash vouchers");
+        String encoder = (String) people.get(0).get("AccessUserName"), approver = (String) people.get(1).get("AccessUserName"), poster = (String) people.get(2).get("AccessUserName");
+        List<Map<String, Object>> owner = jdbc.queryForList("""
+                SELECT k.ClientID AS c FROM client k WHERE k.ClientIDBrCode = 1 AND k.AccountStatus = 1
+                  AND EXISTS (SELECT 1 FROM slmastersum m WHERE m.MBR_CODE = 1 AND m.MCLIENTID = k.ClientID AND m.MSLC_CODE = 29 AND m.MSLT_CODE = 1) ORDER BY k.ClientID LIMIT 1
+                """);
+        assumeTrue(!owner.isEmpty(), "no active member with a vouchers-payable account");
+        int client = ((Number) owner.get(0).get("c")).intValue();
+        int ref = jdbc.queryForObject("SELECT COALESCE(MAX(TDREF_NO), 0) FROM td WHERE TDBR_CODE = 1 AND TDSLC_CODE = 24 AND TDSLT_CODE = 2", Integer.class) + 1;
+        // 100,000 at 4% placed 390 days ago, one anniversary passed, 3,500.00 accrued
+        makeCertificate(client, 2, ref, TODAY.minusDays(390).toString(), TODAY.plusDays(700).toString(), 1096, "4", "3500.00");
+
+        var q = closures.interestQuote(new TimeDepositClosureController.InterestRequest(client, 2, ref, null, null), as(encoder));
+        assertTrue(q.problems().isEmpty(), q.problems().toString());
+        assertEquals(1, q.completedYears());
+        assertEquals(0, d("4000.00").compareTo(q.amount()), "a full year by default");
+        assertEquals(0, d("3500.00").compareTo(q.fromAccrual()));
+        assertEquals(0, d("500.00").compareTo(q.expense()));
+        assertTrue(closures.interestQuote(new TimeDepositClosureController.InterestRequest(client, 2, ref, d("4000.01"), null), as(encoder)).problems().size() > 0, "more than has fallen due");
+        Encoded e = closures.interestEncode(new TimeDepositClosureController.InterestRequest(client, 2, ref, null, null), as(encoder));
+        List<Map<String, Object>> dt = jdbc.queryForList("SELECT * FROM transdt WHERE DTTR_BRCODE = 1 AND DTTR_YEAR = ? AND DTTR_MODULE = 2 AND DTTR_CODE = 21 AND DTTR_CTLNO = ? ORDER BY DTSEQ_NO", e.year(), e.controlNo());
+        BigDecimal sum = BigDecimal.ZERO;
+        for (Map<String, Object> l : dt) sum = sum.add((BigDecimal) l.get("DTAMT"));
+        assertEquals(0, sum.signum(), "the voucher balances");
+        assertEquals(3, dt.size(), "accrual, 50105 and vouchers payable");
+        // a second voucher is refused while this one waits
+        assertThrows(ResponseStatusException.class, () -> closures.interestEncode(new TimeDepositClosureController.InterestRequest(client, 2, ref, null, null), as(encoder)));
+        release.approve(e.year(), e.controlNo(), as(approver));
+        release.post(e.year(), e.controlNo(), as(poster));
+        assertEquals(0, d("100000.00").compareTo(jdbc.queryForObject("SELECT COALESCE(-SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 24 AND SLT_CODE = 2 AND REF_NO = ? AND SLE_CODE = 11", BigDecimal.class, client, ref)), "the principal is untouched");
+        assertEquals(0, jdbc.queryForObject("SELECT COALESCE(-SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 24 AND SLT_CODE = 2 AND REF_NO = ? AND SLE_CODE = 71", BigDecimal.class, client, ref).signum(), "the accrual was taken");
+        // the year is spent: another withdrawal waits for the next anniversary
+        assertTrue(closures.interestQuote(new TimeDepositClosureController.InterestRequest(client, 2, ref, d("500.01"), null), as(encoder)).problems().stream().anyMatch((x) -> x.contains("fallen due")));
+    }
+
     private void makeCertificate(int client, int type, int ref, String placed, String maturity, int terms, String rate, String accrued) {
         jdbc.update("INSERT INTO slmastersum (MBR_CODE, MSLC_CODE, MSLT_CODE, MREF_NO, MCLIENTID) VALUES (1, 24, ?, ?, ?)", type, ref, client);
         jdbc.update("INSERT INTO td (TDBR_CODE, TDSLC_CODE, TDSLT_CODE, TDREF_NO, ClientIDTD, TDPAMT, TDTR_DATE, TDSTATUS, TDINT_RATE, TDTERMS, TDTERM_PERD, TDMAT_DATE, TDCERT_NUM) VALUES (1, 24, ?, ?, ?, 100000.00, ?, 15, ?, ?, 1, ?, ?)",

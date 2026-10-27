@@ -104,8 +104,8 @@ class TimeDepositClosureController {
     private boolean voucherWaiting(int branch, int year, Request r) {
         Integer n = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM transdt WHERE DTTR_BRCODE = ? AND DTTR_YEAR >= ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTUPD_TAG = ? AND ClientIDDT = ?
-                  AND DTSLC_CODE = ? AND DTSLT_CODE = ? AND DTREF_NO = ? AND DTSLE_CODE = ? AND DTAMT > 0
-                """, Integer.class, branch, year - 1, MODULE, CODE, PENDING, r.clientId(), CLASS_TD, r.typeCode(), r.refNo(), PRINCIPAL);
+                  AND DTSLC_CODE = ? AND DTSLT_CODE = ? AND DTREF_NO = ? AND DTSLE_CODE IN (?, ?) AND DTAMT > 0
+                """, Integer.class, branch, year - 1, MODULE, CODE, PENDING, r.clientId(), CLASS_TD, r.typeCode(), r.refNo(), PRINCIPAL, ACCRUED);
         return n != null && n > 0;
     }
 
@@ -178,6 +178,96 @@ class TimeDepositClosureController {
               DTSLE_CODE, DTCTS_NUM, DTSL_DATE, DTADJ_FLAG, DTAMT, DTENCDBY, DTUPD_TAG, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 0, 0, 0)
             """;
+
+    /** The Lock In interest withdrawal: what it would be, and why it cannot be encoded when it cannot. */
+    record InterestRequest(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation) {}
+
+    record InterestQuote(int clientId, String clientName, int typeCode, String type, int refNo, String certificate, BigDecimal balance, BigDecimal ratePercent, LocalDate placed,
+                         int completedYears, BigDecimal yearInterest, BigDecimal withdrawn, BigDecimal available, BigDecimal accrued, BigDecimal amount, BigDecimal fromAccrual,
+                         BigDecimal expense, List<String> problems, boolean ready) {}
+
+    /**
+     * What was already withdrawn: the accrual debited (event 71), plus the part of earlier withdrawals that went to 50105 because the accrual was short, which the
+     * certificate's own ledger does not show; those are read back from the audit rows this app wrote.
+     */
+    private BigDecimal withdrawnInterest(int branch, InterestRequest r) {
+        BigDecimal extra = BigDecimal.ZERO;
+        java.util.regex.Pattern expense = java.util.regex.Pattern.compile(" expense ([0-9]+(?:[.][0-9]+)?) ");
+        for (String v : jdbc.queryForList("SELECT new_value FROM ecis_audit_log WHERE action = 'td.interest.encode' AND new_value LIKE ?", String.class, "client " + r.clientId() + " certificate " + r.typeCode() + "/" + r.refNo() + " %")) {
+            java.util.regex.Matcher m = expense.matcher(v);
+            if (m.find()) extra = extra.add(new BigDecimal(m.group(1)));
+        }
+        return extra.add(withdrawnAccrual(branch, r));
+    }
+
+    private BigDecimal withdrawnAccrual(int branch, InterestRequest r) {
+        return jdbc.queryForObject("SELECT COALESCE(SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = ? AND SL_CLIENTID = ? AND SLC_CODE = ? AND SLT_CODE = ? AND REF_NO = ? AND SLE_CODE = ? AND AMT > 0",
+            BigDecimal.class, branch, r.clientId(), CLASS_TD, r.typeCode(), r.refNo(), ACCRUED);
+    }
+
+    @PostMapping("/interest/quote")
+    InterestQuote interestQuote(@RequestBody InterestRequest req, Authentication auth) {
+        access.requireNew(access.of(auth), ShareWithdrawalRules.CASH_VOUCHER);
+        return interestBuild(poster.person(auth.getName()), req);
+    }
+
+    private InterestQuote interestBuild(Person p, InterestRequest r) {
+        LocalDate today = LocalDate.now(clock);
+        Request asClosure = new Request(r.clientId(), r.typeCode(), r.refNo(), "PAYOUT", null, null, null, null, null);
+        Cert c = cert(p.branch(), asClosure);
+        Client client = poster.client(p.branch(), r.clientId());
+        BigDecimal balance = c.balance();
+        String status = c.status() == 17 ? "CLOSED" : !c.hasLedger() ? "NO_LEDGER" : balance.compareTo(new BigDecimal("0.005")) < 0 ? "CLOSED" : c.maturity() != null && !c.maturity().isAfter(today) ? "MATURED" : "ACTIVE";
+        BigDecimal withdrawn = withdrawnInterest(p.branch(), r);
+        BigDecimal year = c.rate() == null ? BigDecimal.ZERO : TimeDepositClosureRules.yearInterest(balance, c.rate());
+        BigDecimal available = c.rate() == null ? BigDecimal.ZERO : TimeDepositClosureRules.interestAvailable(balance, c.rate(), c.placed(), today, withdrawn);
+        BigDecimal amount = r.amount() == null ? available.min(year) : r.amount();
+        var amounts = TimeDepositClosureRules.interestAmounts(amount.signum() > 0 ? amount : BigDecimal.ZERO, c.accrued());
+        List<String> problems = new ArrayList<>(TimeDepositClosureRules.interestProblems(r.typeCode(), status, c.maturity(), today, amount, available, payableAccount(p.branch(), r.clientId()) != null,
+            voucherWaiting(p.branch(), today.getYear(), asClosure)));
+        if (client.status() == 3 || client.status() == 98 || client.status() == 99) problems.add("This client's account is closed, disapproved or not yet approved.");
+        return new InterestQuote(r.clientId(), client.name(), r.typeCode(), c.type(), r.refNo(), c.certificate(), balance, c.rate(), c.placed(), TimeDepositClosureRules.completedYears(c.placed(), today),
+            year, withdrawn, available, c.accrued(), amount, amounts.fromAccrual(), amounts.expense(), problems, problems.isEmpty());
+    }
+
+    /** Encodes the voucher: the accrued interest and 50105 debited, the member's vouchers-payable account credited. The certificate itself is not touched. */
+    @PostMapping("/interest")
+    Encoded interestEncode(@RequestBody InterestRequest req, Authentication auth) {
+        access.requireNew(access.of(auth), ShareWithdrawalRules.CASH_VOUCHER);
+        Person p = poster.person(auth.getName());
+        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be encoded.");
+        if (!db.canInsertInto("transsum", "transdt"))
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Writing vouchers is not set up on this database.");
+        return tx.execute((st) -> {
+            InterestQuote q = interestBuild(p, req);
+            if (!q.problems().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", q.problems()));
+            int branch = p.branch();
+            LocalDateTime now = LocalDateTime.now(clock).withNano(0);
+            LocalDate day = now.toLocalDate();
+            int year = day.getYear();
+            long ctl = db.nextControlNumber(branch, MODULE, CODE, year);
+            String docNo = SharePaymentRules.documentNo(null, ctl);
+            String text = req.explanation() == null || req.explanation().isBlank() ? "LOCK IN INTEREST WITHDRAWAL" : req.explanation().trim();
+            text = text.substring(0, Math.min(text.length(), 200));
+            jdbc.update("""
+                    INSERT INTO transsum (TR_BRCODE, TR_YEAR, TR_MODULE, TR_CODE, TR_CTLNO, TR_DOCNO, TR_DATE, TR_TIME, TR_CLIENTID, BATCH_NO, EXPLANATION, IS_FO, DATETIMEADDED)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                    """, branch, year, MODULE, CODE, ctl, docNo, day.toString(), now.format(DateTimeFormatter.ofPattern("HH:mm:ss")), req.clientId(), day.format(DateTimeFormatter.BASIC_ISO_DATE), text, Timestamp.valueOf(now));
+            int[] seq = {0};
+            if (q.fromAccrual().signum() > 0)
+                jdbc.update(LINE, branch, year, MODULE, CODE, ctl, seq[0]++, p.dept(), poster.glAccount(branch, CLASS_TD, req.typeCode(), ACCRUED, 99), req.clientId(), CLASS_TD, req.typeCode(), req.refNo(),
+                    ACCRUED, 99, day.toString(), q.fromAccrual(), p.id(), PENDING);
+            if (q.expense().signum() > 0)
+                jdbc.update(LINE, branch, year, MODULE, CODE, ctl, seq[0]++, p.dept(), TimeDepositClosureRules.INTEREST_EXPENSE, null, null, null, null, null, null, day.toString(), q.expense(), p.id(), PENDING);
+            Integer payable = payableAccount(branch, req.clientId());
+            jdbc.update(LINE, branch, year, MODULE, CODE, ctl, seq[0]++, p.dept(), poster.glAccount(branch, PAYABLE, 1, PRINCIPAL, ACTIVE), req.clientId(), PAYABLE, 1, payable, PRINCIPAL, ACTIVE, day.toString(),
+                q.amount().negate(), p.id(), PENDING);
+            jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'transsum', ?, ?)", Timestamp.valueOf(now), auth.getName(), "td.interest.encode",
+                branch + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl, "client " + req.clientId() + " certificate " + req.typeCode() + "/" + req.refNo() + " interest " + q.amount().toPlainString()
+                    + " from accrual " + q.fromAccrual().toPlainString() + " expense " + q.expense().toPlainString() + " doc " + docNo);
+            return new Encoded(branch, year, ctl, docNo, "INTEREST", req.clientId(), q.clientName(), q.amount(), null, null, q.amount());
+        });
+    }
 
     private static String pretermText(Quote q) {
         return q.lockIn() ? "PRE-TERMINATION OF LOCK IN, " + q.daysHeld() + " DAYS, " + q.terminationFee().toPlainString() + " TERMINATION FEE"

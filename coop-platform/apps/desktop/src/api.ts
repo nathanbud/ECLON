@@ -882,6 +882,13 @@ export interface TdCloseQuote {
   preterm: boolean; terminationFee: number; pretermRate: number | null; daysHeld: number
 }
 export interface TdCloseEncoded { branchCode: number; year: number; controlNo: number; documentNo: string; mode: string; clientId: number; clientName: string; due: number; newCertificate: number | null; newPrincipal: number | null; paidToPayable: number }
+export interface TdInterestReq { clientId: number; typeCode: number; refNo: number; amount?: number; explanation?: string }
+export interface TdInterestQuote {
+  clientId: number; clientName: string; typeCode: number; type: string | null; refNo: number; certificate: string | null; balance: number; ratePercent: number | null; placed: string | null
+  completedYears: number; yearInterest: number; withdrawn: number; available: number; accrued: number; amount: number; fromAccrual: number; expense: number; problems: string[]; ready: boolean
+}
+export const quoteTdInterest = (b: TdInterestReq) => send<TdInterestQuote>('POST', '/api/front-office/time-deposit-closures/interest/quote', b)
+export const encodeTdInterest = (b: TdInterestReq) => send<TdCloseEncoded>('POST', '/api/front-office/time-deposit-closures/interest', b)
 export const quoteTdClose = (b: TdCloseReq) => send<TdCloseQuote>('POST', '/api/front-office/time-deposit-closures/quote', b)
 export const encodeTdClose = (b: TdCloseReq) => send<TdCloseEncoded>('POST', '/api/front-office/time-deposit-closures', b)
 

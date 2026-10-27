@@ -178,7 +178,7 @@ class LoanReleaseController {
             if (states == null || states != 1 || pending == null || pending != lines.size()) problems.add("The lines of this voucher are not waiting to be posted.");
         }
         if (lines.stream().map(Line::amount).reduce(BigDecimal.ZERO, BigDecimal::add).signum() != 0) problems.add("The voucher does not balance.");
-        if (lines.stream().noneMatch((l) -> l.slc() != null && (l.slc() == 12 || l.slc() == 24 || l.slc() == 31) && l.event() != null && l.event() == 11 && l.amount().signum() > 0)) problems.add("This is not a loan release, share withdrawal or time deposit voucher.");
+        if (lines.stream().noneMatch((l) -> l.slc() != null && ((l.slc() == 12 || l.slc() == 24 || l.slc() == 31) && l.event() != null && l.event() == 11 || l.slc() == 24 && l.event() != null && l.event() == 71) && l.amount().signum() > 0)) problems.add("This is not a loan release, share withdrawal or time deposit voucher.");
         if (lines.stream().anyMatch((l) -> l.slc() != null && l.slc() > 0 && (l.slt() == null || l.refNo() == null || l.event() == null))) problems.add("A line has an incomplete ledger account.");
         if (v.clientId() <= 0) problems.add("The voucher has no client.");
         Integer cancelled = jdbc.queryForObject("SELECT COUNT(*) FROM loanapp WHERE BR_CODE = ? AND TR_CODE = ? AND TR_CTLNO = ? AND STATUSID = 5 AND APPRV_DATE >= ? AND APPRV_DATE < ?",

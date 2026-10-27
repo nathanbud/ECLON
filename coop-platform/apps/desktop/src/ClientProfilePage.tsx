@@ -23,6 +23,7 @@ import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeF
 import MoneyField from './MoneyField'
 import TimeDepositPlaceDialog from './TimeDepositPlaceDialog'
 import TimeDepositCloseDialog from './TimeDepositCloseDialog'
+import TimeDepositInterestDialog from './TimeDepositInterestDialog'
 import { useMemberImage } from './memberImage'
 import { useMe } from './session'
 import { ToolbarPortal } from './toolbarSlot'
@@ -814,6 +815,7 @@ function TimeDepositsTab({ id }: { id: Id }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
   const [placing, setPlacing] = useState(false)
   const [closing, setClosing] = useState<{ d: TimeDeposit; mode: 'PAYOUT' | 'RENEW' } | null>(null)
+  const [interestFor, setInterestFor] = useState<TimeDeposit | null>(null)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-time-deposits', id, showClosed], queryFn: () => getTimeDeposits(id.branchCode, id.clientId, showClosed), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
   if (isLoading) return <Skeleton variant="rounded" height={160} />
@@ -845,6 +847,9 @@ function TimeDepositsTab({ id }: { id: Id }) {
                   <TableCell align="right" sx={num}>{d.accruedInterest ? peso(d.accruedInterest) : '—'}</TableCell>
                   <TableCell align="right" sx={num}>{d.estimatedInterest == null ? '—' : peso(d.estimatedInterest)}</TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    {d.status === 'ACTIVE' && (d.typeCode === 2 || d.typeCode === 4) && (
+                      <Button size="small" onClick={(e) => { e.stopPropagation(); setInterestFor(d) }}>Withdraw interest</Button>
+                    )}
                     {d.status === 'ACTIVE' && [1, 2, 3, 4].includes(d.typeCode) && (
                       <Button size="small" color="warning" onClick={(e) => { e.stopPropagation(); setClosing({ d, mode: 'PAYOUT' }) }}>Pre-terminate</Button>
                     )}
@@ -869,10 +874,12 @@ function TimeDepositsTab({ id }: { id: Id }) {
         </TableCard>
       )}
       <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
-        Interest at maturity is an estimate: the rate over the term on a 30-day month, 360-day year. A renewal also carries a 10.00 certificate fee. A matured certificate is paid out or renewed, and a running one pre-terminated (a termination charge, and interest at a reduced rate for the days held), only when someone asks for it here; the voucher then waits on the Front Office Disburse tab. The TD Maturities tab of the Front Office lists what is due.
+        Interest at maturity is an estimate: the rate over the term on a 30-day month, 360-day year. A renewal also carries a 10.00 certificate fee. A running Lock In pays its interest by the year on request (Withdraw interest, from an anniversary on). A matured certificate is paid out or renewed, and a running one pre-terminated (a termination charge, and interest at a reduced rate for the days held), only when someone asks for it here; the voucher then waits on the Front Office Disburse tab. The TD Maturities tab of the Front Office lists what is due.
       </Typography>
       {open && <TimeDepositHistoryDialog id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
       {placing && <TimeDepositPlaceDialog clientId={id.clientId} onClose={() => setPlacing(false)} />}
+      {interestFor && <TimeDepositInterestDialog clientId={id.clientId} typeCode={interestFor.typeCode} refNo={interestFor.refNo}
+        label={`${interestFor.type ?? 'Time deposit'} ${interestFor.certificate ?? interestFor.refNo}`} onClose={() => setInterestFor(null)} />}
       {closing && <TimeDepositCloseDialog clientId={id.clientId} typeCode={closing.d.typeCode} refNo={closing.d.refNo} initialMode={closing.mode}
         label={`${closing.d.type ?? 'Time deposit'} ${closing.d.certificate ?? closing.d.refNo}`} onClose={() => setClosing(null)} />}
     </>

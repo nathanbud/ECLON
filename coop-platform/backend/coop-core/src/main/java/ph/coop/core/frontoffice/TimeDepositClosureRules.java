@@ -67,6 +67,46 @@ final class TimeDepositClosureRules {
         return new Amounts(balance, interest, accrued, interest.subtract(accrued));
     }
 
+    /**
+     * Lock In interest withdrawn on an anniversary before maturity, mapped on 2026-10-27 from 183 real vouchers of 2025 and 2026 (documentation/time-deposit-map.md): the
+     * member is paid an amount (96 of them one full year, balance x rate%); the accrued interest (event 71) is debited up to that amount (172 of 183) and 50105 takes the rest.
+     */
+    record InterestAmounts(BigDecimal amount, BigDecimal fromAccrual, BigDecimal expense) {}
+
+    static InterestAmounts interestAmounts(BigDecimal amount, BigDecimal accrued) {
+        BigDecimal from = amount.min(accrued.max(BigDecimal.ZERO));
+        return new InterestAmounts(amount, from, amount.subtract(from));
+    }
+
+    /** What one year of interest is on the balance. */
+    static BigDecimal yearInterest(BigDecimal balance, BigDecimal ratePercent) {
+        return balance.multiply(ratePercent).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+    }
+
+    /** Anniversaries passed, allowing a withdrawal up to 15 days early (a real one was made at 350 days). */
+    static int completedYears(LocalDate placed, LocalDate today) {
+        if (placed == null || today.isBefore(placed)) return 0;
+        return (int) ((java.time.temporal.ChronoUnit.DAYS.between(placed, today) + 15) / 365);
+    }
+
+    /** What may still be withdrawn: a year of interest for each anniversary passed, less what was already withdrawn (the debits of event 71). */
+    static BigDecimal interestAvailable(BigDecimal balance, BigDecimal ratePercent, LocalDate placed, LocalDate today, BigDecimal withdrawn) {
+        return yearInterest(balance, ratePercent).multiply(BigDecimal.valueOf(completedYears(placed, today))).subtract(withdrawn).max(BigDecimal.ZERO);
+    }
+
+    static List<String> interestProblems(int typeCode, String status, LocalDate maturity, LocalDate today, BigDecimal amount, BigDecimal available, boolean hasPayableAccount, boolean voucherWaiting) {
+        List<String> p = new ArrayList<>();
+        if (!isLockIn(typeCode)) p.add("Only a Lock In certificate pays its interest before it matures.");
+        if (!"ACTIVE".equals(status)) p.add("This certificate is not running: " + ("MATURED".equals(status) ? "a matured one is paid out or renewed." : "it holds no money."));
+        else if (maturity == null || !maturity.isAfter(today)) p.add("This certificate has matured: pay it out or renew it, which pays the interest.");
+        if (voucherWaiting) p.add("A voucher for this certificate is already waiting to be approved and posted.");
+        if (!hasPayableAccount) p.add("This member has no vouchers-payable account to credit.");
+        if (amount == null || amount.signum() <= 0) p.add("Enter the interest to pay.");
+        else if (amount.stripTrailingZeros().scale() > 2) p.add("The interest can have at most 2 decimal places.");
+        else if (amount.compareTo(available) > 0) p.add("Only " + available.toPlainString() + " of interest has fallen due so far (a year of interest for each anniversary passed, less what was withdrawn).");
+        return p;
+    }
+
     static boolean isLockIn(int typeCode) { return LOCK_IN_TYPES.contains(typeCode); }
 
     /** Years of interest a Lock In closing can pay: the term in whole years, at least 1. */
