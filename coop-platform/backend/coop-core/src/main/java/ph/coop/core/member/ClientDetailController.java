@@ -106,7 +106,7 @@ class ClientDetailController {
         groups.put("Groups", List.of(
             l("Group", "Grouping", "grouping"), l("Area", "Geographical", "geo"), l("Sector", "Sectoral", "sector"),
             t("Occupation code", "Occupational"), l("Department", "ClientDEPT", "department"), l("Office", "RestrikID", "restrik"),
-            t("Collector no.", "Collector"), t("Recruiter no.", "RecruiterID"), l("DOSRI tag", "DOSRITag", "dosriTag")));
+            t("Collector no.", "Collector"), t("Recruiter no.", "RecruiterID"), l("DOSRI tag", "DOSRITag", "dosriTag"), l("Health care", "IsIncludeHealthCare", "yesNo")));
         tabs.put("groups", groups);
 
         var closed = new LinkedHashMap<String, List<Spec>>();

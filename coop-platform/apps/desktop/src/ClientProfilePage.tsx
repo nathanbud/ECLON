@@ -239,7 +239,6 @@ function MembershipTab({ m, lk }: { m: Member; lk?: Lookups }) {
       </Section>
       <Section title="Classification" columns={2}>
         <SelectField label="Department" lookup="department" code={m.department} lk={lk} col="ClientDEPT" />
-        <SelectField label="Health care" lookup="yesNo" code={m.includeHealthCare ?? 0} lk={lk} col="IsIncludeHealthCare" />
       </Section>
     </Box>
   )
