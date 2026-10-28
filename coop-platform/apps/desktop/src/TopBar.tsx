@@ -104,7 +104,7 @@ export default function TopBar({ title, onHome, onNavigate, onOpenClient }: {
         {onHome && (
           <>
             <Box aria-hidden sx={{ display: 'flex', color: 'text.disabled', fontSize: 13 }}><FiChevronRight /></Box>
-            <Tooltip title="Home"><IconButton aria-label="Home" onClick={onHome} size="small" sx={flatIcon}><FiHome /></IconButton></Tooltip>
+            <Tooltip title="Home (H)"><IconButton aria-label="Home" aria-keyshortcuts="H" onClick={onHome} size="small" sx={flatIcon}><FiHome /></IconButton></Tooltip>
             {!hasMenu && <Typography {...drag} noWrap sx={{ fontSize: 13, fontWeight: 400, color: 'inherit', opacity: 0.8 }}>{title}</Typography>}
           </>
         )}

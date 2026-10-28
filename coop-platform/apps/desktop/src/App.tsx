@@ -45,6 +45,19 @@ function Signed() {
   const [cameFromSettings, setCameFromSettings] = useState(false)
   const navigate = (v: View) => { if (v === 'loanapp' && openLoanApplicationWindow({})) return; setCameFromSettings(view === 'settings' && v !== 'home'); setView(v) }
   const openClient = (id: Id) => { setClient(id); setView('members') }
+  // H goes to the main dashboard from any screen. It is ignored while typing, with a modifier key held, or while a dialog is open, so it never interrupts work.
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'h' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return
+      if (document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')) return
+      setCameFromSettings(false)
+      setView('home')
+    }
+    window.addEventListener('keydown', on)
+    return () => window.removeEventListener('keydown', on)
+  }, [])
   return (
     <ToolbarSlotProvider>
       <TopBar title={titles[view]} onHome={view === 'home' ? undefined : () => { if (cameFromSettings && view !== 'settings') { setCameFromSettings(false); setView('settings') } else setView('home') }} onNavigate={navigate} onOpenClient={openClient} />
