@@ -1,9 +1,9 @@
-import { Alert, Avatar, Box, Chip, CircularProgress, Dialog, InputAdornment, TextField, Typography, type Theme } from '@mui/material'
+import { Alert, Avatar, Box, Chip, CircularProgress, Dialog, IconButton, InputAdornment, Skeleton, TextField, Typography, type Theme } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { FiSearch, FiUser } from 'react-icons/fi'
+import { FiCornerDownLeft, FiSearch, FiUser, FiX } from 'react-icons/fi'
 import { searchMembers, type Lookups } from './api'
-import { displayName, memberNo, statusOf, type Id } from './clients'
+import { displayName, initials, memberNo, statusOf, type Id } from './clients'
 import { tileFill } from './theme'
 
 const MAX_RESULTS = 8
@@ -22,6 +22,31 @@ const Key = ({ children }: { children: ReactNode }) => (
     border: `1px solid ${dark(t) ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.12)'}`,
   })}>{children}</Box>
 )
+
+const AVATAR_TINTS = [tileFill.blue, tileFill.orange, tileFill.indigo]
+
+/** The part of the text the person typed, set in a heavier weight, so it is clear why a row matched. */
+function Highlight({ text, q }: { text: string; q: string }) {
+  const needle = q.trim()
+  if (needle.length < 2) return <>{text}</>
+  const at = text.toLowerCase().indexOf(needle.toLowerCase())
+  if (at < 0) return <>{text}</>
+  return <>{text.slice(0, at)}<Box component="span" sx={{ fontWeight: 800 }}>{text.slice(at, at + needle.length)}</Box>{text.slice(at + needle.length)}</>
+}
+
+/** Placeholder rows shown while the first results load, so the list does not jump. */
+function LoadingRows() {
+  return (
+    <Box aria-hidden sx={{ p: 1, display: 'grid', gap: 0.5 }}>
+      {[0, 1, 2].map((i) => (
+        <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.75, px: 1.5, py: 1.1 }}>
+          <Skeleton variant="circular" width={40} height={40} />
+          <Box sx={{ flex: 1 }}><Skeleton width={`${55 - i * 8}%`} height={18} /><Skeleton width="38%" height={14} /></Box>
+        </Box>
+      ))}
+    </Box>
+  )
+}
 
 /** The search field and results. Used inside the pop-up, and directly on the page when no client is open. */
 export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => void; lk?: Lookups; inline?: boolean }) {
@@ -44,7 +69,8 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
     placeholderData: (prev) => prev,
   })
   const results = enabled ? data?.content ?? [] : []
-  const more = enabled && data ? data.totalElements - results.length : 0
+  const total = enabled && data ? data.totalElements : 0
+  const more = total - results.length
 
   useEffect(() => { activeRef.current?.scrollIntoView({ block: 'nearest' }) }, [active, results.length])
 
@@ -52,8 +78,11 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, Math.max(results.length - 1, 0))) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)) }
     else if (e.key === 'Enter' && results[active]) { e.preventDefault(); onPick(results[active].id) }
+    else if (e.key === 'Escape' && input) { e.preventDefault(); e.stopPropagation(); setInput(''); setActive(0) }
   }
 
+  const rule = (t: Theme) => (dark(t) ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)')
+  const busy = isFetching && enabled
   return (
     <Box sx={{ position: 'relative', isolation: 'isolate' }}>
       {/* Soft colour behind the glass gives it something to refract. Decorative only. */}
@@ -62,81 +91,109 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
         <Box sx={{ position: 'absolute', width: 300, height: 300, bottom: -130, right: -80, borderRadius: '50%', filter: 'blur(70px)', opacity: 0.25, bgcolor: tileFill.indigo }} />
       </Box>
 
-      <Box sx={{ p: 2.5, pb: 2 }}>
-        <Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', mb: 1.5 }}>Find Client</Typography>
+      <Box sx={{ px: 2.5, pt: 2.25, pb: 2 }}>
+        <Typography component="h2" sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Find Client</Typography>
         <TextField
           id="find-client-input" fullWidth autoFocus value={input}
           onChange={(e) => { setInput(e.target.value); setActive(0) }}
           onKeyDown={onKeyDown}
-          label="Client name or member ID"
-          placeholder="e.g. Budikey, or 0001-0033189"
+          placeholder="Search by name or member ID"
           slotProps={{
             htmlInput: {
-              role: 'combobox', 'aria-expanded': results.length > 0,
+              role: 'combobox', 'aria-label': 'Client name or member ID', 'aria-expanded': results.length > 0, autoComplete: 'off', spellCheck: false,
               'aria-controls': 'find-client-results', 'aria-activedescendant': results[active] ? `find-client-${active}` : undefined,
             },
             input: {
-              endAdornment: isFetching && enabled
-                ? <InputAdornment position="end"><CircularProgress size={16} /></InputAdornment>
-                : <InputAdornment position="end"><FiSearch /></InputAdornment>,
+              startAdornment: <InputAdornment position="start" sx={{ color: 'text.secondary' }}><FiSearch size={18} aria-hidden /></InputAdornment>,
+              endAdornment: busy
+                ? <InputAdornment position="end"><CircularProgress size={16} aria-label="Searching" /></InputAdornment>
+                : input
+                  ? <InputAdornment position="end"><IconButton size="small" edge="end" aria-label="Clear search" onClick={() => { setInput(''); setActive(0); document.getElementById('find-client-input')?.focus() }}><FiX size={16} /></IconButton></InputAdornment>
+                  : undefined,
             },
           }}
           sx={(t) => ({
-            // The field looks pressed into the glass: inset shadow below the top edge, a lit rim at the bottom.
+            // A taller field with the icon inside and no floating label: the placeholder says what to type. The corner radius is the app's own.
             '& .MuiOutlinedInput-root': {
-              borderRadius: '5px', fontSize: 15.5, backgroundColor: dark(t) ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.55)',
+              fontSize: 17, minHeight: 50, backgroundColor: dark(t) ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.6)',
               boxShadow: dark(t) ? 'inset 0 1px 2px rgba(0,0,0,0.35)' : 'inset 0 1px 2px rgba(0,0,0,0.08)',
               transition: 'box-shadow 160ms ease-out',
               '& .MuiOutlinedInput-notchedOutline': { borderColor: dark(t) ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' },
               '&.Mui-focused': { boxShadow: `0 0 0 3px ${dark(t) ? 'rgba(10,132,255,0.3)' : 'rgba(0,122,255,0.2)'}` },
             },
+            '& .MuiOutlinedInput-input::placeholder': { opacity: 0.55 },
           })}
         />
       </Box>
 
-      <Box sx={(t) => ({ borderTop: `1px solid ${dark(t) ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`, minHeight: 120, maxHeight: 360, overflow: 'auto' })}>
+      <Box sx={(t) => ({ borderTop: `1px solid ${rule(t)}`, minHeight: 132, maxHeight: 380, overflow: 'auto' })}>
         {error && <Alert severity="error" sx={{ m: 1.5 }}>Search failed. Try again.</Alert>}
+
         {!error && !enabled && (
-          <Typography sx={{ p: 2.5, fontSize: 13.5 }} color="text.secondary">
-            Type a name, or a member ID such as 0001-0033189 or 33189. A reference ID such as A010352 works too.
-          </Typography>
+          <Box sx={{ px: 2.5, py: 3, textAlign: 'center' }}>
+            <Typography sx={{ fontSize: 14.5, fontWeight: 600, mb: 0.5 }}>Who are you looking for?</Typography>
+            <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">Type at least two letters of a name, or a member ID.</Typography>
+            <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {['Budikey', '0001-0033189', '33189', 'A010352'].map((e) => (
+                <Chip key={e} size="small" variant="outlined" label={e} clickable onClick={() => { setInput(e); setActive(0); document.getElementById('find-client-input')?.focus() }}
+                  sx={{ fontVariantNumeric: 'tabular-nums', fontSize: 12 }} />
+              ))}
+            </Box>
+          </Box>
         )}
+
+        {!error && enabled && !data && isFetching && <LoadingRows />}
+
         {!error && enabled && !isFetching && results.length === 0 && (
-          <Typography sx={{ p: 2.5, fontSize: 13.5 }} color="text.secondary">No clients found for “{q}”.</Typography>
+          <Box sx={{ px: 2.5, py: 3, textAlign: 'center' }}>
+            <Typography sx={{ fontSize: 14.5, fontWeight: 600, mb: 0.5 }}>No clients found</Typography>
+            <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing matches “{q}”. Check the spelling, or try the member ID.</Typography>
+          </Box>
         )}
-        <Box component="ul" id="find-client-results" role="listbox" aria-label="Matching clients" sx={{ listStyle: 'none', m: 0, p: 1, display: 'grid', gap: 0.75 }}>
-          {results.map((m, i) => {
-            const st = statusOf(m, lk)
-            const on = i === active
-            return (
-              <Box
-                component="li" key={`${m.id.branchCode}-${m.id.clientId}`} id={`find-client-${i}`} role="option" aria-selected={on}
-                ref={on ? activeRef : undefined}
-                onClick={() => onPick(m.id)} onMouseMove={() => setActive(i)}
-                sx={(t) => ({
-                  display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 1.1, borderRadius: '5px', cursor: 'pointer',
-                  border: '1px solid transparent',
-                  // The highlighted row is just a soft tint.
-                  backgroundColor: on ? (dark(t) ? 'rgba(255,255,255,0.1)' : 'rgba(0,100,220,0.09)') : 'transparent',
-                  transition: 'background-color 120ms ease-out',
-                  '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
-                })}
-              >
-                <Avatar sx={{
-                  width: 38, height: 38, fontSize: 13, fontWeight: 700, color: '#fff',
-                  backgroundColor: tileFill.blue,
-                }}><FiUser size={20} aria-hidden /></Avatar>
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography noWrap sx={{ fontSize: 14.5, fontWeight: 600 }}>{displayName(m)}</Typography>
-                  <Typography noWrap sx={{ fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">
-                    {memberNo(m.id)}{m.referenceId ? ` · Ref ${m.referenceId}` : ''}{m.city ? ` · ${m.city}` : ''}
-                  </Typography>
-                </Box>
-                <Chip size="small" variant="outlined" label={st.label} color={st.kind} sx={{ height: 22, fontSize: 11.5, backdropFilter: 'blur(6px)' }} />
-              </Box>
-            )
-          })}
-        </Box>
+
+        {results.length > 0 && (
+          <>
+            <Typography sx={{ px: 2.5, pt: 1.5, pb: 0.5, fontSize: 11.5, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">
+              {total > results.length ? `Top ${results.length} of ${total.toLocaleString()} clients` : `${results.length} client${results.length === 1 ? '' : 's'}`}
+            </Typography>
+            <Box component="ul" id="find-client-results" role="listbox" aria-label="Matching clients" sx={{ listStyle: 'none', m: 0, px: 1, pb: 1, display: 'grid', gap: 0.25 }}>
+              {results.map((m, i) => {
+                const st = statusOf(m, lk)
+                const on = i === active
+                const name = displayName(m)
+                const dot = st.kind === 'success' ? 'success.main' : st.kind === 'warning' ? 'warning.main' : st.kind === 'info' ? 'info.main' : 'text.disabled'
+                return (
+                  <Box
+                    component="li" key={`${m.id.branchCode}-${m.id.clientId}`} id={`find-client-${i}`} role="option" aria-selected={on}
+                    ref={on ? activeRef : undefined}
+                    onClick={() => onPick(m.id)} onMouseMove={() => setActive(i)}
+                    sx={(t) => ({
+                      display: 'flex', alignItems: 'center', gap: 1.75, px: 1.5, py: 1.15, borderRadius: '5px', cursor: 'pointer',
+                      backgroundColor: on ? (dark(t) ? 'rgba(255,255,255,0.1)' : 'rgba(0,100,220,0.09)') : 'transparent',
+                      transition: 'background-color 120ms ease-out',
+                      '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+                    })}
+                  >
+                    <Avatar aria-hidden sx={{ width: 40, height: 40, fontSize: 14, fontWeight: 700, color: '#fff', backgroundColor: AVATAR_TINTS[m.id.clientId % AVATAR_TINTS.length] }}>
+                      {initials(m) === '?' ? <FiUser size={20} /> : initials(m)}
+                    </Avatar>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography noWrap sx={{ fontSize: 15, fontWeight: 500, lineHeight: 1.3 }}><Highlight text={name} q={q} /></Typography>
+                      <Typography noWrap sx={{ fontSize: 12.5, fontVariantNumeric: 'tabular-nums', lineHeight: 1.4 }} color="text.secondary">
+                        <Highlight text={memberNo(m.id)} q={q} />{m.referenceId ? ` · Ref ${m.referenceId}` : ''}{m.city ? ` · ${m.city}` : ''}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+                      <Box aria-hidden sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: dot }} />
+                      <Typography sx={{ fontSize: 12.5 }} color="text.secondary">{st.label}</Typography>
+                    </Box>
+                    <Box aria-hidden sx={{ width: 18, display: 'flex', justifyContent: 'flex-end', color: 'text.secondary', opacity: on ? 1 : 0, transition: 'opacity 120ms ease-out' }}><FiCornerDownLeft size={15} /></Box>
+                  </Box>
+                )
+              })}
+            </Box>
+          </>
+        )}
         {more > 0 && (
           <Typography sx={{ px: 2.5, pb: 1.5, fontSize: 12.5 }} color="text.secondary">
             {more.toLocaleString()} more match{more === 1 ? '' : 'es'}. Keep typing to narrow the list.
@@ -145,8 +202,8 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
       </Box>
 
       <Box sx={(t) => ({
-        px: 2.5, py: 1.25, display: 'flex', gap: 2.5, flexWrap: 'wrap', alignItems: 'center',
-        borderTop: `1px solid ${dark(t) ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
+        px: 2.5, py: 1.1, display: 'flex', gap: 2.5, flexWrap: 'wrap', alignItems: 'center',
+        borderTop: `1px solid ${rule(t)}`,
         backgroundColor: dark(t) ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.35)',
       })}>
         {[['↑↓', 'move'], ['Enter', 'open'], ...(inline ? [] : [['Esc', 'close']])].map(([k, label]) => (
