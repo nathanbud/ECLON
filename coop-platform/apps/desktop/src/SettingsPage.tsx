@@ -3,6 +3,7 @@ import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { FiBook, FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMonitor, FiSearch, FiShield, FiSliders, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
+import { tint } from './theme'
 import { useMe } from './session'
 
 type Who = 'admin' | 'accountant' | 'documents' | 'anyone'
@@ -15,43 +16,43 @@ const LAST = 'coop.settings.category'
 // Every administrator control lives here. An item without a view is not built yet.
 const categories: Category[] = [
   {
-    id: 'people', label: 'People and security', icon: <FiUsers />, color: '#007AFF',
+    id: 'people', label: 'People and security', icon: <FiUsers />, color: tint.blue[0],
     items: [
-      { label: 'Users', note: 'Temporary passwords, levels, permissions and who may do loans alone', icon: <FiUserCheck />, color: '#007AFF', view: 'users', who: 'admin' },
-      { label: 'Audit Log', note: 'Every change made in the system, who made it and why', icon: <FiClipboard />, color: '#8E8E93', view: 'audit', who: 'admin' },
-      { label: 'Approval workflows', note: 'Extra approvals for purchases and stock adjustments, and the amounts they start at', icon: <FiGitMerge />, color: '#FF9500', view: 'workflows', who: 'accountant' },
-      { label: 'Documents', note: 'Scanned IDs, contracts and deeds kept for members, assets and other records, and who may read them', icon: <FiFileText />, color: '#5856D6', view: 'documents', who: 'documents' },
+      { label: 'Users', note: 'Temporary passwords, levels, permissions and who may do loans alone', icon: <FiUserCheck />, color: tint.blue[0], view: 'users', who: 'admin' },
+      { label: 'Audit Log', note: 'Every change made in the system, who made it and why', icon: <FiClipboard />, color: tint.gray[1], view: 'audit', who: 'admin' },
+      { label: 'Approval workflows', note: 'Extra approvals for purchases and stock adjustments, and the amounts they start at', icon: <FiGitMerge />, color: tint.orange[0], view: 'workflows', who: 'accountant' },
+      { label: 'Documents', note: 'Scanned IDs, contracts and deeds kept for members, assets and other records, and who may read them', icon: <FiFileText />, color: tint.indigo[0], view: 'documents', who: 'documents' },
     ],
   },
   {
-    id: 'membership', label: 'Membership', icon: <FiUserPlus />, color: '#007AFF',
+    id: 'membership', label: 'Membership', icon: <FiUserPlus />, color: tint.blue[0],
     items: [
-      { label: 'Membership policy', note: 'Whether a returning member must pay share capital again before reactivation is approved', icon: <FiUserPlus />, color: '#007AFF', view: 'membershippolicy', who: 'admin' },
+      { label: 'Membership policy', note: 'Whether a returning member must pay share capital again before reactivation is approved', icon: <FiUserPlus />, color: tint.blue[0], view: 'membershippolicy', who: 'admin' },
     ],
   },
   {
-    id: 'loans', label: 'Loans', icon: <FiSliders />, color: '#34C759',
+    id: 'loans', label: 'Loans', icon: <FiSliders />, color: tint.green[0],
     items: [
-      { label: 'Amortization', note: 'How each kind of schedule is worked out, and a calculator to try one', icon: <FiPercent />, color: '#AF52DE', view: 'amortization', who: 'admin' },
-      { label: 'Loan Setup', note: 'Loan types, purposes, collateral types and the deposits that can be held for co-makers', icon: <FiSliders />, color: '#34C759', view: 'loansetup', who: 'admin' },
+      { label: 'Amortization', note: 'How each kind of schedule is worked out, and a calculator to try one', icon: <FiPercent />, color: tint.purple[0], view: 'amortization', who: 'admin' },
+      { label: 'Loan Setup', note: 'Loan types, purposes, collateral types and the deposits that can be held for co-makers', icon: <FiSliders />, color: tint.green[0], view: 'loansetup', who: 'admin' },
     ],
   },
   {
-    id: 'accounting', label: 'Accounting', icon: <FiBookOpen />, color: '#FF9500',
+    id: 'accounting', label: 'Accounting', icon: <FiBookOpen />, color: tint.orange[0],
     items: [
-      { label: 'Chart of Accounts', note: 'Add, rename, move and switch off ledger accounts', icon: <FiBookOpen />, color: '#FF9500', view: 'accounts', who: 'accountant' },
+      { label: 'Chart of Accounts', note: 'Add, rename, move and switch off ledger accounts', icon: <FiBookOpen />, color: tint.orange[0], view: 'accounts', who: 'accountant' },
     ],
   },
   {
-    id: 'documentation', label: 'Documentation', icon: <FiBook />, color: '#5856D6',
+    id: 'documentation', label: 'Documentation', icon: <FiBook />, color: tint.indigo[0],
     items: [
-      { label: 'Documentation', note: 'Keyboard shortcuts, the rules the system follows, where to do things, and the design notes', icon: <FiBook />, color: '#5856D6', view: 'documentation', who: 'anyone' },
+      { label: 'Documentation', note: 'Keyboard shortcuts, the rules the system follows, where to do things, and the design notes', icon: <FiBook />, color: tint.indigo[0], view: 'documentation', who: 'anyone' },
     ],
   },
   {
-    id: 'system', label: 'System', icon: <FiMonitor />, color: '#636366',
+    id: 'system', label: 'System', icon: <FiMonitor />, color: tint.gray[0],
     items: [
-      { label: 'System', note: 'Branch, dates and system preferences', icon: <FiShield />, color: '#636366', who: 'admin' },
+      { label: 'System', note: 'Branch, dates and system preferences', icon: <FiShield />, color: tint.gray[0], who: 'admin' },
       { label: 'Backup', note: 'Back up and restore the data', icon: <FiDownloadCloud />, color: '#5AC8FA', who: 'admin' },
     ],
   },
