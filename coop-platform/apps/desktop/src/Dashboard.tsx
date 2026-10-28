@@ -9,7 +9,7 @@ import { getPendingCount, getTdMaturityCount } from './api'
 import { useMe } from './session'
 import { tileFill, useThemeMode, type Tint } from './theme'
 
-export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'amortization' | 'settings' | 'frontoffice' | 'loanapp' | 'procurement' | 'inventory' | 'pos' | 'assets'
+export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'amortization' | 'settings' | 'frontoffice' | 'loanapp' | 'procurement' | 'inventory' | 'pos' | 'assets' | 'reports'
 
 // Every item is a square of 1x1 or 2x2 cells on a landscape 5 x 4 grid (3 x 4 + 8 = 20 cells, no gaps).
 type Size = 'md' | 'sm'
@@ -34,7 +34,7 @@ const tiles: TileSpec[] = [
   { label: 'Inventory', icon: <FiList />, group: 'commerce', area: 'inv', size: 'sm', view: 'inventory' },
   { label: 'POS', icon: <FiShoppingCart />, group: 'commerce', area: 'pos', size: 'sm', view: 'pos' },
   { label: 'Back Office', icon: <FiBookOpen />, group: 'accounting', area: 'bo', size: 'sm', view: 'accounts' },
-  { label: 'Reports', icon: <FiFileText />, group: 'accounting', area: 'rep', size: 'sm', view: 'accounting' },
+  { label: 'Reports', icon: <FiFileText />, group: 'accounting', area: 'rep', size: 'sm', view: 'reports' },
   { label: 'Settings', icon: <FiSettings />, group: 'admin', area: 'set', size: 'md', view: 'settings' },
   { label: 'Fixed Assets', icon: <FiTrendingUp />, group: 'accounting', area: 'tre', size: 'sm', view: 'assets' },
   { label: 'Approvals', icon: <FiCheckSquare />, group: 'admin', area: 'apr', size: 'md', view: 'approvals' },

@@ -1052,3 +1052,15 @@ export const decideAssetDisposal = (id: number, kind: 'approve' | 'reject', note
 export const previewDepreciation = (periodEnd: string) => send<DepPreview>('POST', '/api/assets/depreciation/preview', { periodEnd })
 export const runDepreciation = (periodEnd: string) => send<DepRun[]>('POST', '/api/assets/depreciation/run', { periodEnd })
 export const listDepreciationRuns = () => getJson<DepHistory[]>('/api/assets/depreciation')
+
+// ---- reports (guide phase 20) ---------------------------------------------------------------------------------------------
+export interface ReportParam { name: string; label: string; type: 'date' | 'number' | 'text'; defaultValue: string }
+export interface ReportInfo { id: string; group: string; title: string; description: string; params: ReportParam[] }
+export interface ReportColumn { key: string; label: string; type: 'text' | 'money' | 'number' | 'percent' | 'date' }
+export interface ReportTable { columns: ReportColumn[]; rows: (string | number | null)[][]; totals: (string | number | null)[] | null; note: string | null }
+export interface ReportResult { info: ReportInfo; table: ReportTable; ranAt: string; ranBy: string }
+export const listReports = () => getJson<ReportInfo[]>('/api/reports')
+export const runReport = (id: string, params: Record<string, string>) => {
+  const q = Object.entries(params).filter(([, v]) => v !== '').map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
+  return getJson<ReportResult>(`/api/reports/${id}${q ? `?${q}` : ''}`)
+}

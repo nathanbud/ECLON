@@ -19,11 +19,12 @@ import ProcurementPage from './ProcurementPage'
 import InventoryPage from './InventoryPage'
 import PosPage from './PosPage'
 import AssetsPage from './AssetsPage'
+import ReportsPage from './ReportsPage'
 import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
 const titles: Record<View, string> = {
-  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets',
+  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports',
 }
 
 function Signed() {
@@ -61,6 +62,7 @@ function Signed() {
         {view === 'inventory' && <InventoryPage />}
         {view === 'pos' && <PosPage />}
         {view === 'assets' && <AssetsPage />}
+        {view === 'reports' && <ReportsPage onOpen={navigate} />}
       </ErrorBoundary>
     </ToolbarSlotProvider>
   )
