@@ -33,7 +33,7 @@ import { ToolbarPortal } from './toolbarSlot'
 
 const TABS = [
   'Membership', 'Personal', 'Business / Employment', 'Education', 'Contacts & IDs', 'Spouse Info', 'Groups',
-  'History', 'Closed', 'Pledges / Insurances', 'Others', 'Sketch', 'Billing', 'Share Capital', 'Savings', 'Time Deposits', 'Loans', 'Documents',
+  'History', 'Pledges / Insurances', 'Others', 'Sketch', 'Billing', 'Share Capital', 'Savings', 'Time Deposits', 'Loans', 'Documents',
 ]
 
 /** The two main tabs and the sub-tabs under each; anything not named in Info or Accounts is under Other so nothing is lost. */
@@ -429,7 +429,7 @@ function ClientMenu({ onFind, actions, editOn, pendingNote }: { onFind: () => vo
 // ---- the other tabs -----------------------------------------------------------------------------------------------
 
 // Same order as TABS. A key names a tab of the details endpoint; the rest have their own content.
-const TAB_KEYS = ['membership', 'personal', 'business', 'education', 'contacts', 'spouse', 'groups', 'history', 'closed', 'pledges', 'others', 'sketch', 'billing', 'shares', 'savings', 'timedeposits', 'loans', 'documents']
+const TAB_KEYS = ['membership', 'personal', 'business', 'education', 'contacts', 'spouse', 'groups', 'history', 'pledges', 'others', 'sketch', 'billing', 'shares', 'savings', 'timedeposits', 'loans', 'documents']
 
 function formatField(f: DetailField): string | null {
   if (f.value == null) return null
