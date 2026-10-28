@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { askTdRate, checkTdPlacement, getTdSetup, placeTimeDeposit, type TdPlaceCheck, type TdPlaceIn, type TdPlaceReceipt } from './api'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
+import { money as peso } from './ui/format'
 
-const peso = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /**
  * Place a new time deposit certificate for a member: choose the type and term, type the rate (the rates used for that term in the last year are shown; one outside

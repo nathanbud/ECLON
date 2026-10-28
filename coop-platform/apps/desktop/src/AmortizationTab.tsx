@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { getAmortKinds, previewAmortization, type AmortKind, type AmortTry, type LoanSetupLists } from './api'
 import { Dot, listTable, SectionLabel, Surface } from './appleUi'
 import MoneyField from './MoneyField'
+import { money } from './ui/format'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const day = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 const today = () => new Date().toLocaleDateString('en-CA')
 

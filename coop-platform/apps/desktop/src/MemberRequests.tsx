@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { approveMemberImport, approveMemberRequest, listMemberImports, listMemberRequests, rejectMemberImport, withdrawMemberImport, type ImportBatch, rejectMemberRequest, requestClosure, requestReactivation, withdrawMemberRequest, type MemberRequest } from './api'
 import { glass } from './glass'
 import { useMe } from './session'
-import { ReasonDialog } from './ProcurementPage'
+import { ReasonDialog } from './ui/dialogs'
 
 const when = (at: string) => new Date(at.replace(' ', 'T')).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 

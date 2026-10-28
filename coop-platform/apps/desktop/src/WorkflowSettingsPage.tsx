@@ -6,9 +6,9 @@ import { getWorkflowDefinitions, getWorkflowOptions, saveWorkflowDefinition, typ
 import { appBackground, glass } from './glass'
 import { useLeaveGuard } from './leaveGuard'
 import { useMe } from './session'
+import { parseAmount } from './ui/format'
 
 interface Row { name: string; role: string; minAmount: string }
-const num = (s: string) => Number(s.replace(/,/g, ''))
 const roleName = (r: string) => r.toLowerCase().replace(/_/g, ' ')
 
 function Editor({ def, roles, max, canEdit }: { def: WorkflowDefinition; roles: string[]; max: number; canEdit: boolean }) {
@@ -21,7 +21,7 @@ function Editor({ def, roles, max, canEdit }: { def: WorkflowDefinition; roles: 
   useLeaveGuard(canEdit && JSON.stringify([active, rows]) !== initial ? `The approval steps for ${def.label} have changes that are not saved.` : null)
   const set = (i: number, k: keyof Row, v: string) => { setSaved(false); setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r))) }
   const save = useMutation({
-    mutationFn: () => saveWorkflowDefinition(def.entityType, active, rows.map((r) => ({ name: r.name, role: r.role, minAmount: num(r.minAmount || '0') }))),
+    mutationFn: () => saveWorkflowDefinition(def.entityType, active, rows.map((r) => ({ name: r.name, role: r.role, minAmount: parseAmount(r.minAmount || '0') }))),
     onSuccess: () => { setError(null); setSaved(true); void qc.invalidateQueries({ queryKey: ['workflow-definitions'] }) },
     onError: (e) => setError((e as Error).message),
   })

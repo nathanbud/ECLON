@@ -6,7 +6,7 @@ import {
   downloadDocument, getDocument, getDocumentAccess, getDocumentSetup, grantDocument, listDocuments, removeDocument, revokeDocument, uploadDocument,
   type DocInfo,
 } from './api'
-import { ReasonDialog } from './ProcurementPage'
+import { ReasonDialog } from './ui/dialogs'
 
 const size = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`)
 const classColor = (c: string) => (c === 'RESTRICTED' ? 'error' : c === 'CONFIDENTIAL' ? 'warning' : c === 'INTERNAL' ? 'info' : 'default') as 'error' | 'warning' | 'info' | 'default'

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { FiPlus, FiTrash2 } from 'react-icons/fi'
 import { getChequeSetup, type ChequeIn } from './api'
 import MoneyField from './MoneyField'
+import { money as peso } from './ui/format'
 
 /** One cheque as typed: the bank and kind are ids from the cheque setup lists. */
 export interface ChequeRow { number: string; bankId: number | null; date: string; kind: number | null; amount: string }
@@ -16,7 +17,6 @@ export const chequesToApi = (rows: ChequeRow[]): ChequeIn[] =>
 
 export const chequeSum = (rows: ChequeRow[]) => rows.reduce((t, r) => t + (Number.isFinite(Number(r.amount)) ? Number(r.amount) : 0), 0)
 
-const peso = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /**
  * The cheque part of a payment at the window: one line for each cheque (number, bank it is drawn on, date, kind, amount). Whatever the

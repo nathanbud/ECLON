@@ -12,8 +12,8 @@ import BanksTab from './BanksTab'
 import PenaltyWaiversTab from './PenaltyWaiversTab'
 import TrialBalancePage from './TrialBalancePage'
 import MoneyField from './MoneyField'
+import { money } from './ui/format'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const today = () => new Date().toLocaleDateString('en-CA')
 const yearStart = () => `${new Date().getFullYear()}-01-01`
 

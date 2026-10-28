@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { listFoDrafts, listFoTransactions, type FoDraftRow, type FoSetup, type FoSummary } from './api'
 import { glass } from './glass'
+import { money } from './ui/format'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const dark = (t: Theme) => t.palette.mode === 'dark'
 
 type Row =

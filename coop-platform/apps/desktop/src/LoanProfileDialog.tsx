@@ -2,8 +2,9 @@ import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, 
 import { useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { getLoanProfile } from './api'
+import { moneyOr } from './ui/format'
 
-const money = (n: number | null | undefined) => (n == null ? '' : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+const money = (n: number | null | undefined) => moneyOr(n, '')
 
 /** One read-only field, laid out like the old screen's boxes. */
 function F({ label, value, align, bold }: { label: string; value: ReactNode; align?: 'right'; bold?: boolean }) {

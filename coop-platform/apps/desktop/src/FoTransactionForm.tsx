@@ -8,6 +8,7 @@ import { getFoClientAccounts, searchFoAccounts, searchMembers, type FoAllocation
 import { displayName, memberNo } from './clients'
 import { glass } from './glass'
 import MoneyField from './MoneyField'
+import { money } from './ui/format'
 
 // ---- the form's data ----------------------------------------------------------------------------------------------
 
@@ -46,7 +47,7 @@ export const formTotals = (lines: FoLineState[]) => {
   const credit = lines.reduce((a, l) => a + num(l.credit), 0)
   return { debit, credit, difference: Math.round((debit - credit) * 100) / 100 }
 }
-export const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+export { money }
 
 // ---- small inputs -------------------------------------------------------------------------------------------------
 

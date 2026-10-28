@@ -3,8 +3,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { encodeTdClose, quoteTdClose, type TdCloseEncoded, type TdCloseQuote, type TdCloseReq } from './api'
 import MoneyField from './MoneyField'
+import { money as peso } from './ui/format'
 
-const peso = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /**
  * Pay out or renew one matured time deposit, on the person asking (nothing happens by itself). It encodes the voucher; the voucher then waits on the Disburse

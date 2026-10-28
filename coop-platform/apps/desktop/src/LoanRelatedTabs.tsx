@@ -5,8 +5,9 @@ import { getCoMakerAccounts, getLoans, getMember, getSavings, searchMembers, typ
 import { displayName, memberNo, statusOf } from './clients'
 import { money } from './FoTransactionForm'
 import MoneyField from './MoneyField'
+import { tabular } from './ui/format'
 
-const num = { fontVariantNumeric: 'tabular-nums' } as const
+const num = tabular
 
 /** What the member has on hold: the savings holds that reduce what they can use. */
 function HoldsTab({ branchCode, clientId }: { branchCode: number; clientId: number }) {

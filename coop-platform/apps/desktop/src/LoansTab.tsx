@@ -5,9 +5,10 @@ import LoanProfileDialog from './LoanProfileDialog'
 import { askFoOverride, checkLoanPayment, getLoanDetail, getLoans, postLoanPayment, type LoanItem, type LoanPaymentBreakdown, type LoanPaymentReceipt, type LoanScheduleRow } from './api'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
+import { moneyOr, tabular } from './ui/format'
 
-const money = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
-const num = { fontVariantNumeric: 'tabular-nums' } as const
+const money = (n: number | null | undefined) => moneyOr(n, '—')
+const num = tabular
 
 const stateLabel: Record<LoanScheduleRow['state'], string> = { PAID: 'Paid', PARTIAL: 'Part paid', PAST_DUE: 'Past due', UPCOMING: 'Upcoming' }
 const stateColor: Record<LoanScheduleRow['state'], 'success' | 'warning' | 'error' | 'default'> = { PAID: 'success', PARTIAL: 'warning', PAST_DUE: 'error', UPCOMING: 'default' }

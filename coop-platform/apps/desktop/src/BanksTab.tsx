@@ -7,12 +7,12 @@ import {
 } from './api'
 import { glass } from './glass'
 import MoneyField from './MoneyField'
+import { money, tabular } from './ui/format'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const iso = (d: Date) => d.toLocaleDateString('en-CA')
 const addDays = (date: string, n: number) => { const d = new Date(`${date}T00:00:00`); d.setDate(d.getDate() + n); return iso(d) }
 const keyOf = (k: BankKey) => `${k.year}-${k.module}-${k.code}-${k.ctlNo}-${k.seq}`
-const num = { fontVariantNumeric: 'tabular-nums' } as const
+const num = tabular
 
 /** Bank accounts of the cooperative with their ledger balance, the entries behind it, and reconciliation against the bank statement. */
 export default function BanksTab({ branchCode }: { branchCode: number }) {

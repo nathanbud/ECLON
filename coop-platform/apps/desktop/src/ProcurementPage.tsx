@@ -8,8 +8,9 @@ import {
 } from './api'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
+import { money, parseAmount } from './ui/format'
+import { ReasonDialog } from './ui/dialogs'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const color = (s: string) => (s === 'APPROVED' || s === 'RECEIVED' ? 'success' : s === 'SUBMITTED' || s === 'DRAFT' ? 'warning' : s === 'ORDERED' || s === 'PARTIAL' ? 'info' : 'default') as 'success' | 'warning' | 'info' | 'default'
 
 interface Row { description: string; unit: string; quantity: string; price: string; productId: string }
@@ -48,7 +49,6 @@ function LinesEditor({ rows, onChange, priceLabel, products }: { rows: Row[]; on
   )
 }
 
-const num = (s: string) => Number(s.replace(/,/g, ''))
 
 function NewRequestDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
@@ -57,7 +57,7 @@ function NewRequestDialog({ onClose }: { onClose: () => void }) {
   const [rows, setRows] = useState<Row[]>([blank()])
   const [error, setError] = useState<string | null>(null)
   const save = useMutation({
-    mutationFn: () => createRequest({ purpose, neededBy: neededBy || null, lines: rows.map((r) => ({ description: r.description, unit: r.unit, quantity: num(r.quantity), estCost: num(r.price || '0') })) }),
+    mutationFn: () => createRequest({ purpose, neededBy: neededBy || null, lines: rows.map((r) => ({ description: r.description, unit: r.unit, quantity: parseAmount(r.quantity), estCost: parseAmount(r.price || '0') })) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['pr-list'] }); onClose() },
     onError: (e) => setError((e as Error).message),
   })
@@ -90,7 +90,7 @@ function NewOrderDialog({ request, onClose }: { request?: PrSummary; onClose: ()
   const products = useQuery({ queryKey: ['inv-products', 'active'], queryFn: () => listInvProducts(undefined, true), retry: false })
   const rows = edited ?? (detail.data?.lines.map((l) => ({ description: l.description, unit: l.unit, quantity: String(l.quantity), price: String(l.estCost), productId: '' })) ?? [blank()])
   const save = useMutation({
-    mutationFn: () => createOrder({ supplierId: Number(supplierId), requestId: request?.id ?? null, expectedDate: expected || null, remarks, lines: rows.map((r) => ({ description: r.description, unit: r.unit, quantity: num(r.quantity), unitCost: num(r.price || '0'), productId: r.productId ? Number(r.productId) : null })) }),
+    mutationFn: () => createOrder({ supplierId: Number(supplierId), requestId: request?.id ?? null, expectedDate: expected || null, remarks, lines: rows.map((r) => ({ description: r.description, unit: r.unit, quantity: parseAmount(r.quantity), unitCost: parseAmount(r.price || '0'), productId: r.productId ? Number(r.productId) : null })) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['po-list'] }); void qc.invalidateQueries({ queryKey: ['pr-list'] }); onClose() },
     onError: (e) => setError((e as Error).message),
   })
@@ -115,26 +115,6 @@ function NewOrderDialog({ request, onClose }: { request?: PrSummary; onClose: ()
   )
 }
 
-/** Asks for a reason, then runs the action. */
-export function ReasonDialog({ title, label, onRun, onClose }: { title: string; label: string; onRun: (note: string) => Promise<unknown>; onClose: () => void }) {
-  const [note, setNote] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  return (
-    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>{title}</DialogTitle>
-      <DialogContent>
-        <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
-          <TextField size="small" autoFocus label={label} value={note} onChange={(e) => setNote(e.target.value)} />
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Back</Button>
-        <Button variant="contained" disabled={!note.trim()} onClick={() => onRun(note.trim()).then(onClose, (e: Error) => setError(e.message))}>Confirm</Button>
-      </DialogActions>
-    </Dialog>
-  )
-}
 
 function Requests({ buyer, approver, user }: { buyer: boolean; approver: boolean; user: string }) {
   const qc = useQueryClient()
@@ -240,11 +220,11 @@ function ReceiveDialog({ order, onClose }: { order: PoSummary; onClose: () => vo
   const lines = detail.data?.lines ?? []
   const left = (i: number) => lines[i].quantity - lines[i].received
   const value = (i: number) => qty[i] ?? String(left(i))
-  const stocking = lines.some((l, i) => l.productId !== null && num(value(i)) > 0)
+  const stocking = lines.some((l, i) => l.productId !== null && parseAmount(value(i)) > 0)
   const save = useMutation({
     mutationFn: () => createReceipt({
       orderId: order.id, warehouseId: warehouseId ? Number(warehouseId) : null, deliveryNote: note, remarks,
-      lines: lines.map((_, i) => ({ lineNo: i + 1, quantity: num(value(i)), batchNo: batch[i] || undefined, expiryDate: expiry[i] || null })).filter((l) => l.quantity > 0),
+      lines: lines.map((_, i) => ({ lineNo: i + 1, quantity: parseAmount(value(i)), batchNo: batch[i] || undefined, expiryDate: expiry[i] || null })).filter((l) => l.quantity > 0),
     }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['po-list'] }); void qc.invalidateQueries({ queryKey: ['gr-list'] }); onClose() },
     onError: (e) => setError((e as Error).message),

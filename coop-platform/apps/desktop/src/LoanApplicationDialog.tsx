@@ -9,8 +9,8 @@ import { appear } from './motion'
 import { announceLoanApplicationSaved, openLoanApplicationWindow } from './detachedWindow'
 import type { ReactNode } from 'react'
 import MoneyField from './MoneyField'
+import { money } from './ui/format'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /**
  * New loan application (status New), after the old Loans Profile screen: the loan type's defaults come from the server, the clerk gives the

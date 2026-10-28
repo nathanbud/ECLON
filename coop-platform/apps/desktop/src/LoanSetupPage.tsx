@@ -13,8 +13,9 @@ import AmortizationTab from './AmortizationTab'
 import { Dot, listTable, PageTitle, ReasonDialog, SearchField, SectionLabel, Segmented, Surface } from './appleUi'
 import { appBackground } from './glass'
 import { useMe } from './session'
+import { tabular } from './ui/format'
 
-const num = { fontVariantNumeric: 'tabular-nums' } as const
+const num = tabular
 const pct = (v: number | null) => (v == null ? '—' : `${v.toFixed(2)}%`)
 
 const blank: LoanSetupForm = {

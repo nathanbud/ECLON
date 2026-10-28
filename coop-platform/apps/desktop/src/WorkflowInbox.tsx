@@ -3,9 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { decideWorkflow, getWorkflowWaiting, type WorkflowWaiting } from './api'
 import { glass } from './glass'
-import { ReasonDialog } from './ProcurementPage'
+import { ReasonDialog } from './ui/dialogs'
+import { money } from './ui/format'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /**
  * The extra approvals waiting for the signed-in person: items whose usual approver has already approved and whose workflow now asks for this person's role (and who did not make

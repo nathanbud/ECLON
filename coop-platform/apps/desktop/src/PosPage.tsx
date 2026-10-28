@@ -8,13 +8,12 @@ import {
   type PosProduct, type PosReturn, type PosSale,
 } from './api'
 import { appBackground, glass } from './glass'
-import { ReasonDialog } from './ProcurementPage'
+import { ReasonDialog } from './ui/dialogs'
 import { useMe } from './session'
 import { useLeaveGuard } from './leaveGuard'
+import { money, parseAmount } from './ui/format'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const qty = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 })
-const num = (s: string) => Number(s.replace(/,/g, ''))
 const today = () => new Date().toLocaleDateString('en-CA')
 
 /** The receipt of a sale, printable. */
@@ -69,18 +68,18 @@ function Register() {
   const [receipt, setReceipt] = useState<number | null>(null)
 
   const price = (p: PosProduct) => (p.price ?? 0) * (1 - (p.promoPercent ?? 0) / 100)
-  const lineTotal = (l: CartLine) => Math.round(price(l.product) * (num(l.quantity) || 0) * 100) / 100
+  const lineTotal = (l: CartLine) => Math.round(price(l.product) * (parseAmount(l.quantity) || 0) * 100) / 100
   useLeaveGuard(cart.length > 0 ? 'The sale in progress has items that are not paid yet.' : null)
   const subtotal = cart.reduce((s, l) => s + lineTotal(l), 0)
   const d = (discounts.data ?? []).find((x) => String(x.id) === discountId)
   const off = d ? Math.min(subtotal, d.kind === 'PERCENT' ? Math.round(subtotal * d.value) / 100 : d.value) : 0
   const total = Math.round((subtotal - off) * 100) / 100
-  const paid = num(tendered || String(total))
-  const add = (p: PosProduct) => setCart((c) => (c.some((l) => l.product.id === p.id) ? c.map((l) => (l.product.id === p.id ? { ...l, quantity: String((num(l.quantity) || 0) + 1) } : l)) : [...c, { product: p, quantity: '1' }]))
+  const paid = parseAmount(tendered || String(total))
+  const add = (p: PosProduct) => setCart((c) => (c.some((l) => l.product.id === p.id) ? c.map((l) => (l.product.id === p.id ? { ...l, quantity: String((parseAmount(l.quantity) || 0) + 1) } : l)) : [...c, { product: p, quantity: '1' }]))
   const sell = useMutation({
     mutationFn: () => sellPos({
       warehouseId: Number(warehouse), customerName: customer, discountId: discountId ? Number(discountId) : null,
-      lines: cart.map((l) => ({ productId: l.product.id, quantity: num(l.quantity) })), payments: [{ method, amount: paid, reference }],
+      lines: cart.map((l) => ({ productId: l.product.id, quantity: parseAmount(l.quantity) })), payments: [{ method, amount: paid, reference }],
     }),
     onSuccess: (s) => {
       setError(null); setCart([]); setDiscountId(''); setCustomer(''); setTendered(''); setReference(''); setReceipt(s.id)
@@ -166,7 +165,7 @@ function ReturnDialog({ sale, onClose }: { sale: PosSale; onClose: () => void })
   const [error, setError] = useState<string | null>(null)
   const lines = d.data?.lines ?? []
   const save = useMutation({
-    mutationFn: () => createPosReturn({ saleId: sale.id, reason, lines: lines.map((l) => ({ saleLineNo: l.lineNo, quantity: num(back[l.lineNo] ?? '0') })).filter((l) => l.quantity > 0) }),
+    mutationFn: () => createPosReturn({ saleId: sale.id, reason, lines: lines.map((l) => ({ saleLineNo: l.lineNo, quantity: parseAmount(back[l.lineNo] ?? '0') })).filter((l) => l.quantity > 0) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['pos-returns'] }); onClose() },
     onError: (e) => setError((e as Error).message),
   })
@@ -274,10 +273,10 @@ function Pricing({ supervisor }: { supervisor: boolean }) {
   const [notice, setNotice] = useState<string | null>(null)
   const fail = (e: unknown) => { setNotice(null); setError((e as Error).message) }
   const ok = (m: string) => { setError(null); setNotice(m) }
-  const setP = useMutation({ mutationFn: () => setPosPrice(Number(product), num(price)), onSuccess: () => { ok('Price set.'); setPrice(''); void qc.invalidateQueries({ queryKey: ['pos-products'] }) }, onError: fail })
-  const addD = useMutation({ mutationFn: () => addPosDiscount({ code: dc.code, name: dc.name, kind: dc.kind, value: num(dc.value), requiresSupervisor: dc.sup }), onSuccess: () => { ok('Discount added.'); setDc({ ...dc, code: '', name: '', value: '' }); void qc.invalidateQueries({ queryKey: ['pos-discounts'] }) }, onError: fail })
+  const setP = useMutation({ mutationFn: () => setPosPrice(Number(product), parseAmount(price)), onSuccess: () => { ok('Price set.'); setPrice(''); void qc.invalidateQueries({ queryKey: ['pos-products'] }) }, onError: fail })
+  const addD = useMutation({ mutationFn: () => addPosDiscount({ code: dc.code, name: dc.name, kind: dc.kind, value: parseAmount(dc.value), requiresSupervisor: dc.sup }), onSuccess: () => { ok('Discount added.'); setDc({ ...dc, code: '', name: '', value: '' }); void qc.invalidateQueries({ queryKey: ['pos-discounts'] }) }, onError: fail })
   const toggleD = useMutation({ mutationFn: (x: { id: number; active: boolean }) => updatePosDiscount(x.id, { active: x.active }), onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['pos-discounts'] }) }, onError: fail })
-  const addP = useMutation({ mutationFn: () => addPosPromotion({ name: pr.name, productId: Number(pr.product), percentOff: num(pr.percent), startDate: pr.from, endDate: pr.to }), onSuccess: () => { ok('Promotion added.'); setPr({ ...pr, name: '', percent: '' }); void qc.invalidateQueries({ queryKey: ['pos-promotions'] }); void qc.invalidateQueries({ queryKey: ['pos-products'] }) }, onError: fail })
+  const addP = useMutation({ mutationFn: () => addPosPromotion({ name: pr.name, productId: Number(pr.product), percentOff: parseAmount(pr.percent), startDate: pr.from, endDate: pr.to }), onSuccess: () => { ok('Promotion added.'); setPr({ ...pr, name: '', percent: '' }); void qc.invalidateQueries({ queryKey: ['pos-promotions'] }); void qc.invalidateQueries({ queryKey: ['pos-products'] }) }, onError: fail })
   const toggleP = useMutation({ mutationFn: (x: { id: number; active: boolean }) => setPosPromotion(x.id, x.active), onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['pos-promotions'] }) }, onError: fail })
   const label = (p: { sku: string; name: string }) => `${p.sku} · ${p.name}`
   return (

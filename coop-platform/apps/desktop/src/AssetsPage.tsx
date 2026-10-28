@@ -9,11 +9,10 @@ import {
 } from './api'
 import { appBackground, glass } from './glass'
 import DocumentsPanel from './DocumentsPanel'
-import { ReasonDialog } from './ProcurementPage'
+import { ReasonDialog } from './ui/dialogs'
 import { useMe } from './session'
+import { money, parseAmount } from './ui/format'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const num = (s: string) => Number(s.replace(/,/g, ''))
 const today = () => new Date().toLocaleDateString('en-CA')
 const lastMonthEnd = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 0).toLocaleDateString('en-CA') }
 const statusColor = (s: string) => (s === 'APPROVED' || s === 'ACTIVE' ? 'success' : s === 'PENDING' ? 'warning' : 'default') as 'success' | 'warning' | 'default'
@@ -28,8 +27,8 @@ function RegisterDialog({ onClose }: { onClose: () => void }) {
   const cat = (cats.data ?? []).find((c) => String(c.id) === f.categoryId)
   const save = useMutation({
     mutationFn: () => registerAsset({
-      tag: f.tag, name: f.name, categoryId: Number(f.categoryId), serialNo: f.serial, location: f.location, acquisitionDate: f.acquired, inServiceDate: f.inService || null, cost: num(f.cost || '0'),
-      salvageValue: f.salvage ? num(f.salvage) : null, lifeMonths: f.life ? Number(f.life) : null, reference: f.reference,
+      tag: f.tag, name: f.name, categoryId: Number(f.categoryId), serialNo: f.serial, location: f.location, acquisitionDate: f.acquired, inServiceDate: f.inService || null, cost: parseAmount(f.cost || '0'),
+      salvageValue: f.salvage ? parseAmount(f.salvage) : null, lifeMonths: f.life ? Number(f.life) : null, reference: f.reference,
     }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['assets'] }); onClose() },
     onError: (e) => setError((e as Error).message),
@@ -74,7 +73,7 @@ function DisposeDialog({ asset, onClose }: { asset: AssetSummary; onClose: () =>
   const [f, setF] = useState({ date: today(), kind: 'SALE', proceeds: '0', proceedsAccount: '', gainAccount: '', reason: '' })
   const [error, setError] = useState<string | null>(null)
   const save = useMutation({
-    mutationFn: () => askAssetDisposal(asset.id, { disposalDate: f.date, kind: f.kind, proceeds: num(f.proceeds || '0'), proceedsAccount: f.proceedsAccount || undefined, gainAccount: f.gainAccount || undefined, reason: f.reason }),
+    mutationFn: () => askAssetDisposal(asset.id, { disposalDate: f.date, kind: f.kind, proceeds: parseAmount(f.proceeds || '0'), proceedsAccount: f.proceedsAccount || undefined, gainAccount: f.gainAccount || undefined, reason: f.reason }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['asset-disposals'] }); onClose() },
     onError: (e) => setError((e as Error).message),
   })
@@ -121,7 +120,7 @@ function DetailDialog({ id, custodian, onClose }: { id: number; custodian: boole
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['asset', id] }); void qc.invalidateQueries({ queryKey: ['assets'] }); void qc.invalidateQueries({ queryKey: ['asset-transfers'] }) }
   const move = useMutation({ mutationFn: () => askAssetTransfer(id, to, why), onSuccess: () => { setMoving(false); setTo(''); setWhy(''); setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
   const maintain = useMutation({
-    mutationFn: () => addAssetMaintenance(id, { description: m.description, cost: m.cost ? num(m.cost) : undefined, vendor: m.vendor || undefined, nextDue: m.nextDue || null }),
+    mutationFn: () => addAssetMaintenance(id, { description: m.description, cost: m.cost ? parseAmount(m.cost) : undefined, vendor: m.vendor || undefined, nextDue: m.nextDue || null }),
     onSuccess: () => { setWork(false); setM({ description: '', cost: '', vendor: '', nextDue: '' }); setError(null); refresh() }, onError: (e) => setError((e as Error).message),
   })
   const a = d.data?.summary
@@ -355,7 +354,7 @@ function CategoryDialog({ category, onClose }: { category?: AssetCategory; onClo
   const [error, setError] = useState<string | null>(null)
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value })
   const save = useMutation({
-    mutationFn: () => saveAssetCategory(category?.id ?? null, { name: f.name, assetAccount: f.asset, accumAccount: f.accum, expenseAccount: f.expense, lifeMonths: Number(f.life), salvagePercent: num(f.salvage || '0'), active: f.active }),
+    mutationFn: () => saveAssetCategory(category?.id ?? null, { name: f.name, assetAccount: f.asset, accumAccount: f.accum, expenseAccount: f.expense, lifeMonths: Number(f.life), salvagePercent: parseAmount(f.salvage || '0'), active: f.active }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['asset-categories'] }); onClose() },
     onError: (e) => setError((e as Error).message),
   })

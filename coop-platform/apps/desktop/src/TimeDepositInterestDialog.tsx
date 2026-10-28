@@ -3,8 +3,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { encodeTdInterest, quoteTdInterest, type TdCloseEncoded, type TdInterestQuote } from './api'
 import MoneyField from './MoneyField'
+import { money as peso } from './ui/format'
 
-const peso = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /**
  * Withdraw interest from a running Lock In certificate on an anniversary, on the person asking. The certificate is not touched: the voucher takes the accrued interest

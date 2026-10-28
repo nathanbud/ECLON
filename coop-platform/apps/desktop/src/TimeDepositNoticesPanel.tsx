@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { getTdMaturities, type TdNotice } from './api'
 import TimeDepositCloseDialog from './TimeDepositCloseDialog'
 import { glass } from './glass'
+import { money as peso } from './ui/format'
 
-const peso = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /**
  * Time deposits that matured and still hold money, and those maturing soon, so staff can reach the member and then pay out or renew each one by hand. Nothing

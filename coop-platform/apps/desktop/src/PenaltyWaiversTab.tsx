@@ -7,8 +7,8 @@ import {
 } from './api'
 import { glass } from './glass'
 import MoneyField from './MoneyField'
+import { money } from './ui/format'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const today = () => new Date().toLocaleDateString('en-CA')
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toLocaleDateString('en-CA')
 

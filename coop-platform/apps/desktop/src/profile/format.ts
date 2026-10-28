@@ -1,4 +1,5 @@
 import { type DetailField } from '../api'
+import { moneyOr } from '../ui/format'
 
 // ---- formatting helpers -------------------------------------------------------------------------------------------
 
@@ -26,4 +27,4 @@ export function formatField(f: DetailField): string | null {
 
 export const when = (at: string) => new Date(at.replace(' ', 'T')).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
-export const peso = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+export const peso = (n: number | null | undefined) => moneyOr(n, '—')

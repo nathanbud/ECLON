@@ -4,8 +4,8 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { getTrialBalance } from './api'
+import { money } from './ui/format'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 function monthStart() {
   const d = new Date()

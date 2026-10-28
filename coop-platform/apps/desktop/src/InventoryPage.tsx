@@ -8,12 +8,12 @@ import {
   type InvAdjSummary, type InvCountSummary, type InvMoveIn, type InvProduct,
 } from './api'
 import { appBackground, glass } from './glass'
-import { ReasonDialog } from './ProcurementPage'
+import { ReasonDialog } from './ui/dialogs'
 import { useMe } from './session'
+import { parseAmount } from './ui/format'
 
 const qty = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 })
 const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })
-const num = (s: string) => Number(s.replace(/,/g, ''))
 const statusColor = (s: string) => (s === 'APPROVED' ? 'success' : s === 'SUBMITTED' ? 'warning' : 'default') as 'success' | 'warning' | 'default'
 
 function useLists() {
@@ -40,7 +40,7 @@ function ProductDialog({ product, onClose }: { product?: InvProduct; onClose: ()
   const [error, setError] = useState<string | null>(null)
   const save = useMutation({
     mutationFn: () => {
-      const body = { name: f.name, categoryId: f.categoryId ? Number(f.categoryId) : null, unit: f.unit, reorderLevel: num(f.reorder || '0'), trackBatch: f.trackBatch, trackExpiry: f.trackExpiry, active: f.active }
+      const body = { name: f.name, categoryId: f.categoryId ? Number(f.categoryId) : null, unit: f.unit, reorderLevel: parseAmount(f.reorder || '0'), trackBatch: f.trackBatch, trackExpiry: f.trackExpiry, active: f.active }
       return product ? updateInvProduct(product.id, body) : addInvProduct({ ...body, sku: f.sku })
     },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['inv-products'] }); onClose() },
@@ -157,8 +157,8 @@ function MoveDialog({ kind, onClose }: { kind: InvMoveIn['type'] | 'TRANSFER'; o
   const p = products.find((x) => String(x.id) === product)
   const save = useMutation({
     mutationFn: (): Promise<unknown> => kind === 'TRANSFER'
-      ? transferInvStock({ productId: Number(product), fromWarehouseId: Number(wh), toWarehouseId: Number(toWh), batchNo: batch || undefined, quantity: num(quantity), remarks })
-      : moveInvStock({ type: kind, productId: Number(product), warehouseId: Number(wh), batchNo: batch || undefined, expiryDate: expiry || null, quantity: num(quantity), unitCost: kind === 'RECEIVE' ? num(cost || '0') : null, reference: ref, remarks }),
+      ? transferInvStock({ productId: Number(product), fromWarehouseId: Number(wh), toWarehouseId: Number(toWh), batchNo: batch || undefined, quantity: parseAmount(quantity), remarks })
+      : moveInvStock({ type: kind, productId: Number(product), warehouseId: Number(wh), batchNo: batch || undefined, expiryDate: expiry || null, quantity: parseAmount(quantity), unitCost: kind === 'RECEIVE' ? parseAmount(cost || '0') : null, reference: ref, remarks }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['inv-products'] }); void qc.invalidateQueries({ queryKey: ['inv-ledger'] }); void qc.invalidateQueries({ queryKey: ['inv-stock'] }); onClose() },
     onError: (e) => setError((e as Error).message),
   })
@@ -259,7 +259,7 @@ function NewAdjustmentDialog({ onClose }: { onClose: () => void }) {
   const [rows, setRows] = useState<LineRow[]>([{ productId: '', batch: '', quantity: '' }])
   const [error, setError] = useState<string | null>(null)
   const save = useMutation({
-    mutationFn: () => createInvAdjustment({ warehouseId: Number(wh), type, reason, lines: rows.map((r) => ({ productId: Number(r.productId), batchNo: r.batch || undefined, quantity: type === 'ADJUSTMENT' ? num(r.quantity) : -Math.abs(num(r.quantity)) })) }),
+    mutationFn: () => createInvAdjustment({ warehouseId: Number(wh), type, reason, lines: rows.map((r) => ({ productId: Number(r.productId), batchNo: r.batch || undefined, quantity: type === 'ADJUSTMENT' ? parseAmount(r.quantity) : -Math.abs(parseAmount(r.quantity)) })) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['inv-adjustments'] }); onClose() },
     onError: (e) => setError((e as Error).message),
   })
@@ -326,7 +326,7 @@ function NewCountDialog({ onClose }: { onClose: () => void }) {
   const [rows, setRows] = useState<LineRow[]>([{ productId: '', batch: '', quantity: '' }])
   const [error, setError] = useState<string | null>(null)
   const save = useMutation({
-    mutationFn: () => createInvCount({ warehouseId: Number(wh), lines: rows.map((r) => ({ productId: Number(r.productId), batchNo: r.batch || undefined, countedQty: num(r.quantity) })) }),
+    mutationFn: () => createInvCount({ warehouseId: Number(wh), lines: rows.map((r) => ({ productId: Number(r.productId), batchNo: r.batch || undefined, countedQty: parseAmount(r.quantity) })) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['inv-counts'] }); onClose() },
     onError: (e) => setError((e as Error).message),
   })
