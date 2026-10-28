@@ -1001,3 +1001,26 @@ export const listInvCounts = () => getJson<InvCountSummary[]>('/api/inventory/co
 export const getInvCount = (id: number) => getJson<{ summary: InvCountSummary; lines: InvCountLine[] }>(`/api/inventory/counts/${id}`)
 export const createInvCount = (b: { warehouseId: number; lines: { productId: number; batchNo?: string; countedQty: number }[] }) => send<InvCountSummary>('POST', '/api/inventory/counts', b)
 export const decideInvCount = (id: number, kind: 'approve' | 'reject', note?: string) => send<InvCountSummary>('POST', `/api/inventory/counts/${id}/${kind}`, { note })
+
+// ---- point of sale (guide phase 14) -----------------------------------------------------------------------------------
+export interface PosProduct { id: number; sku: string; name: string; unit: string; price: number | null; onHand: number; promoPercent: number | null; promoName: string | null; trackBatch: boolean }
+export interface PosDiscount { id: number; code: string; name: string; kind: 'PERCENT' | 'AMOUNT'; value: number; requiresSupervisor: boolean; active: boolean }
+export interface PosPromotion { id: number; name: string; productId: number; product: string; percentOff: number; startDate: string; endDate: string; active: boolean }
+export interface PosSale { id: number; saleNo: string; saleDate: string; saleTime: string; warehouse: string; cashier: string; clientId: number | null; customerName: string | null; subtotal: number; discountTotal: number; total: number; paid: number; changeGiven: number; returnedTotal: number; journaled: boolean }
+export interface PosSaleLine { lineNo: number; productId: number; sku: string; product: string; unit: string; batchNo: string; quantity: number; unitPrice: number; promoOff: number; lineTotal: number; returned: number }
+export interface PosSaleDetail { summary: PosSale; discount: string | null; lines: PosSaleLine[]; payments: { method: string; amount: number; reference: string | null }[] }
+export interface PosReturn { id: number; returnNo: string; saleId: number; saleNo: string; reason: string; status: 'PENDING' | 'APPROVED' | 'REJECTED'; refund: number; requestedBy: string; decidedBy: string | null; decisionNote: string | null }
+export const listPosProducts = (warehouseId: number, q?: string) => getJson<PosProduct[]>(`/api/pos/products?warehouseId=${warehouseId}${q ? `&q=${encodeURIComponent(q)}` : ''}`)
+export const setPosPrice = (productId: number, price: number) => send<{ price: number }>('POST', '/api/pos/prices', { productId, price })
+export const listPosDiscounts = () => getJson<PosDiscount[]>('/api/pos/discounts')
+export const addPosDiscount = (b: { code: string; name: string; kind: string; value: number; requiresSupervisor: boolean }) => send<PosDiscount>('POST', '/api/pos/discounts', b)
+export const updatePosDiscount = (id: number, b: { value?: number; active?: boolean; requiresSupervisor?: boolean }) => send<PosDiscount>('PUT', `/api/pos/discounts/${id}`, b)
+export const listPosPromotions = () => getJson<PosPromotion[]>('/api/pos/promotions')
+export const addPosPromotion = (b: { name: string; productId: number; percentOff: number; startDate: string; endDate: string }) => send<PosPromotion>('POST', '/api/pos/promotions', b)
+export const setPosPromotion = (id: number, active: boolean) => send<PosPromotion>('PUT', `/api/pos/promotions/${id}`, { active })
+export const sellPos = (b: { warehouseId: number; customerName?: string; discountId?: number | null; lines: { productId: number; quantity: number }[]; payments: { method: string; amount: number; reference?: string }[] }) => send<PosSale>('POST', '/api/pos/sales', b)
+export const listPosSales = (date?: string) => getJson<PosSale[]>(`/api/pos/sales${date ? `?date=${date}` : ''}`)
+export const getPosSale = (id: number) => getJson<PosSaleDetail>(`/api/pos/sales/${id}`)
+export const listPosReturns = () => getJson<PosReturn[]>('/api/pos/returns')
+export const createPosReturn = (b: { saleId: number; reason: string; lines: { saleLineNo: number; quantity: number }[] }) => send<PosReturn>('POST', '/api/pos/returns', b)
+export const decidePosReturn = (id: number, kind: 'approve' | 'reject', note?: string) => send<PosReturn>('POST', `/api/pos/returns/${id}/${kind}`, { note })

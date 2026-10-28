@@ -51,9 +51,20 @@ public class StockService {
     }
 
     /** On hand of a product in one warehouse and batch (0 when there is none). */
-    BigDecimal onHand(long productId, long warehouseId, long batchId) {
+    public BigDecimal onHand(long productId, long warehouseId, long batchId) {
         List<BigDecimal> q = jdbc.queryForList("SELECT quantity FROM ecis_inventory_balance WHERE product_id = ? AND warehouse_id = ? AND batch_id = ?", BigDecimal.class, productId, warehouseId, batchId);
         return q.isEmpty() ? BigDecimal.ZERO : q.get(0);
+    }
+
+    /** A batch with stock in one warehouse. */
+    public record BatchStock(long batchId, String batchNo, LocalDate expiry, BigDecimal quantity) {}
+
+    /** The batches of a product that hold stock in a warehouse, earliest expiry first (no expiry date last), for first-expiry-first-out selling. */
+    public List<BatchStock> batchesWithStock(long productId, long warehouseId) {
+        return jdbc.query("""
+                SELECT b.batch_id, t.batch_no, t.expiry_date, b.quantity FROM ecis_inventory_balance b JOIN ecis_inventory_batch t ON t.id = b.batch_id
+                WHERE b.product_id = ? AND b.warehouse_id = ? AND b.batch_id <> 0 AND b.quantity > 0 ORDER BY CASE WHEN t.expiry_date IS NULL THEN 1 ELSE 0 END, t.expiry_date, t.id
+                """, (rs, i) -> new BatchStock(rs.getLong(1), rs.getString(2), rs.getDate(3) == null ? null : rs.getDate(3).toLocalDate(), rs.getBigDecimal(4)), productId, warehouseId);
     }
 
     /** Posts one movement, or throws with the reason. Call inside a transaction. */

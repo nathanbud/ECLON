@@ -12,9 +12,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 /** What the inventory controllers share: who may do what, document numbers, the audit row. */
 @Component
-class InventorySupport {
+public class InventorySupport {
 
-    static final int BRANCH = 1;
+    public static final int BRANCH = 1;
 
     private final JdbcTemplate jdbc;
     private final Clock clock;
@@ -24,11 +24,11 @@ class InventorySupport {
         this.clock = clock;
     }
 
-    LocalDateTime now() {
+    public LocalDateTime now() {
         return LocalDateTime.now(clock).withNano(0);
     }
 
-    java.time.LocalDate today() {
+    public java.time.LocalDate today() {
         return java.time.LocalDate.now(clock);
     }
 
@@ -47,7 +47,7 @@ class InventorySupport {
     }
 
     /** The next document number for a table and prefix (SA-2026-0001); the row lock keeps two people from taking the same one, the unique key is the backstop. */
-    String nextNumber(String table, String column, String prefix, int year) {
+    public String nextNumber(String table, String column, String prefix, int year) {
         List<String> last = jdbc.queryForList("SELECT " + column + " FROM " + table + " WHERE branch_code = ? AND " + column + " LIKE ? ORDER BY id DESC LIMIT 1 FOR UPDATE",
             String.class, BRANCH, prefix + "-" + year + "-%");
         int seq = 0;
@@ -61,16 +61,16 @@ class InventorySupport {
         return String.format("%s-%d-%04d", prefix, year, seq + 1);
     }
 
-    void audit(Authentication auth, String action, String entity, String id, String detail) {
+    public void audit(Authentication auth, String action, String entity, String id, String detail) {
         jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, ?, ?, ?)",
             Timestamp.valueOf(now()), auth.getName(), action, entity, id, detail);
     }
 
-    static ResponseStatusException bad(List<String> problems) {
+    public static ResponseStatusException bad(List<String> problems) {
         return new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
     }
 
-    static String own(String maker, String decider, String what) {
+    public static String own(String maker, String decider, String what) {
         return maker != null && maker.equalsIgnoreCase(decider) ? "You made this " + what + ", so someone else must decide it." : null;
     }
 }

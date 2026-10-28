@@ -17,11 +17,12 @@ import SettingsPage from './SettingsPage'
 import AccountingPage from './AccountingPage'
 import ProcurementPage from './ProcurementPage'
 import InventoryPage from './InventoryPage'
+import PosPage from './PosPage'
 import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
 const titles: Record<View, string> = {
-  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory',
+  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale',
 }
 
 function Signed() {
@@ -57,6 +58,7 @@ function Signed() {
         {view === 'frontoffice' && <FrontOfficePage />}
         {view === 'procurement' && <ProcurementPage />}
         {view === 'inventory' && <InventoryPage />}
+        {view === 'pos' && <PosPage />}
       </ErrorBoundary>
     </ToolbarSlotProvider>
   )
