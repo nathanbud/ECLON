@@ -35,6 +35,15 @@ const TABS = [
   'History', 'Closed', 'Pledges / Insurances', 'Others', 'Sketch', 'Billing', 'Share Capital', 'Savings', 'Time Deposits', 'Loans', 'Documents',
 ]
 
+/** The two main tabs and the sub-tabs under each; anything not named in Info or Accounts is under Other so nothing is lost. */
+const INFO_TABS = ['Membership', 'Personal', 'Business / Employment', 'Education']
+const ACCOUNT_TABS = ['Share Capital', 'Savings', 'Time Deposits', 'Loans', 'Billing', 'Pledges / Insurances']
+const GROUPS: { label: string; tabs: number[] }[] = [
+  { label: 'Info', tabs: INFO_TABS.map((n) => TABS.indexOf(n)) },
+  { label: 'Accounts', tabs: ACCOUNT_TABS.map((n) => TABS.indexOf(n)) },
+  { label: 'Other', tabs: TABS.map((_, i) => i).filter((i) => ![...INFO_TABS, ...ACCOUNT_TABS].includes(TABS[i])) },
+]
+
 // ---- formatting helpers -------------------------------------------------------------------------------------------
 
 const parseDate = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00`)
@@ -1111,7 +1120,8 @@ function TabContent({ tab, m, lk }: { tab: number; m: Member; lk?: Lookups }) {
 }
 
 function Profile({ id, lk }: { id: Id; lk?: Lookups }) {
-  const [tab, setTab] = useState(0)
+  const [tab, setTab] = useState(GROUPS[0].tabs[0])
+  const group = Math.max(0, GROUPS.findIndex((g) => g.tabs.includes(tab)))
   const { data: m, error, isLoading } = useQuery({
     queryKey: ['member', id],
     queryFn: () => getMember(id.branchCode, id.clientId),
@@ -1134,27 +1144,39 @@ function Profile({ id, lk }: { id: Id; lk?: Lookups }) {
       <ProfileHeader m={m} lk={lk} />
       {/* One folder: the tab strip and the page below share a frame, and the open tab takes the page's own fill so the two read as connected. */}
       <Box sx={(t) => ({ mt: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', ...glass(t) })}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" aria-label="Profile sections"
+        <Tabs value={group} onChange={(_, v) => setTab(GROUPS[v].tabs[0])} aria-label="Profile sections"
           sx={(t) => {
             const dark = t.palette.mode === 'dark'
             const page = dark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)'
             return {
-              minHeight: 38, px: 0.5, pt: 0.5,
+              minHeight: 40, px: 0.5, pt: 0.5,
               background: dark ? 'rgba(0,0,0,0.22)' : 'rgba(110,120,150,0.12)',
               borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'}`,
               '& .MuiTabs-indicator': { display: 'none' },
               '& .MuiTab-root': {
-                minHeight: 36, fontSize: 13.5, px: 1.75, textTransform: 'none', color: 'text.secondary',
+                minHeight: 38, fontSize: 14.5, px: 2.5, textTransform: 'none', color: 'text.secondary',
                 borderRadius: '8px 8px 0 0', mr: 0.25, mb: '-1px', border: '1px solid transparent', borderBottom: 'none',
               },
               '& .MuiTab-root.Mui-selected': {
-                color: 'text.primary', fontWeight: 600, background: page,
+                color: 'text.primary', fontWeight: 700, background: page,
                 borderColor: dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
                 boxShadow: `inset 0 2px 0 ${t.palette.primary.main}`,
               },
             }
           }}>
-          {TABS.map((t) => <Tab key={t} label={t} />)}
+          {GROUPS.map((g) => <Tab key={g.label} label={g.label} />)}
+        </Tabs>
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" aria-label={`${GROUPS[group].label} sections`}
+          sx={(t) => {
+            const dark = t.palette.mode === 'dark'
+            return {
+              minHeight: 36, px: 1.5,
+              background: dark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)',
+              borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'}`,
+              '& .MuiTab-root': { minHeight: 36, fontSize: 13.5, px: 1.5, textTransform: 'none' },
+            }
+          }}>
+          {GROUPS[group].tabs.map((i) => <Tab key={TABS[i]} value={i} label={TABS[i]} />)}
         </Tabs>
         <Box sx={(t) => ({ flex: 1, overflow: 'auto', p: 1.5, background: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)' })}>
           <TabContent tab={tab} m={m} lk={lk} />
