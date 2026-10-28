@@ -9,7 +9,7 @@ import { getPendingCount, getTdMaturityCount } from './api'
 import { useMe } from './session'
 import { tileFill, useThemeMode, type Tint } from './theme'
 
-export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'amortization' | 'settings' | 'frontoffice' | 'loanapp' | 'procurement' | 'inventory' | 'pos'
+export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'amortization' | 'settings' | 'frontoffice' | 'loanapp' | 'procurement' | 'inventory' | 'pos' | 'assets'
 
 // Every item is a square of 1x1 or 2x2 cells on a landscape 5 x 4 grid (3 x 4 + 8 = 20 cells, no gaps).
 type Size = 'md' | 'sm'
@@ -36,7 +36,7 @@ const tiles: TileSpec[] = [
   { label: 'Back Office', icon: <FiBookOpen />, group: 'accounting', area: 'bo', size: 'sm', view: 'accounts' },
   { label: 'Reports', icon: <FiFileText />, group: 'accounting', area: 'rep', size: 'sm', view: 'accounting' },
   { label: 'Settings', icon: <FiSettings />, group: 'admin', area: 'set', size: 'md', view: 'settings' },
-  { label: 'Treasury', icon: <FiTrendingUp />, group: 'accounting', area: 'tre', size: 'sm' },
+  { label: 'Fixed Assets', icon: <FiTrendingUp />, group: 'accounting', area: 'tre', size: 'sm', view: 'assets' },
   { label: 'Approvals', icon: <FiCheckSquare />, group: 'admin', area: 'apr', size: 'md', view: 'approvals' },
 ]
 
@@ -106,6 +106,7 @@ export default function Dashboard({ onOpen }: { onOpen: (v: View) => void }) {
   const pending = count?.pending
   const { data: tdCount } = useQuery({ queryKey: ['td-maturity-count'], queryFn: getTdMaturityCount, refetchInterval: 60_000, retry: false })
   // administrators and accountants open Settings; what is inside is checked again per item
+  const assetsAllowed = me.admin || me.roles.some((r) => ['ASSET_CUSTODIAN', 'ACCOUNTANT'].includes(r.replace('ROLE_', '')))
   const posAllowed = me.admin || me.roles.some((r) => ['POS_CASHIER', 'POS_SUPERVISOR', 'STOREKEEPER', 'ACCOUNTANT'].includes(r.replace('ROLE_', '')))
   const inventoryAllowed = me.admin || me.roles.some((r) => ['STOREKEEPER', 'STOCK_APPROVER', 'RECEIVER', 'PURCHASER', 'PURCHASE_APPROVER', 'ACCOUNTANT'].includes(r.replace('ROLE_', '')))
   const purchasingAllowed = me.admin || me.roles.some((r) => ['PURCHASER', 'PURCHASE_APPROVER', 'RECEIVER', 'ACCOUNTANT'].includes(r.replace('ROLE_', '')))
@@ -127,7 +128,7 @@ export default function Dashboard({ onOpen }: { onOpen: (v: View) => void }) {
         <Typography color="text.secondary" sx={{ mb: 2, fontSize: 13 }}>Choose a module to get started.</Typography>
 
         <Box sx={{ display: 'grid', gap: 'var(--gap)', gridTemplateColumns: 'repeat(5, var(--cell))', gridAutoRows: 'var(--cell)', gridTemplateAreas: areas }}>
-          {tiles.map((t, i) => <Tile key={t.label} spec={t} index={i} onOpen={onOpen} badge={t.view === 'approvals' ? pending : t.view === 'frontoffice' ? tdCount?.[0] : undefined} allowed={t.view === 'settings' ? settingsAllowed : t.view === 'procurement' ? purchasingAllowed : t.view === 'inventory' ? inventoryAllowed : t.view === 'pos' ? posAllowed : !t.adminOnly || me.admin} />)}
+          {tiles.map((t, i) => <Tile key={t.label} spec={t} index={i} onOpen={onOpen} badge={t.view === 'approvals' ? pending : t.view === 'frontoffice' ? tdCount?.[0] : undefined} allowed={t.view === 'settings' ? settingsAllowed : t.view === 'procurement' ? purchasingAllowed : t.view === 'inventory' ? inventoryAllowed : t.view === 'pos' ? posAllowed : t.view === 'assets' ? assetsAllowed : !t.adminOnly || me.admin} />)}
         </Box>
 
         <Box component="ul" aria-label="Colour key" sx={{ listStyle: 'none', m: 0, mt: 2, p: 0, display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>

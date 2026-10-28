@@ -1024,3 +1024,31 @@ export const getPosSale = (id: number) => getJson<PosSaleDetail>(`/api/pos/sales
 export const listPosReturns = () => getJson<PosReturn[]>('/api/pos/returns')
 export const createPosReturn = (b: { saleId: number; reason: string; lines: { saleLineNo: number; quantity: number }[] }) => send<PosReturn>('POST', '/api/pos/returns', b)
 export const decidePosReturn = (id: number, kind: 'approve' | 'reject', note?: string) => send<PosReturn>('POST', `/api/pos/returns/${id}/${kind}`, { note })
+
+// ---- fixed assets (guide phase 15) --------------------------------------------------------------------------------------
+export interface AssetCategory { id: number; name: string; assetAccount: string; accumAccount: string; expenseAccount: string; lifeMonths: number; salvagePercent: number; active: boolean }
+export interface AssetSummary { id: number; assetNo: string; tag: string; name: string; categoryId: number; category: string; location: string; acquisitionDate: string; inServiceDate: string; cost: number; salvageValue: number; lifeMonths: number; status: 'ACTIVE' | 'DISPOSED'; disposedOn: string | null; booked: number; posted: number; netBookValue: number }
+export interface AssetTransfer { id: number; transferNo: string; from: string; to: string; reason: string; status: 'PENDING' | 'APPROVED' | 'REJECTED'; requestedBy: string; decidedBy: string | null; decisionNote: string | null }
+export interface AssetMaint { id: number; date: string; description: string; cost: number; vendor: string | null; nextDue: string | null; recordedBy: string }
+export interface AssetDetail { summary: AssetSummary; serialNo: string | null; reference: string | null; supplierId: number | null; depreciation: { periodEnd: string; amount: number; journal: string | null; journalStatus: string | null }[]; transfers: AssetTransfer[]; maintenance: AssetMaint[] }
+export interface AssetDisposal { id: number; disposalNo: string; assetId: number; assetNo: string; asset: string; disposalDate: string; kind: string; proceeds: number; bookValue: number; gainLoss: number; reason: string; status: 'PENDING' | 'APPROVED' | 'REJECTED'; requestedBy: string; decidedBy: string | null; decisionNote: string | null; journal: string | null }
+export interface DepPreview { through: string; periods: { periodEnd: string; reference: string; assets: number; total: number; referenceUsed: boolean }[]; assets: number; total: number }
+export interface DepRun { periodEnd: string; reference: string; journalId: number; assets: number; total: number }
+export interface DepHistory { periodEnd: string; assets: number; total: number; journal: string | null; journalStatus: string | null }
+export type NewAsset = { tag: string; name: string; categoryId: number; serialNo?: string; location: string; acquisitionDate: string; inServiceDate?: string | null; cost: number; salvageValue?: number | null; lifeMonths?: number | null; supplierId?: number | null; reference?: string }
+export const listAssetCategories = () => getJson<AssetCategory[]>('/api/assets/categories')
+export const saveAssetCategory = (id: number | null, b: Partial<Omit<AssetCategory, 'id'>>) => (id ? send<AssetCategory>('PUT', `/api/assets/categories/${id}`, b) : send<AssetCategory>('POST', '/api/assets/categories', b))
+export const listAssets = (q?: string, status?: string) => getJson<AssetSummary[]>(`/api/assets?${q ? `q=${encodeURIComponent(q)}&` : ''}${status ? `status=${status}` : ''}`)
+export const getAsset = (id: number) => getJson<AssetDetail>(`/api/assets/${id}`)
+export const registerAsset = (b: NewAsset) => send<AssetSummary>('POST', '/api/assets', b)
+export const askAssetTransfer = (id: number, toLocation: string, reason: string) => send<AssetTransfer>('POST', `/api/assets/${id}/transfers`, { toLocation, reason })
+export const listAssetTransfers = (status?: string) => getJson<AssetTransfer[]>(`/api/assets/transfers${status ? `?status=${status}` : ''}`)
+export const decideAssetTransfer = (id: number, kind: 'approve' | 'reject', note?: string) => send<AssetTransfer>('POST', `/api/assets/transfers/${id}/${kind}`, { note })
+export const addAssetMaintenance = (id: number, b: { date?: string; description: string; cost?: number; vendor?: string; nextDue?: string | null }) => send<AssetMaint>('POST', `/api/assets/${id}/maintenance`, b)
+export const listAssetMaintenanceDue = (days = 30) => getJson<{ assetId: number; assetNo: string; name: string; location: string; nextDue: string; lastWork: string }[]>(`/api/assets/maintenance/due?days=${days}`)
+export const listAssetDisposals = () => getJson<AssetDisposal[]>('/api/assets/disposals')
+export const askAssetDisposal = (assetId: number, b: { disposalDate: string; kind: string; proceeds: number; proceedsAccount?: string; gainAccount?: string; reason: string }) => send<AssetDisposal>('POST', `/api/assets/disposals/for/${assetId}`, b)
+export const decideAssetDisposal = (id: number, kind: 'approve' | 'reject', note?: string) => send<AssetDisposal>('POST', `/api/assets/disposals/${id}/${kind}`, { note })
+export const previewDepreciation = (periodEnd: string) => send<DepPreview>('POST', '/api/assets/depreciation/preview', { periodEnd })
+export const runDepreciation = (periodEnd: string) => send<DepRun[]>('POST', '/api/assets/depreciation/run', { periodEnd })
+export const listDepreciationRuns = () => getJson<DepHistory[]>('/api/assets/depreciation')
