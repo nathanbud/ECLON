@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { FiCornerDownLeft, FiSearch, FiUser, FiX } from 'react-icons/fi'
 import { searchMembers, type Lookups } from './api'
 import { displayName, initials, memberNo, statusOf, type Id } from './clients'
+import { LIGHT } from './glass'
 import { tileFill } from './theme'
 
 const MAX_RESULTS = 8
@@ -115,7 +116,7 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
           sx={(t) => ({
             // A taller field with the icon inside and no floating label: the placeholder says what to type. The corner radius is the app's own.
             '& .MuiOutlinedInput-root': {
-              fontSize: 17, minHeight: 50, backgroundColor: dark(t) ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.6)',
+              fontSize: 17, minHeight: 50, backgroundColor: dark(t) ? 'rgba(0,0,0,0.28)' : LIGHT.field,
               boxShadow: dark(t) ? 'inset 0 1px 2px rgba(0,0,0,0.35)' : 'inset 0 1px 2px rgba(0,0,0,0.08)',
               transition: 'box-shadow 160ms ease-out',
               '& .MuiOutlinedInput-notchedOutline': { borderColor: dark(t) ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' },
@@ -204,7 +205,7 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
       <Box sx={(t) => ({
         px: 2.5, py: 1.1, display: 'flex', gap: 2.5, flexWrap: 'wrap', alignItems: 'center',
         borderTop: `1px solid ${rule(t)}`,
-        backgroundColor: dark(t) ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.35)',
+        backgroundColor: dark(t) ? 'rgba(0,0,0,0.18)' : 'rgba(244,245,247,0.55)',
       })}>
         {[['↑↓', 'move'], ['Enter', 'open'], ...(inline ? [] : [['Esc', 'close']])].map(([k, label]) => (
           <Box key={k} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
@@ -235,13 +236,13 @@ export default function FindClientDialog({ open, onClose, onPick, lk }: {
           backgroundImage: 'none',
           background: dark(t)
             ? 'linear-gradient(145deg, rgba(58,58,64,0.62), rgba(28,28,32,0.5))'
-            : 'linear-gradient(145deg, rgba(255,255,255,0.78), rgba(255,255,255,0.5))',
+            : 'linear-gradient(145deg, rgba(251,251,252,0.82), rgba(247,248,250,0.66))',
           backdropFilter: 'blur(30px) saturate(180%)',
-          border: `1px solid ${dark(t) ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.7)'}`,
+          border: `1px solid ${dark(t) ? 'rgba(255,255,255,0.16)' : LIGHT.hairline}`,
           // A lit top edge, a tight contact shadow and one soft ambient shadow.
           boxShadow: dark(t)
             ? 'inset 0 1px 0 rgba(255,255,255,0.12), 0 1px 2px rgba(0,0,0,0.4), 0 16px 40px rgba(0,0,0,0.5)'
-            : 'inset 0 1px 0 rgba(255,255,255,0.8), 0 1px 2px rgba(20,40,90,0.08), 0 16px 40px rgba(20,40,90,0.16)',
+            : 'inset 0 1px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(20,40,90,0.08), 0 16px 40px rgba(20,40,90,0.14)',
           // Fades in with a small drop.
           transformOrigin: '50% 0%',
           animation: 'findIn 220ms cubic-bezier(.2,.8,.2,1) both',

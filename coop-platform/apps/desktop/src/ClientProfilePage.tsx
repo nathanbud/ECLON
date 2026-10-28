@@ -14,7 +14,7 @@ import {
   getCapabilities, getFingerprints, getMemberTemplate, registerMember, type StagedFinger, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, getTimeDeposits, getTimeDepositHistory, type TimeDeposit, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, getCoMakerNotice, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
   type Change, type DetailField, type Lookups, type Member, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck, type ShareAccount,
 } from './api'
-import { appBackground, glass } from './glass'
+import { appBackground, glass, LIGHT } from './glass'
 import { tileFill } from './theme'
 import { displayName, memberNo, statusOf, type Id } from './clients'
 import LoansTab from './LoansTab'
@@ -1277,7 +1277,7 @@ function Profile({ id, lk, canPhoto = false, onNotice, fresh = false, newHeader 
         <Tabs value={group} onChange={(_, v) => setTab(groups[v].tabs[0])} aria-label="Profile sections"
           sx={(t) => {
             const dark = t.palette.mode === 'dark'
-            const page = dark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)'
+            const page = dark ? 'rgba(255,255,255,0.07)' : LIGHT.panel
             return {
               minHeight: 40, px: 0.5, pt: 0.5,
               background: dark ? 'rgba(0,0,0,0.22)' : 'rgba(110,120,150,0.12)',
@@ -1301,14 +1301,14 @@ function Profile({ id, lk, canPhoto = false, onNotice, fresh = false, newHeader 
             const dark = t.palette.mode === 'dark'
             return {
               minHeight: 36, px: 1.5,
-              background: dark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)',
+              background: dark ? 'rgba(255,255,255,0.07)' : LIGHT.panel,
               borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'}`,
               '& .MuiTab-root': { minHeight: 36, fontSize: 13.5, px: 1.5, textTransform: 'none' },
             }
           }}>
           {groups[group].tabs.map((i) => <Tab key={TABS[i]} value={i} label={TABS[i]} />)}
         </Tabs>
-        <Box sx={(t) => ({ flex: 1, overflow: 'auto', p: 1.5, background: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)' })}>
+        <Box sx={(t) => ({ flex: 1, overflow: 'auto', p: 1.5, background: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : LIGHT.panel })}>
           <TabContent tab={tab} m={m} lk={lk} />
         </Box>
       </Box>

@@ -1,3 +1,4 @@
+import { LIGHT } from './glass'
 import { Box, IconButton, Tooltip, Typography } from '@mui/material'
 import { useEffect, useState } from 'react'
 import { FiChevronRight, FiHome, FiMoon, FiMonitor, FiPower, FiSun } from 'react-icons/fi'
@@ -95,7 +96,7 @@ export default function TopBar({ title, onHome, onNavigate, onOpenClient }: {
       gridTemplateColumns: 'minmax(0, 1fr) minmax(160px, 340px) minmax(0, 1fr)',
       userSelect: 'none', color: t.palette.mode === 'dark' ? '#CCCCCC' : '#4D4D4D',
       backdropFilter: 'saturate(180%) blur(20px)',
-      backgroundColor: t.palette.mode === 'dark' ? 'rgba(28,28,30,0.72)' : 'rgba(255,255,255,0.72)',
+      backgroundColor: t.palette.mode === 'dark' ? 'rgba(28,28,30,0.72)' : LIGHT.bar,
       borderBottom: `1px solid ${t.palette.divider}`,
     })}>
       {/* Left: brand, then the current screen (or its menu), level with the window controls like a native title bar. */}

@@ -117,7 +117,7 @@ export default function Dashboard({ onOpen }: { onOpen: (v: View) => void }) {
       height: 'calc(100dvh - 44px)', overflow: 'hidden', p: '24px',
       background: dark
         ? 'radial-gradient(1200px 600px at 15% 0%, #1b3a6b 0%, transparent 60%), radial-gradient(900px 600px at 100% 100%, #3b1f5e 0%, transparent 55%), #0b0b0f'
-        : 'radial-gradient(1200px 600px at 15% 0%, #bfe0ff 0%, transparent 60%), radial-gradient(900px 600px at 100% 100%, #e6d4ff 0%, transparent 55%), #f2f2f7',
+        : 'radial-gradient(1200px 600px at 15% 0%, #DCE6F2 0%, transparent 60%), radial-gradient(900px 600px at 100% 100%, #E5E1F0 0%, transparent 55%), #F3F4F6',
     }}>
       {/* --cell is the side of one grid square. It is the smaller of what fits the width and the height
           (226px = padding, heading, legend and row gaps), so the dashboard never scrolls. */}

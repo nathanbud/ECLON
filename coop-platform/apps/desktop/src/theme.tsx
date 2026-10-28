@@ -1,4 +1,5 @@
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material'
+import { LIGHT } from './glass'
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -58,13 +59,13 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
     return createTheme({
       palette: {
         mode: resolved,
-        primary: { main: dark ? '#0A84FF' : '#007AFF' },
+        primary: { main: dark ? '#0A84FF' : '#0A6CDC' },
         success: { main: dark ? '#30D158' : '#34C759' },
         warning: { main: dark ? '#FF9F0A' : '#FF9500' },
         error: { main: dark ? '#FF453A' : '#FF3B30' },
-        background: { default: dark ? '#000000' : '#F2F2F7', paper: dark ? '#1C1C1E' : '#FFFFFF' },
-        text: { primary: dark ? '#F5F5F7' : '#1D1D1F', secondary: dark ? '#98989D' : '#6E6E73' },
-        divider: dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+        background: { default: dark ? '#000000' : LIGHT.canvas, paper: dark ? '#1C1C1E' : LIGHT.paper },
+        text: { primary: dark ? '#F5F5F7' : '#1D1D1F', secondary: dark ? '#98989D' : '#636366' },
+        divider: dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)',
       },
       shape: { borderRadius: RADIUS },
       typography: {
@@ -82,7 +83,7 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
         MuiToggleButton: { styleOverrides: { root: { borderRadius: RADIUS } } },
         MuiInputLabel: { styleOverrides: { root: { fontSize: 13.5 } } },
         MuiTextField: { defaultProps: { size: 'small' } },
-        MuiTableCell: { styleOverrides: { root: { fontSize: 13, padding: '6px 12px' }, head: { fontWeight: 600, fontSize: 12, color: dark ? '#98989D' : '#6E6E73' } } },
+        MuiTableCell: { styleOverrides: { root: { fontSize: 13, padding: '6px 12px' }, head: { fontWeight: 600, fontSize: 12, color: dark ? '#98989D' : '#636366' } } },
         MuiTablePagination: { styleOverrides: { root: { fontSize: 12.5 }, selectLabel: { fontSize: 12.5 }, displayedRows: { fontSize: 12.5 } } },
         MuiAlert: { styleOverrides: { root: { fontSize: 13, padding: '2px 12px', borderRadius: RADIUS } } },
         // A dialog settles in with a slight scale as it fades in, and fades out a little faster than it came.

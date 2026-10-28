@@ -54,7 +54,7 @@ export function Segmented<T extends string | number>({ value, onChange, options,
         bgcolor: fill(t), borderRadius: '10px', p: '2px', gap: '2px', flexWrap: 'wrap',
         '& .MuiToggleButtonGroup-grouped': { border: 0, borderRadius: '8px !important', px: 1.75, py: 0.6, textTransform: 'none', fontSize: 13.5, fontWeight: 500, color: t.palette.text.secondary, transition: `background-color 180ms ${EASE}, color 180ms` },
         '& .Mui-selected': {
-          bgcolor: `${t.palette.mode === 'dark' ? 'rgba(255,255,255,0.16)' : '#fff'} !important`, color: `${t.palette.text.primary} !important`,
+          bgcolor: `${t.palette.mode === 'dark' ? 'rgba(255,255,255,0.16)' : '#FBFBFC'} !important`, color: `${t.palette.text.primary} !important`,
           boxShadow: t.palette.mode === 'dark' ? '0 1px 2px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(0,0,0,0.04)',
         },
       })}
