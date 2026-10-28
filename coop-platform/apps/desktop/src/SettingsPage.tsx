@@ -1,6 +1,6 @@
 import { Box, ButtonBase, InputAdornment, TextField, Typography } from '@mui/material'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiLock, FiMonitor, FiSearch, FiShield, FiSliders, FiUserCheck, FiUsers } from 'react-icons/fi'
+import { FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMonitor, FiSearch, FiShield, FiSliders, FiUserCheck, FiUsers } from 'react-icons/fi'
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
@@ -19,6 +19,7 @@ const categories: Category[] = [
     items: [
       { label: 'Users', note: 'Temporary passwords, levels, permissions and who may do loans alone', icon: <FiUserCheck />, color: '#007AFF', view: 'users', who: 'admin' },
       { label: 'Audit Log', note: 'Every change made in the system, who made it and why', icon: <FiClipboard />, color: '#8E8E93', view: 'audit', who: 'admin' },
+      { label: 'Approval workflows', note: 'Extra approvals for purchases and stock adjustments, and the amounts they start at', icon: <FiGitMerge />, color: '#FF9500', view: 'workflows', who: 'accountant' },
       { label: 'Documents', note: 'Scanned IDs, contracts and deeds kept for members, assets and other records, and who may read them', icon: <FiFileText />, color: '#5856D6', view: 'documents', who: 'documents' },
     ],
   },

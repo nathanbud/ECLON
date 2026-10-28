@@ -944,11 +944,11 @@ export const postDividend = (year: number, controlNo: number) => send<DividendVo
 export interface Supplier { id: number; code: string; name: string; tin: string | null; address: string | null; phone: string | null; email: string | null; contact: string | null; termsDays: number; taxable: boolean; active: boolean }
 export type SupplierIn = Partial<Omit<Supplier, 'id'>>
 export interface PrLineIn { description: string; unit: string; quantity: number; estCost: number }
-export interface PrSummary { id: number; requestNo: string; requestDate: string; neededBy: string | null; purpose: string; status: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'ORDERED' | 'CANCELLED'; requestedBy: string; decidedBy: string | null; decisionNote: string | null; total: number }
+export interface PrSummary { id: number; requestNo: string; requestDate: string; neededBy: string | null; purpose: string; status: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'ORDERED' | 'CANCELLED'; requestedBy: string; decidedBy: string | null; decisionNote: string | null; total: number; waiting: string | null }
 export interface PrDetail { summary: PrSummary; lines: PrLineIn[] }
 export interface PoLineIn { description: string; unit: string; quantity: number; unitCost: number; productId?: number | null }
 export interface PoLineOut extends PoLineIn { received: number; productId: number | null; trackBatch: boolean; trackExpiry: boolean }
-export interface PoSummary { id: number; orderNo: string; supplierId: number; supplier: string; requestId: number | null; requestNo: string | null; orderDate: string; expectedDate: string | null; termsDays: number; remarks: string | null; status: 'DRAFT' | 'APPROVED' | 'PARTIAL' | 'RECEIVED' | 'CANCELLED'; total: number; createdBy: string; approvedBy: string | null }
+export interface PoSummary { id: number; orderNo: string; supplierId: number; supplier: string; requestId: number | null; requestNo: string | null; orderDate: string; expectedDate: string | null; termsDays: number; remarks: string | null; status: 'DRAFT' | 'APPROVED' | 'PARTIAL' | 'RECEIVED' | 'CANCELLED'; total: number; createdBy: string; approvedBy: string | null; waiting: string | null }
 export interface PoDetail { summary: PoSummary; lines: PoLineOut[] }
 export const listSuppliers = (q?: string, activeOnly = false) => getJson<Supplier[]>(`/api/procurement/suppliers?activeOnly=${activeOnly}${q ? `&q=${encodeURIComponent(q)}` : ''}`)
 export const createSupplier = (b: SupplierIn) => send<Supplier>('POST', '/api/procurement/suppliers', b)
@@ -976,7 +976,7 @@ export interface InvProductIn { sku?: string; name?: string; categoryId?: number
 export interface InvStockRow { warehouseId: number; warehouse: string; batchId: number; batchNo: string; expiry: string | null; quantity: number }
 export interface InvLedgerRow { id: number; txnNo: string; date: string; type: string; productId: number; sku: string; product: string; warehouseId: number; warehouse: string; batchNo: string; quantity: number; unitCost: number; refType: string | null; refNo: string | null; remarks: string | null; by: string }
 export interface InvMoveIn { type: 'RECEIVE' | 'ISSUE' | 'RETURN'; productId: number; warehouseId: number; batchNo?: string; expiryDate?: string | null; quantity: number; unitCost?: number | null; reference?: string; remarks?: string }
-export interface InvAdjSummary { id: number; adjustNo: string; warehouseId: number; warehouse: string; type: string; reason: string; status: 'SUBMITTED' | 'APPROVED' | 'REJECTED'; requestedBy: string; decidedBy: string | null; decisionNote: string | null }
+export interface InvAdjSummary { id: number; adjustNo: string; warehouseId: number; warehouse: string; type: string; reason: string; status: 'SUBMITTED' | 'APPROVED' | 'REJECTED'; requestedBy: string; decidedBy: string | null; decisionNote: string | null; waiting: string | null }
 export interface InvAdjLine { productId: number; sku: string; product: string; batchNo: string; quantity: number }
 export interface InvCountSummary { id: number; countNo: string; warehouseId: number; warehouse: string; countDate: string; status: 'SUBMITTED' | 'APPROVED' | 'REJECTED'; countedBy: string; decidedBy: string | null; decisionNote: string | null; differences: number }
 export interface InvCountLine { productId: number; sku: string; product: string; batchNo: string; systemQty: number; countedQty: number; variance: number }
@@ -1112,3 +1112,18 @@ export async function revokeDocument(id: number, username: string): Promise<stri
   return res.json()
 }
 export const getDocumentAccess = (id: number) => getJson<DocAccessRow[]>(`/api/documents/${id}/access`)
+
+// ---- workflow engine (guide phase 17) -------------------------------------------------------------------------------------------
+export interface WorkflowStep { no: number; name: string; role: string; minAmount: number }
+export interface WorkflowDefinition { entityType: string; label: string; active: boolean; steps: WorkflowStep[] }
+export interface WorkflowOptions { roles: string[]; maxSteps: number }
+export interface WorkflowWaiting { id: number; entityType: string; label: string; entityId: string; description: string; amount: number; requestedBy: string; step: string; role: string; since: string }
+export interface WorkflowAction { stepNo: number; step: string; actor: string; decision: string; note: string | null; at: string }
+export interface WorkflowInstance { id: number; entityType: string; entityId: string; amount: number; requestedBy: string; status: string; waitingFor: string | null; waitingRole: string | null; actions: WorkflowAction[] }
+export const getWorkflowDefinitions = () => getJson<WorkflowDefinition[]>('/api/workflow/definitions')
+export const getWorkflowOptions = () => getJson<WorkflowOptions>('/api/workflow/options')
+export const saveWorkflowDefinition = (entityType: string, active: boolean, steps: { name: string; role: string; minAmount: number }[]) =>
+  send<WorkflowDefinition>('PUT', `/api/workflow/definitions/${entityType}`, { active, steps: steps.map((s, i) => ({ no: i + 1, ...s })) })
+export const getWorkflowWaiting = () => getJson<WorkflowWaiting[]>('/api/workflow/waiting')
+export const getWorkflowInstance = (entityType: string, entityId: string) => getJson<WorkflowInstance>(`/api/workflow/${entityType}/${entityId}`)
+export const decideWorkflow = (entityType: string, entityId: string, kind: 'approve' | 'reject', note?: string) => send<WorkflowInstance>('POST', `/api/workflow/${entityType}/${entityId}/${kind}`, { note })

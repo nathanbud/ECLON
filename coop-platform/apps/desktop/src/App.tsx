@@ -21,11 +21,12 @@ import PosPage from './PosPage'
 import AssetsPage from './AssetsPage'
 import ReportsPage from './ReportsPage'
 import DocumentsPage from './DocumentsPage'
+import WorkflowSettingsPage from './WorkflowSettingsPage'
 import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
 const titles: Record<View, string> = {
-  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports', documents: 'Documents',
+  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Approvals', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports', documents: 'Documents', workflows: 'Approval workflows',
 }
 
 function Signed() {
@@ -65,6 +66,7 @@ function Signed() {
         {view === 'assets' && <AssetsPage />}
         {view === 'reports' && <ReportsPage onOpen={navigate} />}
         {view === 'documents' && <DocumentsPage />}
+        {view === 'workflows' && <WorkflowSettingsPage />}
       </ErrorBoundary>
     </ToolbarSlotProvider>
   )

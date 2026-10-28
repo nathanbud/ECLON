@@ -160,10 +160,10 @@ function Requests({ buyer, approver, user }: { buyer: boolean; approver: boolean
               <TableCell>{r.requestNo}</TableCell><TableCell>{r.requestDate}</TableCell>
               <TableCell>{r.purpose}{r.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{r.decisionNote}</Typography>}</TableCell>
               <TableCell>{r.requestedBy}</TableCell><TableCell align="right">{money(r.total)}</TableCell>
-              <TableCell><Chip size="small" color={color(r.status)} variant="outlined" label={r.status.toLowerCase()} /></TableCell>
+              <TableCell><Chip size="small" color={color(r.status)} variant="outlined" label={r.status.toLowerCase()} />{r.waiting && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">waiting for {r.waiting}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {approver && r.status === 'SUBMITTED' && r.requestedBy !== user && (<>
-                  <Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(r)}>Approve</Button>
+                  {!r.waiting && <Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(r)}>Approve</Button>}
                   <Button size="small" color="error" onClick={() => setReason({ r, kind: 'reject' })}>Reject</Button>
                 </>)}
                 {buyer && r.status === 'APPROVED' && <Button size="small" onClick={() => setOrdering(r)}>Order</Button>}
@@ -207,9 +207,9 @@ function Orders({ buyer, approver, receiver, user }: { buyer: boolean; approver:
             <TableRow key={o.id} hover>
               <TableCell>{o.orderNo}</TableCell><TableCell>{o.orderDate}</TableCell><TableCell>{o.supplier}</TableCell><TableCell>{o.requestNo ?? ''}</TableCell>
               <TableCell align="right">{money(o.total)}</TableCell>
-              <TableCell><Chip size="small" color={color(o.status)} variant="outlined" label={o.status.toLowerCase()} /></TableCell>
+              <TableCell><Chip size="small" color={color(o.status)} variant="outlined" label={o.status.toLowerCase()} />{o.waiting && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">waiting for {o.waiting}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                {approver && o.status === 'DRAFT' && o.createdBy !== user && <Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(o)}>Approve</Button>}
+                {approver && o.status === 'DRAFT' && o.createdBy !== user && !o.waiting && <Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(o)}>Approve</Button>}
                 {receiver && (o.status === 'APPROVED' || o.status === 'PARTIAL') && o.createdBy !== user && <Button size="small" onClick={() => setReceiving(o)}>Receive</Button>}
                 {buyer && (o.status === 'DRAFT' || o.status === 'APPROVED') && <Button size="small" color="warning" onClick={() => setCancelling(o)}>Cancel</Button>}
               </TableCell>

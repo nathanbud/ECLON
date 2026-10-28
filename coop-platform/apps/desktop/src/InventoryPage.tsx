@@ -304,9 +304,9 @@ function Adjustments({ keeper, approver, user }: { keeper: boolean; approver: bo
             <TableRow key={a.id} hover>
               <TableCell>{a.adjustNo}</TableCell><TableCell>{a.warehouse}</TableCell><TableCell>{a.type.toLowerCase()}</TableCell>
               <TableCell>{a.reason}{a.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{a.decisionNote}</Typography>}</TableCell><TableCell>{a.requestedBy}</TableCell>
-              <TableCell><Chip size="small" variant="outlined" color={statusColor(a.status)} label={a.status.toLowerCase()} /></TableCell>
+              <TableCell><Chip size="small" variant="outlined" color={statusColor(a.status)} label={a.status.toLowerCase()} />{a.waiting && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">waiting for {a.waiting}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                {approver && a.status === 'SUBMITTED' && a.requestedBy !== user && (<><Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(a)}>Approve</Button><Button size="small" color="error" onClick={() => setRejecting(a)}>Reject</Button></>)}
+                {approver && a.status === 'SUBMITTED' && a.requestedBy !== user && (<>{!a.waiting && <Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(a)}>Approve</Button>}<Button size="small" color="error" onClick={() => setRejecting(a)}>Reject</Button></>)}
               </TableCell>
             </TableRow>
           ))}

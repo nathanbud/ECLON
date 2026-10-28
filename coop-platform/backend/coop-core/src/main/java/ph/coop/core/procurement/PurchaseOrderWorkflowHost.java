@@ -1,0 +1,71 @@
+package ph.coop.core.procurement;
+
+import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
+import ph.coop.core.workflow.WorkflowHost;
+
+/**
+ * Lets the workflow engine finish a purchase order once every extra approval has agreed (or turn it down), doing what the order controller's own approval and cancellation would
+ * have done. The controller keeps the first approval and the segregation of duties; the engine keeps the extra ones.
+ */
+@Component
+class PurchaseOrderWorkflowHost implements WorkflowHost {
+
+    private final JdbcTemplate jdbc;
+    private final Clock clock;
+
+    PurchaseOrderWorkflowHost(JdbcTemplate jdbc, Clock clock) {
+        this.jdbc = jdbc;
+        this.clock = clock;
+    }
+
+    private Timestamp now() {
+        return Timestamp.valueOf(LocalDateTime.now(clock).withNano(0));
+    }
+
+    private void audit(String user, String action, String no, String detail) {
+        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, ?, ?, ?)", now(), user, action, "ecis_purchase_order", no, detail);
+    }
+
+    private String number(String entityId) {
+        return jdbc.queryForList("SELECT order_no FROM ecis_purchase_order WHERE id = ?", String.class, Long.parseLong(entityId)).stream().findFirst().orElse(entityId);
+    }
+
+    @Override
+    public String entityType() {
+        return PurchaseOrderController.WORKFLOW;
+    }
+
+    @Override
+    public String label() {
+        return "Purchase order";
+    }
+
+    @Override
+    public void approved(String entityId, String approver) {
+        jdbc.update("UPDATE ecis_purchase_order SET status = 'APPROVED', approved_by = ?, approved_at = ? WHERE id = ? AND status = 'DRAFT'", approver, now(), Long.parseLong(entityId));
+        audit(approver, "procurement.order.approve", number(entityId), "approved after the extra approvals");
+    }
+
+    @Override
+    public void rejected(String entityId, String by, String note) {
+        long id = Long.parseLong(entityId);
+        jdbc.update("UPDATE ecis_purchase_order SET status = 'CANCELLED', remarks = CONCAT_WS(' | ', remarks, ?) WHERE id = ? AND status = 'DRAFT'", "Turned down: " + note, id);
+        List<Long> requests = jdbc.query("SELECT request_id FROM ecis_purchase_order WHERE id = ?", (rs, i) -> { long v = rs.getLong(1); return rs.wasNull() ? null : v; }, id);
+        Long request = requests.isEmpty() ? null : requests.get(0);
+        if (request != null) {
+            Integer others = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_purchase_order WHERE request_id = ? AND status <> 'CANCELLED' AND id <> ?", Integer.class, request, id);
+            if (others != null && others == 0) jdbc.update("UPDATE ecis_purchase_request SET status = 'APPROVED' WHERE id = ? AND status = 'ORDERED'", request);
+        }
+        audit(by, "procurement.order.reject", number(entityId), note);
+    }
+
+    @Override
+    public String describe(String entityId) {
+        return jdbc.query("SELECT o.order_no, s.name FROM ecis_purchase_order o JOIN ecis_supplier s ON s.id = o.supplier_id WHERE o.id = ?", (rs, i) -> rs.getString(1) + " · " + rs.getString(2), Long.parseLong(entityId)).stream().findFirst().orElse(entityId);
+    }
+}

@@ -18,7 +18,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.db.Db;
-import ph.coop.core.inventory.StockService.Move;
+import ph.coop.core.workflow.WorkflowEngine;
+import ph.coop.core.workflow.WorkflowEngine.Gate;
 
 /**
  * Stock adjustments (guide phase 13): ADJUSTMENT (either way), DAMAGE and EXPIRY (stock out). A storekeeper submits one with a reason; a different stock approver
@@ -29,13 +30,20 @@ import ph.coop.core.inventory.StockService.Move;
 @PreAuthorize("hasAnyRole('STOREKEEPER','STOCK_APPROVER','ACCOUNTANT','ADMIN')")
 class StockAdjustmentController {
 
+    static final String WORKFLOW = "STOCK_ADJUSTMENT";
+
     record LineIn(long productId, String batchNo, BigDecimal quantity) {}
 
     record NewAdjustment(long warehouseId, String type, String reason, List<LineIn> lines) {}
 
     record Decision(String note) {}
 
-    record Summary(long id, String adjustNo, long warehouseId, String warehouse, String type, String reason, String status, String requestedBy, String decidedBy, String decisionNote) {}
+    record Summary(long id, String adjustNo, long warehouseId, String warehouse, String type, String reason, String status, String requestedBy, String decidedBy, String decisionNote, String waiting) {
+        /** The same adjustment with the extra approval it is waiting for (null when none). */
+        Summary withWaiting(String w) {
+            return new Summary(id, adjustNo, warehouseId, warehouse, type, reason, status, requestedBy, decidedBy, decisionNote, w);
+        }
+    }
 
     record LineOut(long productId, String sku, String product, String batchNo, BigDecimal quantity) {}
 
@@ -50,8 +58,12 @@ class StockAdjustmentController {
     private final Db db;
     private final InventorySupport support;
     private final StockService stock;
+    private final StockAdjustmentPosting posting;
+    private final WorkflowEngine workflow;
 
-    StockAdjustmentController(JdbcTemplate jdbc, Db db, InventorySupport support, StockService stock) {
+    StockAdjustmentController(JdbcTemplate jdbc, Db db, InventorySupport support, StockService stock, StockAdjustmentPosting posting, WorkflowEngine workflow) {
+        this.posting = posting;
+        this.workflow = workflow;
         this.jdbc = jdbc;
         this.db = db;
         this.support = support;
@@ -59,12 +71,16 @@ class StockAdjustmentController {
     }
 
     private static Summary map(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
-        return new Summary(rs.getLong(1), rs.getString(2), rs.getLong(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10));
+        return new Summary(rs.getLong(1), rs.getString(2), rs.getLong(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10), null);
+    }
+
+    private Summary withWorkflow(Summary s) {
+        return s.status().equals("SUBMITTED") ? s.withWaiting(workflow.waitingFor(WORKFLOW, String.valueOf(s.id()))) : s;
     }
 
     @GetMapping
     List<Summary> list(@RequestParam(required = false) String status) {
-        return jdbc.query(SUMMARY + " WHERE a.branch_code = ? AND (? IS NULL OR a.status = ?) ORDER BY a.id DESC LIMIT 300", StockAdjustmentController::map, InventorySupport.BRANCH, status, status);
+        return jdbc.query(SUMMARY + " WHERE a.branch_code = ? AND (? IS NULL OR a.status = ?) ORDER BY a.id DESC LIMIT 300", StockAdjustmentController::map, InventorySupport.BRANCH, status, status).stream().map(this::withWorkflow).toList();
     }
 
     @GetMapping("/{id}")
@@ -75,7 +91,7 @@ class StockAdjustmentController {
                 SELECT l.product_id, p.sku, p.name, COALESCE(b.batch_no, ''), l.quantity FROM ecis_stock_adjustment_line l
                 JOIN ecis_product p ON p.id = l.product_id LEFT JOIN ecis_inventory_batch b ON b.id = l.batch_id WHERE l.adjustment_id = ? ORDER BY l.line_no
                 """, (rs, i) -> new LineOut(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getBigDecimal(5)), id);
-        return new Detail(s.get(0), lines);
+        return new Detail(withWorkflow(s.get(0)), lines);
     }
 
     @PostMapping
@@ -128,14 +144,17 @@ class StockAdjustmentController {
         if (!approve && note == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say why the adjustment is rejected.");
         if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long (255 characters at most).");
         if (approve) {
-            List<Object[]> lines = jdbc.query("SELECT product_id, batch_id, quantity FROM ecis_stock_adjustment_line WHERE adjustment_id = ? ORDER BY line_no",
-                (rs, i) -> new Object[] {rs.getLong(1), rs.getLong(2), rs.getBigDecimal(3)}, id);
-            for (Object[] l : lines) {
-                String batchNo = (Long) l[1] == 0 ? null : jdbc.queryForObject("SELECT batch_no FROM ecis_inventory_batch WHERE id = ?", String.class, l[1]);
-                stock.post(new Move(a.type(), (Long) l[0], a.warehouseId(), batchNo, null, (BigDecimal) l[2], null, "ADJUSTMENT", a.adjustNo(), a.reason()), a.requestedBy());
+            // the usual approver's approval may be only the first: a workflow can ask for more when the adjustment's value reaches its limits
+            Gate gate = workflow.gate(WORKFLOW, String.valueOf(id), posting.value(id), a.requestedBy(), auth.getName());
+            if (!gate.done()) {
+                support.audit(auth, "inventory.adjustment.approve.first", "ecis_stock_adjustment", a.adjustNo(), "first approval; waiting for " + gate.waitingFor());
+                return get(id).summary();
             }
+            posting.complete(id, auth.getName(), note);
+        } else {
+            workflow.cancel(WORKFLOW, String.valueOf(id), auth.getName(), note);
+            posting.turnDown(id, auth.getName(), note);
         }
-        jdbc.update("UPDATE ecis_stock_adjustment SET status = ?, decided_by = ?, decided_at = ?, decision_note = ? WHERE id = ? AND status = 'SUBMITTED'", approve ? "APPROVED" : "REJECTED", auth.getName(), Timestamp.valueOf(support.now()), note, id);
         support.audit(auth, "inventory.adjustment." + (approve ? "approve" : "reject"), "ecis_stock_adjustment", a.adjustNo(), note == null ? a.type() : note);
         return get(id).summary();
     }

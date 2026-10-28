@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.db.Db;
 import ph.coop.core.procurement.ProcurementRules.Line;
+import ph.coop.core.workflow.WorkflowEngine;
+import ph.coop.core.workflow.WorkflowEngine.Gate;
 
 /**
  * Purchase orders (guide phase 12). A purchaser writes one to a supplier, optionally answering an approved purchase request; a different approver approves it.
@@ -29,6 +31,8 @@ import ph.coop.core.procurement.ProcurementRules.Line;
 @RequestMapping("/api/procurement/orders")
 @PreAuthorize("hasAnyRole('RECEIVER','PURCHASER','PURCHASE_APPROVER','ACCOUNTANT','ADMIN')")
 class PurchaseOrderController {
+
+    static final String WORKFLOW = "PURCHASE_ORDER";
 
     /** {@code productId} is optional: a line that names a product is stocked when received (and takes that product's unit); a free-text line is not. */
     record LineIn(String description, String unit, BigDecimal quantity, BigDecimal unitCost, Long productId) {
@@ -42,7 +46,12 @@ class PurchaseOrderController {
     record Reason(String note) {}
 
     record Summary(long id, String orderNo, long supplierId, String supplier, Long requestId, String requestNo, LocalDate orderDate, LocalDate expectedDate, int termsDays, String remarks,
-                   String status, BigDecimal total, String createdBy, String approvedBy) {}
+                   String status, BigDecimal total, String createdBy, String approvedBy, String waiting) {
+        /** The same order with the extra approval it is waiting for (null when none). */
+        Summary withWaiting(String w) {
+            return new Summary(id, orderNo, supplierId, supplier, requestId, requestNo, orderDate, expectedDate, termsDays, remarks, status, total, createdBy, approvedBy, w);
+        }
+    }
 
     record LineOut(String description, String unit, BigDecimal quantity, BigDecimal unitCost, BigDecimal received, Long productId, boolean trackBatch, boolean trackExpiry) {}
 
@@ -59,12 +68,14 @@ class PurchaseOrderController {
     private final Db db;
     private final ProcurementSupport support;
     private final Clock clock;
+    private final WorkflowEngine workflow;
 
-    PurchaseOrderController(JdbcTemplate jdbc, Db db, ProcurementSupport support, Clock clock) {
+    PurchaseOrderController(JdbcTemplate jdbc, Db db, ProcurementSupport support, Clock clock, WorkflowEngine workflow) {
         this.jdbc = jdbc;
         this.db = db;
         this.support = support;
         this.clock = clock;
+        this.workflow = workflow;
     }
 
     private static Summary map(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
@@ -72,12 +83,17 @@ class PurchaseOrderController {
         long req = rs.getLong(5);
         Long requestId = rs.wasNull() ? null : req;
         return new Summary(rs.getLong(1), rs.getString(2), rs.getLong(3), rs.getString(4), requestId, rs.getString(6), rs.getDate(7).toLocalDate(), expected == null ? null : expected.toLocalDate(),
-            rs.getInt(9), rs.getString(10), rs.getString(11), rs.getBigDecimal(12), rs.getString(13), rs.getString(14));
+            rs.getInt(9), rs.getString(10), rs.getString(11), rs.getBigDecimal(12), rs.getString(13), rs.getString(14), null);
+    }
+
+    /** Draft orders carry the extra approval they wait for, if a workflow is holding them. */
+    private Summary withWorkflow(Summary s) {
+        return s.status().equals("DRAFT") ? s.withWaiting(workflow.waitingFor(WORKFLOW, String.valueOf(s.id()))) : s;
     }
 
     @GetMapping
     List<Summary> list(@RequestParam(required = false) String status) {
-        return jdbc.query(SUMMARY + " WHERE o.branch_code = ? AND (? IS NULL OR o.status = ?) ORDER BY o.id DESC LIMIT 300", PurchaseOrderController::map, ProcurementSupport.BRANCH, status, status);
+        return jdbc.query(SUMMARY + " WHERE o.branch_code = ? AND (? IS NULL OR o.status = ?) ORDER BY o.id DESC LIMIT 300", PurchaseOrderController::map, ProcurementSupport.BRANCH, status, status).stream().map(this::withWorkflow).toList();
     }
 
     @GetMapping("/{id}")
@@ -91,7 +107,7 @@ class PurchaseOrderController {
                 long product = rs.getLong(6);
                 return new LineOut(rs.getString(1), rs.getString(2), rs.getBigDecimal(3), rs.getBigDecimal(4), rs.getBigDecimal(5), rs.wasNull() ? null : product, rs.getInt(7) == 1, rs.getInt(8) == 1);
             }, id);
-        return new Detail(s.get(0), lines);
+        return new Detail(withWorkflow(s.get(0)), lines);
     }
 
     @PostMapping
@@ -161,6 +177,12 @@ class PurchaseOrderController {
         if (!o.status().equals("DRAFT")) throw new ResponseStatusException(HttpStatus.CONFLICT, "This order is already " + o.status().toLowerCase() + ".");
         String own = ProcurementRules.approverProblem(o.createdBy(), auth.getName(), "order");
         if (own != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, own);
+        // the usual approver's approval may be only the first: a workflow can ask for more when the total reaches its limits
+        Gate gate = workflow.gate(WORKFLOW, String.valueOf(id), o.total(), o.createdBy(), auth.getName());
+        if (!gate.done()) {
+            support.audit(auth, "procurement.order.approve.first", "ecis_purchase_order", o.orderNo(), "first approval of " + o.total() + "; waiting for " + gate.waitingFor());
+            return get(id).summary();
+        }
         jdbc.update("UPDATE ecis_purchase_order SET status = 'APPROVED', approved_by = ?, approved_at = ? WHERE id = ? AND status = 'DRAFT'", auth.getName(), Timestamp.valueOf(support.now()), id);
         support.audit(auth, "procurement.order.approve", "ecis_purchase_order", o.orderNo(), "approved " + o.total());
         return get(id).summary();
@@ -181,6 +203,7 @@ class PurchaseOrderController {
             Integer others = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_purchase_order WHERE request_id = ? AND status <> 'CANCELLED' AND id <> ?", Integer.class, o.requestId(), id);
             if (others != null && others == 0) jdbc.update("UPDATE ecis_purchase_request SET status = 'APPROVED' WHERE id = ? AND status = 'ORDERED'", o.requestId());
         }
+        workflow.cancel(WORKFLOW, String.valueOf(id), auth.getName(), in.note().trim());
         support.audit(auth, "procurement.order.cancel", "ecis_purchase_order", o.orderNo(), in.note().trim());
         return get(id).summary();
     }

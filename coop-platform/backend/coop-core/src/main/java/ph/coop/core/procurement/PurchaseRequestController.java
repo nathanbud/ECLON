@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.db.Db;
 import ph.coop.core.procurement.ProcurementRules.Line;
+import ph.coop.core.workflow.WorkflowEngine;
+import ph.coop.core.workflow.WorkflowEngine.Gate;
 
 /**
  * Purchase requests (guide phase 12): a purchaser submits one, a different approver approves or rejects it, and an approved request can be ordered.
@@ -30,13 +32,20 @@ import ph.coop.core.procurement.ProcurementRules.Line;
 @PreAuthorize("hasAnyRole('PURCHASER','PURCHASE_APPROVER','ACCOUNTANT','ADMIN')")
 class PurchaseRequestController {
 
+    static final String WORKFLOW = "PURCHASE_REQUEST";
+
     record LineIn(String description, String unit, BigDecimal quantity, BigDecimal estCost) {}
 
     record NewRequest(String purpose, LocalDate neededBy, List<LineIn> lines) {}
 
     record Decision(String note) {}
 
-    record Summary(long id, String requestNo, LocalDate requestDate, LocalDate neededBy, String purpose, String status, String requestedBy, String decidedBy, String decisionNote, BigDecimal total) {}
+    record Summary(long id, String requestNo, LocalDate requestDate, LocalDate neededBy, String purpose, String status, String requestedBy, String decidedBy, String decisionNote, BigDecimal total, String waiting) {
+        /** The same request with the extra approval it is waiting for (null when none). */
+        Summary withWaiting(String w) {
+            return new Summary(id, requestNo, requestDate, neededBy, purpose, status, requestedBy, decidedBy, decisionNote, total, w);
+        }
+    }
 
     record Detail(Summary summary, List<LineIn> lines) {}
 
@@ -50,8 +59,10 @@ class PurchaseRequestController {
     private final Db db;
     private final ProcurementSupport support;
     private final Clock clock;
+    private final WorkflowEngine workflow;
 
-    PurchaseRequestController(JdbcTemplate jdbc, Db db, ProcurementSupport support, Clock clock) {
+    PurchaseRequestController(JdbcTemplate jdbc, Db db, ProcurementSupport support, Clock clock, WorkflowEngine workflow) {
+        this.workflow = workflow;
         this.jdbc = jdbc;
         this.db = db;
         this.support = support;
@@ -61,12 +72,16 @@ class PurchaseRequestController {
     private static Summary map(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
         java.sql.Date needed = rs.getDate(4);
         return new Summary(rs.getLong(1), rs.getString(2), rs.getDate(3).toLocalDate(), needed == null ? null : needed.toLocalDate(), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8),
-            rs.getString(9), rs.getBigDecimal(10));
+            rs.getString(9), rs.getBigDecimal(10), null);
+    }
+
+    private Summary withWorkflow(Summary s) {
+        return s.status().equals("SUBMITTED") ? s.withWaiting(workflow.waitingFor(WORKFLOW, String.valueOf(s.id()))) : s;
     }
 
     @GetMapping
     List<Summary> list(@RequestParam(required = false) String status) {
-        return jdbc.query(SUMMARY + " WHERE r.branch_code = ? AND (? IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 300", PurchaseRequestController::map, ProcurementSupport.BRANCH, status, status);
+        return jdbc.query(SUMMARY + " WHERE r.branch_code = ? AND (? IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 300", PurchaseRequestController::map, ProcurementSupport.BRANCH, status, status).stream().map(this::withWorkflow).toList();
     }
 
     @GetMapping("/{id}")
@@ -75,7 +90,7 @@ class PurchaseRequestController {
         if (s.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such purchase request.");
         List<LineIn> lines = jdbc.query("SELECT description, unit, quantity, est_cost FROM ecis_purchase_request_line WHERE request_id = ? ORDER BY line_no",
             (rs, i) -> new LineIn(rs.getString(1), rs.getString(2), rs.getBigDecimal(3), rs.getBigDecimal(4)), id);
-        return new Detail(s.get(0), lines);
+        return new Detail(withWorkflow(s.get(0)), lines);
     }
 
     @PostMapping
@@ -109,6 +124,16 @@ class PurchaseRequestController {
         String note = in == null || in.note() == null || in.note().isBlank() ? null : in.note().trim();
         if (to.equals("REJECTED") && note == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say why the request is rejected.");
         if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long (255 characters at most).");
+        if (to.equals("APPROVED")) {
+            // the usual approver's approval may be only the first: a workflow can ask for more when the estimate reaches its limits
+            Gate gate = workflow.gate(WORKFLOW, String.valueOf(id), r.total(), r.requestedBy(), auth.getName());
+            if (!gate.done()) {
+                support.audit(auth, "procurement.request.approve.first", "ecis_purchase_request", r.requestNo(), "first approval of " + r.total() + "; waiting for " + gate.waitingFor());
+                return get(id).summary();
+            }
+        } else {
+            workflow.cancel(WORKFLOW, String.valueOf(id), auth.getName(), note);
+        }
         jdbc.update("UPDATE ecis_purchase_request SET status = ?, decided_by = ?, decided_at = ?, decision_note = ? WHERE id = ? AND status = 'SUBMITTED'", to, auth.getName(), Timestamp.valueOf(support.now()), note, id);
         support.audit(auth, "procurement.request." + to.toLowerCase(), "ecis_purchase_request", r.requestNo(), note == null ? to : to + ": " + note);
         return get(id).summary();
@@ -136,6 +161,7 @@ class PurchaseRequestController {
         if (!support.isAdmin(auth) && !r.requestedBy().equalsIgnoreCase(auth.getName())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the person who made the request can withdraw it.");
         if (!r.status().equals("SUBMITTED") && !r.status().equals("APPROVED")) throw new ResponseStatusException(HttpStatus.CONFLICT, "This request is " + r.status().toLowerCase() + " and cannot be withdrawn.");
         if (in == null || in.note() == null || in.note().isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say why the request is withdrawn.");
+        workflow.cancel(WORKFLOW, String.valueOf(id), auth.getName(), in.note().trim());
         jdbc.update("UPDATE ecis_purchase_request SET status = 'CANCELLED', decision_note = ? WHERE id = ?", in.note().trim(), id);
         support.audit(auth, "procurement.request.cancel", "ecis_purchase_request", r.requestNo(), in.note().trim());
         return get(id).summary();
