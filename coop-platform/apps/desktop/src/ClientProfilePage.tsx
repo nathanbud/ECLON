@@ -118,7 +118,7 @@ function InlineField({ label, value }: { label: string; value?: Value }) {
   )
 }
 
-function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
+function Section({ title, children, action, columns }: { title: string; children: ReactNode; action?: ReactNode; columns?: number }) {
   return (
     <Box sx={(t) => ({ p: 1.5, mb: 1.5, breakInside: 'avoid', ...glass(t) })}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, minHeight: 24 }}>
@@ -127,7 +127,7 @@ function Section({ title, children, action }: { title: string; children: ReactNo
         </Typography>
         {action}
       </Box>
-      <Box sx={{ display: 'grid', gap: '12px 14px', gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))' }}>{children}</Box>
+      <Box sx={{ display: 'grid', gap: '12px 14px', gridTemplateColumns: columns ? `repeat(${columns}, minmax(0, 1fr))` : 'repeat(auto-fill, minmax(132px, 1fr))' }}>{children}</Box>
     </Box>
   )
 }
@@ -216,10 +216,19 @@ function AddressSection({ m, lk }: { m: Member; lk?: Lookups }) {
 }
 
 function MembershipTab({ m, lk }: { m: Member; lk?: Lookups }) {
+  const st = statusOf(m, lk)
   return (
-    <Box sx={{ columns: '340px', columnGap: '12px' }}>
-      <Section title="Membership">
+    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', alignItems: 'start' }}>
+      <Section title="Membership" columns={2}>
+        <Field label="Member no." value={memberNo(m.id)} />
+        <Field label="Status" value={st.label} />
+        <Field label="Date opened" value={fmtDate(m.dateOpened)} />
         <Field label="Date closed" value={fmtDate(m.closedDate)} />
+        <SelectField label="Membership type" lookup="clientType" code={m.clientType} lk={lk} col="ClientType" />
+        <SelectField label="Account type" lookup="accountType" code={m.accountType} lk={lk} col="AccountType" />
+      </Section>
+      <Section title="Classification" columns={2}>
+        <SelectField label="Department" lookup="department" code={m.department} lk={lk} col="ClientDEPT" />
         <SelectField label="DOSRI tag" lookup="dosriTag" code={m.dosriTag} lk={lk} col="DOSRITag" />
         <SelectField label="Health care" lookup="yesNo" code={m.includeHealthCare ?? 0} lk={lk} col="IsIncludeHealthCare" />
       </Section>
