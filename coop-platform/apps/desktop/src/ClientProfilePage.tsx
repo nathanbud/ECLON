@@ -239,7 +239,6 @@ function MembershipTab({ m, lk }: { m: Member; lk?: Lookups }) {
       </Section>
       <Section title="Classification" columns={2}>
         <SelectField label="Department" lookup="department" code={m.department} lk={lk} col="ClientDEPT" />
-        <SelectField label="DOSRI tag" lookup="dosriTag" code={m.dosriTag} lk={lk} col="DOSRITag" />
         <SelectField label="Health care" lookup="yesNo" code={m.includeHealthCare ?? 0} lk={lk} col="IsIncludeHealthCare" />
       </Section>
     </Box>
@@ -442,6 +441,7 @@ function formatField(f: DetailField): string | null {
 
 /** A tab made of labelled sections, read from the details endpoint. Sections with nothing recorded are left out. */
 function DetailsTab({ id, tab, title, lk }: { id: Id; tab: string; title: string; lk?: Lookups }) {
+  const { editing } = useEdit()
   const { data, error, isLoading } = useQuery({
     queryKey: ['member-details', id],
     queryFn: () => getMemberDetails(id.branchCode, id.clientId),
@@ -449,7 +449,8 @@ function DetailsTab({ id, tab, title, lk }: { id: Id; tab: string; title: string
   })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
   if (isLoading) return <Skeleton variant="rounded" height={180} />
-  const sections = (data?.[tab] ?? []).filter((s) => s.fields.some((f) => f.value != null))
+  // While editing, empty fields are shown too so a value can be added where there is none yet.
+  const sections = (data?.[tab] ?? []).filter((s) => editing || s.fields.some((f) => f.value != null))
   if (sections.length === 0) {
     return <EmptyState icon={<FiInfo />} title="Nothing recorded" hint={`There is no ${title.toLowerCase()} information for this client.`} />
   }
