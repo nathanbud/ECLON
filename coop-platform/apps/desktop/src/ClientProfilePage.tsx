@@ -287,6 +287,7 @@ function ProfileHeader({ m, lk, canPhoto = false, onNotice }: { m: Member; lk?: 
   const alertOk = m.alertLevel === 1
   return (
     <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 2, p: 1.75, ...glass(t, { elevated: true }) })}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1.25, flexShrink: 0, width: 120 }}>
       <Box sx={{ position: 'relative', flexShrink: 0, '&:hover .photo-edit, &:focus-within .photo-edit': { opacity: 1 } }}>
         <Avatar variant="rounded" src={photo ?? undefined} alt={`Photo of ${displayName(m)}`} sx={{
           width: 120, height: 120, fontSize: 36, fontWeight: 600, color: '#fff', borderRadius: '8px',
@@ -301,6 +302,13 @@ function ProfileHeader({ m, lk, canPhoto = false, onNotice }: { m: Member; lk?: 
             </IconButton>
           </Tooltip>
         )}
+      </Box>
+        <Tooltip title="No fingerprint on file. The fingerprint source is not connected yet.">
+          <span style={{ display: 'flex' }}>
+            <Chip size="small" variant="outlined" disabled icon={<IoFingerPrint />} label="Fingerprint" aria-label="Fingerprint (not available)"
+              sx={{ justifyContent: 'flex-start', flex: 1 }} />
+          </span>
+        </Tooltip>
       </Box>
       {photoOpen && <MemberPhotoDialog id={m.id} name={displayName(m)} onClose={() => setPhotoOpen(false)} onDone={(msg) => onNotice?.(msg)} />}
       <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -330,13 +338,6 @@ function ProfileHeader({ m, lk, canPhoto = false, onNotice }: { m: Member; lk?: 
       )}
       {/* Right edge: fingerprint and classification, stacked in a column. */}
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1, flexShrink: 0 }}>
-        {/* Placeholder: fingerprints are not in the database, so there is nothing to open yet. */}
-        <Tooltip title="No fingerprint on file. The fingerprint source is not connected yet.">
-          <span style={{ display: 'flex' }}>
-            <Chip size="small" variant="outlined" disabled icon={<IoFingerPrint />} label="Fingerprint" aria-label="Fingerprint (not available)"
-              sx={{ justifyContent: 'flex-start', flex: 1 }} />
-          </span>
-        </Tooltip>
         {/* Classification sits with the status: client type, account type and department. */}
         <Box role="group" aria-label="Client classification" sx={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: '4px 10px', alignItems: 'center', mt: 0, width: 300 }}>
           <SelectField inline label="Client type" lookup="clientType" code={m.clientType} lk={lk} col="ClientType" />
