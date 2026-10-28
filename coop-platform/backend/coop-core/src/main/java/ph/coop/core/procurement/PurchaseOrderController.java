@@ -30,7 +30,12 @@ import ph.coop.core.procurement.ProcurementRules.Line;
 @PreAuthorize("hasAnyRole('RECEIVER','PURCHASER','PURCHASE_APPROVER','ACCOUNTANT','ADMIN')")
 class PurchaseOrderController {
 
-    record LineIn(String description, String unit, BigDecimal quantity, BigDecimal unitCost) {}
+    /** {@code productId} is optional: a line that names a product is stocked when received (and takes that product's unit); a free-text line is not. */
+    record LineIn(String description, String unit, BigDecimal quantity, BigDecimal unitCost, Long productId) {
+        LineIn(String description, String unit, BigDecimal quantity, BigDecimal unitCost) {
+            this(description, unit, quantity, unitCost, null);
+        }
+    }
 
     record NewOrder(long supplierId, Long requestId, LocalDate expectedDate, String remarks, List<LineIn> lines) {}
 
@@ -39,7 +44,7 @@ class PurchaseOrderController {
     record Summary(long id, String orderNo, long supplierId, String supplier, Long requestId, String requestNo, LocalDate orderDate, LocalDate expectedDate, int termsDays, String remarks,
                    String status, BigDecimal total, String createdBy, String approvedBy) {}
 
-    record LineOut(String description, String unit, BigDecimal quantity, BigDecimal unitCost, BigDecimal received) {}
+    record LineOut(String description, String unit, BigDecimal quantity, BigDecimal unitCost, BigDecimal received, Long productId, boolean trackBatch, boolean trackExpiry) {}
 
     record Detail(Summary summary, List<LineOut> lines) {}
 
@@ -79,8 +84,13 @@ class PurchaseOrderController {
     Detail get(@PathVariable long id) {
         List<Summary> s = jdbc.query(SUMMARY + " WHERE o.branch_code = ? AND o.id = ?", PurchaseOrderController::map, ProcurementSupport.BRANCH, id);
         if (s.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such purchase order.");
-        List<LineOut> lines = jdbc.query("SELECT description, unit, quantity, unit_cost, qty_received FROM ecis_purchase_order_line WHERE order_id = ? ORDER BY line_no",
-            (rs, i) -> new LineOut(rs.getString(1), rs.getString(2), rs.getBigDecimal(3), rs.getBigDecimal(4), rs.getBigDecimal(5)), id);
+        List<LineOut> lines = jdbc.query("""
+                SELECT l.description, l.unit, l.quantity, l.unit_cost, l.qty_received, l.product_id, COALESCE(p.track_batch, 0), COALESCE(p.track_expiry, 0)
+                FROM ecis_purchase_order_line l LEFT JOIN ecis_product p ON p.id = l.product_id WHERE l.order_id = ? ORDER BY l.line_no
+                """, (rs, i) -> {
+                long product = rs.getLong(6);
+                return new LineOut(rs.getString(1), rs.getString(2), rs.getBigDecimal(3), rs.getBigDecimal(4), rs.getBigDecimal(5), rs.wasNull() ? null : product, rs.getInt(7) == 1, rs.getInt(8) == 1);
+            }, id);
         return new Detail(s.get(0), lines);
     }
 
@@ -97,7 +107,26 @@ class PurchaseOrderController {
             if (st.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such purchase request.");
             requestStatus = st.get(0);
         }
-        List<Line> lines = in.lines() == null ? List.of() : in.lines().stream().map((l) -> new Line(l.description(), l.unit(), l.quantity(), l.unitCost())).toList();
+        // a line that names a product takes that product's unit
+        List<String> units = new java.util.ArrayList<>();
+        int at = 0;
+        if (in.lines() != null) {
+            for (LineIn l : in.lines()) {
+                at++;
+                String unit = l.unit();
+                if (l.productId() != null) {
+                    List<String> p = jdbc.queryForList("SELECT unit FROM ecis_product WHERE branch_code = ? AND id = ? AND active = 1", String.class, ProcurementSupport.BRANCH, l.productId());
+                    if (p.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Line " + at + ": no such active product.");
+                    unit = p.get(0);
+                }
+                units.add(unit);
+            }
+        }
+        List<Line> lines = new java.util.ArrayList<>();
+        for (int i = 0; in.lines() != null && i < in.lines().size(); i++) {
+            LineIn l = in.lines().get(i);
+            lines.add(new Line(l.description(), units.get(i), l.quantity(), l.unitCost()));
+        }
         List<String> problems = ProcurementRules.orderProblems((Boolean) sup.get(0)[0], requestStatus, today, in.expectedDate(), lines);
         if (!problems.isEmpty()) throw ProcurementSupport.bad(problems);
         BigDecimal total = ProcurementRules.total(lines);
@@ -108,8 +137,11 @@ class PurchaseOrderController {
                 """, "id", ProcurementSupport.BRANCH, no, in.supplierId(), in.requestId(), today, in.expectedDate(), sup.get(0)[1],
             in.remarks() == null || in.remarks().isBlank() ? null : in.remarks().trim(), total, auth.getName(), Timestamp.valueOf(support.now()));
         int n = 0;
-        for (Line l : lines) jdbc.update("INSERT INTO ecis_purchase_order_line (order_id, line_no, description, unit, quantity, unit_cost) VALUES (?, ?, ?, ?, ?, ?)",
-            id, ++n, l.description().trim(), l.unit().trim(), l.quantity(), l.price());
+        for (Line l : lines) {
+            jdbc.update("INSERT INTO ecis_purchase_order_line (order_id, line_no, product_id, description, unit, quantity, unit_cost) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                id, n + 1, in.lines().get(n).productId(), l.description().trim(), l.unit().trim(), l.quantity(), l.price());
+            n++;
+        }
         if (in.requestId() != null) jdbc.update("UPDATE ecis_purchase_request SET status = 'ORDERED' WHERE id = ?", in.requestId());
         support.audit(auth, "procurement.order.create", "ecis_purchase_order", no, "supplier " + in.supplierId() + ", " + lines.size() + " lines, " + total + (in.requestId() == null ? "" : ", request " + in.requestId()));
         return get(id).summary();

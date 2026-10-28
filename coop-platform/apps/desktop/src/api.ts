@@ -946,8 +946,8 @@ export type SupplierIn = Partial<Omit<Supplier, 'id'>>
 export interface PrLineIn { description: string; unit: string; quantity: number; estCost: number }
 export interface PrSummary { id: number; requestNo: string; requestDate: string; neededBy: string | null; purpose: string; status: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'ORDERED' | 'CANCELLED'; requestedBy: string; decidedBy: string | null; decisionNote: string | null; total: number }
 export interface PrDetail { summary: PrSummary; lines: PrLineIn[] }
-export interface PoLineIn { description: string; unit: string; quantity: number; unitCost: number }
-export interface PoLineOut extends PoLineIn { received: number }
+export interface PoLineIn { description: string; unit: string; quantity: number; unitCost: number; productId?: number | null }
+export interface PoLineOut extends PoLineIn { received: number; productId: number | null; trackBatch: boolean; trackExpiry: boolean }
 export interface PoSummary { id: number; orderNo: string; supplierId: number; supplier: string; requestId: number | null; requestNo: string | null; orderDate: string; expectedDate: string | null; termsDays: number; remarks: string | null; status: 'DRAFT' | 'APPROVED' | 'PARTIAL' | 'RECEIVED' | 'CANCELLED'; total: number; createdBy: string; approvedBy: string | null }
 export interface PoDetail { summary: PoSummary; lines: PoLineOut[] }
 export const listSuppliers = (q?: string, activeOnly = false) => getJson<Supplier[]>(`/api/procurement/suppliers?activeOnly=${activeOnly}${q ? `&q=${encodeURIComponent(q)}` : ''}`)
@@ -964,7 +964,7 @@ export const cancelOrder = (id: number, note: string) => send<PoSummary>('POST',
 export const getOrder = (id: number) => getJson<PoDetail>(`/api/procurement/orders/${id}`)
 export interface GrSummary { id: number; receiptNo: string; orderId: number; orderNo: string; supplier: string; receiptDate: string; deliveryNote: string | null; remarks: string | null; status: 'RECEIVED' | 'REVERSED'; receivedBy: string; reversedBy: string | null; reverseNote: string | null }
 export const listReceipts = (orderId?: number) => getJson<GrSummary[]>(`/api/procurement/receipts${orderId ? `?orderId=${orderId}` : ''}`)
-export const createReceipt = (b: { orderId: number; deliveryNote?: string; remarks?: string; lines: { lineNo: number; quantity: number }[] }) => send<GrSummary>('POST', '/api/procurement/receipts', b)
+export const createReceipt = (b: { orderId: number; warehouseId?: number | null; deliveryNote?: string; remarks?: string; lines: { lineNo: number; quantity: number; batchNo?: string; expiryDate?: string | null }[] }) => send<GrSummary>('POST', '/api/procurement/receipts', b)
 export const reverseReceipt = (id: number, note: string) => send<GrSummary>('POST', `/api/procurement/receipts/${id}/reverse`, { note })
 
 // ---- inventory (guide phase 13) ----------------------------------------------------------------------------------------

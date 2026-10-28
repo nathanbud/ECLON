@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.db.Db;
+import ph.coop.core.inventory.StockService;
+import ph.coop.core.inventory.StockService.Move;
 import ph.coop.core.procurement.ProcurementRules.Open;
 import ph.coop.core.procurement.ProcurementRules.Take;
 
@@ -32,9 +34,19 @@ import ph.coop.core.procurement.ProcurementRules.Take;
 @PreAuthorize("hasAnyRole('RECEIVER','PURCHASER','PURCHASE_APPROVER','ACCOUNTANT','ADMIN')")
 class GoodsReceiptController {
 
-    record TakeIn(int lineNo, BigDecimal quantity) {}
+    /** What came in on an order line; {@code batchNo} and {@code expiryDate} matter only for a product tracked by batch. */
+    record TakeIn(int lineNo, BigDecimal quantity, String batchNo, LocalDate expiryDate) {
+        TakeIn(int lineNo, BigDecimal quantity) {
+            this(lineNo, quantity, null, null);
+        }
+    }
 
-    record NewReceipt(long orderId, String deliveryNote, String remarks, List<TakeIn> lines) {}
+    /** {@code warehouseId} is where order lines that name a product are put into stock; it is required when any such line is received. */
+    record NewReceipt(long orderId, Long warehouseId, String deliveryNote, String remarks, List<TakeIn> lines) {
+        NewReceipt(long orderId, String deliveryNote, String remarks, List<TakeIn> lines) {
+            this(orderId, null, deliveryNote, remarks, lines);
+        }
+    }
 
     record Reason(String note) {}
 
@@ -56,12 +68,14 @@ class GoodsReceiptController {
     private final Db db;
     private final ProcurementSupport support;
     private final Clock clock;
+    private final StockService stock;
 
-    GoodsReceiptController(JdbcTemplate jdbc, Db db, ProcurementSupport support, Clock clock) {
+    GoodsReceiptController(JdbcTemplate jdbc, Db db, ProcurementSupport support, Clock clock, StockService stock) {
         this.jdbc = jdbc;
         this.db = db;
         this.support = support;
         this.clock = clock;
+        this.stock = stock;
     }
 
     private static Summary map(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
@@ -112,15 +126,28 @@ class GoodsReceiptController {
         List<String> problems = ProcurementRules.receiptProblems((String) order.get(0)[0], lines, takes);
         if (in.deliveryNote() != null && in.deliveryNote().length() > 40) problems.add("The delivery receipt number is too long (40 characters at most).");
         if (!problems.isEmpty()) throw ProcurementSupport.bad(problems);
+        // lines that name a product go into stock, in the warehouse the receiver chose
+        java.util.Map<Integer, Object[]> products = new java.util.HashMap<>();
+        jdbc.query("SELECT line_no, product_id, unit_cost FROM ecis_purchase_order_line WHERE order_id = ? AND product_id IS NOT NULL", (rs) -> { products.put(rs.getInt(1), new Object[] {rs.getLong(2), rs.getBigDecimal(3)}); }, in.orderId());
+        boolean stocking = takes.stream().anyMatch((t) -> products.containsKey(t.lineNo()));
+        if (stocking && in.warehouseId() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose the warehouse that takes the goods in.");
         LocalDate today = LocalDate.now(clock);
         String no = support.nextNumber("ecis_goods_receipt", "receipt_no", "GR", today.getYear());
         long id = db.insertReturningId("""
-                INSERT INTO ecis_goods_receipt (branch_code, receipt_no, order_id, receipt_date, delivery_note, remarks, status, received_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'RECEIVED', ?, ?)
-                """, "id", ProcurementSupport.BRANCH, no, in.orderId(), today, blank(in.deliveryNote()), blank(in.remarks()), auth.getName(), Timestamp.valueOf(support.now()));
+                INSERT INTO ecis_goods_receipt (branch_code, receipt_no, order_id, warehouse_id, receipt_date, delivery_note, remarks, status, received_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'RECEIVED', ?, ?)
+                """, "id", ProcurementSupport.BRANCH, no, in.orderId(), stocking ? in.warehouseId() : null, today, blank(in.deliveryNote()), blank(in.remarks()), auth.getName(), Timestamp.valueOf(support.now()));
         int n = 0;
-        for (Take t : takes) {
-            jdbc.update("INSERT INTO ecis_goods_receipt_line (receipt_id, line_no, order_line_no, quantity) VALUES (?, ?, ?, ?)", id, ++n, t.lineNo(), t.quantity());
+        for (int i = 0; i < takes.size(); i++) {
+            Take t = takes.get(i);
+            TakeIn raw = in.lines().get(i);
+            Object[] product = products.get(t.lineNo());
+            long batch = 0;
+            if (product != null) {
+                // the cost of a unit is the order's price, so the product's average cost follows what was really paid
+                batch = stock.post(new Move("RECEIVE", (Long) product[0], in.warehouseId(), raw.batchNo(), raw.expiryDate(), t.quantity(), (BigDecimal) product[1], "RECEIPT", no, "Order " + order.get(0)[2]), auth.getName()).batchId();
+            }
+            jdbc.update("INSERT INTO ecis_goods_receipt_line (receipt_id, line_no, order_line_no, quantity, batch_id, stocked) VALUES (?, ?, ?, ?, ?, ?)", id, ++n, t.lineNo(), t.quantity(), batch, product != null ? 1 : 0);
             jdbc.update("UPDATE ecis_purchase_order_line SET qty_received = qty_received + ? WHERE order_id = ? AND line_no = ?", t.quantity(), in.orderId(), t.lineNo());
         }
         refreshStatus(in.orderId());
@@ -147,10 +174,24 @@ class GoodsReceiptController {
         if (in.note().length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The reason is too long (255 characters at most).");
         jdbc.queryForObject("SELECT status FROM ecis_purchase_order WHERE id = ? FOR UPDATE", String.class, g.orderId());
         List<Open> lines = open(g.orderId());
-        List<Object[]> taken = jdbc.query("SELECT order_line_no, quantity FROM ecis_goods_receipt_line WHERE receipt_id = ?", (rs, i) -> new Object[] {rs.getInt(1), rs.getBigDecimal(2)}, id);
+        List<Object[]> taken = jdbc.query("""
+                SELECT l.order_line_no, l.quantity, l.batch_id, l.stocked, p.product_id FROM ecis_goods_receipt_line l
+                JOIN ecis_purchase_order_line p ON p.order_id = ? AND p.line_no = l.order_line_no WHERE l.receipt_id = ?
+                """, (rs, i) -> new Object[] {rs.getInt(1), rs.getBigDecimal(2), rs.getLong(3), rs.getInt(4) == 1, rs.getLong(5)}, g.orderId(), id);
+        List<Long> warehouse = jdbc.queryForList("SELECT warehouse_id FROM ecis_goods_receipt WHERE id = ? AND warehouse_id IS NOT NULL", Long.class, id);
         for (Object[] t : taken) {
             Open o = lines.stream().filter((l) -> l.lineNo() == (Integer) t[0]).findFirst().orElseThrow();
             if (o.received().compareTo((BigDecimal) t[1]) < 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "The order no longer shows these goods as received.");
+            // stocked goods come back out of the warehouse they went into, which fails if they have been used or moved since
+            if ((Boolean) t[3] && !warehouse.isEmpty()) {
+                String batchNo = (Long) t[2] == 0 ? null : jdbc.queryForObject("SELECT batch_no FROM ecis_inventory_batch WHERE id = ?", String.class, t[2]);
+                try {
+                    stock.post(new Move("ADJUSTMENT", (Long) t[4], warehouse.get(0), batchNo, null, ((BigDecimal) t[1]).negate(), null, "REVERSAL", g.receiptNo(), "Reversal of receipt " + g.receiptNo()), auth.getName());
+                } catch (ResponseStatusException e) {
+                    if (e.getStatusCode() == HttpStatus.CONFLICT) throw new ResponseStatusException(HttpStatus.CONFLICT, "These goods cannot be taken out of stock again: " + e.getReason());
+                    throw e;
+                }
+            }
             jdbc.update("UPDATE ecis_purchase_order_line SET qty_received = qty_received - ? WHERE order_id = ? AND line_no = ?", t[1], g.orderId(), t[0]);
         }
         jdbc.update("UPDATE ecis_goods_receipt SET status = 'REVERSED', reversed_by = ?, reversed_at = ?, reverse_note = ? WHERE id = ? AND status = 'RECEIVED'", auth.getName(), Timestamp.valueOf(support.now()), in.note().trim(), id);

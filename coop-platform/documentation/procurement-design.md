@@ -25,7 +25,7 @@ So this module is new, in `ecis_*` tables (`V029_procurement.sql`, applied), des
 * **The person who made the order cannot receive its goods.**
 * A receipt is never edited. A **PURCHASE_APPROVER (not the receiver) reverses it with a reason**: status REVERSED, the quantities come back off the order, the order status is recalculated. An order that has received goods cannot be cancelled.
 * Audit rows `procurement.receipt.create` and `.reverse`. Tests: `GoodsReceiptTest` (real database, rolled back) and the receiving cases in `ProcurementRulesTest`.
-* Not yet: receiving does not move stock (inventory is phase 13; a receipt will be what creates RECEIVE inventory transactions), and there is no CLOSED status for an order that will never be completed.
+* Receiving now moves stock for order lines that name a product (see `inventory-design.md`, V032). There is still no CLOSED status for an order that will never be completed.
 
 ## Next stages
 

@@ -18,9 +18,16 @@ The old database's `inv_*` tables are all empty (no items, no stock, no sales), 
 * Screen: the Inventory tile (`InventoryPage`): Products (with a stock and movement history dialog and low-stock flag), Movements, Adjustments, Counts, Setup.
 * Tests: `InventoryRulesTest` (pure) and `InventoryFlowTest` (real database, rolled back).
 
+## Goods receipts feed stock (built 2026-10-28, `V032_receipt_stock.sql`)
+
+* A purchase order line may name a **stock product** (it then takes the product's unit); a free-text line (a service, a delivery charge) stays unstocked.
+* When a RECEIVER records goods on such a line they also choose the **warehouse** (required whenever a stocked line is received) and, for a product tracked by batch, the batch number and expiry date. `GoodsReceiptController` posts a RECEIVE through `StockService` at the **order's unit price**, so the product's moving average cost follows what was really paid; the ledger row has `ref_type` RECEIPT and the receipt number.
+* **Reversing a receipt** (a different purchase approver, with a reason) takes the same quantities back out as an ADJUSTMENT row (`ref_type` REVERSAL). If the goods have been used or moved since and the stock is no longer there, the reversal is refused whole and nothing changes. A reversal does not un-average the cost.
+* `ecis_goods_receipt.warehouse_id`, `ecis_goods_receipt_line.batch_id` and `stocked` remember where each stocked line went.
+* Tests: `GoodsReceiptStockTest` (real database, rolled back).
+
 ## Not built
 
-* **Receipts feeding stock**: a goods receipt does not create a RECEIVE row yet. It needs a product on each order line (order lines are free text today) and a warehouse on the receipt; the next step.
 * Warehouse locations (bins) inside a warehouse; the balance is per warehouse and batch.
 * Accounting entries for stock (inventory, cost of goods sold, adjustments) and the sales side, which come with the owner's account decisions and phase 14.
 * A reservation or "available" quantity, serial numbers, and automatic reorder requests (the reorder level only flags a product as low).

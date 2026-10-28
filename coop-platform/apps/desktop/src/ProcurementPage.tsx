@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { FiPlus, FiTrash2 } from 'react-icons/fi'
 import {
   approveOrder, cancelOrder, createOrder, createReceipt, createRequest, createSupplier, decideRequest, getOrder, getRequest, listOrders, listReceipts, listRequests, listSuppliers, reverseReceipt, updateSupplier,
-  type GrSummary, type PoSummary, type PrSummary, type Supplier, type SupplierIn,
+  listInvProducts, listInvWarehouses, type GrSummary, type InvProduct, type PoSummary, type PrSummary, type Supplier, type SupplierIn,
 } from './api'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
@@ -12,19 +12,29 @@ import { useMe } from './session'
 const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const color = (s: string) => (s === 'APPROVED' || s === 'RECEIVED' ? 'success' : s === 'SUBMITTED' || s === 'DRAFT' ? 'warning' : s === 'ORDERED' || s === 'PARTIAL' ? 'info' : 'default') as 'success' | 'warning' | 'info' | 'default'
 
-interface Row { description: string; unit: string; quantity: string; price: string }
-const blank = (): Row => ({ description: '', unit: 'pc', quantity: '1', price: '' })
+interface Row { description: string; unit: string; quantity: string; price: string; productId: string }
+const blank = (): Row => ({ description: '', unit: 'pc', quantity: '1', price: '', productId: '' })
 
-/** Lines of a request or an order: description, unit, quantity and the price per unit. */
-function LinesEditor({ rows, onChange, priceLabel }: { rows: Row[]; onChange: (r: Row[]) => void; priceLabel: string }) {
+/** Lines of a request or an order: description, unit, quantity and the price per unit. With {@code products}, a line can name a stock product (it takes the product's unit and is put into stock when received). */
+function LinesEditor({ rows, onChange, priceLabel, products }: { rows: Row[]; onChange: (r: Row[]) => void; priceLabel: string; products?: InvProduct[] }) {
   const set = (i: number, k: keyof Row, v: string) => onChange(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)))
+  const pick = (i: number, v: string) => {
+    const p = products?.find((x) => String(x.id) === v)
+    onChange(rows.map((r, j) => (j === i ? { ...r, productId: v, description: p && !r.description ? p.name : r.description, unit: p ? p.unit : r.unit } : r)))
+  }
   const total = rows.reduce((s, r) => s + (Number(r.quantity) || 0) * (Number(r.price) || 0), 0)
   return (
     <Box>
       {rows.map((r, i) => (
         <Stack key={i} direction="row" spacing={1} sx={{ mb: 1 }}>
+          {products && (
+            <TextField select size="small" label="Stock product" value={r.productId} onChange={(e) => pick(i, e.target.value)} sx={{ width: 200 }}>
+              <MenuItem value="">Not stocked</MenuItem>
+              {products.map((p) => <MenuItem key={p.id} value={String(p.id)}>{p.sku} · {p.name}</MenuItem>)}
+            </TextField>
+          )}
           <TextField size="small" label="Description" value={r.description} onChange={(e) => set(i, 'description', e.target.value)} sx={{ flex: 1 }} />
-          <TextField size="small" label="Unit" value={r.unit} onChange={(e) => set(i, 'unit', e.target.value)} sx={{ width: 80 }} />
+          <TextField size="small" label="Unit" value={r.unit} disabled={!!r.productId} onChange={(e) => set(i, 'unit', e.target.value)} sx={{ width: 80 }} />
           <TextField size="small" label="Qty" value={r.quantity} onChange={(e) => set(i, 'quantity', e.target.value)} sx={{ width: 90 }} />
           <TextField size="small" label={priceLabel} value={r.price} onChange={(e) => set(i, 'price', e.target.value)} sx={{ width: 130 }} />
           <IconButton aria-label="Remove line" disabled={rows.length === 1} onClick={() => onChange(rows.filter((_, j) => j !== i))}><FiTrash2 /></IconButton>
@@ -77,9 +87,10 @@ function NewOrderDialog({ request, onClose }: { request?: PrSummary; onClose: ()
   const [remarks, setRemarks] = useState('')
   const [edited, setEdited] = useState<Row[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const rows = edited ?? (detail.data?.lines.map((l) => ({ description: l.description, unit: l.unit, quantity: String(l.quantity), price: String(l.estCost) })) ?? [blank()])
+  const products = useQuery({ queryKey: ['inv-products', 'active'], queryFn: () => listInvProducts(undefined, true), retry: false })
+  const rows = edited ?? (detail.data?.lines.map((l) => ({ description: l.description, unit: l.unit, quantity: String(l.quantity), price: String(l.estCost), productId: '' })) ?? [blank()])
   const save = useMutation({
-    mutationFn: () => createOrder({ supplierId: Number(supplierId), requestId: request?.id ?? null, expectedDate: expected || null, remarks, lines: rows.map((r) => ({ description: r.description, unit: r.unit, quantity: num(r.quantity), unitCost: num(r.price || '0') })) }),
+    mutationFn: () => createOrder({ supplierId: Number(supplierId), requestId: request?.id ?? null, expectedDate: expected || null, remarks, lines: rows.map((r) => ({ description: r.description, unit: r.unit, quantity: num(r.quantity), unitCost: num(r.price || '0'), productId: r.productId ? Number(r.productId) : null })) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['po-list'] }); void qc.invalidateQueries({ queryKey: ['pr-list'] }); onClose() },
     onError: (e) => setError((e as Error).message),
   })
@@ -96,7 +107,7 @@ function NewOrderDialog({ request, onClose }: { request?: PrSummary; onClose: ()
             <TextField size="small" type="date" label="Expected on (optional)" value={expected} onChange={(e) => setExpected(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 200 }} />
             <TextField size="small" label="Remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} sx={{ flex: 1 }} />
           </Stack>
-          <LinesEditor rows={rows} onChange={setEdited} priceLabel="Cost each" />
+          <LinesEditor rows={rows} onChange={setEdited} priceLabel="Cost each" products={products.data} />
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending || !supplierId} onClick={() => save.mutate()}>Save order</Button></DialogActions>
@@ -218,17 +229,22 @@ function Orders({ buyer, approver, receiver, user }: { buyer: boolean; approver:
 function ReceiveDialog({ order, onClose }: { order: PoSummary; onClose: () => void }) {
   const qc = useQueryClient()
   const detail = useQuery({ queryKey: ['po-detail', order.id], queryFn: () => getOrder(order.id) })
+  const warehouses = useQuery({ queryKey: ['inv-warehouses', 'active'], queryFn: () => listInvWarehouses(true), retry: false })
   const [qty, setQty] = useState<Record<number, string>>({})
+  const [batch, setBatch] = useState<Record<number, string>>({})
+  const [expiry, setExpiry] = useState<Record<number, string>>({})
+  const [warehouseId, setWarehouseId] = useState('')
   const [note, setNote] = useState('')
   const [remarks, setRemarks] = useState('')
   const [error, setError] = useState<string | null>(null)
   const lines = detail.data?.lines ?? []
   const left = (i: number) => lines[i].quantity - lines[i].received
   const value = (i: number) => qty[i] ?? String(left(i))
+  const stocking = lines.some((l, i) => l.productId !== null && num(value(i)) > 0)
   const save = useMutation({
     mutationFn: () => createReceipt({
-      orderId: order.id, deliveryNote: note, remarks,
-      lines: lines.map((_, i) => ({ lineNo: i + 1, quantity: num(value(i)) })).filter((l) => l.quantity > 0),
+      orderId: order.id, warehouseId: warehouseId ? Number(warehouseId) : null, deliveryNote: note, remarks,
+      lines: lines.map((_, i) => ({ lineNo: i + 1, quantity: num(value(i)), batchNo: batch[i] || undefined, expiryDate: expiry[i] || null })).filter((l) => l.quantity > 0),
     }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['po-list'] }); void qc.invalidateQueries({ queryKey: ['gr-list'] }); onClose() },
     onError: (e) => setError((e as Error).message),
@@ -243,13 +259,27 @@ function ReceiveDialog({ order, onClose }: { order: PoSummary; onClose: () => vo
             <TextField size="small" label="Supplier delivery receipt no." value={note} onChange={(e) => setNote(e.target.value)} sx={{ width: 240 }} />
             <TextField size="small" label="Remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} sx={{ flex: 1 }} />
           </Stack>
+          {lines.some((l) => l.productId !== null) && (
+            <TextField select size="small" label="Put the stock into warehouse" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} sx={{ width: 320 }}
+              helperText={stocking ? 'Lines that name a stock product are added to this warehouse at the order price.' : undefined}>
+              {(warehouses.data ?? []).map((w) => <MenuItem key={w.id} value={String(w.id)}>{w.name}</MenuItem>)}
+            </TextField>
+          )}
           <Table size="small">
-            <TableHead><TableRow><TableCell>Item</TableCell><TableCell>Unit</TableCell><TableCell align="right">Ordered</TableCell><TableCell align="right">Already in</TableCell><TableCell align="right" sx={{ width: 130 }}>Received now</TableCell></TableRow></TableHead>
+            <TableHead><TableRow><TableCell>Item</TableCell><TableCell>Unit</TableCell><TableCell align="right">Ordered</TableCell><TableCell align="right">Already in</TableCell><TableCell align="right" sx={{ width: 130 }}>Received now</TableCell><TableCell sx={{ width: 230 }}>Batch / expiry</TableCell></TableRow></TableHead>
             <TableBody>
               {lines.map((l, i) => (
                 <TableRow key={i}>
-                  <TableCell>{l.description}</TableCell><TableCell>{l.unit}</TableCell><TableCell align="right">{l.quantity}</TableCell><TableCell align="right">{l.received}</TableCell>
+                  <TableCell>{l.description}{l.productId !== null && <Chip size="small" variant="outlined" label="stocked" sx={{ ml: 0.75 }} />}</TableCell><TableCell>{l.unit}</TableCell><TableCell align="right">{l.quantity}</TableCell><TableCell align="right">{l.received}</TableCell>
                   <TableCell align="right"><TextField size="small" value={value(i)} disabled={left(i) <= 0} onChange={(e) => setQty({ ...qty, [i]: e.target.value })} /></TableCell>
+                  <TableCell>
+                    {l.trackBatch && (
+                      <Stack direction="row" spacing={0.5}>
+                        <TextField size="small" label="Batch" value={batch[i] ?? ''} onChange={(e) => setBatch({ ...batch, [i]: e.target.value })} sx={{ width: 100 }} />
+                        {l.trackExpiry && <TextField size="small" type="date" label="Expiry" value={expiry[i] ?? ''} onChange={(e) => setExpiry({ ...expiry, [i]: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 130 }} />}
+                      </Stack>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
