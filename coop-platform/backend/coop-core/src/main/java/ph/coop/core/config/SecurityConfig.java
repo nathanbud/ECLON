@@ -111,7 +111,7 @@ public class SecurityConfig {
             // would stop working after the first sign-in.
             if (username.equals(devUser)) return User.withUsername(devUser).password(devHash).roles("ADMIN").accountLocked(attempts.isLocked(devUser)).build();
             List<UserDetails> found = jdbc.query("""
-                    SELECT a.AccessUserName, c.password_hash, a.AccessLevel, a.AccessCanEditClient, c.must_change, c.expires_at
+                    SELECT a.AccessUserName, c.password_hash, a.AccessLevel, a.AccessCanEditClient, c.must_change, c.expires_at, a.AccessCanEditClientImages
                     FROM access a JOIN ecis_user_credential c ON c.username = a.AccessUserName
                     WHERE a.AccessUserName = ? AND (a.AccessIsDisabled = 0 OR a.AccessIsDisabled IS NULL)
                     LIMIT 1
@@ -122,6 +122,7 @@ public class SecurityConfig {
                     String level = rs.getString(3);
                     if ("ADMIN".equalsIgnoreCase(level) || "SUPERADMIN".equalsIgnoreCase(level)) roles.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
                     if (rs.getInt(4) == 1) roles.add(new SimpleGrantedAuthority("PERM_MEMBER_EDIT"));
+                    if (rs.getInt(7) == 1) roles.add(new SimpleGrantedAuthority("PERM_MEMBER_IMAGES"));
                     String name = rs.getString(1); // the name as stored, whatever case was typed
                     jdbc.query("SELECT role FROM ecis_user_role WHERE username = ?",
                         (r) -> { roles.add(new SimpleGrantedAuthority("ROLE_" + r.getString(1))); }, name);

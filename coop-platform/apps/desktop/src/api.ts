@@ -230,7 +230,7 @@ export const getMemberBilling = (branchCode: number, clientId: number) =>
   getJson<BillingEntry[]>(`/api/members/${branchCode}/${clientId}/billing`)
 
 /** What this person may do: edit (propose changes) and approve (decide them, Membership Officers only). */
-export const getCapabilities = () => getJson<{ edit: boolean; approve: boolean }>('/api/capabilities')
+export const getCapabilities = () => getJson<{ edit: boolean; approve: boolean; images: boolean }>('/api/capabilities')
 
 // ---- member changes (maker-checker) --------------------------------------------------------------------------------
 
@@ -1143,3 +1143,14 @@ export const withdrawMemberRequest = (id: number) => send<MemberRequest>('POST',
 export const requestReactivation = (body: { branchCode: number; clientId: number; clientType: number; note: string }) => send<MemberRequest>('POST', '/api/member-requests/reactivations', body)
 export const getMembershipPolicy = () => getJson<{ returningPaysShareCapital: boolean }>('/api/membership-policy')
 export const setMembershipPolicy = (returningPaysShareCapital: boolean, reason: string) => send<{ returningPaysShareCapital: boolean }>('PUT', '/api/admin/membership-policy', { returningPaysShareCapital, reason })
+
+export async function uploadMemberPhoto(branchCode: number, clientId: number, photo: Blob): Promise<void> {
+  const body = new FormData()
+  body.append('file', photo, 'photo.jpg')
+  const res = await http(`/api/members/${branchCode}/${clientId}/photo`, { method: 'POST', body })
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`
+    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status text */ }
+    throw new Error(message)
+  }
+}

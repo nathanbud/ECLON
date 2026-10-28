@@ -1,12 +1,18 @@
 package ph.coop.core.member;
 
-import java.time.Duration;
 import java.util.List;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,6 +42,29 @@ class MemberImageController {
         return image(branchCode, clientId, "sig", "sigWacomImg");
     }
 
+    static final int MAX_PHOTO_BYTES = 3 * 1024 * 1024;
+
+    /**
+     * Sets a member's photo. Insert-only: a new {@code img} row is added and the newest wins, so earlier photos stay. Needs the legacy "edit client images" permission.
+     * Only JPEG and PNG are accepted, checked by their first bytes, up to 3 MB.
+     */
+    @PostMapping("/photo")
+    @PreAuthorize("hasAuthority('PERM_MEMBER_IMAGES')")
+    ResponseEntity<Void> setPhoto(@PathVariable int branchCode, @PathVariable int clientId, @RequestParam("file") MultipartFile file, Authentication auth) throws java.io.IOException {
+        byte[] data = file.getBytes();
+        if (data.length == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The picture is empty.");
+        if (data.length > MAX_PHOTO_BYTES) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The picture is too large (at most 3 MB).");
+        MediaType type = detect(data);
+        if (!type.equals(MediaType.IMAGE_JPEG) && !type.equals(MediaType.IMAGE_PNG)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only JPEG and PNG pictures are accepted.");
+        Integer exists = jdbc.queryForObject("SELECT COUNT(*) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", Integer.class, branchCode, clientId);
+        if (exists == null || exists == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found.");
+        jdbc.update("INSERT INTO image (ImageBR_CODE, ClientIDimg, ImageType, ImageFileSize, ImageFile, ImageRemarks, ImageDateTimeAdded) VALUES (?, ?, 'img', ?, ?, ?, NOW())",
+            branchCode, clientId, data.length, data, "Set by " + auth.getName());
+        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (NOW(), ?, 'member.photo.set', 'client', ?, NULL, ?, 'Photo added')",
+            auth.getName(), branchCode + "-" + clientId, data.length + " bytes, " + type);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
     private ResponseEntity<byte[]> image(int branchCode, int clientId, String... types) {
         String marks = String.join(",", java.util.Collections.nCopies(types.length, "?"));
         Object[] args = new Object[2 + types.length];
@@ -50,7 +79,7 @@ class MemberImageController {
         byte[] data = rows.get(0);
         return ResponseEntity.ok()
             .contentType(detect(data))
-            .cacheControl(CacheControl.maxAge(Duration.ofMinutes(5)).cachePrivate())
+            .cacheControl(CacheControl.noCache().cachePrivate())
             .body(data);
     }
 

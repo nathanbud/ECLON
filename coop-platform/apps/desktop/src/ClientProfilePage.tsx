@@ -1,12 +1,12 @@
 import {
-  Alert, Avatar, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Divider, ListItemIcon, ListItemText, Menu, MenuItem, Skeleton, Tab, Table, TableBody,
+  Alert, Avatar, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Skeleton, Tab, Table, TableBody,
   Snackbar, TableCell, TableHead, TableRow, Tabs, TextField,
   ToggleButton, ToggleButtonGroup, Tooltip, Typography, FormControlLabel, Switch,
 } from '@mui/material'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import {
-  FiAlertTriangle, FiCheckCircle, FiChevronDown, FiClock, FiEdit2, FiInfo, FiPlus, FiSave, FiSearch,
+  FiAlertTriangle, FiCamera, FiCheckCircle, FiChevronDown, FiClock, FiEdit2, FiInfo, FiPlus, FiSave, FiSearch,
   FiSlash, FiTrash2, FiUser, FiX,
 } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
@@ -19,6 +19,7 @@ import { tileFill } from './theme'
 import { displayName, memberNo, statusOf, type Id } from './clients'
 import LoansTab from './LoansTab'
 import DocumentsPanel from './DocumentsPanel'
+import MemberPhotoDialog from './MemberPhotoDialog'
 import { CloseDialog, ReactivateDialog, RegisterDialog } from './MemberRequests'
 import FindClientDialog, { FindBody } from './FindClientDialog'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
@@ -276,8 +277,9 @@ const quietChip = {
   '& .MuiChip-label': { px: 0.9 },
 } as const
 
-function ProfileHeader({ m, lk }: { m: Member; lk?: Lookups }) {
+function ProfileHeader({ m, lk, canPhoto = false, onNotice }: { m: Member; lk?: Lookups; canPhoto?: boolean; onNotice?: (msg: string) => void }) {
   const { editing } = useEdit()
+  const [photoOpen, setPhotoOpen] = useState(false)
   const st = statusOf(m, lk)
   const photo = useMemberImage('photo', m.id)
   const signature = useMemberImage('signature', m.id)
@@ -285,11 +287,22 @@ function ProfileHeader({ m, lk }: { m: Member; lk?: Lookups }) {
   const alertOk = m.alertLevel === 1
   return (
     <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 2, p: 1.75, ...glass(t, { elevated: true }) })}>
-      <Avatar variant="rounded" src={photo ?? undefined} alt={`Photo of ${displayName(m)}`} sx={{
-        width: 68, height: 68, fontSize: 24, fontWeight: 600, color: '#fff', borderRadius: '5px', flexShrink: 0,
-        background: `linear-gradient(160deg, ${tileFill.orange}F2, ${tileFill.orange})`,
-        boxShadow: '0 1px 2px rgba(0,0,0,0.14)',
-      }}><FiUser size={34} aria-hidden /></Avatar>
+      <Box sx={{ position: 'relative', flexShrink: 0, '&:hover .photo-edit, &:focus-within .photo-edit': { opacity: 1 } }}>
+        <Avatar variant="rounded" src={photo ?? undefined} alt={`Photo of ${displayName(m)}`} sx={{
+          width: 68, height: 68, fontSize: 24, fontWeight: 600, color: '#fff', borderRadius: '5px',
+          background: `linear-gradient(160deg, ${tileFill.orange}F2, ${tileFill.orange})`,
+          boxShadow: '0 1px 2px rgba(0,0,0,0.14)',
+        }}><FiUser size={34} aria-hidden /></Avatar>
+        {canPhoto && (
+          <Tooltip title="Take or upload a photo">
+            <IconButton className="photo-edit" size="small" aria-label="Take or upload a photo" onClick={() => setPhotoOpen(true)}
+              sx={{ position: 'absolute', right: -6, bottom: -6, width: 26, height: 26, bgcolor: 'background.paper', border: 1, borderColor: 'divider', opacity: 0.85, transition: 'opacity .15s', '&:hover': { bgcolor: 'background.paper' } }}>
+              <FiCamera size={14} />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+      {photoOpen && <MemberPhotoDialog id={m.id} name={displayName(m)} onClose={() => setPhotoOpen(false)} onDone={(msg) => onNotice?.(msg)} />}
       <Box sx={{ minWidth: 0, flex: 1 }}>
         {/* Status and alert: small outlined tags above the name, kept quiet so the name leads. */}
         <Box role="group" aria-label="Client status" sx={{ display: 'flex', gap: 0.75, mb: 0.75, flexWrap: 'wrap' }}>
@@ -1119,7 +1132,7 @@ function TabContent({ tab, m, lk }: { tab: number; m: Member; lk?: Lookups }) {
   return <DetailsTab id={m.id} tab={key} title={TABS[tab]} lk={lk} />
 }
 
-function Profile({ id, lk }: { id: Id; lk?: Lookups }) {
+function Profile({ id, lk, canPhoto = false, onNotice }: { id: Id; lk?: Lookups; canPhoto?: boolean; onNotice?: (msg: string) => void }) {
   const [tab, setTab] = useState(GROUPS[0].tabs[0])
   const group = Math.max(0, GROUPS.findIndex((g) => g.tabs.includes(tab)))
   const { data: m, error, isLoading } = useQuery({
@@ -1141,7 +1154,7 @@ function Profile({ id, lk }: { id: Id; lk?: Lookups }) {
   }
   return (
     <>
-      <ProfileHeader m={m} lk={lk} />
+      <ProfileHeader m={m} lk={lk} canPhoto={canPhoto} onNotice={onNotice} />
       {/* One folder: the tab strip and the page below share a frame, and the open tab takes the page's own fill so the two read as connected. */}
       <Box sx={(t) => ({ mt: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', ...glass(t) })}>
         <Tabs value={group} onChange={(_, v) => setTab(GROUPS[v].tabs[0])} aria-label="Profile sections"
@@ -1428,7 +1441,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
               {reactivating && member && <ReactivateDialog branchCode={selected.branchCode} clientId={selected.clientId} name={displayName(member)} onClose={() => setReactivating(false)} onDone={setNotice} />}
               {closing && member && <CloseDialog branchCode={selected.branchCode} clientId={selected.clientId} name={displayName(member)} onClose={() => setClosing(false)} onDone={setNotice} />}
               {editing && <EditBar changes={changes} saving={saving} error={error} onSave={save} onCancel={cancel} />}
-              <Profile key={key} id={selected} lk={lk} />
+              <Profile key={key} id={selected} lk={lk} canPhoto={!!caps?.images} onNotice={setNotice} />
             </EditCtx.Provider>
           )
           : (
