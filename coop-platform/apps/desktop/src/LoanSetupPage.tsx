@@ -1,6 +1,6 @@
 import {
   Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, InputAdornment, MenuItem, Skeleton, Snackbar, Switch, Table, TableBody, TableCell,
-  TableHead, TableRow, TextField, Tooltip, Typography,
+  Tab, TableHead, TableRow, Tabs, TextField, Tooltip, Typography,
 } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
@@ -78,6 +78,7 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [seeded, setSeeded] = useState<string>('')
+  const [pane, setPane] = useState<'setup' | 'coa'>('setup')
   // Fill the form once per opening (not on every render, which would undo typing).
   const key = editing ? `e${editing.code}` : creating ? 'new' : ''
   if (open && seeded !== key) {
@@ -85,6 +86,7 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
     setForm(editing ? toForm(editing) : blank)
     setCopyFrom('')
     setError(null)
+    setPane('setup')
   }
   if (!open && seeded !== '') setSeeded('')
   const set = <K extends keyof LoanSetupForm>(k: K, v: LoanSetupForm[K]) => setForm((f) => ({ ...f, [k]: v }))
@@ -125,7 +127,13 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
     <Dialog open={open} onClose={busy ? undefined : onClose} fullWidth maxWidth="md" aria-labelledby="type-title">
       <form onSubmit={(e) => { e.preventDefault(); if (ready) void submit() }}>
         <DialogTitle id="type-title" sx={{ pb: 0.25 }}>{editing ? editing.name : 'New loan type'}</DialogTitle>
+        {editing && (
+          <Tabs value={pane} onChange={(_, v) => setPane(v)} aria-label="Loan type sections" sx={{ px: 2, minHeight: 38, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 38, textTransform: 'none' } }}>
+            <Tab value="setup" label="Setup" /><Tab value="coa" label="COA Links" />
+          </Tabs>
+        )}
         <DialogContent sx={{ pt: 0.5, pb: 1, overflow: 'visible' }}>
+          <Box sx={{ display: pane === 'coa' ? 'none' : undefined }}>
           {used && (
             <Typography color="text.secondary" sx={{ fontSize: 12.5, mb: 1.5 }}>
               {editing!.loans.toLocaleString()} loans and {editing!.applications.toLocaleString()} applications use this type. Changes apply to new applications only.
@@ -177,14 +185,19 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
               </FormSection>
             </Box>
           </Box>
-          {editing && <WiredAccounts code={editing.code} />}
+          </Box>
+          {editing && pane === 'coa' && <WiredAccounts code={editing.code} />}
         </DialogContent>
+        {pane === 'coa' && editing ? (
+          <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}><Button onClick={onClose} color="inherit">Close</Button></DialogActions>
+        ) : (
         <DialogActions sx={{ px: 3, pb: 2, pt: 1, gap: 1.5, alignItems: 'flex-start' }}>
           <TextField required fullWidth size="small" label="Reason for this change" value={form.reason} onChange={(e) => set('reason', e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }}
             helperText="Kept in the audit log with the values before and after" />
           <Button onClick={onClose} disabled={busy} color="inherit" sx={{ mt: 0.25 }}>Cancel</Button>
           <Button type="submit" variant="contained" disabled={busy || !ready} sx={{ mt: 0.25 }}>{editing ? 'Save' : 'Create'}</Button>
         </DialogActions>
+        )}
       </form>
     </Dialog>
   )
