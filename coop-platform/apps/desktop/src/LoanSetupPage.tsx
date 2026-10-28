@@ -492,13 +492,13 @@ const TABS = [
 type Tab = (typeof TABS)[number]['value']
 
 /** Loan setup for administrators: loan types and the lists clerks choose from. Every change is audited. */
-export default function LoanSetupPage({ initialTab = 'types' }: { initialTab?: Tab }) {
+export default function LoanSetupPage({ initialTab = 'types', fullHeight = false }: { initialTab?: Tab; fullHeight?: boolean }) {
   const me = useMe()
   const [tab, setTab] = useState<Tab>(initialTab)
   const [notice, setNotice] = useState<string | null>(null)
   const lists = useQuery({ queryKey: ['loan-setup-lists'], queryFn: getLoanSetupLists, enabled: me.admin, staleTime: 5 * 60_000 })
   return (
-    <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
+    <Box component="main" sx={(t) => ({ minHeight: fullHeight ? '100dvh' : 'calc(100dvh - 44px)', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
         <PageTitle title="Loan Setup">The loan products and the lists behind the loan application. Each change asks for a reason and is kept in the audit log.</PageTitle>
         {!me.admin ? <Alert severity="info">Only administrators can change the loan setup.</Alert> : (
