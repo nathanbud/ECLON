@@ -10,6 +10,7 @@ import { appBackground, glass } from './glass'
 import { ToolbarPortal } from './toolbarSlot'
 import FindClientDialog, { FindBody } from './FindClientDialog'
 import AdvancedRegistration from './AdvancedRegistration'
+import { Gated, NEEDS_ADMIN, NEEDS_EDIT } from './ui/Gated'
 import { NewMemberScreen } from './profile/NewMember'
 import { EditCtx } from './profile/editing'
 import { EditBar, PendingBanner } from './profile/Changes'
@@ -146,15 +147,15 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
           ? (
             <EditCtx.Provider value={{ editing, draft, set }}>
               {pending && <PendingBanner change={pending} id={selected} canApprove={!!caps?.approve} onDone={setNotice} />}
-              {caps?.edit && member && (member.accountStatus ?? 1) !== 3 && !editing && (
+              {member && (member.accountStatus ?? 1) !== 3 && !editing && (
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 0.5 }}>
-                  <Button size="small" onClick={() => setRegistering(true)}>Register new member</Button>
-                  <Button size="small" color="error" onClick={() => setClosing(true)}>Close membership</Button>
+                  <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => setRegistering(true)}>Register new member</Button></Gated>
+                  <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" color="error" onClick={() => setClosing(true)}>Close membership</Button></Gated>
                 </Box>
               )}
-              {caps?.edit && member && ((member.accountStatus ?? 1) === 2 || (member.accountStatus ?? 1) === 3) && !editing && (
+              {member && ((member.accountStatus ?? 1) === 2 || (member.accountStatus ?? 1) === 3) && !editing && (
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 0.5 }}>
-                  <Button size="small" onClick={() => setReactivating(true)}>Reactivate membership</Button>
+                  <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => setReactivating(true)}>Reactivate membership</Button></Gated>
                 </Box>
               )}
               {reactivating && member && <ReactivateDialog branchCode={selected.branchCode} clientId={selected.clientId} name={displayName(member)} onClose={() => setReactivating(false)} onDone={setNotice} />}
@@ -168,7 +169,10 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
             <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', pt: '10vh' }}>
               <Box sx={(t) => ({ width: '100%', maxWidth: 580, overflow: 'hidden', ...glass(t, { elevated: true }) })}>
                 <FindBody inline lk={lk} onPick={onSelect} />
-                {caps?.edit && <Box sx={{ p: 1, textAlign: 'center' }}><Button size="small" onClick={() => setRegistering(true)}>Register new member</Button>{me.admin && <Button size="small" color="warning" onClick={() => setAdvanced(true)}>Advanced mode: import a list</Button>}</Box>}
+                <Box sx={{ p: 1, textAlign: 'center' }}>
+                  <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => setRegistering(true)}>Register new member</Button></Gated>
+                  <Gated allowed={!!caps?.edit && me.admin} reason={caps?.edit ? NEEDS_ADMIN : NEEDS_EDIT}><Button size="small" color="warning" onClick={() => setAdvanced(true)}>Advanced mode: import a list</Button></Gated>
+                </Box>
               </Box>
             </Box>
           )}

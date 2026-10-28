@@ -48,6 +48,8 @@ function Signed() {
   const [cameFromSettings, setCameFromSettings] = useState(false)
   const navigate = (v: View) => { if (v === 'loanapp' && openLoanApplicationWindow({})) return; if ((v === 'loansetup' || v === 'amortization') && openLoanSetupWindow(v === 'amortization' ? 'amortization' : 'types')) return; setCameFromSettings(view === 'settings' && v !== 'home'); setView(v) }
   const openClient = (id: Id) => { setClient(id); setView('members') }
+  // The window title names the screen, for the task bar, the window list and screen readers.
+  useEffect(() => { document.title = view === 'home' ? 'Coop Platform' : `${titles[view]} · Coop Platform` }, [view])
   const [leaving, setLeaving] = useState<string | null>(null)
   /** Straight to the dashboard, asking first when a screen holds unsaved work. */
   const goHome = (direct: boolean) => {

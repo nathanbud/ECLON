@@ -6,7 +6,7 @@ import { downloadMemberImportTemplate, previewMemberImport, uploadMemberImport, 
 import { glass } from './glass'
 import { useLeaveGuard } from './leaveGuard'
 
-const SHOWN = 300
+const STEP = 300
 
 /**
  * Advanced mode: register many members from a CSV or Excel list. The list is checked first, row by row, and nothing is saved until it is sent. Sent rows become one batch that a
@@ -18,6 +18,7 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [onlyProblems, setOnlyProblems] = useState(false)
+  const [shown, setShown] = useState(STEP)
   const [skip, setSkip] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -26,7 +27,7 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
 
   const choose = async (f: File | undefined) => {
     if (!f) return
-    setFile(f); setPreview(null); setError(null); setSkip(false); setBusy('Checking the list…')
+    setFile(f); setPreview(null); setError(null); setSkip(false); setShown(STEP); setBusy('Checking the list…')
     try { setPreview(await previewMemberImport(f)) } catch (e) { setError((e as Error).message) } finally { setBusy(null) }
   }
 
@@ -97,7 +98,7 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
             <Table size="small" stickyHeader aria-label="Checked rows">
               <TableHead><TableRow><TableCell sx={{ width: 70 }}>Line</TableCell><TableCell>Member</TableCell><TableCell>Result</TableCell></TableRow></TableHead>
               <TableBody>
-                {rows.slice(0, SHOWN).map((r) => (
+                {rows.slice(0, shown).map((r) => (
                   <TableRow key={r.line}>
                     <TableCell>{r.line}</TableCell><TableCell>{r.name}</TableCell>
                     <TableCell sx={{ color: r.ok ? 'success.main' : 'error.main' }}>{r.ok ? 'Ready' : r.problems.join(' ')}</TableCell>
@@ -106,7 +107,13 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
               </TableBody>
             </Table>
           </Box>
-          {rows.length > SHOWN && <Typography sx={{ fontSize: 12.5, mt: 0.5 }} color="text.secondary">Showing the first {SHOWN} of {rows.length} rows.</Typography>}
+          {rows.length > shown && (
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mt: 0.5 }}>
+              <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Showing {shown} of {rows.length} rows.</Typography>
+              <Button size="small" onClick={() => setShown((n) => n + STEP)}>Show {Math.min(STEP, rows.length - shown)} more</Button>
+              <Button size="small" color="inherit" onClick={() => setShown(rows.length)}>Show all</Button>
+            </Stack>
+          )}
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mt: 1.5, flexWrap: 'wrap' }}>
             {preview.errors > 0 && preview.ok > 0 && (
               <FormControlLabel control={<Checkbox size="small" checked={skip} onChange={(_, v) => setSkip(v)} />} label={`Leave out the ${preview.errors} row${preview.errors === 1 ? '' : 's'} with problems`} />

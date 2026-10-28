@@ -5,6 +5,7 @@ import { approveMemberImport, approveMemberRequest, listMemberImports, listMembe
 import { glass } from './glass'
 import { useMe } from './session'
 import { ReasonDialog } from './ui/dialogs'
+import { Gated } from './ui/Gated'
 
 const when = (at: string) => new Date(at.replace(' ', 'T')).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
@@ -111,9 +112,13 @@ function ImportBatches() {
                   <TableCell align="right">{b.okRows}{b.totalRows !== b.okRows ? ` of ${b.totalRows}` : ''}</TableCell>
                   <TableCell>{b.uploadedBy}</TableCell><TableCell sx={{ whiteSpace: 'nowrap' }}>{when(b.uploadedAt)}</TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    {me.canApprove && b.uploadedBy.toLowerCase() !== me.username.toLowerCase() && <>
-                      <Button size="small" disabled={act.isPending} onClick={() => act.mutate({ b, kind: 'approve' })}>{act.isPending ? 'Opening…' : 'Approve all'}</Button>
-                      <Button size="small" color="error" disabled={act.isPending} onClick={() => setRejecting(b)}>Reject</Button>
+                    {me.canApprove && <>
+                      <Gated allowed={b.uploadedBy.toLowerCase() !== me.username.toLowerCase()} reason="You uploaded this list. Another Membership Officer must approve it.">
+                        <Button size="small" disabled={act.isPending} onClick={() => act.mutate({ b, kind: 'approve' })}>{act.isPending ? 'Opening…' : 'Approve all'}</Button>
+                      </Gated>
+                      <Gated allowed={b.uploadedBy.toLowerCase() !== me.username.toLowerCase()} reason="You uploaded this list. Another Membership Officer must decide it.">
+                        <Button size="small" color="error" disabled={act.isPending} onClick={() => setRejecting(b)}>Reject</Button>
+                      </Gated>
                     </>}
                     {b.uploadedBy.toLowerCase() === me.username.toLowerCase() && <Button size="small" disabled={act.isPending} onClick={() => act.mutate({ b, kind: 'withdraw' })}>Withdraw</Button>}
                   </TableCell>
@@ -157,9 +162,13 @@ export default function MemberRequestsPanel() {
                 <TableCell><Typography component="span" sx={{ fontWeight: 600 }}>{r.kind === 'REGISTER' ? 'New member' : r.kind === 'REACTIVATE' ? 'Reactivate' : 'Close'}</Typography>{' '}{r.summary}</TableCell>
                 <TableCell>{r.requestedBy}</TableCell><TableCell sx={{ whiteSpace: 'nowrap' }}>{when(r.requestedAt)}</TableCell>
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                  {me.canApprove && r.requestedBy.toLowerCase() !== me.username.toLowerCase() && <>
-                    <Button size="small" disabled={act.isPending} onClick={() => act.mutate({ r, kind: 'approve' })}>Approve</Button>
-                    <Button size="small" color="error" onClick={() => setRejecting(r)}>Reject</Button>
+                  {me.canApprove && <>
+                    <Gated allowed={r.requestedBy.toLowerCase() !== me.username.toLowerCase()} reason="You made this request. Another Membership Officer must decide it.">
+                      <Button size="small" disabled={act.isPending} onClick={() => act.mutate({ r, kind: 'approve' })}>Approve</Button>
+                    </Gated>
+                    <Gated allowed={r.requestedBy.toLowerCase() !== me.username.toLowerCase()} reason="You made this request. Another Membership Officer must decide it.">
+                      <Button size="small" color="error" onClick={() => setRejecting(r)}>Reject</Button>
+                    </Gated>
                   </>}
                   {r.requestedBy.toLowerCase() === me.username.toLowerCase() && <Button size="small" onClick={() => act.mutate({ r, kind: 'withdraw' })}>Withdraw</Button>}
                 </TableCell>
