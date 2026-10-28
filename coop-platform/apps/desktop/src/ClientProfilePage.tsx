@@ -1118,16 +1118,33 @@ function Profile({ id, lk }: { id: Id; lk?: Lookups }) {
   return (
     <>
       <ProfileHeader m={m} lk={lk} />
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" aria-label="Profile sections"
-        sx={(t) => ({
-          mt: 1, px: 1, minHeight: 40, ...glass(t),
-          '& .MuiTab-root': { minHeight: 40, fontSize: 13.5, px: 1.5 },
-          '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' },
-        })}>
-        {TABS.map((t) => <Tab key={t} label={t} />)}
-      </Tabs>
-      <Box sx={{ pt: 1, flex: 1, overflow: 'auto' }}>
-        <TabContent tab={tab} m={m} lk={lk} />
+      {/* One folder: the tab strip and the page below share a frame, and the open tab takes the page's own fill so the two read as connected. */}
+      <Box sx={(t) => ({ mt: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', ...glass(t) })}>
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" aria-label="Profile sections"
+          sx={(t) => {
+            const dark = t.palette.mode === 'dark'
+            const page = dark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)'
+            return {
+              minHeight: 38, px: 0.5, pt: 0.5,
+              background: dark ? 'rgba(0,0,0,0.22)' : 'rgba(110,120,150,0.12)',
+              borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'}`,
+              '& .MuiTabs-indicator': { display: 'none' },
+              '& .MuiTab-root': {
+                minHeight: 36, fontSize: 13.5, px: 1.75, textTransform: 'none', color: 'text.secondary',
+                borderRadius: '8px 8px 0 0', mr: 0.25, mb: '-1px', border: '1px solid transparent', borderBottom: 'none',
+              },
+              '& .MuiTab-root.Mui-selected': {
+                color: 'text.primary', fontWeight: 600, background: page,
+                borderColor: dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                boxShadow: `inset 0 2px 0 ${t.palette.primary.main}`,
+              },
+            }
+          }}>
+          {TABS.map((t) => <Tab key={t} label={t} />)}
+        </Tabs>
+        <Box sx={(t) => ({ flex: 1, overflow: 'auto', p: 1.5, background: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)' })}>
+          <TabContent tab={tab} m={m} lk={lk} />
+        </Box>
       </Box>
     </>
   )
