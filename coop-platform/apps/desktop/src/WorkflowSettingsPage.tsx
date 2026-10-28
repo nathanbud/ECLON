@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { FiPlus, FiTrash2 } from 'react-icons/fi'
 import { getWorkflowDefinitions, getWorkflowOptions, saveWorkflowDefinition, type WorkflowDefinition } from './api'
 import { appBackground, glass } from './glass'
+import { useLeaveGuard } from './leaveGuard'
 import { useMe } from './session'
 
 interface Row { name: string; role: string; minAmount: string }
@@ -16,6 +17,8 @@ function Editor({ def, roles, max, canEdit }: { def: WorkflowDefinition; roles: 
   const [rows, setRows] = useState<Row[]>(def.steps.map((s) => ({ name: s.name, role: s.role, minAmount: String(s.minAmount) })))
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const initial = JSON.stringify([def.active, def.steps.map((s) => ({ name: s.name, role: s.role, minAmount: String(s.minAmount) }))])
+  useLeaveGuard(canEdit && JSON.stringify([active, rows]) !== initial ? `The approval steps for ${def.label} have changes that are not saved.` : null)
   const set = (i: number, k: keyof Row, v: string) => { setSaved(false); setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r))) }
   const save = useMutation({
     mutationFn: () => saveWorkflowDefinition(def.entityType, active, rows.map((r) => ({ name: r.name, role: r.role, minAmount: num(r.minAmount || '0') }))),

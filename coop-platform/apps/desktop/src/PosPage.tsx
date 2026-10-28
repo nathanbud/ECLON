@@ -10,6 +10,7 @@ import {
 import { appBackground, glass } from './glass'
 import { ReasonDialog } from './ProcurementPage'
 import { useMe } from './session'
+import { useLeaveGuard } from './leaveGuard'
 
 const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const qty = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 })
@@ -69,6 +70,7 @@ function Register() {
 
   const price = (p: PosProduct) => (p.price ?? 0) * (1 - (p.promoPercent ?? 0) / 100)
   const lineTotal = (l: CartLine) => Math.round(price(l.product) * (num(l.quantity) || 0) * 100) / 100
+  useLeaveGuard(cart.length > 0 ? 'The sale in progress has items that are not paid yet.' : null)
   const subtotal = cart.reduce((s, l) => s + lineTotal(l), 0)
   const d = (discounts.data ?? []).find((x) => String(x.id) === discountId)
   const off = d ? Math.min(subtotal, d.kind === 'PERCENT' ? Math.round(subtotal * d.value) / 100 : d.value) : 0
