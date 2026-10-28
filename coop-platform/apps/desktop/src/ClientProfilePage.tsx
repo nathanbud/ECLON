@@ -239,7 +239,7 @@ function MembershipTab({ m, lk }: { m: Member; lk?: Lookups }) {
 function PersonalTab({ m, lk }: { m: Member; lk?: Lookups }) {
   const age = yearsSince(m.dateOfBirth)
   return (
-    <Box sx={{ columns: '340px', columnGap: '12px' }}>
+    <Box sx={{ columns: 2, columnGap: '12px' }}>
       <Section title="Identity">
         <Field label="Last name" value={m.lastName} col="LName" />
         <Field label="First name" value={m.firstName} col="FName" />
