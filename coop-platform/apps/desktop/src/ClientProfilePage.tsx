@@ -340,7 +340,7 @@ function ProfileHeader({ m, lk, canPhoto = false, onNotice }: { m: Member; lk?: 
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1, flexShrink: 0 }}>
         {/* Classification sits with the status: client type, account type and department. */}
         <Box role="group" aria-label="Client classification" sx={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: '4px 10px', alignItems: 'center', mt: 0, width: 300 }}>
-          <SelectField inline label="Client type" lookup="clientType" code={m.clientType} lk={lk} col="ClientType" />
+          <SelectField inline label="Member type" lookup="clientType" code={m.clientType} lk={lk} col="ClientType" />
           <SelectField inline label="Account type" lookup="accountType" code={m.accountType} lk={lk} col="AccountType" />
           <SelectField inline label="Department" lookup="department" code={m.department} lk={lk} col="ClientDEPT" />
           <InlineField label="Date opened" value={m.dateOpened ? `${fmtDate(m.dateOpened)}${yearsSince(m.dateOpened) != null ? ` · ${yearsSince(m.dateOpened)} yrs` : ''}` : null} />
