@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
 import {
-  getCapabilities, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, getTimeDeposits, getTimeDepositHistory, type TimeDeposit, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, getCoMakerNotice, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
+  getCapabilities, getFingerprints, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, getTimeDeposits, getTimeDepositHistory, type TimeDeposit, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, getCoMakerNotice, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
   type Change, type DetailField, type Lookups, type Member, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck, type ShareAccount,
 } from './api'
 import { appBackground, glass } from './glass'
@@ -20,6 +20,7 @@ import { displayName, memberNo, statusOf, type Id } from './clients'
 import LoansTab from './LoansTab'
 import DocumentsPanel from './DocumentsPanel'
 import MemberPhotoDialog from './MemberPhotoDialog'
+import FingerprintDialog from './FingerprintDialog'
 import { CloseDialog, ReactivateDialog, RegisterDialog } from './MemberRequests'
 import FindClientDialog, { FindBody } from './FindClientDialog'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
@@ -280,6 +281,8 @@ const quietChip = {
 function ProfileHeader({ m, lk, canPhoto = false, onNotice }: { m: Member; lk?: Lookups; canPhoto?: boolean; onNotice?: (msg: string) => void }) {
   const { editing } = useEdit()
   const [photoOpen, setPhotoOpen] = useState(false)
+  const [fingerOpen, setFingerOpen] = useState(false)
+  const prints = useQuery({ queryKey: ['fingerprints', m.id], queryFn: () => getFingerprints(m.id.branchCode, m.id.clientId), staleTime: 60_000, retry: false })
   const st = statusOf(m, lk)
   const photo = useMemberImage('photo', m.id)
   const signature = useMemberImage('signature', m.id)
@@ -303,13 +306,10 @@ function ProfileHeader({ m, lk, canPhoto = false, onNotice }: { m: Member; lk?: 
           </Tooltip>
         )}
       </Box>
-        <Tooltip title="No fingerprint on file. The fingerprint source is not connected yet.">
-          <span style={{ display: 'flex' }}>
-            <Chip size="small" variant="outlined" disabled icon={<IoFingerPrint />} label="Fingerprint" aria-label="Fingerprint (not available)"
-              sx={{ justifyContent: 'flex-start', flex: 1 }} />
-          </span>
-        </Tooltip>
+        <Chip size="small" variant="outlined" clickable color={prints.data?.fingers.length ? 'success' : 'default'} icon={<IoFingerPrint />} onClick={() => setFingerOpen(true)}
+          label={prints.data?.fingers.length ? `Fingerprint · ${prints.data.fingers.length}/10` : 'Fingerprint'} aria-label="Fingerprints" sx={{ justifyContent: 'flex-start', flex: 1 }} />
       </Box>
+      {fingerOpen && <FingerprintDialog id={m.id} name={displayName(m)} canManage={canPhoto} onClose={() => setFingerOpen(false)} onDone={(msg) => { void prints.refetch(); onNotice?.(msg) }} />}
       {photoOpen && <MemberPhotoDialog id={m.id} name={displayName(m)} onClose={() => setPhotoOpen(false)} onDone={(msg) => onNotice?.(msg)} />}
       <Box sx={{ minWidth: 0, flex: 1 }}>
         {/* Status and alert: small outlined tags above the name, kept quiet so the name leads. */}

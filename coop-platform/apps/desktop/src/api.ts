@@ -1154,3 +1154,19 @@ export async function uploadMemberPhoto(branchCode: number, clientId: number, ph
     throw new Error(message)
   }
 }
+
+// ---- fingerprints --------------------------------------------------------------------------------------------------
+
+export interface FingerprintSummary {
+  consent: { version: string; givenAt: string; recordedBy: string } | null
+  fingers: { finger: number; name: string; quality: number; device: string | null; capturedAt: string; capturedBy: string }[]
+  minQuality: number; threshold: number; recommended: number; simulated: boolean; consentVersion: string
+}
+const fpUrl = (b: number, c: number, tail = '') => `/api/members/${b}/${c}/${tail}`
+export const getFingerprints = (b: number, c: number) => getJson<FingerprintSummary>(fpUrl(b, c, 'fingerprints'))
+export const giveBiometricConsent = (b: number, c: number) => send<FingerprintSummary>('POST', fpUrl(b, c, 'biometric-consent'))
+export const withdrawBiometricConsent = (b: number, c: number, reason: string) => send<FingerprintSummary>('POST', fpUrl(b, c, 'biometric-consent/withdraw'), { reason })
+export const enrolFingerprint = (b: number, c: number, body: { finger: number; template: string; format: string; quality: number; device: string }) => send<FingerprintSummary>('POST', fpUrl(b, c, 'fingerprints'), body)
+export const verifyFingerprint = (b: number, c: number, body: { template: string; format: string }) =>
+  send<{ matched: boolean; finger: number | null; fingerName: string | null; score: number }>('POST', fpUrl(b, c, 'fingerprints/verify'), body)
+export const revokeFingerprint = (b: number, c: number, finger: number, reason: string) => send<FingerprintSummary>('POST', fpUrl(b, c, `fingerprints/${finger}/revoke`), { reason })
