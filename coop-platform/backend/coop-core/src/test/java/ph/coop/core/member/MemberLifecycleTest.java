@@ -117,4 +117,46 @@ class MemberLifecycleTest {
         var req = ctl.register(ana(), me(maker));
         assertThrows(ResponseStatusException.class, () -> ctl.approve(req.id(), null, me(as("other", "PERM_MEMBER_EDIT"))));
     }
+
+    private int openedAndClosed(int reason, String died) {
+        int id = ctl.approve(ctl.register(ana(), me(maker)).id(), null, me(officer)).clientId();
+        var close = ctl.close(new MemberLifecycleController.Close(1, id, reason, died, null), me(maker));
+        ctl.approve(close.id(), null, me(officer));
+        return id;
+    }
+
+    @Test
+    void aClosedMemberIsReactivatedOnTheSameRecordKeepingItsAccounts() {
+        int id = openedAndClosed(1, null);
+        var req = ctl.reactivate(new MemberLifecycleController.Reactivate(1, id, 1, "Wants to rejoin"), me(maker));
+        assertEquals("APPROVED", ctl.approve(req.id(), null, me(officer)).status());
+        Map<String, Object> c = jdbc.queryForMap("SELECT AccountStatus, ClientType, ClosedDate, ClosedReason FROM client WHERE ClientIDBrCode = 1 AND ClientID = ?", id);
+        assertEquals(1, ((Number) c.get("AccountStatus")).intValue());
+        assertEquals(1, ((Number) c.get("ClientType")).intValue());
+        assertEquals(null, c.get("ClosedDate"));
+        assertEquals(4, jdbc.queryForObject("SELECT COUNT(*) FROM slmastersum WHERE MBR_CODE = 1 AND MCLIENTID = ?", Integer.class, id));
+    }
+
+    @Test
+    void aDeceasedMemberIsNeverReactivated() {
+        int id = openedAndClosed(6, "2026-01-01");
+        var e = assertThrows(ResponseStatusException.class, () -> ctl.reactivate(new MemberLifecycleController.Reactivate(1, id, 1, "Mistake"), me(maker)));
+        assertTrue(e.getReason().contains("deceased"));
+    }
+
+    @Test
+    void aBadDebtMemberNeedsAnAdministrator() {
+        int id = openedAndClosed(3, null);
+        var req = ctl.reactivate(new MemberLifecycleController.Reactivate(1, id, 2, "Settled outside"), me(maker));
+        assertThrows(ResponseStatusException.class, () -> ctl.approve(req.id(), null, me(officer)));
+        var admin = as("boss", "ROLE_MEMBERSHIP_OFFICER", "ROLE_ADMIN");
+        assertEquals("APPROVED", ctl.approve(req.id(), null, me(admin)).status());
+        assertEquals(2, jdbc.queryForObject("SELECT ClientType FROM client WHERE ClientIDBrCode = 1 AND ClientID = ?", Integer.class, id));
+    }
+
+    @Test
+    void activeMembersAndMissingReasonsAreRefused() {
+        int id = ctl.approve(ctl.register(ana(), me(maker)).id(), null, me(officer)).clientId();
+        assertThrows(ResponseStatusException.class, () -> ctl.reactivate(new MemberLifecycleController.Reactivate(1, id, 1, "x"), me(maker)));
+    }
 }

@@ -23,4 +23,11 @@ Read and edit (maker-checker) already existed. This adds the other two letters o
 - Screens: Register new member (finder screen and profile), Close membership (profile), New members and closings (Approvals).
 - Tests: `LifecycleRulesTest`, `MemberLifecycleTest` (rolls back).
 
-Not built: registering joint, kiddie and company members; reopening a closed membership; moving a member to dormant.
+## Reactivation (bank practice: one customer file, accounts by how they ended)
+
+- `POST /api/member-requests/reactivations` (kind REACTIVATE), same maker-checker. Allowed for dormant (2) or closed (3) members; **never for a deceased member** (reason 6, a date of death or client type 7: a mistaken record is an administrator's correction). A reason is required and the membership type (Regular or Associate) is chosen.
+- A member closed for **Bad debts or Offset** needs an administrator to approve, besides the officer role.
+- Approval puts the **same record** back: status 1, type as chosen, close date, reason and date of death cleared (the old values go to the audit row). Accounts never formally closed (status 15) are kept; any standard account the member no longer holds as active is opened new, so a formally closed account keeps its final history.
+- Whether a returning member pays share capital again is a cooperative policy the app does not enforce.
+
+Not built: registering joint, kiddie and company members; moving a member to dormant.

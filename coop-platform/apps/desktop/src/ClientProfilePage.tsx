@@ -19,7 +19,7 @@ import { tileFill } from './theme'
 import { displayName, memberNo, statusOf, type Id } from './clients'
 import LoansTab from './LoansTab'
 import DocumentsPanel from './DocumentsPanel'
-import { CloseDialog, RegisterDialog } from './MemberRequests'
+import { CloseDialog, ReactivateDialog, RegisterDialog } from './MemberRequests'
 import FindClientDialog, { FindBody } from './FindClientDialog'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
@@ -1243,6 +1243,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
   const [notice, setNotice] = useState<string | null>(null)
   const [registering, setRegistering] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [reactivating, setReactivating] = useState(false)
 
   const { data: lk } = useQuery({ queryKey: ['lookups'], queryFn: getLookups, staleTime: Infinity })
   const { data: caps } = useQuery({ queryKey: ['capabilities'], queryFn: getCapabilities, staleTime: 60_000 })
@@ -1359,6 +1360,12 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
                   <Button size="small" color="error" onClick={() => setClosing(true)}>Close membership</Button>
                 </Box>
               )}
+              {caps?.edit && member && ((member.accountStatus ?? 1) === 2 || (member.accountStatus ?? 1) === 3) && !editing && (
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 0.5 }}>
+                  <Button size="small" onClick={() => setReactivating(true)}>Reactivate membership</Button>
+                </Box>
+              )}
+              {reactivating && member && <ReactivateDialog branchCode={selected.branchCode} clientId={selected.clientId} name={displayName(member)} onClose={() => setReactivating(false)} onDone={setNotice} />}
               {closing && member && <CloseDialog branchCode={selected.branchCode} clientId={selected.clientId} name={displayName(member)} onClose={() => setClosing(false)} onDone={setNotice} />}
               {editing && <EditBar changes={changes} saving={saving} error={error} onSave={save} onCancel={cancel} />}
               <Profile key={key} id={selected} lk={lk} />

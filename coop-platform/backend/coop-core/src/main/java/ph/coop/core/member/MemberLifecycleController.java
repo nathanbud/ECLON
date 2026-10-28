@@ -42,6 +42,8 @@ public class MemberLifecycleController {
 
     public record Close(int branchCode, int clientId, int reason, String dateDeceased, String note) {}
 
+    public record Reactivate(int branchCode, int clientId, int clientType, String note) {}
+
     public record Decision(String note) {}
 
     private static final String SELECT = "SELECT id, branch_code, kind, client_id, summary, status, requested_by, requested_at, decided_by, decided_at, decision_note, payload FROM ecis_member_request";
@@ -133,6 +135,32 @@ public class MemberLifecycleController {
         });
     }
 
+    @PostMapping("/reactivations")
+    @PreAuthorize("hasAuthority('PERM_MEMBER_EDIT')")
+    public Request reactivate(@RequestBody Reactivate req, Authentication auth) {
+        requireAvailable();
+        return tx.execute((s) -> {
+            Map<String, Object> c = jdbc.queryForList("SELECT AccountStatus, ClosedReason, ClientType, DateDeceased, CONCAT_WS(', ', LName, FName) AS Name FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", req.branchCode(), req.clientId())
+                .stream().findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found."));
+            Integer reason = c.get("ClosedReason") == null ? null : ((Number) c.get("ClosedReason")).intValue();
+            LocalDate deceased = c.get("DateDeceased") == null ? null : LocalDate.parse(c.get("DateDeceased").toString().substring(0, 10));
+            List<String> problems = LifecycleRules.reactivateProblems(((Number) c.get("AccountStatus")).intValue(), reason, ((Number) c.get("ClientType")).intValue(), deceased, req.clientType(), req.note());
+            if (!problems.isEmpty()) throw bad(String.join(" ", problems));
+            if (!pendingFor(req.branchCode(), req.clientId()).isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "This member already has a request waiting for approval.");
+            Map<String, String> payload = new LinkedHashMap<>();
+            payload.put("clientType", Integer.toString(req.clientType()));
+            payload.put("note", req.note().trim());
+            payload.put("priorStatus", c.get("AccountStatus").toString());
+            if (reason != null) payload.put("priorReason", reason.toString());
+            if (LifecycleRules.needsAdministrator(reason)) payload.put("adminOnly", "true");
+            String summary = "Reactivate " + req.clientId() + " (" + c.get("Name") + ")" + (payload.containsKey("adminOnly") ? ", needs an administrator" : "");
+            long id = db.insertReturningId("INSERT INTO ecis_member_request (branch_code, kind, client_id, summary, payload, status, requested_by, requested_at) VALUES (?, 'REACTIVATE', ?, ?, ?, 'PENDING', ?, NOW())", "id",
+                req.branchCode(), req.clientId(), summary, write(payload), auth.getName());
+            audit(auth.getName(), "MEMBER_REACTIVATE_REQUESTED", req.branchCode() + "-" + req.clientId(), null, summary, "Request #" + id);
+            return load(id);
+        });
+    }
+
     @PostMapping("/{id}/approve")
     public Request approve(@PathVariable long id, @RequestBody(required = false) Decision d, Authentication auth) {
         requireAvailable();
@@ -141,11 +169,17 @@ public class MemberLifecycleController {
             Request r = lockPending(id);
             String problem = ChangeRules.approvalProblem(r.requestedBy(), auth.getName(), has(auth, "ROLE_MEMBERSHIP_OFFICER"));
             if (problem != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, problem);
+            if ("true".equals(r.payload().get("adminOnly")) && !has(auth, "ROLE_ADMIN")) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This member left owing money (bad debts or offset), so an administrator must approve the return.");
+            }
             String done;
             if (r.kind().equals("REGISTER")) {
                 int clientId = openMember(r, auth.getName());
                 jdbc.update("UPDATE ecis_member_request SET client_id = ? WHERE id = ?", clientId, id);
                 done = "Member " + clientId + " opened";
+            } else if (r.kind().equals("REACTIVATE")) {
+                reactivateMember(r, auth.getName());
+                done = "Member " + r.clientId() + " reactivated";
             } else {
                 closeMember(r, auth.getName());
                 done = "Member " + r.clientId() + " closed";
@@ -214,7 +248,16 @@ public class MemberLifecycleController {
         }
         jdbc.update("INSERT INTO client (" + String.join(", ", cols) + ") VALUES (" + "?, ".repeat(cols.size() - 1) + "?)", args.toArray());
 
+        openAccounts(branch, clientId, clientType, today, false);
+        audit(approver, "MEMBER_CREATED", branch + "-" + clientId, null, r.summary(), "Request #" + r.id() + " by " + r.requestedBy());
+        return clientId;
+    }
+
+
+    /** Opens the standard accounts. With {@code reuse}, an account type the member already holds as active (status 15) is kept as it is and only the missing ones are opened. */
+    private void openAccounts(int branch, int clientId, int clientType, LocalDate today, boolean reuse) {
         for (LifecycleRules.Acct a : LifecycleRules.accountsFor(clientType)) {
+            if (reuse && holdsActive(branch, clientId, a)) continue;
             List<Integer> last = jdbc.queryForList("SELECT MREF_NO FROM slmastersum WHERE MBR_CODE = ? AND MSLC_CODE = ? AND MSLT_CODE = ? ORDER BY MREF_NO DESC LIMIT 1 FOR UPDATE", Integer.class, branch, a.slc(), a.slt());
             int ref = last.isEmpty() ? 1 : last.get(0) + 1;
             Map<String, Object> type = jdbc.queryForList("SELECT COALESCE(SLTypeMIN_BAL, 0) mn, COALESCE(SLTypeINT_RATE, 0) rt FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", branch, a.slc(), a.slt())
@@ -229,8 +272,35 @@ public class MemberLifecycleController {
                     branch, a.slc(), a.slt(), ref, clientId, today.toString());
             }
         }
-        audit(approver, "MEMBER_CREATED", branch + "-" + clientId, null, r.summary(), "Request #" + r.id() + " by " + r.requestedBy());
-        return clientId;
+    }
+
+    private boolean holdsActive(int branch, int clientId, LifecycleRules.Acct a) {
+        String sql = switch (a.table()) {
+            case "sc" -> "SELECT COUNT(*) FROM sc WHERE SCBR_CODE = ? AND ClientIDSC = ? AND SCSLC_CODE = ? AND SCSLT_CODE = ? AND SCSTATUS = 15";
+            case "sd" -> "SELECT COUNT(*) FROM sd WHERE SDBR_CODE = ? AND ClientIDSD = ? AND SDSLC_CODE = ? AND SDSLT_CODE = ? AND SDSTATUS = 15";
+            default -> "SELECT COUNT(*) FROM osl WHERE OSLBR_CODE = ? AND ClientIDOSL = ? AND OSLSLC_CODE = ? AND OSLSLT_CODE = ? AND OSLSTATUS = 15";
+        };
+        Integer n = jdbc.queryForObject(sql, Integer.class, branch, clientId, a.slc(), a.slt());
+        return n != null && n > 0;
+    }
+
+    private void reactivateMember(Request r, String approver) {
+        int branch = r.branchCode();
+        int clientId = r.clientId();
+        int newType = Integer.parseInt(r.payload().get("clientType"));
+        List<Map<String, Object>> found = jdbc.queryForList("SELECT AccountStatus, ClosedReason, ClientType, DateDeceased, ClosedDate FROM client WHERE ClientIDBrCode = ? AND ClientID = ? FOR UPDATE", branch, clientId);
+        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found.");
+        Map<String, Object> c = found.get(0);
+        Integer reason = c.get("ClosedReason") == null ? null : ((Number) c.get("ClosedReason")).intValue();
+        LocalDate deceased = c.get("DateDeceased") == null ? null : LocalDate.parse(c.get("DateDeceased").toString().substring(0, 10));
+        int status = ((Number) c.get("AccountStatus")).intValue();
+        List<String> problems = LifecycleRules.reactivateProblems(status, reason, ((Number) c.get("ClientType")).intValue(), deceased, newType, r.payload().get("note"));
+        if (!problems.isEmpty()) throw bad(String.join(" ", problems));
+        jdbc.update("UPDATE client SET AccountStatus = 1, ClientType = ?, ClosedDate = NULL, ClosedReason = NULL, DateDeceased = NULL, UpdDateTime = NOW() WHERE ClientIDBrCode = ? AND ClientID = ?", newType, branch, clientId);
+        // Accounts never formally closed are kept; a type the member no longer holds as active gets a new account, so the closed one keeps its final history.
+        openAccounts(branch, clientId, newType, LocalDate.now(), true);
+        audit(approver, "MEMBER_REACTIVATED", branch + "-" + clientId, "status " + status + (reason == null ? "" : ", closed " + c.get("ClosedDate") + " (" + LifecycleRules.REASONS.get(reason) + ")"), "status 1",
+            "Request #" + r.id() + " by " + r.requestedBy() + ". " + r.payload().get("note"));
     }
 
     private void closeMember(Request r, String approver) {

@@ -137,4 +137,21 @@ final class LifecycleRules {
     static int closedClientType(int reason) {
         return reason == 6 ? 7 : 6;
     }
+
+    /** Closing reasons that left money owing; only an administrator may let such a member back. */
+    static boolean needsAdministrator(Integer closedReason) {
+        return closedReason != null && (closedReason == 3 || closedReason == 4);
+    }
+
+    /** The problems with asking to reactivate: only a dormant or closed membership, never a deceased member, and a membership type the app can open. */
+    static List<String> reactivateProblems(int status, Integer closedReason, int clientType, LocalDate deceased, int newType, String note) {
+        List<String> out = new ArrayList<>();
+        if (status != 2 && status != 3) out.add("Only a dormant or closed membership can be reactivated.");
+        if ((closedReason != null && closedReason == 6) || deceased != null || clientType == 7) {
+            out.add("A deceased member cannot be reactivated. If the death was recorded by mistake, ask an administrator to correct the record.");
+        }
+        if (!TYPES.containsKey(newType)) out.add("Choose Regular Individual or Associate.");
+        if (note == null || note.trim().length() < 3) out.add("Give the reason for reactivating.");
+        return out;
+    }
 }

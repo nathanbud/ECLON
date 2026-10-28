@@ -1,7 +1,7 @@
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { approveMemberRequest, listMemberRequests, registerMember, rejectMemberRequest, requestClosure, withdrawMemberRequest, type Lookups, type MemberRequest } from './api'
+import { approveMemberRequest, listMemberRequests, registerMember, rejectMemberRequest, requestClosure, requestReactivation, withdrawMemberRequest, type Lookups, type MemberRequest } from './api'
 import { glass } from './glass'
 import { useMe } from './session'
 import { ReasonDialog } from './ProcurementPage'
@@ -86,7 +86,39 @@ export function CloseDialog({ branchCode, clientId, name, onClose, onDone }: { b
   )
 }
 
-/** New-member and closing requests waiting for a decision. Officers decide; the person who asked can withdraw. */
+/** Ask to bring a dormant or closed member back on the same record. Accounts never formally closed are kept; missing ones are opened. */
+export function ReactivateDialog({ branchCode, clientId, name, onClose, onDone }: { branchCode: number; clientId: number; name: string; onClose: () => void; onDone: (msg: string) => void }) {
+  const qc = useQueryClient()
+  const [clientType, setClientType] = useState('1')
+  const [note, setNote] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const save = useMutation({
+    mutationFn: () => requestReactivation({ branchCode, clientId, clientType: Number(clientType), note }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['member-requests'] }); onDone('Reactivation sent for approval'); onClose() },
+    onError: (e) => setError((e as Error).message),
+  })
+  return (
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>Reactivate {name}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={1.5} sx={{ pt: 1 }}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <TextField select size="small" label="Membership" value={clientType} onChange={(e) => setClientType(e.target.value)}>
+            <MenuItem value="1">Regular Individual</MenuItem><MenuItem value="2">Associate</MenuItem>
+          </TextField>
+          <TextField size="small" label="Reason" value={note} onChange={(e) => setNote(e.target.value)} />
+          <Typography sx={{ fontSize: 12.5 }} color="text.secondary">The same member record comes back, with its history. A Membership Officer other than you approves; a member who left owing money (bad debts or offset) also needs an administrator. A deceased member cannot be reactivated. Check the cooperative's rule on paying share capital again before approving.</Typography>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="contained" disabled={save.isPending || note.trim().length < 3} onClick={() => { setError(null); save.mutate() }}>Send for approval</Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+/** New-member, closing and reactivation requests waiting for a decision. Officers decide; the person who asked can withdraw. */
 export default function MemberRequestsPanel() {
   const me = useMe()
   const qc = useQueryClient()
@@ -111,7 +143,7 @@ export default function MemberRequestsPanel() {
           <TableBody>
             {items.map((r) => (
               <TableRow key={r.id} hover>
-                <TableCell><Typography component="span" sx={{ fontWeight: 600 }}>{r.kind === 'REGISTER' ? 'New member' : 'Close'}</Typography>{' '}{r.summary}</TableCell>
+                <TableCell><Typography component="span" sx={{ fontWeight: 600 }}>{r.kind === 'REGISTER' ? 'New member' : r.kind === 'REACTIVATE' ? 'Reactivate' : 'Close'}</Typography>{' '}{r.summary}</TableCell>
                 <TableCell>{r.requestedBy}</TableCell><TableCell sx={{ whiteSpace: 'nowrap' }}>{when(r.requestedAt)}</TableCell>
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                   {me.canApprove && r.requestedBy.toLowerCase() !== me.username.toLowerCase() && <>
