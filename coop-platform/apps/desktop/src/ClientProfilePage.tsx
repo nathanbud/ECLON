@@ -479,7 +479,7 @@ function DetailsTab({ id, tab, title, lk }: { id: Id; tab: string; title: string
     )
   }
   return (
-    <Box sx={{ columns: '340px', columnGap: '12px' }}>
+    <Box sx={{ columns: '340px', columnGap: '12px', width: tab === 'groups' ? '50%' : undefined, minWidth: tab === 'groups' ? 340 : undefined }}>
       {sections.map(card)}
     </Box>
   )
