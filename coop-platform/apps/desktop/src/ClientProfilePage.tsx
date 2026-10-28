@@ -36,7 +36,7 @@ const TABS = [
 ]
 
 /** The two main tabs and the sub-tabs under each; anything not named in Info or Accounts is under Other so nothing is lost. */
-const INFO_TABS = ['Membership', 'Personal', 'Business / Employment', 'Education']
+const INFO_TABS = ['Membership', 'Personal', 'Business / Employment', 'Education', 'Contacts & IDs', 'Spouse Info']
 const ACCOUNT_TABS = ['Share Capital', 'Savings', 'Time Deposits', 'Loans', 'Billing', 'Pledges / Insurances']
 const GROUPS: { label: string; tabs: number[] }[] = [
   { label: 'Info', tabs: INFO_TABS.map((n) => TABS.indexOf(n)) },
