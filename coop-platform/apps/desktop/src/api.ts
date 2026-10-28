@@ -1210,13 +1210,13 @@ export const listMemberImports = (status = 'PENDING') => getJson<ImportBatch[]>(
 export const approveMemberImport = (id: number) => send<ImportBatch>('POST', `/api/member-imports/${id}/approve`, {})
 export const rejectMemberImport = (id: number, note: string) => send<ImportBatch>('POST', `/api/member-imports/${id}/reject`, { note })
 export const withdrawMemberImport = (id: number) => send<ImportBatch>('POST', `/api/member-imports/${id}/withdraw`, {})
-export async function downloadMemberImportTemplate(): Promise<void> {
-  const res = await http('/api/member-imports/template')
+export async function downloadMemberImportTemplate(kind: 'xlsx' | 'csv' = 'xlsx'): Promise<void> {
+  const res = await http(kind === 'xlsx' ? '/api/member-imports/template' : '/api/member-imports/template.csv')
   if (!res.ok) throw new Error(`Request failed (${res.status})`)
   const url = URL.createObjectURL(await res.blob())
   const a = document.createElement('a')
   a.href = url
-  a.download = 'members-template.csv'
+  a.download = `members-template.${kind}`
   a.click()
   URL.revokeObjectURL(url)
 }

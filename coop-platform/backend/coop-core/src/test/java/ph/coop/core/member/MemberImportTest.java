@@ -123,7 +123,20 @@ class MemberImportTest {
         var staff = me("clerk", "PERM_MEMBER_EDIT");
         assertThrows(AccessDeniedException.class, () -> imports.preview(csv(list()), 1));
         assertThrows(AccessDeniedException.class, () -> imports.upload(csv(list()), 1, true, staff));
-        assertTrue(imports.template().getBody().startsWith("LName,"));
-        assertEquals(Map.of(), Map.of());
+        assertTrue(imports.templateCsv().getBody().startsWith("LName,"));
+    }
+
+    @Test
+    void theBlankExcelListOpensAndItsExampleRowPassesTheChecks() throws IOException {
+        byte[] book = imports.template().getBody();
+        assertEquals('P', book[0]);
+        assertEquals('K', book[1]);
+        var rows = SpreadsheetReader.read("members-template.xlsx", book);
+        assertEquals(1, rows.size());
+        assertEquals("Reyes", rows.get(0).values().get("LName"));
+        assertEquals("Baguio City", rows.get(0).values().get("ResAddCity"));
+        admin();
+        var preview = imports.preview(new MockMultipartFile("file", "members-template.xlsx", "application/octet-stream", book), 1);
+        assertEquals(1, preview.total());
     }
 }

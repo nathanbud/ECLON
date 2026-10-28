@@ -52,7 +52,6 @@ public class MemberImportController {
     private record Checked(int line, String name, int clientType, Map<String, String> fields, List<String> problems) {}
 
     private static final String SELECT = "SELECT id, branch_code, file_name, total_rows, ok_rows, uploaded_by, uploaded_at, status, decided_by, decided_at, decision_note, opened_count, failed_count FROM ecis_member_import";
-    private static final String TEMPLATE_HEADER = "LName,FName,MName,SName,DateOfBirth,Gender,CivilStatus,MemberType,CellNum,EmailAddress,ResAddStreet,ResAddBarangay,ResAddCity,ResAddProvince,ResAddZipCode,Profession,BusName,BusJobTitle";
 
     private final JdbcTemplate jdbc;
     private final Db db;
@@ -87,10 +86,18 @@ public class MemberImportController {
 
     // ---- the file -----------------------------------------------------------------------------------------------
 
-    /** A blank list to fill in: the column names, and one example row. */
-    @GetMapping(value = "/template", produces = "text/csv")
-    public ResponseEntity<String> template() {
-        String csv = TEMPLATE_HEADER + "\r\nReyes,Ana,Santos,,1990-02-03,Female,Single,Regular,09171234567,ana@example.com,12 Rizal St,Poblacion,Baguio City,Benguet,2600,Teacher,,\r\n";
+    /** A blank list to fill in as an Excel workbook: a Members sheet (column names and one example row) and a Guide sheet. */
+    @GetMapping(value = "/template", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    public ResponseEntity<byte[]> template() {
+        byte[] book = TemplateWorkbook.build(lookups.all().getOrDefault("gender", Map.of()), lookups.all().getOrDefault("civilStatus", Map.of()));
+        return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=\"members-template.xlsx\"")
+            .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")).body(book);
+    }
+
+    /** The same blank list as plain CSV. */
+    @GetMapping(value = "/template.csv", produces = "text/csv")
+    public ResponseEntity<String> templateCsv() {
+        String csv = String.join(",", TemplateWorkbook.COLUMNS) + "\r\nReyes,Ana,Santos,,1990-02-03,Female,Single,Regular,09171234567,ana@example.com,12 Rizal St,Poblacion,Baguio City,Benguet,2600,Teacher,,\r\n";
         return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=\"members-template.csv\"").contentType(MediaType.parseMediaType("text/csv")).body(csv);
     }
 

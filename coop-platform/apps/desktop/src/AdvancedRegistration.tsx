@@ -58,7 +58,8 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
           Photos and fingerprints are not part of a list: add them on each member afterwards. Up to 5,000 rows and 5 MB.
         </Typography>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 1 }}>
-          <Button size="small" startIcon={<FiDownload />} onClick={() => void downloadMemberImportTemplate()}>Download a blank list</Button>
+          <Button size="small" startIcon={<FiDownload />} onClick={() => void downloadMemberImportTemplate('xlsx')}>Download a blank Excel list</Button>
+          <Button size="small" color="inherit" onClick={() => void downloadMemberImportTemplate('csv')}>or CSV</Button>
           <Button size="small" variant="contained" startIcon={<FiUpload />} disabled={!!busy} onClick={() => input.current?.click()}>Choose a file</Button>
           <input ref={input} type="file" hidden accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = '' }} />
           {file && <Typography sx={{ fontSize: 13 }} color="text.secondary">{file.name}</Typography>}
