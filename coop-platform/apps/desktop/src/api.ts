@@ -939,3 +939,25 @@ export const encodeDividend = (b: DividendReq) => send<DividendVoucher[]>('POST'
 export const getDividendVouchers = (cutoff: string) => getJson<DividendVoucher[]>(`/api/front-office/dividends/vouchers?cutoff=${cutoff}`)
 export const approveDividend = (year: number, controlNo: number) => send<DividendVoucher>('POST', `/api/front-office/dividends/${year}/${controlNo}/approve`)
 export const postDividend = (year: number, controlNo: number) => send<DividendVoucher>('POST', `/api/front-office/dividends/${year}/${controlNo}/post`)
+
+// ---- procurement (guide phase 12): suppliers, purchase requests, purchase orders --------------------------------------
+export interface Supplier { id: number; code: string; name: string; tin: string | null; address: string | null; phone: string | null; email: string | null; contact: string | null; termsDays: number; taxable: boolean; active: boolean }
+export type SupplierIn = Partial<Omit<Supplier, 'id'>>
+export interface PrLineIn { description: string; unit: string; quantity: number; estCost: number }
+export interface PrSummary { id: number; requestNo: string; requestDate: string; neededBy: string | null; purpose: string; status: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'ORDERED' | 'CANCELLED'; requestedBy: string; decidedBy: string | null; decisionNote: string | null; total: number }
+export interface PrDetail { summary: PrSummary; lines: PrLineIn[] }
+export interface PoLineIn { description: string; unit: string; quantity: number; unitCost: number }
+export interface PoLineOut extends PoLineIn { received: number }
+export interface PoSummary { id: number; orderNo: string; supplierId: number; supplier: string; requestId: number | null; requestNo: string | null; orderDate: string; expectedDate: string | null; termsDays: number; remarks: string | null; status: 'DRAFT' | 'APPROVED' | 'CANCELLED'; total: number; createdBy: string; approvedBy: string | null }
+export interface PoDetail { summary: PoSummary; lines: PoLineOut[] }
+export const listSuppliers = (q?: string, activeOnly = false) => getJson<Supplier[]>(`/api/procurement/suppliers?activeOnly=${activeOnly}${q ? `&q=${encodeURIComponent(q)}` : ''}`)
+export const createSupplier = (b: SupplierIn) => send<Supplier>('POST', '/api/procurement/suppliers', b)
+export const updateSupplier = (id: number, b: SupplierIn) => send<Supplier>('PUT', `/api/procurement/suppliers/${id}`, b)
+export const listRequests = (status?: string) => getJson<PrSummary[]>(`/api/procurement/requests${status ? `?status=${status}` : ''}`)
+export const getRequest = (id: number) => getJson<PrDetail>(`/api/procurement/requests/${id}`)
+export const createRequest = (b: { purpose: string; neededBy?: string | null; lines: PrLineIn[] }) => send<PrSummary>('POST', '/api/procurement/requests', b)
+export const decideRequest = (id: number, kind: 'approve' | 'reject' | 'cancel', note?: string) => send<PrSummary>('POST', `/api/procurement/requests/${id}/${kind}`, { note })
+export const listOrders = (status?: string) => getJson<PoSummary[]>(`/api/procurement/orders${status ? `?status=${status}` : ''}`)
+export const createOrder = (b: { supplierId: number; requestId?: number | null; expectedDate?: string | null; remarks?: string; lines: PoLineIn[] }) => send<PoSummary>('POST', '/api/procurement/orders', b)
+export const approveOrder = (id: number) => send<PoSummary>('POST', `/api/procurement/orders/${id}/approve`)
+export const cancelOrder = (id: number, note: string) => send<PoSummary>('POST', `/api/procurement/orders/${id}/cancel`, { note })
