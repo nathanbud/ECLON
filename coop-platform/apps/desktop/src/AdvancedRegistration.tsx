@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Snackbar, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { FiDownload, FiUpload } from 'react-icons/fi'
@@ -21,12 +21,23 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
   const [skip, setSkip] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [downloaded, setDownloaded] = useState<string | null>(null)
   useLeaveGuard(preview && preview.ok > 0 ? 'A checked list of members has not been sent yet.' : null)
 
   const choose = async (f: File | undefined) => {
     if (!f) return
     setFile(f); setPreview(null); setError(null); setSkip(false); setBusy('Checking the list…')
     try { setPreview(await previewMemberImport(f)) } catch (e) { setError((e as Error).message) } finally { setBusy(null) }
+  }
+
+  const download = async (kind: 'xlsx' | 'csv') => {
+    setError(null)
+    try {
+      await downloadMemberImportTemplate(kind)
+      setDownloaded(`members-template.${kind} has finished downloading. Look for it in your Downloads folder.`)
+    } catch (e) {
+      setError(`The blank list could not be downloaded: ${(e as Error).message}`)
+    }
   }
 
   const send = async () => {
@@ -58,14 +69,17 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
           Photos and fingerprints are not part of a list: add them on each member afterwards. Up to 5,000 rows and 5 MB.
         </Typography>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 1 }}>
-          <Button size="small" startIcon={<FiDownload />} onClick={() => void downloadMemberImportTemplate('xlsx')}>Download a blank Excel list</Button>
-          <Button size="small" color="inherit" onClick={() => void downloadMemberImportTemplate('csv')}>or CSV</Button>
+          <Button size="small" startIcon={<FiDownload />} onClick={() => void download('xlsx')}>Download a blank Excel list</Button>
+          <Button size="small" color="inherit" onClick={() => void download('csv')}>or CSV</Button>
           <Button size="small" variant="contained" startIcon={<FiUpload />} disabled={!!busy} onClick={() => input.current?.click()}>Choose a file</Button>
           <input ref={input} type="file" hidden accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = '' }} />
           {file && <Typography sx={{ fontSize: 13 }} color="text.secondary">{file.name}</Typography>}
         </Stack>
       </Box>
 
+      <Snackbar open={!!downloaded} autoHideDuration={5000} onClose={() => setDownloaded(null)}>
+        <Alert severity="success" variant="filled" onClose={() => setDownloaded(null)}>{downloaded}</Alert>
+      </Snackbar>
       {error && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError(null)}>{error}</Alert>}
       {busy && <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">{busy}</Typography>}
 
