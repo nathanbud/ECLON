@@ -236,7 +236,6 @@ function MembershipTab({ m, lk }: { m: Member; lk?: Lookups }) {
         <Field label="Date opened" value={fmtDate(m.dateOpened)} />
         <Field label="Date closed" value={fmtDate(m.closedDate)} />
         <SelectField label="Membership type" lookup="clientType" code={m.clientType} lk={lk} col="ClientType" />
-        <SelectField label="Account type" lookup="accountType" code={m.accountType} lk={lk} col="AccountType" />
       </Section>
       <Section title="Classification" columns={2}>
         <SelectField label="Department" lookup="department" code={m.department} lk={lk} col="ClientDEPT" />
