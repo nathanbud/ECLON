@@ -57,6 +57,7 @@ Required env vars: `DB_USER`, `DB_PASSWORD`, `DEV_API_USER`, `DEV_API_PASSWORD`.
 
 - Audit rows: `AuditLog.write(...)` only. Controller errors: `ApiErrors`. Migrations: `scripts/migrate.ps1` (records versions in `ecis_schema_migration`; the 43 existing ones are baselined). Never edit an applied migration.
 - Screens: `src/api/<topic>.ts`, `src/ui/format.ts` and `src/ui/dialogs.tsx` for shared pieces, `src/profile/*` for the member profile, `LIGHT`/`tint`/`tileFill` for colours (no new hard-coded hex). `npm run check` = type-check + lint + Vitest; CI runs the same plus the backend rule tests.
+- **Sign-in screen** (`SignInPage.tsx`, two columns: the cooperative, tagline and system facts on the left, the form on the right; one column on a narrow window; shows whether the server answers). The words, the acronym and an optional logo (`logoUrl`) are in `src/brand.ts`; change them there. Tested by `SignInPage.test.tsx` (includes an axe check); the e2e test looks for the heading "Welcome back".
 - Back up the app's own data with `scripts/backup-app-data.ps1` (all `ecis_` tables + the biometric key, into git-ignored `backups/`); see `documentation/release-readiness.md` for what is in place and what is still open before go-live.
 - Run the whole backend suite with `scripts/test-all.ps1` (sets a small connection pool; `-SkipRealData` skips the `realdata`-tagged tests). `iaccs_sim` is a tiny sample, not a test copy.
 

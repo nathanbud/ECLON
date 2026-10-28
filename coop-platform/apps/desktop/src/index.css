@@ -114,3 +114,9 @@ code {
 @media print {
   .no-print, .MuiAppBar-root { display: none !important; }
 }
+
+/* The sign-in screen's panels settle in with a small rise. */
+@keyframes signInRise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}

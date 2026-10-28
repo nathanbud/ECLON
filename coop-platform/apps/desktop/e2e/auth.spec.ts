@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test.describe('sign-in', () => {
   test('shows the sign-in page and refuses a wrong password', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByRole('heading', { name: 'Sign in to Coop Platform' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
     const signIn = page.getByRole('button', { name: 'Sign in' })
     await expect(signIn).toBeDisabled() // nothing typed yet
 
@@ -11,7 +11,7 @@ test.describe('sign-in', () => {
     await page.getByLabel('Password').fill('definitely-wrong')
     await signIn.click()
     await expect(page.getByRole('alert')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Sign in to Coop Platform' })).toBeVisible() // still signed out
+    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible() // still signed out
   })
 
   test('Arrow Down and Arrow Up move between the fields', async ({ page }) => {
