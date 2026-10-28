@@ -1,9 +1,8 @@
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Skeleton, MenuItem, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Skeleton, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import LoanApplicationDialog from './LoanApplicationDialog'
 import LoanProfileDialog from './LoanProfileDialog'
-import { askFoOverride, checkLoanPayment, getLoanDetail, getLoans, getLoanTypes, postLoanPayment, type LoanItem, type LoanPaymentBreakdown, type LoanPaymentReceipt, type LoanScheduleRow } from './api'
+import { askFoOverride, checkLoanPayment, getLoanDetail, getLoans, postLoanPayment, type LoanItem, type LoanPaymentBreakdown, type LoanPaymentReceipt, type LoanScheduleRow } from './api'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
 
@@ -13,15 +12,13 @@ const num = { fontVariantNumeric: 'tabular-nums' } as const
 const stateLabel: Record<LoanScheduleRow['state'], string> = { PAID: 'Paid', PARTIAL: 'Part paid', PAST_DUE: 'Past due', UPCOMING: 'Upcoming' }
 const stateColor: Record<LoanScheduleRow['state'], 'success' | 'warning' | 'error' | 'default'> = { PAID: 'success', PARTIAL: 'warning', PAST_DUE: 'error', UPCOMING: 'default' }
 
-/** A member's loans: what is owed, what is late, and the schedule and ledger behind each. Read-only. */
+/** A member's loans: what is owed, what is late, and the schedule and ledger behind each. New applications are made only from the Loan Application tile. */
 export default function LoansTab({ branchCode, clientId, teller = false }: { branchCode: number; clientId: number; teller?: boolean }) {
   const [paid, setPaid] = useState(false)
   const [open, setOpen] = useState<LoanItem | null>(null)
   const [paying, setPaying] = useState<LoanItem | null>(null)
   const [profile, setProfile] = useState<LoanItem | null>(null)
-  const [applyType, setApplyType] = useState<number | null>(null)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-loans', branchCode, clientId, paid], queryFn: () => getLoans(branchCode, clientId, paid), staleTime: 60_000 })
-  const types = useQuery({ queryKey: ['loan-types', branchCode], queryFn: () => getLoanTypes(branchCode, clientId), staleTime: 10 * 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
   if (isLoading) return <Skeleton variant="rounded" height={160} />
   return (
@@ -30,9 +27,6 @@ export default function LoansTab({ branchCode, clientId, teller = false }: { bra
         <Box sx={{ flex: 1, fontSize: 13 }}>
           {data && <>Outstanding principal <strong>{money(data.totalOutstanding)}</strong>{data.totalPastDue > 0 && <> · past due <strong style={{ color: 'var(--mui-palette-error-main, #d32f2f)' }}>{money(data.totalPastDue)}</strong></>}</>}
         </Box>
-        <TextField size="small" select label="New application" value="" onChange={(e) => setApplyType(Number(e.target.value))} sx={{ minWidth: 220, mr: 1 }} disabled={!types.data}>
-          {types.data?.map((x) => <MenuItem key={x.code} value={x.code} disabled={!x.available}>{x.name}{x.available ? '' : ' (cannot be scheduled here yet)'}</MenuItem>)}
-        </TextField>
         <FormControlLabel control={<Switch size="small" checked={paid} onChange={(e) => setPaid(e.target.checked)} />} label="Show paid loans" />
       </Box>
       {data && data.loans.length === 0 && <Alert severity="info">{paid ? 'This client has no loans.' : 'This client has no loans with a balance.'}</Alert>}
@@ -67,7 +61,6 @@ export default function LoansTab({ branchCode, clientId, teller = false }: { bra
       )}
       {open && <LoanDialog branchCode={branchCode} clientId={clientId} loan={open} onClose={() => setOpen(null)} />}
       {paying && <LoanPaymentDialog clientId={clientId} loan={paying} onClose={() => setPaying(null)} />}
-      {applyType != null && <LoanApplicationDialog branchCode={branchCode} clientId={clientId} typeCode={applyType} onClose={() => setApplyType(null)} />}
       {profile && <LoanProfileDialog branchCode={branchCode} clientId={clientId} typeCode={profile.typeCode} refNo={profile.refNo} onClose={() => setProfile(null)} />}
     </>
   )
