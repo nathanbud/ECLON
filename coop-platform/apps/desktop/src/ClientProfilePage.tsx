@@ -799,7 +799,6 @@ function ShareHistoryDialog({ id, typeCode, refNo, onClose }: { id: Id; typeCode
 
 function SavingsTab({ id }: { id: Id }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
-  const [cash, setCash] = useState<{ account: SavingsAccount; mode: 'deposit' | 'withdraw' } | null>(null)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-savings', id], queryFn: () => getSavings(id.branchCode, id.clientId), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
   if (isLoading) return <Skeleton variant="rounded" height={160} />
@@ -813,7 +812,7 @@ function SavingsTab({ id }: { id: Id }) {
           <TableHead>
             <TableRow>
               <TableCell>Type</TableCell><TableCell>Account no.</TableCell><TableCell>Opened</TableCell><TableCell>Status</TableCell><TableCell>Last activity</TableCell>
-              <TableCell align="right">Rate %</TableCell><TableCell align="right">Balance</TableCell><TableCell align="right">On hold</TableCell><TableCell align="right">Available</TableCell><TableCell />
+              <TableCell align="right">Rate %</TableCell><TableCell align="right">Balance</TableCell><TableCell align="right">On hold</TableCell><TableCell align="right">Available</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -825,14 +824,6 @@ function SavingsTab({ id }: { id: Id }) {
                 <TableCell align="right" sx={num}>{peso(a.balance)}</TableCell>
                 <TableCell align="right" sx={num}>{a.held ? peso(a.held) : '—'}</TableCell>
                 <TableCell align="right" sx={num}>{peso(a.available)}</TableCell>
-                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                  {a.status === 15 && (
-                    <>
-                      <Button size="small" onClick={(e) => { e.stopPropagation(); setCash({ account: a, mode: 'deposit' }) }}>Deposit</Button>
-                      <Button size="small" onClick={(e) => { e.stopPropagation(); setCash({ account: a, mode: 'withdraw' }) }}>Withdraw</Button>
-                    </>
-                  )}
-                </TableCell>
               </TableRow>
             ))}
             <TableRow>
@@ -840,13 +831,11 @@ function SavingsTab({ id }: { id: Id }) {
               <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{peso(data.totalBalance)}</TableCell>
               <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{data.totalHeld ? peso(data.totalHeld) : '—'}</TableCell>
               <TableCell />
-              <TableCell />
             </TableRow>
           </TableBody>
         </Table>
       </TableCard>
       {open && <SavingsHistoryDialog id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
-      {cash && <SavingsCashDialog id={id} account={cash.account} mode={cash.mode} onClose={() => setCash(null)} />}
     </>
   )
 }
@@ -972,7 +961,7 @@ function TimeDepositHistoryDialog({ id, typeCode, refNo, onClose }: { id: Id; ty
   )
 }
 
-function SavingsCashDialog({ id, account, mode, onClose }: { id: Id; account: SavingsAccount; mode: 'deposit' | 'withdraw'; onClose: () => void }) {
+export function SavingsCashDialog({ id, account, mode, onClose }: { id: Id; account: SavingsAccount; mode: 'deposit' | 'withdraw'; onClose: () => void }) {
   const qc = useQueryClient()
   const withdraw = mode === 'withdraw'
   const [amount, setAmount] = useState('')

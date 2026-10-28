@@ -17,6 +17,7 @@ import { ChequeReturnPanel } from './ChequeReturnPanel'
 import { TimeDepositNoticesPanel } from './TimeDepositNoticesPanel'
 import DrawerClose from './DrawerClose'
 import FoFindDialog from './FoFindDialog'
+import SavingsTellerPanel from './SavingsTellerPanel'
 import { LoanApplicationsPanel } from './LoanApplicationsPanel'
 import { LoanReleasePanel } from './LoanReleasePanel'
 import { VoucherPayoutPanel } from './VoucherPayoutPanel'
@@ -579,6 +580,8 @@ export default function FrontOfficePage() {
           ? <DividendPanel />
           : tab === 'tdmaturity'
           ? <TimeDepositNoticesPanel />
+          : tab === 'savings'
+          ? <SavingsTellerPanel />
           : tab === 'passbook'
           ? <Typography sx={{ p: 4, textAlign: 'center' }} color="text.secondary">Passbook printing is coming soon.</Typography>
           : txn.isLoading && shown.kind === 'txn'
@@ -593,7 +596,7 @@ export default function FrontOfficePage() {
                   quickSide={quickSide} onQuickAdd={quickAdd}
                 />
               )}
-      {!summary && tab !== 'passbook' && tab !== 'handover' && tab !== 'tdmaturity' && tab !== 'tdaccrual' && tab !== 'dividend' && shown.kind === 'none' && (
+      {!summary && tab !== 'passbook' && tab !== 'savings' && tab !== 'handover' && tab !== 'tdmaturity' && tab !== 'tdaccrual' && tab !== 'dividend' && shown.kind === 'none' && (
         <Typography sx={{ fontSize: 12.5, textAlign: 'center', flexShrink: 0 }} color="text.secondary">
           {hasFind ? `Press ${MOD}F to find a transaction` : ''}{hasFind && canNewHere ? ' or ' : ''}{canNewHere ? `${MOD}N to start a draft.` : ''}
         </Typography>
