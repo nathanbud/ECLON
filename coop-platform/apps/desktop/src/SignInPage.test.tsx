@@ -27,7 +27,8 @@ describe('sign-in screen', () => {
   it('shows the cooperative and the system on the left and the form on the right', () => {
     show()
     expect(screen.getByRole('heading', { level: 1, name: brand.product })).toBeInTheDocument()
-    expect(screen.getByText(brand.coop)).toBeInTheDocument()
+    // The acronym is also in the narrow-window header, so more than one is expected.
+    expect(screen.getAllByText(brand.coop).length).toBeGreaterThan(0)
     expect(screen.getByText(brand.system)).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Welcome back' })).toBeInTheDocument()
   })
