@@ -432,23 +432,34 @@ function DetailsTab({ id, tab, title, lk }: { id: Id; tab: string; title: string
   if (sections.length === 0) {
     return <EmptyState icon={<FiInfo />} title="Nothing recorded" hint={`There is no ${title.toLowerCase()} information for this client.`} />
   }
+  const card = (sec: (typeof sections)[number]) => (
+    <Section key={sec.title} title={sec.title}>
+      {sec.fields.map((f) => {
+        const v = formatField(f)
+        const wide = f.label === 'Remarks' || (v?.length ?? 0) > 60
+        return (
+          <Box key={f.label} sx={{ gridColumn: wide ? '1 / -1' : undefined, minWidth: 0 }}>
+            {f.lookup
+              ? <SelectField label={f.label} lookup={f.lookup} code={f.code} lk={lk} col={f.editable ? f.key : undefined} />
+              : <Field label={f.label} value={v} col={f.editable ? f.key : undefined} raw={f.value} kind={f.kind} />}
+          </Box>
+        )
+      })}
+    </Section>
+  )
+  // Business / Employment keeps two fixed columns: the job and its address on the left, Work & income and Income on the right.
+  if (tab === 'business') {
+    const right = new Set(['Work & income', 'Income'])
+    return (
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', alignItems: 'start' }}>
+        <Box>{sections.filter((s) => !right.has(s.title)).map(card)}</Box>
+        <Box>{sections.filter((s) => right.has(s.title)).map(card)}</Box>
+      </Box>
+    )
+  }
   return (
     <Box sx={{ columns: '340px', columnGap: '12px' }}>
-      {sections.map((sec) => (
-        <Section key={sec.title} title={sec.title}>
-          {sec.fields.map((f) => {
-            const v = formatField(f)
-            const wide = f.label === 'Remarks' || (v?.length ?? 0) > 60
-            return (
-              <Box key={f.label} sx={{ gridColumn: wide ? '1 / -1' : undefined, minWidth: 0 }}>
-                {f.lookup
-                  ? <SelectField label={f.label} lookup={f.lookup} code={f.code} lk={lk} col={f.editable ? f.key : undefined} />
-                  : <Field label={f.label} value={v} col={f.editable ? f.key : undefined} raw={f.value} kind={f.kind} />}
-              </Box>
-            )
-          })}
-        </Section>
-      ))}
+      {sections.map(card)}
     </Box>
   )
 }
