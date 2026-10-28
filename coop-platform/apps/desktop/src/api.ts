@@ -1141,3 +1141,5 @@ export const approveMemberRequest = (id: number) => send<MemberRequest>('POST', 
 export const rejectMemberRequest = (id: number, note: string) => send<MemberRequest>('POST', `/api/member-requests/${id}/reject`, { note })
 export const withdrawMemberRequest = (id: number) => send<MemberRequest>('POST', `/api/member-requests/${id}/withdraw`)
 export const requestReactivation = (body: { branchCode: number; clientId: number; clientType: number; note: string }) => send<MemberRequest>('POST', '/api/member-requests/reactivations', body)
+export const getMembershipPolicy = () => getJson<{ returningPaysShareCapital: boolean }>('/api/membership-policy')
+export const setMembershipPolicy = (returningPaysShareCapital: boolean, reason: string) => send<{ returningPaysShareCapital: boolean }>('PUT', '/api/admin/membership-policy', { returningPaysShareCapital, reason })

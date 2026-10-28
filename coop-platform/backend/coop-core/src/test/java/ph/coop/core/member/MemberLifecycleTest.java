@@ -25,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 class MemberLifecycleTest {
 
     @Autowired MemberLifecycleController ctl;
+    @Autowired MembershipPolicyController policy;
     @Autowired JdbcTemplate jdbc;
     @Autowired ph.coop.core.db.Db db;
 
@@ -158,5 +159,27 @@ class MemberLifecycleTest {
     void activeMembersAndMissingReasonsAreRefused() {
         int id = ctl.approve(ctl.register(ana(), me(maker)).id(), null, me(officer)).clientId();
         assertThrows(ResponseStatusException.class, () -> ctl.reactivate(new MemberLifecycleController.Reactivate(1, id, 1, "x"), me(maker)));
+    }
+
+    @Test
+    void theSharePolicyBlocksARegularMemberWhoHasNotPaidAgain() {
+        assumeTrue(db.tableExists("ecis_setting"), "V038 has not been applied");
+        int id = openedAndClosed(1, null);
+        policy.set(new MembershipPolicyController.Change(true, "Bylaws"), me(as("admin", "ROLE_ADMIN")));
+        var req = ctl.reactivate(new MemberLifecycleController.Reactivate(1, id, 1, "Rejoining"), me(maker));
+        var e = assertThrows(ResponseStatusException.class, () -> ctl.approve(req.id(), null, me(officer)));
+        assertTrue(e.getReason().contains("share capital"));
+        assertEquals(3, jdbc.queryForObject("SELECT AccountStatus FROM client WHERE ClientIDBrCode = 1 AND ClientID = ?", Integer.class, id));
+    }
+
+    @Test
+    void theSharePolicyOffOrAnAssociateGoesThrough() {
+        assumeTrue(db.tableExists("ecis_setting"), "V038 has not been applied");
+        int id = openedAndClosed(1, null);
+        policy.set(new MembershipPolicyController.Change(true, "Bylaws"), me(as("admin", "ROLE_ADMIN")));
+        var assoc = ctl.reactivate(new MemberLifecycleController.Reactivate(1, id, 2, "Rejoining as associate"), me(maker));
+        assertEquals("APPROVED", ctl.approve(assoc.id(), null, me(officer)).status());
+        policy.set(new MembershipPolicyController.Change(false, "Changed"), me(as("admin", "ROLE_ADMIN")));
+        assertEquals(false, policy.returningPaysShareCapital());
     }
 }

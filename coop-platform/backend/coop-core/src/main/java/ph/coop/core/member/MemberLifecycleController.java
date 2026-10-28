@@ -55,8 +55,9 @@ public class MemberLifecycleController {
     private final ObjectMapper json;
     private final TransactionTemplate tx;
     private final boolean enabled;
+    private final MembershipPolicyController policy;
 
-    MemberLifecycleController(JdbcTemplate jdbc, Db db, LookupController lookups, ObjectMapper json, PlatformTransactionManager txManager,
+    MemberLifecycleController(JdbcTemplate jdbc, Db db, LookupController lookups, ObjectMapper json, PlatformTransactionManager txManager, MembershipPolicyController policy,
                               @Value("${coop.edit.enabled:false}") boolean enabled) {
         this.jdbc = jdbc;
         this.db = db;
@@ -64,6 +65,7 @@ public class MemberLifecycleController {
         this.json = json;
         this.tx = new TransactionTemplate(txManager);
         this.enabled = enabled;
+        this.policy = policy;
     }
 
     private static boolean has(Authentication auth, String authority) {
@@ -296,11 +298,34 @@ public class MemberLifecycleController {
         int status = ((Number) c.get("AccountStatus")).intValue();
         List<String> problems = LifecycleRules.reactivateProblems(status, reason, ((Number) c.get("ClientType")).intValue(), deceased, newType, r.payload().get("note"));
         if (!problems.isEmpty()) throw bad(String.join(" ", problems));
+        String shareDue = policy.returningPaysShareCapital() ? shareCapitalShortfall(branch, clientId, newType) : null;
+        if (shareDue != null && shareDue.startsWith("BLOCK:")) throw new ResponseStatusException(HttpStatus.CONFLICT, shareDue.substring(6));
         jdbc.update("UPDATE client SET AccountStatus = 1, ClientType = ?, ClosedDate = NULL, ClosedReason = NULL, DateDeceased = NULL, UpdDateTime = NOW() WHERE ClientIDBrCode = ? AND ClientID = ?", newType, branch, clientId);
         // Accounts never formally closed are kept; a type the member no longer holds as active gets a new account, so the closed one keeps its final history.
         openAccounts(branch, clientId, newType, LocalDate.now(), true);
         audit(approver, "MEMBER_REACTIVATED", branch + "-" + clientId, "status " + status + (reason == null ? "" : ", closed " + c.get("ClosedDate") + " (" + LifecycleRules.REASONS.get(reason) + ")"), "status 1",
-            "Request #" + r.id() + " by " + r.requestedBy() + ". " + r.payload().get("note"));
+            "Request #" + r.id() + " by " + r.requestedBy() + ". " + r.payload().get("note") + (shareDue == null ? "" : ". " + shareDue));
+    }
+
+    /**
+     * The returning-member share capital rule. Returns null when nothing is due, "BLOCK:..." when the member holds an active share account that is under the type's minimum
+     * (the payment can be taken at the front office first), or a note for the audit row when there is no active share account yet: the account is opened by this approval, so
+     * the payment can only follow it.
+     */
+    private String shareCapitalShortfall(int branch, int clientId, int newType) {
+        for (LifecycleRules.Acct a : LifecycleRules.accountsFor(newType)) {
+            if (!a.table().equals("sc")) continue;
+            List<java.math.BigDecimal> min = jdbc.queryForList("SELECT COALESCE(SLTypeMIN_BAL, 0) FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", java.math.BigDecimal.class, branch, a.slc(), a.slt());
+            java.math.BigDecimal required = min.isEmpty() ? java.math.BigDecimal.ZERO : min.get(0);
+            if (required.signum() <= 0) continue;
+            if (!holdsActive(branch, clientId, a)) return "Share capital of " + required.toPlainString() + " is due on the new account and has not been paid yet";
+            java.math.BigDecimal held = jdbc.queryForObject("SELECT COALESCE(-SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = ? AND SL_CLIENTID = ? AND SLC_CODE = ? AND SLT_CODE = ? AND SLE_CODE = 11", java.math.BigDecimal.class, branch, clientId, a.slc(), a.slt());
+            if (held.compareTo(required) < 0) {
+                return "BLOCK:The cooperative requires a returning member to pay share capital again. " + held.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + " is held and "
+                    + required.toPlainString() + " is required: take the payment on the member's Share Capital tab first, then approve.";
+            }
+        }
+        return null;
     }
 
     private void closeMember(Request r, String approver) {
