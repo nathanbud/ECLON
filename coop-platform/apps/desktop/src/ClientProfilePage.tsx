@@ -238,7 +238,7 @@ function MembershipTab({ m, lk }: { m: Member; lk?: Lookups }) {
         <SelectField label="Membership type" lookup="clientType" code={m.clientType} lk={lk} col="ClientType" />
       </Section>
       <Section title="Classification" columns={2}>
-        <SelectField label="Department" lookup="department" code={m.department} lk={lk} col="ClientDEPT" />
+        <SelectField label="Branch" lookup="department" code={m.department} lk={lk} col="ClientDEPT" />
       </Section>
     </Box>
   )
