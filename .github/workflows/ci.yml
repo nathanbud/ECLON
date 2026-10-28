@@ -1,0 +1,50 @@
+name: CI
+
+# Every push and pull request: the screens must type-check, lint and pass their tests, and the backend's rule tests must pass.
+# The backend tests that need the database (they post real entries and roll them back) skip themselves when DB_PASSWORD is not set,
+# so they are run on a developer machine with scripts/test-all.ps1; this pipeline checks everything that needs no database.
+on:
+  push:
+    branches: [main, develop, 'feature/**', 'release/**', 'hotfix/**']
+  pull_request:
+
+jobs:
+  screens:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: coop-platform/apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: coop-platform/apps/desktop/package-lock.json
+      - run: npm ci
+      - name: Type-check
+        run: npx tsc -b
+      - name: Lint
+        run: npm run lint
+      - name: Unit and component tests
+        run: npm test
+      - name: Build
+        run: npx vite build
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: coop-platform/backend/coop-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - name: Rule tests (database tests skip without DB_PASSWORD)
+        run: mvn -B -q test
+        env:
+          DEV_API_USER: ci
+          DEV_API_PASSWORD: ci-unused

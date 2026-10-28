@@ -12,6 +12,8 @@ $results = [ordered]@{}
 Push-Location (Join-Path $root 'coop-platform\backend\coop-core')
 if (-not $Quick) {
   $env:DB_USER = 'coop_app'
+  # Each test application context opens its own connection pool; a small pool keeps the whole run under the server's connection limit.
+  $env:SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE = '3'
   $env:DB_PASSWORD = ((Get-Content (Join-Path $root 'db.txt') | Where-Object { $_ -match '^app_password' }) -replace '^app_password:\s*', '').Trim()
 }
 mvn test 2>&1 | Tee-Object -Variable mvnOut | Select-String -Pattern 'Tests run:|FAIL|ERROR\]' | Select-Object -Last 15
@@ -22,6 +24,10 @@ Pop-Location
 Push-Location (Join-Path $root 'coop-platform\apps\desktop')
 npm run build 2>&1 | Select-String -Pattern 'error|built in' | Select-Object -First 15
 $results['Screens type-check and build'] = if ($LASTEXITCODE -eq 0) { 'passed' } else { 'FAILED' }
+npx oxlint 2>&1 | Select-String -Pattern 'Found|error' | Select-Object -First 5
+$results['Screens lint (errors only fail)'] = if ($LASTEXITCODE -eq 0) { 'passed' } else { 'FAILED' }
+npm test 2>&1 | Select-String -Pattern 'Tests |Test Files|FAIL' | Select-Object -First 10
+$results['Screens unit and component tests'] = if ($LASTEXITCODE -eq 0) { 'passed' } else { 'FAILED' }
 if ($E2e) {
   $up = $false
   try { $up = (Invoke-WebRequest 'http://localhost:8090/actuator/health' -UseBasicParsing -TimeoutSec 5).StatusCode -eq 200 } catch { }

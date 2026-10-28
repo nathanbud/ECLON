@@ -9,7 +9,10 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "e2e": "playwright test",
-    "e2e:report": "playwright show-report"
+    "e2e:report": "playwright show-report",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "tsc -b && oxlint && vitest run"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -24,12 +27,17 @@
   "devDependencies": {
     "@playwright/test": "^1.64.1",
     "@tauri-apps/cli": "^2.12.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "jsdom": "^29.1.1",
     "oxlint": "^1.81.0",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vitest": "^5.0.5"
   }
 }

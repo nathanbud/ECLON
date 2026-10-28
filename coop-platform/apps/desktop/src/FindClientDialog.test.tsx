@@ -1,0 +1,62 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+import type { Member, Page } from './api'
+import { FindBody } from './FindClientDialog'
+import { AppThemeProvider } from './theme'
+
+const member = (id: number, last: string, first: string): Member => ({
+  id: { branchCode: 1, clientId: id }, firstName: first, lastName: last, accountName: null, dateOpened: null, accountStatus: 1, cellNumber: null, city: 'Baguio', closedDate: null,
+  updatedAt: null, middleName: null, suffix: null, clientType: 1, dateOfBirth: null, gender: null, civilStatus: null, email: null, street: null, barangay: null, province: null,
+  referenceId: null, accountType: null, alertLevel: null, department: null, profession: null, religion: null, mailingAddress: null, dosriTag: null, includeHealthCare: null,
+  monthlyIncome: null, zipCode: null, residenceSince: null, residenceType: null, provStreet: null, provBarangay: null, provCity: null, provProvince: null,
+})
+
+vi.mock('./api', async (orig) => ({
+  ...(await orig<typeof import('./api')>()),
+  searchMembers: vi.fn(async (q: string): Promise<Page<Member>> => {
+    const all = [member(100, 'Budikey', 'Nathaniel'), member(101, 'Budiman', 'Ana')]
+    const content = all.filter((m) => m.lastName!.toLowerCase().includes(q.toLowerCase()))
+    return { content, totalElements: content.length, number: 0, size: 8 }
+  }),
+}))
+
+function renderFind(onPick = vi.fn()) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(<QueryClientProvider client={qc}><AppThemeProvider><FindBody onPick={onPick} inline /></AppThemeProvider></QueryClientProvider>)
+  return onPick
+}
+
+describe('Find Client', () => {
+  it('invites a search before anything is typed', () => {
+    renderFind()
+    expect(screen.getByText('Who are you looking for?')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /client name or member id/i })).toHaveFocus()
+  })
+
+  it('lists matches, highlights what was typed and opens the highlighted one with Enter', async () => {
+    const onPick = renderFind()
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('combobox'), 'budik')
+    const option = await screen.findByRole('option', { name: /budikey/i })
+    expect(option).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /budiman/i })).not.toBeInTheDocument()
+    await user.keyboard('{Enter}')
+    expect(onPick).toHaveBeenCalledWith({ branchCode: 1, clientId: 100 })
+  })
+
+  it('says when nothing matches and clears with the clear button or Escape', async () => {
+    renderFind()
+    const user = userEvent.setup()
+    const box = screen.getByRole('combobox')
+    await user.type(box, 'zzzz')
+    expect(await screen.findByText('No clients found')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /clear search/i }))
+    expect(box).toHaveValue('')
+    await user.type(box, 'bud')
+    await waitFor(() => expect(screen.getAllByRole('option').length).toBe(2))
+    await user.keyboard('{Escape}')
+    expect(box).toHaveValue('')
+  })
+})
