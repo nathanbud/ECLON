@@ -1,6 +1,8 @@
 package ph.coop.core.document;
 
-import java.io.IOException;
+
+
+import static ph.coop.core.web.ApiErrors.bad;import ph.coop.core.audit.AuditLog;import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -106,8 +108,7 @@ class DocumentController {
     }
 
     private void audit(Authentication auth, String action, String docNo, String detail) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, ?, ?, ?)",
-            Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "ecis_document", docNo, detail);
+        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "ecis_document", docNo, null, detail, null);
     }
 
     private static String sha256(byte[] data) {
@@ -121,9 +122,6 @@ class DocumentController {
         }
     }
 
-    private static ResponseStatusException bad(String m) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, m);
-    }
 
     // ---- reading --------------------------------------------------------------------------------------------------
 

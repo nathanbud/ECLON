@@ -1,6 +1,7 @@
 package ph.coop.core.procurement;
 
-import java.sql.Timestamp;
+
+import ph.coop.core.audit.AuditLog;import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -60,8 +61,7 @@ class ProcurementSupport {
     }
 
     void audit(Authentication auth, String action, String entity, String id, String detail) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, ?, ?, ?)",
-            Timestamp.valueOf(now()), auth.getName(), action, entity, id, detail);
+        AuditLog.write(jdbc, Timestamp.valueOf(now()), auth.getName(), action, entity, id, null, detail, null);
     }
 
     static ResponseStatusException bad(List<String> problems) {

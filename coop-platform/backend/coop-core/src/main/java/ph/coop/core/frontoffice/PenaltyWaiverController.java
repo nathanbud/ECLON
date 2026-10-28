@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -273,8 +274,7 @@ class PenaltyWaiverController {
             poster.writeLedgerRow(p.branch(), req.clientId(), new MemberLine(CLASS_LOANS, req.typeCode(), req.refNo(), WAIVED, 99, loanAccount, amount.negate()), day, 1, ctl, docNo, null, null);
             String ref = p.branch() + "/" + year + "/1/1/" + ctl;
             jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", ref, found.get(0)[0]);
-            jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value, reason) VALUES (?, ?, 'loan.penalty.waive', 'transsum', ?, ?, ?)",
-                stamp, auth.getName(), ref, "loan " + req.typeCode() + "/" + req.refNo() + " client " + req.clientId() + " waived " + amount.toPlainString() + " to " + req.expenseAccount()
+            AuditLog.write(jdbc, stamp, auth.getName(), "loan.penalty.waive", "transsum", ref, null, "loan " + req.typeCode() + "/" + req.refNo() + " client " + req.clientId() + " waived " + amount.toPlainString() + " to " + req.expenseAccount()
                     + ", approved by user " + approver, req.reason().trim());
             return new Posted(year, ctl, docNo, amount);
         });

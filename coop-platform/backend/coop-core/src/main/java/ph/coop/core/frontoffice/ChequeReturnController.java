@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -267,8 +268,7 @@ class ChequeReturnController {
                 p.branch(), c.year(), c.ctlNo(), c.seq());
             String ref = p.branch() + "/" + year + "/1/1/" + ctl;
             jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", ref, found.get(0)[0]);
-            jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, 'cheque.return.post', 'transsum', ?, ?)",
-                stamp, auth.getName(), ref, "cheque " + c.number() + " " + c.amount().toPlainString() + " from " + c.documentNo() + " to " + pl.text() + ", approved by user " + approver);
+            AuditLog.write(jdbc, stamp, auth.getName(), "cheque.return.post", "transsum", ref, null, "cheque " + c.number() + " " + c.amount().toPlainString() + " from " + c.documentNo() + " to " + pl.text() + ", approved by user " + approver, null);
             return new Posted(year, ctl, docNo, c.client(), c.amount(), pl.text());
         });
     }

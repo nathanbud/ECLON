@@ -1,6 +1,7 @@
 package ph.coop.core.loan;
 
-import java.math.BigDecimal;
+
+import static ph.coop.core.web.ApiErrors.bad;import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -99,7 +100,4 @@ public class AmortizationController {
         return new Preview(rows, rows.size() - 1, payment, interest, in.amount().add(interest), rows.get(rows.size() - 1).dueDate());
     }
 
-    private static ResponseStatusException bad(String m) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, m);
-    }
 }

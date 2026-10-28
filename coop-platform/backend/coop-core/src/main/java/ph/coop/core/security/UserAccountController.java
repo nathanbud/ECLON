@@ -1,6 +1,7 @@
 package ph.coop.core.security;
 
-import ph.coop.core.db.Db;
+
+import ph.coop.core.audit.AuditLog;import ph.coop.core.db.Db;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -180,7 +181,6 @@ class UserAccountController {
 
     /** Administration is audited too; the password itself is never logged. */
     private void audit(String by, String action, String subject, String detail) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'user', ?, ?)",
-            LocalDateTime.now(clock), by, action, subject, detail);
+        AuditLog.write(jdbc, LocalDateTime.now(clock), by, action, "user", subject, null, detail, null);
     }
 }

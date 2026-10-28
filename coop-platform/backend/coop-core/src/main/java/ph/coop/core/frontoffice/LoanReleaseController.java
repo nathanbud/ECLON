@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -209,7 +210,6 @@ class LoanReleaseController {
     }
 
     private void audit(Authentication auth, String action, Person p, int year, long ctl, String detail) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'transsum', ?, ?)",
-            Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, p.branch() + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl, detail);
+        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "transsum", p.branch() + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl, null, detail, null);
     }
 }

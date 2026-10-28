@@ -1,6 +1,7 @@
 package ph.coop.core.procurement;
 
-import java.sql.Timestamp;
+
+import ph.coop.core.audit.AuditLog;import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,7 +25,7 @@ class PurchaseRequestWorkflowHost implements WorkflowHost {
     }
 
     private void audit(String user, String action, String no, String detail) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, ?, ?, ?)", now(), user, action, "ecis_purchase_request", no, detail);
+        AuditLog.write(jdbc, now(), user, action, "ecis_purchase_request", no, null, detail, null);
     }
 
     private String number(String entityId) {

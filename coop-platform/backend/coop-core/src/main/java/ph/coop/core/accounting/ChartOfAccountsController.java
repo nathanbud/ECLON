@@ -1,6 +1,8 @@
 package ph.coop.core.accounting;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+
+
+import static ph.coop.core.web.ApiErrors.bad;import ph.coop.core.audit.AuditLog;import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -54,9 +56,6 @@ public class ChartOfAccountsController {
     /** What the form sends. {@code summary} and {@code code} count on a new account only; they cannot change afterwards. */
     public record Form(String code, String name, Boolean summary, String parent, Boolean glOnly, Boolean disabled, String reason) {}
 
-    private static ResponseStatusException bad(String m) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, m);
-    }
 
     private int branch(Authentication auth) {
         List<Integer> r = jdbc.queryForList("SELECT AccessBR_CODE FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1", Integer.class, auth.getName());
@@ -136,8 +135,7 @@ public class ChartOfAccountsController {
     }
 
     private void audit(Authentication auth, String action, int branch, String code, Object prev, Object next, String why) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (?, ?, ?, 'coa', ?, ?, ?, ?)",
-            Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, branch + "/" + code, json(prev), json(next), why);
+        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "coa", branch + "/" + code, json(prev), json(next), why);
     }
 
     private static String json(Object o) {

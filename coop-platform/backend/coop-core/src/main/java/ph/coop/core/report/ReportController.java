@@ -1,6 +1,7 @@
 package ph.coop.core.report;
 
-import java.sql.Timestamp;
+
+import ph.coop.core.audit.AuditLog;import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -64,8 +65,7 @@ class ReportController {
         if (!may(auth, r)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot run this report.");
         Table t = r.run(new Reports.Args(params));
         LocalDateTime now = LocalDateTime.now(clock).withNano(0);
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, ?, ?, ?)", Timestamp.valueOf(now), auth.getName(), "report.run", "report", id,
-            params.toString() + " -> " + t.rows().size() + " rows");
+        AuditLog.write(jdbc, Timestamp.valueOf(now), auth.getName(), "report.run", "report", id, null, params.toString() + " -> " + t.rows().size() + " rows", null);
         return new Result(r.info(), t, now, auth.getName());
     }
 }

@@ -1,6 +1,7 @@
 package ph.coop.core.workflow;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+
+import ph.coop.core.audit.AuditLog;import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -241,7 +242,7 @@ public class WorkflowEngine {
         jdbc.update("DELETE FROM ecis_workflow_step WHERE workflow_id = ?", id);
         for (StepDef s : defs) jdbc.update("INSERT INTO ecis_workflow_step (workflow_id, step_no, name, role, min_amount) VALUES (?, ?, ?, ?, ?)", id, s.no(), s.name(), s.role(), s.minAmount());
         Definition after = definitions().stream().filter((d) -> d.entityType().equals(entityType)).findFirst().orElseThrow();
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value) VALUES (?, ?, ?, ?, ?, ?, ?)", Timestamp.valueOf(now()), user, "workflow.configure", "ecis_workflow", entityType, before.toString(), after.toString());
+        AuditLog.write(jdbc, Timestamp.valueOf(now()), user, "workflow.configure", "ecis_workflow", entityType, before.toString(), after.toString(), null);
         return after;
     }
 }

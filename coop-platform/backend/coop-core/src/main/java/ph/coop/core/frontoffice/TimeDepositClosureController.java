@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -262,9 +263,8 @@ class TimeDepositClosureController {
             Integer payable = payableAccount(branch, req.clientId());
             jdbc.update(LINE, branch, year, MODULE, CODE, ctl, seq[0]++, p.dept(), poster.glAccount(branch, PAYABLE, 1, PRINCIPAL, ACTIVE), req.clientId(), PAYABLE, 1, payable, PRINCIPAL, ACTIVE, day.toString(),
                 q.amount().negate(), p.id(), PENDING);
-            jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'transsum', ?, ?)", Timestamp.valueOf(now), auth.getName(), "td.interest.encode",
-                branch + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl, "client " + req.clientId() + " certificate " + req.typeCode() + "/" + req.refNo() + " interest " + q.amount().toPlainString()
-                    + " from accrual " + q.fromAccrual().toPlainString() + " expense " + q.expense().toPlainString() + " doc " + docNo);
+            AuditLog.write(jdbc, Timestamp.valueOf(now), auth.getName(), "td.interest.encode", "transsum", branch + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl, null, "client " + req.clientId() + " certificate " + req.typeCode() + "/" + req.refNo() + " interest " + q.amount().toPlainString()
+                    + " from accrual " + q.fromAccrual().toPlainString() + " expense " + q.expense().toPlainString() + " doc " + docNo, null);
             return new Encoded(branch, year, ctl, docNo, "INTEREST", req.clientId(), q.clientName(), q.amount(), null, null, q.amount());
         });
     }
@@ -334,10 +334,8 @@ class TimeDepositClosureController {
                 toPayable = q.due();
                 line.accept(new Object[] {PAYABLE, 1, payable, PRINCIPAL, payableGl, ACTIVE}, toPayable.negate());
             }
-            jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'transsum', ?, ?)", Timestamp.valueOf(now), auth.getName(),
-                q.preterm() ? "td.pretermination.encode" : renew ? "td.renewal.encode" : "td.payout.encode", branch + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl,
-                "client " + req.clientId() + " certificate " + req.typeCode() + "/" + req.refNo() + " principal " + q.principal().toPlainString() + " interest " + q.interest().toPlainString()
-                    + (q.lockIn() ? " lock in years " + q.interestYears() : "") + (renew ? " new certificate " + nt + "/" + newRef + " " + q.newPrincipal().toPlainString() : "") + " doc " + docNo);
+            AuditLog.write(jdbc, Timestamp.valueOf(now), auth.getName(), q.preterm() ? "td.pretermination.encode" : renew ? "td.renewal.encode" : "td.payout.encode", "transsum", branch + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl, null, "client " + req.clientId() + " certificate " + req.typeCode() + "/" + req.refNo() + " principal " + q.principal().toPlainString() + " interest " + q.interest().toPlainString()
+                    + (q.lockIn() ? " lock in years " + q.interestYears() : "") + (renew ? " new certificate " + nt + "/" + newRef + " " + q.newPrincipal().toPlainString() : "") + " doc " + docNo, null);
             return new Encoded(branch, year, ctl, docNo, q.mode(), req.clientId(), q.clientName(), q.due(), newRef, q.newPrincipal(), toPayable);
         });
     }

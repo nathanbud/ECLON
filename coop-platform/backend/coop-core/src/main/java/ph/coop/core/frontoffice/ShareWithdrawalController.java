@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -103,9 +104,7 @@ class ShareWithdrawalController {
                 req.refNo(), PRINCIPAL, a.status(), day.toString(), amount, p.id(), PENDING);
             jdbc.update(sql, branch, year, MODULE, ShareWithdrawalRules.CASH_VOUCHER, ctl, 1, p.dept(), payableGl, req.clientId(), PAYABLE, 1,
                 payable.get(0), PRINCIPAL, payableStatus, day.toString(), amount.negate(), p.id(), PENDING);
-            jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, 'share.withdrawal.encode', 'transsum', ?, ?)",
-                Timestamp.valueOf(now), auth.getName(), branch + "/" + year + "/" + MODULE + "/" + ShareWithdrawalRules.CASH_VOUCHER + "/" + ctl,
-                "client " + req.clientId() + " type " + req.typeCode() + " ref " + req.refNo() + " amount " + amount.toPlainString() + " doc " + docNo);
+            AuditLog.write(jdbc, Timestamp.valueOf(now), auth.getName(), "share.withdrawal.encode", "transsum", branch + "/" + year + "/" + MODULE + "/" + ShareWithdrawalRules.CASH_VOUCHER + "/" + ctl, null, "client " + req.clientId() + " type " + req.typeCode() + " ref " + req.refNo() + " amount " + amount.toPlainString() + " doc " + docNo, null);
             return new Encoded(branch, year, ctl, docNo, req.clientId(), c.name(), amount, a.balance().subtract(a.held()).subtract(pending).subtract(amount));
         });
     }

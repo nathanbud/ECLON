@@ -1,6 +1,7 @@
 package ph.coop.core.accounting.journal;
 
-import java.time.LocalDate;
+
+import ph.coop.core.audit.AuditLog;import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -47,8 +48,7 @@ public class JournalDrafts {
         for (JournalLine l : lines) {
             jdbc.update("INSERT INTO ecis_journal_line (journal_id, line_no, account_code, debit, credit) VALUES (?,?,?,?,?)", id, no++, l.accountCode(), l.debit(), l.credit());
         }
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (?,?,?,?,?,?,?,?)",
-            LocalDateTime.now(), user, "JOURNAL_CREATE", "journal", String.valueOf(id), null, "DRAFT", null);
+        AuditLog.write(jdbc, LocalDateTime.now(), user, "JOURNAL_CREATE", "journal", String.valueOf(id), null, "DRAFT", null);
         return id;
     }
 }

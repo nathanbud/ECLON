@@ -1,6 +1,7 @@
 package ph.coop.core.inventory;
 
-import org.springframework.jdbc.core.JdbcTemplate;
+
+import ph.coop.core.audit.AuditLog;import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import ph.coop.core.workflow.WorkflowHost;
 
@@ -19,7 +20,7 @@ class StockAdjustmentWorkflowHost implements WorkflowHost {
     }
 
     private void audit(String user, String action, long id, String detail) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, ?, ?, ?)", java.sql.Timestamp.valueOf(support.now()), user, action, "ecis_stock_adjustment", posting.number(id), detail);
+        AuditLog.write(jdbc, java.sql.Timestamp.valueOf(support.now()), user, action, "ecis_stock_adjustment", posting.number(id), null, detail, null);
     }
 
     @Override

@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -274,8 +275,7 @@ class MemberLedgerPoster {
         if (cashLine) writeGlLine(branch, cashAccount, day, code, p.dept(), cashAmount, stamp);
         for (Object[] g : glCredits) writeGlLine(branch, (String) g[0], day, code, p.dept(), (BigDecimal) g[1], stamp);
 
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'transsum', ?, ?)",
-            stamp, username, auditAction, branch + "/" + year + "/" + module + "/" + code + "/" + ctl, "client " + clientId + " " + auditDetail + " doc " + docNo);
+        AuditLog.write(jdbc, stamp, username, auditAction, "transsum", branch + "/" + year + "/" + module + "/" + code + "/" + ctl, null, "client " + clientId + " " + auditDetail + " doc " + docNo, null);
         return new Posted(branch, year, ctl, docNo, day);
     }
 

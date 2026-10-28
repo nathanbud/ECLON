@@ -1,6 +1,7 @@
 package ph.coop.core.loan;
 
-import java.sql.Timestamp;
+
+import ph.coop.core.audit.AuditLog;import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -83,6 +84,6 @@ public class SingleHandGrants {
     }
 
     private void audit(Authentication auth, String action, String target, String detail, Timestamp at) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'ecis_single_hand', ?, ?)", at, auth.getName(), action, target, detail);
+        AuditLog.write(jdbc, at, auth.getName(), action, "ecis_single_hand", target, null, detail, null);
     }
 }

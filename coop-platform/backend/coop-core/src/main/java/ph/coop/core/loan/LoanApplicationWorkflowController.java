@@ -1,6 +1,7 @@
 package ph.coop.core.loan;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -296,7 +297,6 @@ public class LoanApplicationWorkflowController {
     }
 
     private void audit(Authentication auth, String action, int branch, long id, String detail) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'loanapp', ?, ?)",
-            Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, branch + "/" + id, detail);
+        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "loanapp", branch + "/" + id, null, detail, null);
     }
 }

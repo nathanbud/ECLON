@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -160,9 +161,7 @@ class BankCashController {
             for (int typeId : faces.keySet()) jdbc.update("INSERT INTO denomdtl (DENOMSUMID, DENOMTYPEID, QTY) VALUES (?, ?, ?)", denomSum, typeId, counts.getOrDefault(typeId, 0));
             }
             balances.changed();
-            jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'transsum', ?, ?)",
-                stamp, auth.getName(), in ? "bank.deposit.post" : "bank.withdrawal.post", branch + "/" + year + "/" + MODULE + "/" + code + "/" + ctl,
-                bank.name() + " " + amount.toPlainString() + (cheques ? " (cheques)" : "") + " doc " + docNo);
+            AuditLog.write(jdbc, stamp, auth.getName(), in ? "bank.deposit.post" : "bank.withdrawal.post", "transsum", branch + "/" + year + "/" + MODULE + "/" + code + "/" + ctl, null, bank.name() + " " + amount.toPlainString() + (cheques ? " (cheques)" : "") + " doc " + docNo, null);
             return new Posted(year, ctl, docNo, bank.name(), amount, in ? vaultBefore.subtract(amount) : vaultBefore.add(amount));
         });
     }

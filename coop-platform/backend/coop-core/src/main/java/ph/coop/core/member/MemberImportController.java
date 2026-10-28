@@ -1,6 +1,7 @@
 package ph.coop.core.member;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+
+import static ph.coop.core.web.ApiErrors.bad;import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -74,9 +75,6 @@ public class MemberImportController {
         return auth.getAuthorities().stream().anyMatch((a) -> a.getAuthority().equals(authority));
     }
 
-    private static ResponseStatusException bad(String m) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, m);
-    }
 
     private void requireInstalled() {
         if (!db.allTablesExist("ecis_member_import", "ecis_member_request", "ecis_audit_log") || !db.columnExists("ecis_member_request", "batch_id")) {

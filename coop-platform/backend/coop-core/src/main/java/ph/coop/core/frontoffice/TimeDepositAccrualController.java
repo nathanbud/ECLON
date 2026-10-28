@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -308,7 +309,6 @@ class TimeDepositAccrualController {
     }
 
     private void audit(Authentication auth, String action, Person p, String entity, String detail) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'transsum', ?, ?)",
-            Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, p.branch() + "/" + MODULE + "/" + CODE + "/" + entity, detail);
+        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "transsum", p.branch() + "/" + MODULE + "/" + CODE + "/" + entity, null, detail, null);
     }
 }

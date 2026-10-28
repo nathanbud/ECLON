@@ -1,6 +1,8 @@
 package ph.coop.core.loan;
 
-import java.sql.Timestamp;
+
+
+import static ph.coop.core.web.ApiErrors.bad;import ph.coop.core.audit.AuditLog;import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -48,9 +50,6 @@ class HoldSetupController {
 
     record Default(int slc, int slt, String reason) {}
 
-    private static ResponseStatusException bad(String m) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, m);
-    }
 
     private int branch(Authentication auth) {
         List<Integer> r = jdbc.queryForList("SELECT AccessBR_CODE FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1", Integer.class, auth.getName());
@@ -87,9 +86,8 @@ class HoldSetupController {
         return t.length() > 255 ? t.substring(0, 255) : t;
     }
 
-    private void audit(Authentication auth, String action, int branch, int slc, int slt, Object prev, Object next, String why) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (?, ?, ?, 'hold_setting', ?, ?, ?, ?)",
-            Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, branch + "/" + slc + "/" + slt, prev, next, why);
+    private void audit(Authentication auth, String action, int branch, int slc, int slt, String prev, String next, String why) {
+        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "hold_setting", branch + "/" + slc + "/" + slt, prev, next, why);
     }
 
     @PutMapping("/{slc}/{slt}")

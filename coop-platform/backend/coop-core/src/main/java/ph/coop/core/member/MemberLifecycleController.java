@@ -1,6 +1,7 @@
 package ph.coop.core.member;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+
+import static ph.coop.core.web.ApiErrors.bad;import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -484,7 +485,4 @@ public class MemberLifecycleController {
         return s == null || s.isBlank() ? null : s.trim();
     }
 
-    private static ResponseStatusException bad(String m) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, m);
-    }
 }

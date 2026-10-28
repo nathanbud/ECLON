@@ -1,6 +1,7 @@
 package ph.coop.core.accounting.journal;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import ph.coop.core.db.Db;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -155,8 +156,7 @@ class JournalController {
                     """, r.branch(), l.accountCode(), r.date(), creator.dept(), l.debit(), l.credit().negate(), now);
         }
         jdbc.update("UPDATE ecis_journal SET tr_year = ?, tr_ctlno = ? WHERE id = ?", year, ctl, id);
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?,?,?,?,?,?)",
-                now, auth.getName(), "JOURNAL_LEDGER_POST", "transsum", r.branch() + "/" + year + "/1/1/" + ctl, "journal " + r.reference());
+        AuditLog.write(jdbc, now, auth.getName(), "JOURNAL_LEDGER_POST", "transsum", r.branch() + "/" + year + "/1/1/" + ctl, null, "journal " + r.reference(), null);
     }
 
     /** Creates the DRAFT reversing journal; it then goes through the same review and approval. */
@@ -269,7 +269,6 @@ class JournalController {
     }
 
     private void audit(Authentication auth, String action, long id, String prev, String next, String reason) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (?,?,?,?,?,?,?,?)",
-                LocalDateTime.now(), auth.getName(), action, "journal", String.valueOf(id), prev, next, reason);
+        AuditLog.write(jdbc, LocalDateTime.now(), auth.getName(), action, "journal", String.valueOf(id), prev, next, reason);
     }
 }

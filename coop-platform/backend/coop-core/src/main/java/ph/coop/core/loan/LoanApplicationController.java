@@ -1,6 +1,8 @@
 package ph.coop.core.loan;
 
-import java.math.BigDecimal;
+
+
+import static ph.coop.core.web.ApiErrors.bad;import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -322,9 +324,7 @@ public class LoanApplicationController {
                 }
             }
             holds.save(branchCode, appId, in.coMakerHolds());
-            jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, 'loan.application.create', 'loanapp', ?, ?)",
-                Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), branchCode + "/" + appId,
-                "client " + clientId + " type " + in.typeCode() + " ref " + ref + " amount " + in.amount().toPlainString() + " terms " + terms + " deductions " + total.toPlainString());
+            AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), "loan.application.create", "loanapp", branchCode + "/" + appId, null, "client " + clientId + " type " + in.typeCode() + " ref " + ref + " amount " + in.amount().toPlainString() + " terms " + terms + " deductions " + total.toPlainString(), null);
             return new Created(appId, docNo, ref, firstDue, maturity, LoanSchedule.totalInterest(schedule), total, in.amount().subtract(total), schedule.size());
         });
     }
@@ -414,7 +414,4 @@ public class LoanApplicationController {
         return v == null ? null : ((Number) v).intValue();
     }
 
-    private static ResponseStatusException bad(String message) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
-    }
 }

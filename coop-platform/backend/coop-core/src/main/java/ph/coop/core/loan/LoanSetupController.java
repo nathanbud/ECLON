@@ -1,6 +1,8 @@
 package ph.coop.core.loan;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+
+
+import static ph.coop.core.web.ApiErrors.bad;import ph.coop.core.audit.AuditLog;import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -80,9 +82,6 @@ public class LoanSetupController {
 
     public record Named(String name, Integer loanClass, String reason) {}
 
-    private static ResponseStatusException bad(String m) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, m);
-    }
 
     private int branch(Authentication auth) {
         List<Integer> r = jdbc.queryForList("SELECT AccessBR_CODE FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1", Integer.class, auth.getName());
@@ -200,8 +199,7 @@ public class LoanSetupController {
     }
 
     private void audit(Authentication auth, String action, String entity, String id, Object prev, Object next, String reason) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, entity, id, json(prev), json(next), reason);
+        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, entity, id, json(prev), json(next), reason);
     }
 
     private static String json(Object o) {

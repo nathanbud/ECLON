@@ -1,6 +1,7 @@
 package ph.coop.core.loan;
 
-import java.math.BigDecimal;
+
+import static ph.coop.core.web.ApiErrors.bad;import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -41,9 +42,6 @@ public class CoMakerHolds {
         this.jdbc = jdbc;
     }
 
-    private static ResponseStatusException bad(String message) {
-        return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
-    }
 
     /** The active accounts of a member of a type the administrator allows holds on (see {@code ecis_hold_setting}), with what is on hold and what is free. */
     public List<HoldAccount> accounts(int branch, int client) {
