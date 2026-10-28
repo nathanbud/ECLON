@@ -255,11 +255,6 @@ function PersonalTab({ m, lk }: { m: Member; lk?: Lookups }) {
         <Field label="Email" value={m.email} col="EmailAddress" />
       </Section>
 
-      <Section title="Work & income">
-        <Field label="Profession" value={m.profession} col="Profession" />
-        <Field label="Monthly income" value={m.monthlyIncome ? Number(m.monthlyIncome).toLocaleString(undefined, { minimumFractionDigits: 2 }) : null} col="BusinessIncome" raw={m.monthlyIncome} kind="money" />
-      </Section>
-
       <AddressSection m={m} lk={lk} />
     </Box>
   )

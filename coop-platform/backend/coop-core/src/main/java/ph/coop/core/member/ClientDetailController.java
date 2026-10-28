@@ -51,14 +51,15 @@ class ClientDetailController {
         var tabs = new LinkedHashMap<String, LinkedHashMap<String, List<Spec>>>();
 
         var business = new LinkedHashMap<String, List<Spec>>();
+        business.put("Work & income", List.of(t("Profession", "Profession"), m("Monthly income", "BusinessIncome")));
         business.put("Employment", List.of(
             t("Employer / business", "BusName"), t("Nature of business", "BusNature"), t("Job title", "BusJobTitle"),
             l("Employment status", "BusStatus", "busStatus"), l("Level", "BusLevel", "busLevel"),
             d("Date hired", "BusDateHired"), y("In business since", "BusSince"), t("Employees", "BusNumEmployees"),
             t("Employee code", "EmpCode"), t("Employee no.", "EMPNO"), t("Employee ID", "BusEmpID")));
         business.put("Income", List.of(
-            m("Business income", "BusinessIncome"), m("Meal allowance", "MealAllowance"),
-            t("Other source of income", "BusOtherSourceOfIncome"), t("Profession", "BusProfession"), t("Occupation", "BusOccupation")));
+            m("Meal allowance", "MealAllowance"),
+            t("Other source of income", "BusOtherSourceOfIncome"), t("Business profession", "BusProfession"), t("Occupation", "BusOccupation")));
         business.put("Business address", List.of(
             t("Street", "BusAddStreet"), t("Barangay", "BusAddBarangay"), t("City / Municipality", "BusAddCity"),
             t("Province", "BusAddProvince"), t("Zip code", "BusAddZipCode"), t("Business phone", "EmpBusTelNum")));
