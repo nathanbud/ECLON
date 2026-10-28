@@ -24,11 +24,11 @@ describe('sign-in screen', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  it('puts the cooperative and the system on the left and the form on the right', () => {
+  it('shows the cooperative and the system on the left and the form on the right', () => {
     show()
     expect(screen.getByRole('heading', { level: 1, name: brand.product })).toBeInTheDocument()
-    expect(screen.getByText(brand.tagline)).toBeInTheDocument()
-    for (const f of brand.facts) expect(screen.getByText(f.title)).toBeInTheDocument()
+    expect(screen.getByText(brand.coop)).toBeInTheDocument()
+    expect(screen.getByText(brand.system)).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Welcome back' })).toBeInTheDocument()
   })
 

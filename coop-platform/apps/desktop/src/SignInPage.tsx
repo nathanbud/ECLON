@@ -1,6 +1,6 @@
 import { Alert, Box, Button, CircularProgress, IconButton, InputAdornment, TextField, Typography, type Theme } from '@mui/material'
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { FiAlertTriangle, FiBookOpen, FiEye, FiEyeOff, FiLock, FiPieChart, FiUsers } from 'react-icons/fi'
+import { FiAlertTriangle, FiEye, FiEyeOff } from 'react-icons/fi'
 import { signIn, type Me } from './api'
 import { brand } from './brand'
 import { LIGHT } from './glass'
@@ -13,8 +13,6 @@ const remembered = () => {
 }
 
 const dark = (t: Theme) => t.palette.mode === 'dark'
-const ICONS = [<FiUsers key="m" />, <FiPieChart key="s" />, <FiBookOpen key="t" />, <FiLock key="c" />]
-const TINTS = [tileFill.orange, tileFill.teal, tileFill.indigo, tileFill.green]
 
 /** Whether the server answers. An unsigned request to /api/me is refused with 401 when the server is up; anything else (a gateway error, no answer) means it is not reachable. */
 function useServerStatus(): 'checking' | 'online' | 'offline' {
@@ -42,13 +40,13 @@ function Mark({ size }: { size: number }) {
   return <Box sx={{ display: 'flex', '& svg': { width: size, height: size } }}><Logo /></Box>
 }
 
-/** The left half: who this is for, what the system does, and whether the server is up. */
+/** The left half: the cooperative's mark and name, the system, and whether the server is up. */
 function BrandPanel({ status }: { status: 'checking' | 'online' | 'offline' }) {
   return (
     <Box
       component="section" aria-label={`About ${brand.product}`}
       sx={(t) => ({
-        position: 'relative', overflow: 'hidden', display: { xs: 'none', md: 'flex' }, flexDirection: 'column', justifyContent: 'space-between', p: { md: 6, lg: 8 },
+        position: 'relative', overflow: 'hidden', display: { xs: 'none', md: 'flex' }, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', p: { md: 6, lg: 8 },
         background: dark(t)
           ? 'linear-gradient(160deg, #15233d 0%, #101827 55%, #1d1630 100%)'
           : `linear-gradient(160deg, ${LIGHT.washBlue} 0%, #E9EDF4 55%, ${LIGHT.washLilac} 100%)`,
@@ -57,40 +55,21 @@ function BrandPanel({ status }: { status: 'checking' | 'online' | 'offline' }) {
     >
       {/* Soft colour that the panel seems to glow with. Decorative only. */}
       <Box aria-hidden sx={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        <Box sx={{ position: 'absolute', width: 420, height: 420, top: -140, left: -120, borderRadius: '50%', filter: 'blur(90px)', opacity: 0.28, bgcolor: tileFill.indigo }} />
-        <Box sx={{ position: 'absolute', width: 380, height: 380, bottom: -150, right: -100, borderRadius: '50%', filter: 'blur(100px)', opacity: 0.2, bgcolor: tileFill.teal }} />
+        <Box sx={{ position: 'absolute', width: 460, height: 460, top: -160, left: -140, borderRadius: '50%', filter: 'blur(100px)', opacity: 0.28, bgcolor: tileFill.indigo }} />
+        <Box sx={{ position: 'absolute', width: 420, height: 420, bottom: -170, right: -120, borderRadius: '50%', filter: 'blur(100px)', opacity: 0.2, bgcolor: tileFill.teal }} />
       </Box>
 
-      <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Mark size={44} />
-        <Box>
-          <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15 }}>{brand.product}</Typography>
-          <Typography sx={{ fontSize: 12.5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }} color="text.secondary">{brand.coop}</Typography>
-        </Box>
+      <Box sx={{ position: 'relative', textAlign: 'center', animation: 'signInRise 520ms cubic-bezier(.2,.8,.2,1) both', '@media (prefers-reduced-motion: reduce)': { animation: 'none' } }}>
+        <Box sx={{ display: 'inline-flex', mb: 3 }}><Mark size={104} /></Box>
+        <Typography component="h1" sx={{ fontSize: { md: 40, lg: 48 }, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.1 }}>{brand.product}</Typography>
+        <Typography sx={{ mt: 1.25, fontSize: 14, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600 }} color="text.secondary">{brand.coop}</Typography>
+        <Box aria-hidden sx={(t) => ({ width: 40, height: 2, borderRadius: 1, mx: 'auto', my: 3, bgcolor: dark(t) ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.18)' })} />
+        <Typography sx={{ fontSize: 15 }} color="text.secondary">{brand.system}</Typography>
       </Box>
 
-      <Box sx={{ position: 'relative', maxWidth: 560, my: 4, animation: 'signInRise 520ms cubic-bezier(.2,.8,.2,1) both', '@media (prefers-reduced-motion: reduce)': { animation: 'none' } }}>
-        <Typography component="p" sx={{ fontSize: { md: 38, lg: 48 }, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.08, mb: 2 }}>{brand.tagline}</Typography>
-        <Typography sx={{ fontSize: 17, lineHeight: 1.5, mb: 4, maxWidth: 480 }} color="text.secondary">{brand.summary}</Typography>
-        <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0, display: 'grid', gap: 2 }}>
-          {brand.facts.map((f, i) => (
-            <Box component="li" key={f.title} sx={{ display: 'flex', gap: 1.75, alignItems: 'flex-start' }}>
-              <Box aria-hidden sx={{ width: 34, height: 34, borderRadius: '5px', display: 'grid', placeItems: 'center', flexShrink: 0, color: '#fff', bgcolor: TINTS[i % TINTS.length], '& svg': { width: 17, height: 17 } }}>{ICONS[i % ICONS.length]}</Box>
-              <Box>
-                <Typography sx={{ fontSize: 15, fontWeight: 600, lineHeight: 1.3 }}>{f.title}</Typography>
-                <Typography sx={{ fontSize: 13.5, lineHeight: 1.45 }} color="text.secondary">{f.text}</Typography>
-              </Box>
-            </Box>
-          ))}
-        </Box>
-      </Box>
-
-      <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-        <Typography sx={{ fontSize: 12.5, flex: 1 }} color="text.secondary">{brand.system}</Typography>
-        <Box role="status" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <Box aria-hidden sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: status === 'online' ? 'success.main' : status === 'offline' ? 'error.main' : 'text.disabled' }} />
-          <Typography sx={{ fontSize: 12.5 }} color="text.secondary">{status === 'online' ? 'Server online' : status === 'offline' ? 'Server not reachable' : 'Checking the server…'}</Typography>
-        </Box>
+      <Box role="status" sx={{ position: 'absolute', left: 0, right: 0, bottom: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75 }}>
+        <Box aria-hidden sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: status === 'online' ? 'success.main' : status === 'offline' ? 'error.main' : 'text.disabled' }} />
+        <Typography sx={{ fontSize: 12.5 }} color="text.secondary">{status === 'online' ? 'Server online' : status === 'offline' ? 'Server not reachable' : 'Checking the server…'}</Typography>
       </Box>
     </Box>
   )
