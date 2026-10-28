@@ -31,7 +31,7 @@ import { useMe } from './session'
 import { ToolbarPortal } from './toolbarSlot'
 
 const TABS = [
-  'Personal', 'Business / Employment', 'Education', 'Contacts & IDs', 'Spouse Info', 'Groups',
+  'Membership', 'Personal', 'Business / Employment', 'Education', 'Contacts & IDs', 'Spouse Info', 'Groups',
   'History', 'Closed', 'Pledges / Insurances', 'Others', 'Sketch', 'Billing', 'Share Capital', 'Savings', 'Time Deposits', 'Loans', 'Documents',
 ]
 
@@ -215,6 +215,18 @@ function AddressSection({ m, lk }: { m: Member; lk?: Lookups }) {
   )
 }
 
+function MembershipTab({ m, lk }: { m: Member; lk?: Lookups }) {
+  return (
+    <Box sx={{ columns: '340px', columnGap: '12px' }}>
+      <Section title="Membership">
+        <Field label="Date closed" value={fmtDate(m.closedDate)} />
+        <SelectField label="DOSRI tag" lookup="dosriTag" code={m.dosriTag} lk={lk} col="DOSRITag" />
+        <SelectField label="Health care" lookup="yesNo" code={m.includeHealthCare ?? 0} lk={lk} col="IsIncludeHealthCare" />
+      </Section>
+    </Box>
+  )
+}
+
 function PersonalTab({ m, lk }: { m: Member; lk?: Lookups }) {
   const age = yearsSince(m.dateOfBirth)
   return (
@@ -228,12 +240,6 @@ function PersonalTab({ m, lk }: { m: Member; lk?: Lookups }) {
         <SelectField label="Gender" lookup="gender" code={m.gender} lk={lk} col="Gender" />
         <SelectField label="Civil status" lookup="civilStatus" code={m.civilStatus} lk={lk} col="CivilStatus" />
         <SelectField label="Religion" lookup="religion" code={m.religion} lk={lk} col="ReligionID" />
-      </Section>
-
-      <Section title="Membership">
-        <Field label="Date closed" value={fmtDate(m.closedDate)} />
-        <SelectField label="DOSRI tag" lookup="dosriTag" code={m.dosriTag} lk={lk} col="DOSRITag" />
-        <SelectField label="Health care" lookup="yesNo" code={m.includeHealthCare ?? 0} lk={lk} col="IsIncludeHealthCare" />
       </Section>
 
       <Section title="Contact">
@@ -398,7 +404,7 @@ function ClientMenu({ onFind, actions, editOn, pendingNote }: { onFind: () => vo
 // ---- the other tabs -----------------------------------------------------------------------------------------------
 
 // Same order as TABS. A key names a tab of the details endpoint; the rest have their own content.
-const TAB_KEYS = ['personal', 'business', 'education', 'contacts', 'spouse', 'groups', 'history', 'closed', 'pledges', 'others', 'sketch', 'billing', 'shares', 'savings', 'timedeposits', 'loans', 'documents']
+const TAB_KEYS = ['membership', 'personal', 'business', 'education', 'contacts', 'spouse', 'groups', 'history', 'closed', 'pledges', 'others', 'sketch', 'billing', 'shares', 'savings', 'timedeposits', 'loans', 'documents']
 
 function formatField(f: DetailField): string | null {
   if (f.value == null) return null
@@ -1077,6 +1083,7 @@ function SavingsHistoryDialog({ id, typeCode, refNo, onClose }: { id: Id; typeCo
 
 function TabContent({ tab, m, lk }: { tab: number; m: Member; lk?: Lookups }) {
   const key = TAB_KEYS[tab]
+  if (key === 'membership') return <MembershipTab m={m} lk={lk} />
   if (key === 'personal') return <PersonalTab m={m} lk={lk} />
   if (key === 'history') return <HistoryTab id={m.id} />
   if (key === 'billing') return <BillingTab id={m.id} />
