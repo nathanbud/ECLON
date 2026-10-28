@@ -18,6 +18,7 @@ import { appBackground, glass } from './glass'
 import { tileFill } from './theme'
 import { displayName, memberNo, statusOf, type Id } from './clients'
 import LoansTab from './LoansTab'
+import DocumentsPanel from './DocumentsPanel'
 import FindClientDialog, { FindBody } from './FindClientDialog'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
@@ -30,7 +31,7 @@ import { ToolbarPortal } from './toolbarSlot'
 
 const TABS = [
   'Personal', 'Business / Employment', 'Education', 'Contacts & IDs', 'Spouse Info', 'Groups',
-  'History', 'Closed', 'Pledges / Insurances', 'Others', 'Sketch', 'Billing', 'Share Capital', 'Savings', 'Time Deposits', 'Loans',
+  'History', 'Closed', 'Pledges / Insurances', 'Others', 'Sketch', 'Billing', 'Share Capital', 'Savings', 'Time Deposits', 'Loans', 'Documents',
 ]
 
 // ---- formatting helpers -------------------------------------------------------------------------------------------
@@ -396,7 +397,7 @@ function ClientMenu({ onFind, actions, editOn, pendingNote }: { onFind: () => vo
 // ---- the other tabs -----------------------------------------------------------------------------------------------
 
 // Same order as TABS. A key names a tab of the details endpoint; the rest have their own content.
-const TAB_KEYS = ['personal', 'business', 'education', 'contacts', 'spouse', 'groups', 'history', 'closed', 'pledges', 'others', 'sketch', 'billing', 'shares', 'savings', 'timedeposits', 'loans']
+const TAB_KEYS = ['personal', 'business', 'education', 'contacts', 'spouse', 'groups', 'history', 'closed', 'pledges', 'others', 'sketch', 'billing', 'shares', 'savings', 'timedeposits', 'loans', 'documents']
 
 function formatField(f: DetailField): string | null {
   if (f.value == null) return null
@@ -1081,6 +1082,7 @@ function TabContent({ tab, m, lk }: { tab: number; m: Member; lk?: Lookups }) {
   if (key === 'shares') return <ShareCapitalTab id={m.id} />
   if (key === 'savings') return <SavingsTab id={m.id} />
   if (key === 'timedeposits') return <TimeDepositsTab id={m.id} />
+  if (key === 'documents') return <DocumentsPanel entityType="MEMBER" entityId={String(m.id.clientId)} />
   if (key === 'loans') return <LoansTab branchCode={m.id.branchCode} clientId={m.id.clientId} />
   if (key === 'sketch') return <EmptyState icon={<FiInfo />} title="No sketch" hint="Residence sketches are not stored in the database yet." />
   return <DetailsTab id={m.id} tab={key} title={TABS[tab]} lk={lk} />

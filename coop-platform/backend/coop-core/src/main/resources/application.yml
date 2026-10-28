@@ -1,6 +1,11 @@
 spring:
   application:
     name: coop-core
+  servlet:
+    multipart:
+      # documents are limited to 10 MB in DocumentRules; the multipart limit is a little above so the clear message comes from there
+      max-file-size: 12MB
+      max-request-size: 13MB
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3311}/${DB_NAME:iaccsbsucmpc01}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Manila&zeroDateTimeBehavior=CONVERT_TO_NULL
     username: ${DB_USER}
@@ -18,6 +23,9 @@ spring:
 
 # Placeholder auth until the Keycloak phase (ECIS Phase 3). Set both to enable API access.
 coop:
+  documents:
+    # where uploaded documents are kept (a folder today; MinIO or another S3-compatible store later)
+    root: ${COOP_DOCUMENTS_ROOT:./data/documents}
   dev-auth:
     username: ${DEV_API_USER}
     password: ${DEV_API_PASSWORD}

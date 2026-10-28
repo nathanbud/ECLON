@@ -21,3 +21,7 @@ test-results/
 .DS_Store
 Thumbs.db
 .claude/
+
+# uploaded documents (member IDs, contracts): never commit
+data/
+**/data/documents/

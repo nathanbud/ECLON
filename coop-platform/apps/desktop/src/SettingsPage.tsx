@@ -1,11 +1,11 @@
 import { Box, ButtonBase, InputAdornment, TextField, Typography } from '@mui/material'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiLock, FiMonitor, FiSearch, FiShield, FiSliders, FiUserCheck, FiUsers } from 'react-icons/fi'
+import { FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiLock, FiMonitor, FiSearch, FiShield, FiSliders, FiUserCheck, FiUsers } from 'react-icons/fi'
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
 
-type Who = 'admin' | 'accountant'
+type Who = 'admin' | 'accountant' | 'documents'
 interface Item { label: string; note: string; icon: ReactNode; color: string; view?: View; who: Who }
 interface Category { id: string; label: string; icon: ReactNode; color: string; items: Item[] }
 
@@ -19,6 +19,7 @@ const categories: Category[] = [
     items: [
       { label: 'Users', note: 'Temporary passwords, levels, permissions and who may do loans alone', icon: <FiUserCheck />, color: '#007AFF', view: 'users', who: 'admin' },
       { label: 'Audit Log', note: 'Every change made in the system, who made it and why', icon: <FiClipboard />, color: '#8E8E93', view: 'audit', who: 'admin' },
+      { label: 'Documents', note: 'Scanned IDs, contracts and deeds kept for members, assets and other records, and who may read them', icon: <FiFileText />, color: '#5856D6', view: 'documents', who: 'documents' },
     ],
   },
   {
@@ -97,7 +98,8 @@ function Group({ children }: { children: ReactNode }) {
 export default function SettingsPage({ onOpen }: { onOpen: (v: View) => void }) {
   const me = useMe()
   const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
-  const allowed = (i: Item) => (i.who === 'admin' ? me.admin : accountant)
+  const clerk = me.roles.some((r) => r.replace('ROLE_', '') === 'DOCUMENT_CLERK')
+  const allowed = (i: Item) => (i.who === 'admin' ? me.admin : i.who === 'documents' ? accountant || clerk : accountant)
   const [pick, setPick] = useState(() => stored() ?? categories[0].id)
   const [q, setQ] = useState('')
   const query = q.trim().toLowerCase()

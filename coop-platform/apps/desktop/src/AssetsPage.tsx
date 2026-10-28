@@ -8,6 +8,7 @@ import {
   type AssetCategory, type AssetDisposal, type AssetSummary, type AssetTransfer,
 } from './api'
 import { appBackground, glass } from './glass'
+import DocumentsPanel from './DocumentsPanel'
 import { ReasonDialog } from './ProcurementPage'
 import { useMe } from './session'
 
@@ -176,6 +177,10 @@ function DetailDialog({ id, custodian, onClose }: { id: number; custodian: boole
                 {d.data.transfers.map((t) => <TableRow key={t.id}><TableCell>{t.transferNo}</TableCell><TableCell>{t.from} → {t.to}</TableCell><TableCell>{t.reason}</TableCell><TableCell><Chip size="small" variant="outlined" color={statusColor(t.status)} label={t.status.toLowerCase()} /></TableCell></TableRow>)}
                 {d.data.transfers.length === 0 && <TableRow><TableCell><Typography color="text.secondary">None.</Typography></TableCell></TableRow>}
               </TableBody></Table>
+            </Box>
+            <Box>
+              <Typography sx={label} color="text.secondary">Documents (deeds, invoices, warranties)</Typography>
+              <DocumentsPanel entityType="ASSET" entityId={a.assetNo} canUpload={custodian} />
             </Box>
             <Box>
               <Typography sx={label} color="text.secondary">Maintenance</Typography>

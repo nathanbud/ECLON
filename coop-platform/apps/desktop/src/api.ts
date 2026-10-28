@@ -1064,3 +1064,51 @@ export const runReport = (id: string, params: Record<string, string>) => {
   const q = Object.entries(params).filter(([, v]) => v !== '').map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
   return getJson<ReportResult>(`/api/reports/${id}${q ? `?${q}` : ''}`)
 }
+
+// ---- documents (guide phase 16) --------------------------------------------------------------------------------------------
+export interface DocInfo {
+  id: number; docNo: string; entityType: string; entityId: string; title: string; description: string | null; fileName: string; mimeType: string; sizeBytes: number; sha256: string
+  classification: 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED'; version: number; supersedesId: number | null; status: 'ACTIVE' | 'SUPERSEDED' | 'REMOVED'; retentionDate: string; createdBy: string; createdAt: string; canManage: boolean
+}
+export interface DocDetail { document: DocInfo; versions: DocInfo[]; grants: string[] }
+export interface DocAccessRow { at: string; username: string; action: string; detail: string | null }
+export interface DocSetup { entityTypes: string[]; classifications: string[]; minRetentionYears: Record<string, number>; extensions: string[]; maxMegabytes: number }
+export const getDocumentSetup = () => getJson<DocSetup>('/api/documents/setup')
+export const listDocuments = (p: { entityType?: string; entityId?: string; q?: string; history?: boolean }) => {
+  const q = Object.entries(p).filter(([, v]) => v !== undefined && v !== '' && v !== false).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&')
+  return getJson<DocInfo[]>(`/api/documents${q ? `?${q}` : ''}`)
+}
+export const getDocument = (id: number) => getJson<DocDetail>(`/api/documents/${id}`)
+async function failure(res: Response): Promise<never> {
+  let message = `Request failed (${res.status})`
+  try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the generic message */ }
+  throw new Error(message)
+}
+/** Attaches a file to a record (fields), or, with {@code versionOf}, replaces that document with a new version. */
+export async function uploadDocument(file: File, fields: Record<string, string>, versionOf?: number): Promise<DocInfo> {
+  const fd = new FormData()
+  if (!versionOf) for (const [k, v] of Object.entries(fields)) if (v !== '') fd.append(k, v)
+  fd.append('file', file)
+  const res = await http(versionOf ? `/api/documents/${versionOf}/versions` : '/api/documents', { method: 'POST', body: fd })
+  if (!res.ok) return failure(res)
+  return res.json()
+}
+/** Fetches the file with the sign-in and hands it to the browser as a download. */
+export async function downloadDocument(id: number, fileName: string): Promise<void> {
+  const res = await http(`/api/documents/${id}/content`)
+  if (!res.ok) return failure(res)
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  a.click()
+  URL.revokeObjectURL(url)
+}
+export const removeDocument = (id: number, reason: string) => send<DocInfo>('POST', `/api/documents/${id}/remove`, { reason })
+export const grantDocument = (id: number, username: string) => send<string[]>('POST', `/api/documents/${id}/grants`, { username })
+export async function revokeDocument(id: number, username: string): Promise<string[]> {
+  const res = await http(`/api/documents/${id}/grants/${encodeURIComponent(username)}`, { method: 'DELETE' })
+  if (!res.ok) return failure(res)
+  return res.json()
+}
+export const getDocumentAccess = (id: number) => getJson<DocAccessRow[]>(`/api/documents/${id}/access`)
