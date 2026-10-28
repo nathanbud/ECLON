@@ -225,6 +225,55 @@ public class LoanSetupController {
         return Map.of("was", was, "now", now);
     }
 
+    /** One line of a loan type's ledger wiring: what the event is for, which loan status it applies to (principal only), and the chart account it posts to. */
+    public record WiredAccount(int event, String what, Integer status, String statusName, String account, String accountName, boolean accountActive, String remarks) {}
+
+    private static String eventRole(int e) {
+        return switch (e) {
+            case 11 -> "Principal (loan balance)";
+            case 21 -> "Accrued interest receivable";
+            case 22 -> "Unearned interest";
+            case 23 -> "Interest paid (income)";
+            case 24 -> "Interest earned";
+            case 25 -> "Interest waived";
+            case 26 -> "Interest rebate";
+            case 31 -> "Service fee";
+            case 36 -> "Collection fee";
+            case 37 -> "Insurance";
+            case 41 -> "Penalty / fines";
+            case 42 -> "Penalty waived";
+            default -> "Event " + e;
+        };
+    }
+
+    private static String statusName(int n) {
+        return switch (n) {
+            case 11 -> "Current";
+            case 12 -> "Past due";
+            case 13 -> "In litigation";
+            case 14 -> "Restructured";
+            default -> null;
+        };
+    }
+
+    /** Where a loan type posts its principal, interest, penalty, fees and the rest in the chart of accounts (read only: the wiring is copied when a type is created). */
+    @GetMapping("/types/{code}/accounts")
+    public List<WiredAccount> accounts(@PathVariable int code, Authentication auth) {
+        int branch = branch(auth);
+        find(branch, code);
+        return jdbc.query("""
+            SELECT g.GLControlSLE_CODE, g.GLControlCTS_NUM, g.GLControlACCT_CODE, c.COADesc, COALESCE(c.COAisdisabled, 0), g.Remarks
+            FROM glcontrol g LEFT JOIN coa c ON c.COABR_CODE = g.GLControlBR_CODE AND c.COAID = g.GLControlACCT_CODE
+            WHERE g.GLControlBR_CODE = ? AND g.GLControlSLC_CODE = ? AND g.GLControlSLT_CODE = ?
+            ORDER BY g.GLControlSLE_CODE, g.GLControlCTS_NUM
+            """, (rs, i) -> {
+            int e = rs.getInt(1);
+            int n = rs.getInt(2);
+            Integer st = e == 11 ? n : null;
+            return new WiredAccount(e, eventRole(e), st, st == null ? null : statusName(n), rs.getString(3), rs.getString(4), rs.getInt(5) == 0, rs.getString(6));
+        }, branch, LOAN_CLASS, code);
+    }
+
     @PutMapping("/types/{code}")
     @Transactional
     public TypeRow update(@PathVariable int code, @RequestBody TypeForm in, Authentication auth) {

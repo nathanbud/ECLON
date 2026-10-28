@@ -746,6 +746,8 @@ const SETUP = '/api/admin/loan-setup'
 export const getLoanSetupTypes = () => getJson<LoanSetupType[]>(`${SETUP}/types`)
 export const getLoanSetupLists = () => getJson<LoanSetupLists>(`${SETUP}/lists`)
 export const createLoanType = (copyFrom: number, f: LoanSetupForm) => send<LoanSetupType>('POST', `${SETUP}/types?copyFrom=${copyFrom}`, f)
+export interface WiredAccount { event: number; what: string; status: number | null; statusName: string | null; account: string; accountName: string | null; accountActive: boolean; remarks: string | null }
+export const getLoanTypeAccounts = (code: number) => getJson<WiredAccount[]>(`${SETUP}/types/${code}/accounts`)
 export const updateLoanType = (code: number, f: LoanSetupForm) => send<LoanSetupType>('PUT', `${SETUP}/types/${code}`, f)
 export const getSetupPurposes = () => getJson<SetupNamed[]>(`${SETUP}/purposes`)
 export const getSetupCollateral = () => getJson<SetupNamed[]>(`${SETUP}/collateral-types`)

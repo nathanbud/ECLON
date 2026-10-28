@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { FiChevronRight, FiPlus } from 'react-icons/fi'
 import {
-  createLoanType, deleteSetupNamed, getHoldSetup, setHoldable, setHoldDefault, getLoanSetupLists, getLoanSetupTypes, getSetupCollateral, getSetupPurposes, saveSetupNamed, updateLoanType,
+  createLoanType, deleteSetupNamed, getHoldSetup, setHoldable, setHoldDefault, getLoanSetupLists, getLoanSetupTypes, getLoanTypeAccounts, getSetupCollateral, getSetupPurposes, saveSetupNamed, updateLoanType,
   type HoldSetupRow, type LoanSetupForm, type LoanSetupLists, type LoanSetupType, type SetupNamed,
 } from './api'
 import AmortizationTab from './AmortizationTab'
@@ -34,6 +34,36 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
     <Box component="fieldset" sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
       <Typography component="legend" color="text.secondary" sx={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', mb: 0.75, p: 0 }}>{title}</Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1.25 }}>{children}</Box>
+    </Box>
+  )
+}
+
+/** Where this loan type posts principal, interest, penalties, fees and the rest in the chart of accounts. Read only. */
+function WiredAccounts({ code }: { code: number }) {
+  const { data, error, isLoading } = useQuery({ queryKey: ['loan-type-accounts', code], queryFn: () => getLoanTypeAccounts(code), staleTime: 60_000 })
+  return (
+    <Box sx={{ mt: 2 }}>
+      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.5 }} color="text.secondary">Ledger accounts (chart of accounts)</Typography>
+      {error && <Alert severity="error" sx={{ py: 0 }}>{(error as Error).message}</Alert>}
+      {isLoading && <Skeleton variant="rounded" height={90} />}
+      {data && data.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">No ledger accounts are set for this loan type, so nothing can be posted for it.</Typography>}
+      {data && data.length > 0 && (
+        <Table size="small" aria-label="Ledger accounts of this loan type" sx={{ '& td, & th': { py: 0.4 } }}>
+          <TableHead><TableRow><TableCell>Posts</TableCell><TableCell>Account no.</TableCell><TableCell>Account</TableCell></TableRow></TableHead>
+          <TableBody>
+            {data.map((a) => (
+              <TableRow key={`${a.event}-${a.status ?? 0}`}>
+                <TableCell>{a.what}{a.statusName ? ` · ${a.statusName}` : ''}</TableCell>
+                <TableCell sx={{ fontVariantNumeric: 'tabular-nums' }}>{a.account}</TableCell>
+                <TableCell sx={{ color: a.accountActive && a.accountName ? undefined : 'error.main' }}>
+                  {a.accountName ?? 'Not in the chart of accounts'}{a.accountName && !a.accountActive ? ' (switched off)' : ''}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      <Typography sx={{ fontSize: 12, mt: 0.5 }} color="text.secondary">Principal is shown for each loan status. A new loan type copies these accounts from the type it starts from.</Typography>
     </Box>
   )
 }
@@ -147,6 +177,7 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
               </FormSection>
             </Box>
           </Box>
+          {editing && <WiredAccounts code={editing.code} />}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, pt: 1, gap: 1.5, alignItems: 'flex-start' }}>
           <TextField required fullWidth size="small" label="Reason for this change" value={form.reason} onChange={(e) => set('reason', e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }}

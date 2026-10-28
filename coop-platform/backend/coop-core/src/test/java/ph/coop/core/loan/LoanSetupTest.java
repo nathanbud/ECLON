@@ -63,6 +63,15 @@ class LoanSetupTest {
         assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'loan.type.create' AND entity = 'loan_type' AND reason = 'pilot product' AND username = 'tester'", Integer.class));
     }
 
+    @Test void aTypeShowsWhereItsPrincipalInterestAndPenaltyPostInTheChart() {
+        var wired = setup.accounts(source, me());
+        long expected = jdbc.queryForObject("SELECT COUNT(*) FROM glcontrol WHERE GLControlSLC_CODE = 12 AND GLControlSLT_CODE = ?", Long.class, source);
+        assertEquals(expected, wired.size());
+        assertTrue(wired.stream().anyMatch((a) -> a.event() == 11 && a.statusName() != null), "principal is shown per loan status");
+        assertTrue(wired.stream().anyMatch((a) -> a.event() == 23 && a.what().startsWith("Interest paid")));
+        assertTrue(wired.stream().allMatch((a) -> a.account() != null && !a.account().isBlank()));
+    }
+
     @Test void theDayCountIsSavedAndKeptWhenTheFormDoesNotSayAndRefusedWhenWrong() {
         var made = setup.create(form("ZZ Test Loan", "pilot"), source, me());
         var with = new LoanSetupController.TypeForm("ZZ Test Loan", null, 12, 4, 4, 4, 3, new BigDecimal("9.50"), new BigDecimal("36.00"), new BigDecimal("1.00"), 2, true, 50, 365, false, "annuity", 1);
