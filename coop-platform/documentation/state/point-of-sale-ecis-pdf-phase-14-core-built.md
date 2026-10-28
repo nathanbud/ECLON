@@ -1,0 +1,6 @@
+# Point of sale (ECIS.pdf phase 14, core built)
+
+Moved from CLAUDE.md unchanged (one sentence per line). Keep this note current when the feature changes.
+
+**Point of sale (ECIS.pdf phase 14, core built)**: the old sales tables are empty, so it is new `ecis_*` tables (`V033_pos.sql`, applied): price list (insert-only history), discounts (percent or amount, optionally supervisor only), promotions (percent off a product between dates), sales with payments (CASH, CARD, OTHER; only cash gives change) and returns; `/api/pos` (`PosCatalogController`, `SaleController`, `SaleReturnController`); a sale takes stock out through `StockService` as SALE (batches earliest expiry first, expired never sold) and keeps the cost of goods from the ledger; a return is approved by a different POS_SUPERVISOR before the goods go back; roles POS_CASHIER and POS_SUPERVISOR (granted by API); screen = POS tile (`PosPage`); `PosRulesTest`, `PosFlowTest`; see `documentation/pos-design.md`. **No revenue or cost entries are posted to the general ledger yet** (each sale has `journaled = 0`; the accounts are the owner's decision).
+Not built: VAT and BIR receipt rules, charging a sale to a member account, cashier shifts and counts.

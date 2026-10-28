@@ -17,7 +17,7 @@ CI (`.github/workflows/ci.yml`) runs everything that needs no database: type-che
 
 ## Why the database tests still run on the working schema
 
-`iaccs_sim` is not usable as a test copy: it is a 0.2 GB sample (5 clients, 15 loans, no general ledger) with none of the `ecis_` tables, while the tests look for real members, loans and balances and the real-data tests fit rules against the whole history (about 71 GB). Isolating the tests needs a **full clone** of `iaccsbsucmpc01` (a data-directory copy while MySQL is stopped, or `mysqldump --single-transaction`), then `DB_NAME=<clone> scripts/migrate.ps1 -Schema <clone>`-style setup and `coop_app` grants on it. Until then every database test is `@Transactional` and rolls back; do not add a test that commits.
+`iaccs_sim` is not usable as a test copy: it is a 0.2 GB sample (5 clients, 15 loans, no general ledger) with none of the `ecis_` tables, while the tests look for real members, loans and balances and the real-data tests fit rules against the whole history (about 71 GB). **Blocked today by disk space:** the machine has about 16 GB free of 953 GB and the clone needs at least 75 GB, so free space (or an external drive) comes first. Isolating the tests needs a **full clone** of `iaccsbsucmpc01` (a data-directory copy while MySQL is stopped, or `mysqldump --single-transaction`), then `DB_NAME=<clone> scripts/migrate.ps1 -Schema <clone>`-style setup and `coop_app` grants on it. Until then every database test is `@Transactional` and rolls back; do not add a test that commits.
 
 ## Conventions
 

@@ -25,3 +25,6 @@ Thumbs.db
 # uploaded documents (member IDs, contracts): never commit
 data/
 **/data/documents/
+
+# database and key backups (never commit)
+backups/
