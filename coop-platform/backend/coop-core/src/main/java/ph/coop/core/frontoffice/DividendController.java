@@ -1,0 +1,291 @@
+package ph.coop.core.frontoffice;
+
+import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+import ph.coop.core.db.Db;
+import ph.coop.core.deposit.DividendRun;
+import ph.coop.core.deposit.DividendRun.Credit;
+import ph.coop.core.deposit.DividendRun.MemberAmounts;
+import ph.coop.core.deposit.DividendRun.Params;
+import ph.coop.core.deposit.DividendRun.Plan;
+import ph.coop.core.frontoffice.FrontOfficeAccess.Perms;
+import ph.coop.core.frontoffice.MemberLedgerPoster.MemberLine;
+import ph.coop.core.frontoffice.MemberLedgerPoster.Person;
+
+/**
+ * The annual "Dividend and Patronage Refund Transaction (Computer Generated)" (module 6 type 54; documentation/dividend-map.md). Preview is read only.
+ * Encoding writes the vouchers the old system writes (up to 7,000 member lines each, one debit of the fund account 20126 per voucher) with every line tagged 2;
+ * a second person approves and a third posts them, which writes the member ledger rows and the general ledger lines dated the cut-off.
+ * The rates and the mutual benefit and hospitalization amounts are typed by the accountant. A year that already has dividend vouchers cannot be encoded again.
+ * There is no single-person exemption for this run.
+ */
+@RestController
+@RequestMapping("/api/front-office/dividends")
+class DividendController {
+
+    private static final int MODULE = 6, CODE = 54, PENDING = 2, POSTED = 1, CHUNK = 7000, CTS = 15;
+
+    record Request(String cutoff, BigDecimal dividendRate, BigDecimal patronageRate, BigDecimal mutualBenefit, BigDecimal hospitalization, List<MemberAmounts> overrides) {
+        Params params() {
+            return new Params(dividendRate, patronageRate, mutualBenefit, hospitalization, overrides);
+        }
+    }
+
+    record HeldRow(int clientId, BigDecimal total, String reason) {}
+
+    record Summary(String cutoff, int year, boolean alreadyEncoded, int members, BigDecimal dividend, BigDecimal refund, BigDecimal total, BigDecimal mutualBenefit, BigDecimal hospitalization,
+                   BigDecimal savings, BigDecimal shareCapital, int vouchers, int heldCount, List<HeldRow> held) {}
+
+    record VoucherRow(int year, long controlNo, String documentNo, int lines, BigDecimal total, int encodedBy, Integer approvedBy, String status) {}
+
+    private final FrontOfficeAccess access;
+    private final MemberLedgerPoster poster;
+    private final DividendRun run;
+    private final JdbcTemplate jdbc;
+    private final TransactionTemplate tx;
+    private final Clock clock;
+    private final Db db;
+
+    DividendController(FrontOfficeAccess access, MemberLedgerPoster poster, DividendRun run, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db) {
+        this.access = access;
+        this.poster = poster;
+        this.run = run;
+        this.jdbc = jdbc;
+        this.tx = new TransactionTemplate(txm);
+        this.clock = clock;
+        this.db = db;
+    }
+
+    private static void requireFind(Perms p) {
+        if (!p.canFind(CODE)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot look up dividend vouchers.");
+    }
+
+    private static void requireNew(Perms p) {
+        if (!p.canNew(CODE)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot create dividend vouchers.");
+    }
+
+    private LocalDate cutoff(String text) {
+        LocalDate d;
+        try {
+            d = LocalDate.parse(text);
+        } catch (RuntimeException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Give the cut-off date, such as 2027-02-21.");
+        }
+        if (d.getYear() < 2000) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "That cut-off date is too early.");
+        if (d.isAfter(LocalDate.now(clock))) throw new ResponseStatusException(HttpStatus.CONFLICT, "That cut-off date has not come yet.");
+        return d;
+    }
+
+    private Plan plan(int branch, LocalDate cutoff, Params params) {
+        try {
+            return run.plan(branch, cutoff, params);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+    }
+
+    private int vouchersOf(int branch, LocalDate cutoff) {
+        Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM transsum WHERE TR_BRCODE = ? AND TR_YEAR = ? AND TR_MODULE = ? AND TR_CODE = ?", Integer.class, branch, cutoff.getYear(), MODULE, CODE);
+        return n == null ? 0 : n;
+    }
+
+    @PostMapping("/preview")
+    Summary preview(@RequestBody Request in, Authentication auth) {
+        Perms perms = access.of(auth);
+        requireFind(perms);
+        LocalDate cutoff = cutoff(in.cutoff());
+        Plan plan = plan(perms.branch(), cutoff, in.params());
+        return summary(plan, vouchersOf(perms.branch(), cutoff) > 0);
+    }
+
+    private Summary summary(Plan plan, boolean already) {
+        BigDecimal dividend = BigDecimal.ZERO, refund = BigDecimal.ZERO, total = BigDecimal.ZERO, mbf = BigDecimal.ZERO, habp = BigDecimal.ZERO, rest = BigDecimal.ZERO, sav = BigDecimal.ZERO, shr = BigDecimal.ZERO;
+        for (DividendRun.Member m : plan.members()) {
+            dividend = dividend.add(m.dividend());
+            refund = refund.add(m.refund());
+            total = total.add(m.total());
+            mbf = mbf.add(m.mutualBenefit());
+            habp = habp.add(m.hospitalization());
+        }
+        for (Credit c : plan.credits()) {
+            if (c.kind().equals("SAVINGS")) sav = sav.add(c.amount());
+            else if (c.kind().equals("SHARE_CAPITAL")) shr = shr.add(c.amount());
+        }
+        List<HeldRow> held = plan.held().stream().limit(50).map((h) -> new HeldRow(h.clientId(), h.total(), h.reason())).toList();
+        return new Summary(plan.cutoff().toString(), plan.year(), already, plan.members().size(), dividend, refund, total, mbf, habp, sav, shr, (plan.credits().size() + CHUNK - 1) / CHUNK, plan.held().size(), held);
+    }
+
+    /** Writes the vouchers of a year that has none yet, every line waiting (tag 2), encoded by the caller. */
+    @PostMapping("/encode")
+    List<VoucherRow> encode(@RequestBody Request in, Authentication auth) {
+        Perms perms = access.of(auth);
+        requireNew(perms);
+        Person p = poster.person(auth.getName());
+        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so the vouchers cannot be encoded.");
+        LocalDate cutoff = cutoff(in.cutoff());
+        return tx.execute((st) -> {
+            if (vouchersOf(p.branch(), cutoff) > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Dividend vouchers already exist for " + cutoff.getYear() + ", so it cannot be run again.");
+            Plan plan = plan(p.branch(), cutoff, in.params());
+            if (plan.credits().isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "No member earns a dividend or refund with these rates.");
+            LocalDateTime now = LocalDateTime.now(clock).withNano(0);
+            int year = cutoff.getYear();
+            List<VoucherRow> out = new ArrayList<>();
+            Map<String, String> glCache = new HashMap<>();
+            List<Credit> all = plan.credits();
+            for (int from = 0; from < all.size(); from += CHUNK) {
+                List<Credit> part = all.subList(from, Math.min(all.size(), from + CHUNK));
+                long ctl = db.nextControlNumber(p.branch(), MODULE, CODE, year);
+                String docNo = String.format("%08d", ctl);
+                jdbc.update("""
+                        INSERT INTO transsum (TR_BRCODE, TR_YEAR, TR_MODULE, TR_CODE, TR_CTLNO, TR_DOCNO, TR_DATE, TR_TIME, BATCH_NO, EXPLANATION, IS_FO, DATETIMEADDED)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                        """, p.branch(), year, MODULE, CODE, ctl, docNo, cutoff.toString(), now.format(DateTimeFormatter.ofPattern("HH:mm:ss")), cutoff.format(DateTimeFormatter.BASIC_ISO_DATE),
+                    explanation(plan), Timestamp.valueOf(now));
+                String sql = """
+                        INSERT INTO transdt (DTTR_BRCODE, DTTR_YEAR, DTTR_MODULE, DTTR_CODE, DTTR_CTLNO, DTSEQ_NO, DTDEPT, DTACCT_CODE, ClientIDDT, DTSLC_CODE, DTSLT_CODE, DTREF_NO,
+                          DTSLE_CODE, DTCTS_NUM, DTSL_DATE, DTADJ_FLAG, DTCOCI_TYPE, DTAMT, DTENCDBY, DTUPD_TAG, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 0, 0, 0)
+                        """;
+                List<Object[]> rows = new ArrayList<>();
+                BigDecimal sum = BigDecimal.ZERO;
+                int seq = 1;
+                for (Credit c : part) {
+                    String gl = glCache.computeIfAbsent(c.slc() + "/" + c.typeCode(), k -> poster.glAccount(p.branch(), c.slc(), c.typeCode(), 11, CTS));
+                    rows.add(new Object[] {p.branch(), year, MODULE, CODE, ctl, seq++, p.dept(), gl, c.clientId(), c.slc(), c.typeCode(), c.refNo(), 11, CTS, cutoff.toString(), 1, c.amount().negate(), p.id(), PENDING});
+                    sum = sum.add(c.amount());
+                }
+                rows.add(new Object[] {p.branch(), year, MODULE, CODE, ctl, seq, p.dept(), DividendRun.FUND_ACCOUNT, null, null, null, null, null, null, null, null, sum, p.id(), PENDING});
+                jdbc.batchUpdate(sql, rows);
+                out.add(new VoucherRow(year, ctl, docNo, rows.size(), sum, p.id(), null, "WAITING FOR APPROVAL"));
+            }
+            audit(auth, "dividend.encode", p, cutoff.toString(), out.size() + " vouchers, " + plan.members().size() + " members, " + plan.held().size() + " held back; dividend "
+                + in.dividendRate().toPlainString() + "% patronage " + in.patronageRate().toPlainString() + "% mutual benefit " + in.mutualBenefit().toPlainString()
+                + " hospitalization " + in.hospitalization().toPlainString() + ", " + (in.overrides() == null ? 0 : in.overrides().size()) + " member overrides");
+            return out;
+        });
+    }
+
+    private String explanation(Plan plan) {
+        DateTimeFormatter f = DateTimeFormatter.ofPattern("MM/dd/yyyy");
+        String fund = jdbc.queryForList("SELECT COADesc FROM coa WHERE COAID = ?", String.class, DividendRun.FUND_ACCOUNT).stream().findFirst().orElse("");
+        return "Dividend and Patronage Refund Transaction (Computer Generated)\nTransactions Cut-Off: " + plan.cutoff().format(f)
+            + "\nInt. on Share Capital Fund GL Acct: " + DividendRun.FUND_ACCOUNT + " - " + fund
+            + "\nPatronage Refund Fund GL Acct: " + DividendRun.FUND_ACCOUNT + " - " + fund
+            + "\nDividend Rate: " + plan.params().dividendRate().toPlainString() + "% Patronage Refund Rate: " + plan.params().patronageRate().toPlainString() + "%";
+    }
+
+    @GetMapping("/vouchers")
+    List<VoucherRow> vouchers(@RequestParam String cutoff, Authentication auth) {
+        Perms perms = access.of(auth);
+        requireFind(perms);
+        LocalDate day = cutoff(cutoff);
+        List<Long> controls = jdbc.queryForList("SELECT TR_CTLNO FROM transsum WHERE TR_BRCODE = ? AND TR_YEAR = ? AND TR_MODULE = ? AND TR_CODE = ? ORDER BY TR_CTLNO", Long.class, perms.branch(), day.getYear(), MODULE, CODE);
+        List<VoucherRow> out = new ArrayList<>();
+        for (long c : controls) out.add(row(perms.branch(), day.getYear(), c));
+        return out;
+    }
+
+    private record Line(int seq, String account, Integer client, Integer slc, Integer slt, Integer ref, Integer event, Integer cts, BigDecimal amount, int dept, int encoder, Integer approver, int tag) {}
+
+    private List<Line> lines(int branch, int year, long ctl, boolean lock) {
+        return jdbc.query("""
+                SELECT DTSEQ_NO, DTACCT_CODE, ClientIDDT, DTSLC_CODE, DTSLT_CODE, DTREF_NO, DTSLE_CODE, DTCTS_NUM, DTAMT, COALESCE(DTDEPT, 0), COALESCE(DTENCDBY, 0), DTAPPRVBY, COALESCE(DTUPD_TAG, 0)
+                FROM transdt WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTTR_CTLNO = ? ORDER BY DTSEQ_NO
+                """ + (lock ? " FOR UPDATE" : ""), (rs, i) -> new Line(rs.getInt(1), rs.getString(2), (Integer) rs.getObject(3), (Integer) rs.getObject(4), (Integer) rs.getObject(5), (Integer) rs.getObject(6),
+                (Integer) rs.getObject(7), (Integer) rs.getObject(8), rs.getBigDecimal(9), rs.getInt(10), rs.getInt(11), (Integer) rs.getObject(12), rs.getInt(13)), branch, year, MODULE, CODE, ctl);
+    }
+
+    private List<String> problems(List<Line> lines) {
+        List<String> problems = new ArrayList<>();
+        if (lines.isEmpty()) { problems.add("No such voucher."); return problems; }
+        if (lines.stream().anyMatch((l) -> l.tag() == POSTED)) problems.add("This voucher is already posted.");
+        else if (lines.stream().anyMatch((l) -> l.tag() != PENDING)) problems.add("The lines of this voucher are not waiting to be posted.");
+        if (lines.stream().map(Line::amount).reduce(BigDecimal.ZERO, BigDecimal::add).signum() != 0) problems.add("The voucher does not balance.");
+        if (lines.stream().anyMatch((l) -> l.slc() != null && ((l.slc() != 22 && l.slc() != 29 && l.slc() != 31) || l.event() == null || l.event() != 11 || l.client() == null || l.slt() == null || l.ref() == null)))
+            problems.add("This is not a dividend voucher.");
+        if (lines.stream().noneMatch((l) -> DividendRun.FUND_ACCOUNT.equals(l.account()) && l.slc() == null)) problems.add("This is not a dividend voucher.");
+        return problems;
+    }
+
+    @PostMapping("/{year}/{controlNo}/approve")
+    VoucherRow approve(@PathVariable int year, @PathVariable long controlNo, Authentication auth) {
+        Perms perms = access.of(auth);
+        requireNew(perms);
+        Person p = poster.person(auth.getName());
+        return tx.execute((st) -> {
+            List<Line> lines = lines(p.branch(), year, controlNo, true);
+            List<String> problems = problems(lines);
+            if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, String.join(" ", problems));
+            if (lines.get(0).approver() != null) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher is already approved.");
+            if (lines.get(0).encoder() == p.id()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You encoded this voucher, so someone else must approve it.");
+            jdbc.update("UPDATE transdt SET DTAPPRVBY = ? WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTTR_CTLNO = ? AND DTUPD_TAG = ?",
+                p.id(), p.branch(), year, MODULE, CODE, controlNo, PENDING);
+            audit(auth, "dividend.approve", p, year + "/" + controlNo, "approved by " + p.id());
+            return row(p.branch(), year, controlNo);
+        });
+    }
+
+    @PostMapping("/{year}/{controlNo}/post")
+    VoucherRow post(@PathVariable int year, @PathVariable long controlNo, Authentication auth) {
+        Perms perms = access.of(auth);
+        requireNew(perms);
+        Person p = poster.person(auth.getName());
+        return tx.execute((st) -> {
+            List<Line> lines = lines(p.branch(), year, controlNo, true);
+            List<String> problems = problems(lines);
+            if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, String.join(" ", problems));
+            Integer approver = lines.get(0).approver();
+            if (approver == null) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher has not been approved yet.");
+            if (approver == p.id() || lines.get(0).encoder() == p.id()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "The person who encoded or approved a dividend voucher cannot post it.");
+            List<Map<String, Object>> head = jdbc.queryForList("SELECT TR_DATE, TR_DOCNO FROM transsum WHERE TR_BRCODE = ? AND TR_YEAR = ? AND TR_MODULE = ? AND TR_CODE = ? AND TR_CTLNO = ?", p.branch(), year, MODULE, CODE, controlNo);
+            LocalDate day = ((java.sql.Date) head.get(0).get("TR_DATE")).toLocalDate();
+            String docNo = (String) head.get(0).get("TR_DOCNO");
+            Timestamp stamp = Timestamp.valueOf(LocalDateTime.now(clock).withNano(0));
+            int updated = jdbc.update("UPDATE transdt SET DTPOSTBY = ?, DTUPD_TAG = ? WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTTR_CTLNO = ? AND DTUPD_TAG = ?",
+                p.id(), POSTED, p.branch(), year, MODULE, CODE, controlNo, PENDING);
+            if (updated != lines.size()) throw new ResponseStatusException(HttpStatus.CONFLICT, "The voucher changed while posting; try again.");
+            for (Line l : lines) {
+                if (l.slc() != null) {
+                    poster.writeLedgerRow(p.branch(), l.client(), new MemberLine(l.slc(), l.slt(), l.ref(), 11, l.cts() == null ? CTS : l.cts(), l.account(), l.amount()), day, CODE, controlNo, docNo);
+                }
+                poster.writeGlLine(p.branch(), l.account(), day, CODE, l.dept(), l.amount(), stamp);
+            }
+            audit(auth, "dividend.post", p, year + "/" + controlNo, lines.size() + " lines doc " + docNo);
+            return row(p.branch(), year, controlNo);
+        });
+    }
+
+    private VoucherRow row(int branch, int year, long ctl) {
+        List<Line> lines = lines(branch, year, ctl, false);
+        if (lines.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such voucher.");
+        Line first = lines.get(0);
+        String status = lines.stream().anyMatch((l) -> l.tag() == POSTED) ? "POSTED" : first.approver() == null ? "WAITING FOR APPROVAL" : "APPROVED";
+        return new VoucherRow(year, ctl, String.format("%08d", ctl), lines.size(), lines.stream().map(Line::amount).filter((a) -> a.signum() > 0).reduce(BigDecimal.ZERO, BigDecimal::add), first.encoder(), first.approver(), status);
+    }
+
+    private void audit(Authentication auth, String action, Person p, String entity, String detail) {
+        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'transsum', ?, ?)",
+            Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, p.branch() + "/" + MODULE + "/" + CODE + "/" + entity, detail);
+    }
+}

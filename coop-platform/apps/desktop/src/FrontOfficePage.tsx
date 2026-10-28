@@ -21,6 +21,7 @@ import { LoanApplicationsPanel } from './LoanApplicationsPanel'
 import { LoanReleasePanel } from './LoanReleasePanel'
 import { VoucherPayoutPanel } from './VoucherPayoutPanel'
 import { TimeDepositAccrualPanel } from './TimeDepositAccrualPanel'
+import { DividendPanel } from './DividendPanel'
 import { OverrideAsk, OverridesCard } from './Overrides'
 import { usePulse } from './pulse'
 import ReceiptDialog from './Receipt'
@@ -574,6 +575,8 @@ export default function FrontOfficePage() {
           ? <><LoanApplicationsPanel /><LoanReleasePanel /><VoucherPayoutPanel /></>
           : tab === 'tdaccrual'
           ? <TimeDepositAccrualPanel />
+          : tab === 'dividend'
+          ? <DividendPanel />
           : tab === 'tdmaturity'
           ? <TimeDepositNoticesPanel />
           : tab === 'passbook'
@@ -590,7 +593,7 @@ export default function FrontOfficePage() {
                   quickSide={quickSide} onQuickAdd={quickAdd}
                 />
               )}
-      {!summary && tab !== 'passbook' && tab !== 'handover' && tab !== 'tdmaturity' && tab !== 'tdaccrual' && shown.kind === 'none' && (
+      {!summary && tab !== 'passbook' && tab !== 'handover' && tab !== 'tdmaturity' && tab !== 'tdaccrual' && tab !== 'dividend' && shown.kind === 'none' && (
         <Typography sx={{ fontSize: 12.5, textAlign: 'center', flexShrink: 0 }} color="text.secondary">
           {hasFind ? `Press ${MOD}F to find a transaction` : ''}{hasFind && canNewHere ? ' or ' : ''}{canNewHere ? `${MOD}N to start a draft.` : ''}
         </Typography>

@@ -36,7 +36,8 @@ class FrontOfficeAccess {
         new TabDef("sales", "Sales Receipt", List.of(41)),
         new TabDef("salesReturn", "Sales Return", List.of(42)),
         new TabDef("tdmaturity", "TD Maturities", List.of()),
-        new TabDef("tdaccrual", "TD Accruals", List.of()));
+        new TabDef("tdaccrual", "TD Accruals", List.of()),
+        new TabDef("dividend", "Dividends", List.of()));
 
     /** Every type the window handles. */
     static final Set<Integer> ALL_TYPES = TABS.stream().flatMap((t) -> t.types().stream()).collect(Collectors.toUnmodifiableSet());

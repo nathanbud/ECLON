@@ -1,6 +1,6 @@
 # Dividend and patronage refund (annual run) - partly mapped
 
-Read only, from `iaccsbsucmpc01`. Not built; nothing is written for it.
+Mapped read only from `iaccsbsucmpc01`. **The run is built** with the accountant typing the insurance amounts (see "What the app does" at the end).
 
 ## What the old system posted
 
@@ -48,3 +48,14 @@ Order of credits: mutual benefit fund (2021401) first, then hospitalization (202
 * Who approves it: the old run was encoded and posted by one person; the app would need three, as for the other runs.
 
 Scratch analysis: the lines were pulled with the `coop_app` user and compared against `sldtl` (class 31 type 1 for share capital, class 12 events 23, 31 and 24 for loan charges, class 29 types 5 and 6 for the funds); the scripts are not kept.
+
+## What the app does (built 2026-10-28)
+
+`DividendRun` (plan, read only) and `DividendController` (`/api/front-office/dividends`: `POST /preview`, `POST /encode`, `GET /vouchers?cutoff=`, `POST /{year}/{controlNo}/approve` and `/post`); the Front Office **Dividends** tab (`DividendPanel`).
+
+* The accountant types the cut-off date, the dividend rate, the patronage refund rate, the mutual benefit amount and the hospitalization amount (standard for every member), and optionally different amounts for named members (one per line). Nothing is stored as a setting; the rates go into the voucher explanation and the audit row `dividend.encode`.
+* **Everyone with a total above zero is included** (the computed set equals the real 2026 set, 25,189 on each side), with no status filter. The covered year is the calendar year before the cut-off.
+* Each member's total is split as fitted: mutual benefit first (only when the member has a 29/5 account, the lowest reference), then hospitalization (29/6), then the rest to the member's first active savings account (lowest type then reference, 99.9% of the real choices) or, with none, to their active paid-up share capital (31/1). A member who would need one of those and has neither is left out and listed.
+* Vouchers are module 6 type 54, up to 7,000 member lines each plus one debit of **20126** for their sum, every line in the encoder's department, tagged 2 (waiting); a second person approves, a third posts (member ledger rows event 11, number 15, and general ledger lines dated the cut-off). A year that already has dividend vouchers cannot be encoded again. No single-person exemption.
+* Against the real 2026 run the computed totals are within a cent for 25,158 of 25,189 members (7 members have no account to credit). `DividendRunRealDataTest` checks this at 99%; `DividendRunTest` runs preview, encode, approve, post and the repeat refusal on a 2027 cut-off at a fixed clock and rolls back; `DividendRunRulesTest` holds the pure rules.
+* **Not done**: the old mutual benefit and hospitalization rules (typed instead), the receivable credits to 101204 for members who owe (60 in 2026; their amount goes to savings instead), a member with several 29/5 accounts (only the first is credited), and the 24 members whose total does not fit.

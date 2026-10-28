@@ -924,3 +924,18 @@ export const getAccrualVouchers = (group: AccrualGroup, to: string) => getJson<A
 export const encodeAccrual = (b: { group: AccrualGroup; to: string; types: number[] }) => send<AccrualVoucher[]>('POST', '/api/front-office/time-deposit-accruals/encode', b)
 export const approveAccrual = (year: number, controlNo: number) => send<AccrualVoucher>('POST', `/api/front-office/time-deposit-accruals/${year}/${controlNo}/approve`)
 export const postAccrual = (year: number, controlNo: number) => send<AccrualVoucher>('POST', `/api/front-office/time-deposit-accruals/${year}/${controlNo}/post`)
+
+// ---- annual dividend and patronage refund (module 6, type 54) -------------------------------------------------------
+export interface DividendMemberAmounts { clientId: number; mutualBenefit?: number | null; hospitalization?: number | null }
+export interface DividendReq { cutoff: string; dividendRate: number; patronageRate: number; mutualBenefit: number; hospitalization: number; overrides?: DividendMemberAmounts[] }
+export interface DividendHeld { clientId: number; total: number; reason: string }
+export interface DividendSummary {
+  cutoff: string; year: number; alreadyEncoded: boolean; members: number; dividend: number; refund: number; total: number; mutualBenefit: number; hospitalization: number
+  savings: number; shareCapital: number; vouchers: number; heldCount: number; held: DividendHeld[]
+}
+export interface DividendVoucher { year: number; controlNo: number; documentNo: string; lines: number; total: number; encodedBy: number; approvedBy: number | null; status: 'WAITING FOR APPROVAL' | 'APPROVED' | 'POSTED' }
+export const previewDividend = (b: DividendReq) => send<DividendSummary>('POST', '/api/front-office/dividends/preview', b)
+export const encodeDividend = (b: DividendReq) => send<DividendVoucher[]>('POST', '/api/front-office/dividends/encode', b)
+export const getDividendVouchers = (cutoff: string) => getJson<DividendVoucher[]>(`/api/front-office/dividends/vouchers?cutoff=${cutoff}`)
+export const approveDividend = (year: number, controlNo: number) => send<DividendVoucher>('POST', `/api/front-office/dividends/${year}/${controlNo}/approve`)
+export const postDividend = (year: number, controlNo: number) => send<DividendVoucher>('POST', `/api/front-office/dividends/${year}/${controlNo}/post`)
