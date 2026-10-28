@@ -54,6 +54,7 @@ const WHERE: [string, string][] = [
   ['Members', 'Client Profile: Info (Membership, Personal, Business / Employment, Education, Contacts & IDs, Spouse Info), Accounts (Share Capital, Savings, Time Deposits, Loans, Billing, Pledges / Insurances) and Other. Register a new member, close, or reactivate one from there; an officer other than the requester approves under Approvals.'],
   ['Member photo', 'The camera icon on the photo, shown only in edit mode, to people with both the edit-client and edit-client-images permissions. Photos are added, never overwritten.'],
   ['Fingerprints', 'The Fingerprint tag under the photo. The member\'s consent comes first and can be withdrawn, which erases every fingerprint. Until a scanner is connected a simulator is used for testing only.'],
+  ['Loan Setup', 'Settings > Loan Setup opens in a window of its own. Tabs: loan types, purposes, collateral, co-maker holds and amortization. Opening a loan type shows Setup and COA Links; an administrator can change, add or remove its links to the chart of accounts there (principal, interest, penalty and fees), with a reason, audited. New postings use the new account.'],
   ['Settings', 'Administrator controls: users and permissions, the audit log, membership policy, approval workflows, documents, loan setup and the chart of accounts.'],
 ]
 

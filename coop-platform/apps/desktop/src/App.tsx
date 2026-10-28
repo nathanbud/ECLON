@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { openLoanApplicationWindow, serveDetachedWindows } from './detachedWindow'
+import { openLoanApplicationWindow, openLoanSetupWindow, serveDetachedWindows } from './detachedWindow'
 import AccountsPage from './AccountsPage'
 import ApprovalsPage from './ApprovalsPage'
 import ClientProfilePage from './ClientProfilePage'
@@ -46,7 +46,7 @@ function Signed() {
   // The Loan Application tile goes straight to the form in its own window; the in-app dialog is only the fallback if that window cannot open.
   // Screens opened from Settings go back to Settings, not to the dashboard.
   const [cameFromSettings, setCameFromSettings] = useState(false)
-  const navigate = (v: View) => { if (v === 'loanapp' && openLoanApplicationWindow({})) return; setCameFromSettings(view === 'settings' && v !== 'home'); setView(v) }
+  const navigate = (v: View) => { if (v === 'loanapp' && openLoanApplicationWindow({})) return; if ((v === 'loansetup' || v === 'amortization') && openLoanSetupWindow(v === 'amortization' ? 'amortization' : 'types')) return; setCameFromSettings(view === 'settings' && v !== 'home'); setView(v) }
   const openClient = (id: Id) => { setClient(id); setView('members') }
   const [leaving, setLeaving] = useState<string | null>(null)
   /** Straight to the dashboard, asking first when a screen holds unsaved work. */

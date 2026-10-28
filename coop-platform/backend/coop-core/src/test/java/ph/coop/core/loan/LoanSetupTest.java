@@ -72,6 +72,38 @@ class LoanSetupTest {
         assertTrue(wired.stream().allMatch((a) -> a.account() != null && !a.account().isBlank()));
     }
 
+    @Test void ledgerLinksCanBeChangedRemovedAndAddedBackWithAReasonAndAnAuditRow() {
+        int made = setup.create(form("ZZ Link Loan", "pilot"), source, me()).code();
+        String other = jdbc.queryForObject("SELECT COAID FROM coa WHERE COABR_CODE = 1 AND COAacct_tag = 'D' AND COALESCE(COAisdisabled, 0) = 0 AND COAID NOT IN (SELECT GLControlACCT_CODE FROM glcontrol WHERE GLControlSLT_CODE = ?) LIMIT 1", String.class, made);
+
+        var changed = setup.changeLink(made, new LoanSetupController.LinkIn(23, null, other, "Move interest income"), me());
+        assertTrue(changed.stream().anyMatch((a) -> a.event() == 23 && a.account().equals(other)));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'loan.type.link.change' AND entity_id = ? AND reason = 'Move interest income'", Integer.class, String.valueOf(made)));
+
+        var principal = setup.changeLink(made, new LoanSetupController.LinkIn(11, 12, other, "Past due principal"), me());
+        assertTrue(principal.stream().anyMatch((a) -> a.event() == 11 && Integer.valueOf(12).equals(a.status()) && a.account().equals(other)));
+
+        assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> setup.removeLink(made, 23, null, "no", me()));
+        var has42 = setup.accounts(made, me()).stream().anyMatch((a) -> a.event() == 42);
+        if (has42) {
+            var gone = setup.removeLink(made, 42, null, "Not used", me());
+            assertTrue(gone.stream().noneMatch((a) -> a.event() == 42));
+            var back = setup.addLink(made, new LoanSetupController.LinkIn(42, null, other, "Needed again"), me());
+            assertTrue(back.stream().anyMatch((a) -> a.event() == 42 && a.account().equals(other)));
+            assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> setup.addLink(made, new LoanSetupController.LinkIn(42, null, other, "Twice"), me()));
+        }
+    }
+
+    @Test void ledgerLinksRefuseUnknownHeadingOrSwitchedOffAccountsAndAMissingReason() {
+        int made = setup.create(form("ZZ Link Guard", "pilot"), source, me()).code();
+        String heading = jdbc.queryForObject("SELECT COAID FROM coa WHERE COABR_CODE = 1 AND COAacct_tag = 'S' LIMIT 1", String.class);
+        assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> setup.changeLink(made, new LoanSetupController.LinkIn(23, null, heading, "Heading"), me()));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> setup.changeLink(made, new LoanSetupController.LinkIn(23, null, "NOPE-1", "Unknown"), me()));
+        String any = jdbc.queryForObject("SELECT COAID FROM coa WHERE COABR_CODE = 1 AND COAacct_tag = 'D' AND COALESCE(COAisdisabled, 0) = 0 LIMIT 1", String.class);
+        assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> setup.changeLink(made, new LoanSetupController.LinkIn(23, null, any, " "), me()));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class, () -> setup.changeLink(made, new LoanSetupController.LinkIn(11, null, any, "No status"), me()));
+    }
+
     @Test void theDayCountIsSavedAndKeptWhenTheFormDoesNotSayAndRefusedWhenWrong() {
         var made = setup.create(form("ZZ Test Loan", "pilot"), source, me());
         var with = new LoanSetupController.TypeForm("ZZ Test Loan", null, 12, 4, 4, 4, 3, new BigDecimal("9.50"), new BigDecimal("36.00"), new BigDecimal("1.00"), 2, true, 50, 365, false, "annuity", 1);

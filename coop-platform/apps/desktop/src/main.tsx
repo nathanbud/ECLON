@@ -3,15 +3,17 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { installArrowNavigation } from './arrowNavigation'
-import { adoptSessionFromMainWindow, LOAN_APP_ROUTE, revealThisWindow } from './detachedWindow'
+import { adoptSessionFromMainWindow, LOAN_APP_ROUTE, LOAN_SETUP_ROUTE, revealThisWindow } from './detachedWindow'
 import LoanApplicationWindow from './LoanApplicationWindow'
+import LoanSetupWindow from './LoanSetupWindow'
 import { SessionGate } from './session'
 import { AppThemeProvider } from './theme'
 
 installArrowNavigation()
 const queryClient = new QueryClient()
 
-const detached = window.location.hash.startsWith(LOAN_APP_ROUTE)
+const isSetup = window.location.hash.startsWith(LOAN_SETUP_ROUTE)
+const detached = isSetup || window.location.hash.startsWith(LOAN_APP_ROUTE)
 if (detached) document.documentElement.dataset.win = 'pre'
 
 // A detached form window starts without a sign-in, so it asks the main window for it before showing anything.
@@ -20,7 +22,7 @@ if (detached) document.documentElement.dataset.win = 'pre'
     <StrictMode>
       <QueryClientProvider client={queryClient}>
         <AppThemeProvider>
-          {detached ? <SessionGate><LoanApplicationWindow /></SessionGate> : <App />}
+          {detached ? <SessionGate>{isSetup ? <LoanSetupWindow /> : <LoanApplicationWindow />}</SessionGate> : <App />}
         </AppThemeProvider>
       </QueryClientProvider>
     </StrictMode>,

@@ -226,7 +226,7 @@ public class LoanSetupController {
     }
 
     /** One line of a loan type's ledger wiring: what the event is for, which loan status it applies to (principal only), and the chart account it posts to. */
-    public record WiredAccount(int event, String what, Integer status, String statusName, String account, String accountName, boolean accountActive, String remarks) {}
+    public record WiredAccount(int event, String what, Integer status, String statusName, String account, String accountName, boolean accountActive, String remarks, boolean removable) {}
 
     private static String eventRole(int e) {
         return switch (e) {
@@ -270,8 +270,97 @@ public class LoanSetupController {
             int e = rs.getInt(1);
             int n = rs.getInt(2);
             Integer st = e == 11 ? n : null;
-            return new WiredAccount(e, eventRole(e), st, st == null ? null : statusName(n), rs.getString(3), rs.getString(4), rs.getInt(5) == 0, rs.getString(6));
+            return new WiredAccount(e, eventRole(e), st, st == null ? null : statusName(n), rs.getString(3), rs.getString(4), rs.getInt(5) == 0, rs.getString(6), !REQUIRED_LINKS.contains(e));
         }, branch, LOAN_CLASS, code);
+    }
+
+    /** An add or change of one ledger link. For principal (event 11) {@code status} is the loan status 11 to 14; for every other event it is ignored. */
+    public record LinkIn(int event, Integer status, String account, String reason) {}
+
+    /** Events a loan type may be linked on. */
+    private static final Set<Integer> LINK_EVENTS = Set.of(11, 21, 22, 23, 24, 25, 26, 31, 36, 37, 41, 42);
+
+    /** Links every posting needs: principal, interest paid, service fee and penalty. They can be pointed at another account but never removed. */
+    private static final Set<Integer> REQUIRED_LINKS = Set.of(11, 23, 31, 41);
+
+    private static int linkNumber(int event, Integer status) {
+        if (!LINK_EVENTS.contains(event)) throw bad("That kind of posting cannot be linked.");
+        if (event != 11) return 99;
+        if (status == null || status < 11 || status > 14) throw bad("Choose the loan status for principal: 11 current, 12 past due, 13 in litigation or 14 restructured.");
+        return status;
+    }
+
+    /** The account must exist in the chart, be a detail account (not a heading) and be switched on. */
+    private void requirePostable(int branch, String account) {
+        if (account == null || account.isBlank()) throw bad("Give the account number.");
+        List<Map<String, Object>> found = jdbc.queryForList("SELECT COAacct_tag AS tag, COALESCE(COAisdisabled, 0) AS off FROM coa WHERE COABR_CODE = ? AND COAID = ?", branch, account.trim());
+        if (found.isEmpty()) throw bad("Account " + account.trim() + " is not in the chart of accounts.");
+        if (!"D".equals(found.get(0).get("tag"))) throw bad("Account " + account.trim() + " is a heading account; choose a detail account.");
+        if (((Number) found.get(0).get("off")).intValue() != 0) throw bad("Account " + account.trim() + " is switched off.");
+    }
+
+    private Map<String, Object> link(int branch, int type, int event, int number) {
+        List<Map<String, Object>> found = jdbc.queryForList("SELECT GLControlACCT_CODE AS account FROM glcontrol WHERE GLControlBR_CODE = ? AND GLControlSLC_CODE = ? AND GLControlSLT_CODE = ? AND GLControlSLE_CODE = ? AND GLControlCTS_NUM = ?",
+            branch, LOAN_CLASS, type, event, number);
+        return found.isEmpty() ? null : found.get(0);
+    }
+
+    /** Adds a ledger link that the loan type does not have. It copies the balance side and payment class that other loan types use for the same kind of posting. */
+    @PostMapping("/types/{code}/accounts")
+    @Transactional
+    public List<WiredAccount> addLink(@PathVariable int code, @RequestBody LinkIn in, Authentication auth) {
+        int branch = branch(auth);
+        find(branch, code);
+        String why = reason(in.reason());
+        int number = linkNumber(in.event(), in.status());
+        requirePostable(branch, in.account());
+        if (link(branch, code, in.event(), number) != null) throw bad("This loan type already has that link. Change it instead.");
+        List<Map<String, Object>> pattern = jdbc.queryForList("""
+            SELECT BAL_TYPE, LoanPayRepClass FROM glcontrol WHERE GLControlBR_CODE = ? AND GLControlSLC_CODE = ? AND GLControlSLE_CODE = ? AND GLControlCTS_NUM = ?
+            GROUP BY BAL_TYPE, LoanPayRepClass ORDER BY COUNT(*) DESC LIMIT 1
+            """, branch, LOAN_CLASS, in.event(), number);
+        if (pattern.isEmpty()) throw bad("No other loan type uses this kind of posting, so its settings cannot be copied.");
+        jdbc.update("INSERT INTO glcontrol (GLControlBR_CODE, GLControlSLC_CODE, GLControlSLT_CODE, GLControlSLE_CODE, GLControlCTS_NUM, GLControlACCT_CODE, BAL_TYPE, LoanPayRepClass) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            branch, LOAN_CLASS, code, in.event(), number, in.account().trim(), pattern.get(0).get("BAL_TYPE"), pattern.get(0).get("LoanPayRepClass"));
+        audit(auth, "loan.type.link.add", "loan_type", String.valueOf(code), null, Map.of("event", in.event(), "status", number, "account", in.account().trim()), why);
+        return accounts(code, auth);
+    }
+
+    /** Points an existing link at another account. Entries already posted keep the account they were posted to. */
+    @PutMapping("/types/{code}/accounts")
+    @Transactional
+    public List<WiredAccount> changeLink(@PathVariable int code, @RequestBody LinkIn in, Authentication auth) {
+        int branch = branch(auth);
+        find(branch, code);
+        String why = reason(in.reason());
+        int number = linkNumber(in.event(), in.status());
+        requirePostable(branch, in.account());
+        Map<String, Object> was = link(branch, code, in.event(), number);
+        if (was == null) throw bad("This loan type has no such link. Add it instead.");
+        if (in.account().trim().equals(was.get("account"))) throw bad("That is already the linked account.");
+        jdbc.update("UPDATE glcontrol SET GLControlACCT_CODE = ? WHERE GLControlBR_CODE = ? AND GLControlSLC_CODE = ? AND GLControlSLT_CODE = ? AND GLControlSLE_CODE = ? AND GLControlCTS_NUM = ?",
+            in.account().trim(), branch, LOAN_CLASS, code, in.event(), number);
+        audit(auth, "loan.type.link.change", "loan_type", String.valueOf(code), Map.of("event", in.event(), "status", number, "account", was.get("account")),
+            Map.of("event", in.event(), "status", number, "account", in.account().trim()), why);
+        return accounts(code, auth);
+    }
+
+    /** Removes a link that is not needed for posting (accrued or unearned interest, interest earned, waived or rebated, collection fee, insurance, penalty waived). */
+    @DeleteMapping("/types/{code}/accounts")
+    @Transactional
+    public List<WiredAccount> removeLink(@PathVariable int code, @org.springframework.web.bind.annotation.RequestParam int event,
+                                         @org.springframework.web.bind.annotation.RequestParam(required = false) Integer status,
+                                         @org.springframework.web.bind.annotation.RequestParam String reason, Authentication auth) {
+        int branch = branch(auth);
+        find(branch, code);
+        String why = reason(reason);
+        int number = linkNumber(event, status);
+        if (REQUIRED_LINKS.contains(event)) throw bad("This link is needed to post loans of this type. Point it at another account instead of removing it.");
+        Map<String, Object> was = link(branch, code, event, number);
+        if (was == null) throw bad("This loan type has no such link.");
+        jdbc.update("DELETE FROM glcontrol WHERE GLControlBR_CODE = ? AND GLControlSLC_CODE = ? AND GLControlSLT_CODE = ? AND GLControlSLE_CODE = ? AND GLControlCTS_NUM = ?", branch, LOAN_CLASS, code, event, number);
+        audit(auth, "loan.type.link.remove", "loan_type", String.valueOf(code), Map.of("event", event, "status", number, "account", was.get("account")), null, why);
+        return accounts(code, auth);
     }
 
     @PutMapping("/types/{code}")

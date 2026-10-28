@@ -746,8 +746,13 @@ const SETUP = '/api/admin/loan-setup'
 export const getLoanSetupTypes = () => getJson<LoanSetupType[]>(`${SETUP}/types`)
 export const getLoanSetupLists = () => getJson<LoanSetupLists>(`${SETUP}/lists`)
 export const createLoanType = (copyFrom: number, f: LoanSetupForm) => send<LoanSetupType>('POST', `${SETUP}/types?copyFrom=${copyFrom}`, f)
-export interface WiredAccount { event: number; what: string; status: number | null; statusName: string | null; account: string; accountName: string | null; accountActive: boolean; remarks: string | null }
+export interface WiredAccount { event: number; what: string; status: number | null; statusName: string | null; account: string; accountName: string | null; accountActive: boolean; remarks: string | null; removable: boolean }
 export const getLoanTypeAccounts = (code: number) => getJson<WiredAccount[]>(`${SETUP}/types/${code}/accounts`)
+export interface LinkIn { event: number; status: number | null; account: string; reason: string }
+export const addLoanTypeLink = (code: number, body: LinkIn) => send<WiredAccount[]>('POST', `${SETUP}/types/${code}/accounts`, body)
+export const changeLoanTypeLink = (code: number, body: LinkIn) => send<WiredAccount[]>('PUT', `${SETUP}/types/${code}/accounts`, body)
+export const removeLoanTypeLink = (code: number, event: number, status: number | null, reason: string) =>
+  send<WiredAccount[]>('DELETE', `${SETUP}/types/${code}/accounts?event=${event}${status != null ? `&status=${status}` : ''}&reason=${encodeURIComponent(reason)}`)
 export const updateLoanType = (code: number, f: LoanSetupForm) => send<LoanSetupType>('PUT', `${SETUP}/types/${code}`, f)
 export const getSetupPurposes = () => getJson<SetupNamed[]>(`${SETUP}/purposes`)
 export const getSetupCollateral = () => getJson<SetupNamed[]>(`${SETUP}/collateral-types`)

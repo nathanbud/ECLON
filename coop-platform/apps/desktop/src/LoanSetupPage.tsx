@@ -6,8 +6,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { FiChevronRight, FiPlus } from 'react-icons/fi'
 import {
-  createLoanType, deleteSetupNamed, getHoldSetup, setHoldable, setHoldDefault, getLoanSetupLists, getLoanSetupTypes, getLoanTypeAccounts, getSetupCollateral, getSetupPurposes, saveSetupNamed, updateLoanType,
-  type HoldSetupRow, type LoanSetupForm, type LoanSetupLists, type LoanSetupType, type SetupNamed,
+  createLoanType, deleteSetupNamed, getHoldSetup, setHoldable, setHoldDefault, addLoanTypeLink, changeLoanTypeLink, getLoanSetupLists, getLoanSetupTypes, getLoanTypeAccounts, removeLoanTypeLink, getSetupCollateral, getSetupPurposes, saveSetupNamed, updateLoanType,
+  type HoldSetupRow, type WiredAccount, type LoanSetupForm, type LoanSetupLists, type LoanSetupType, type SetupNamed,
 } from './api'
 import AmortizationTab from './AmortizationTab'
 import { Dot, listTable, PageTitle, ReasonDialog, SearchField, SectionLabel, Segmented, Surface } from './appleUi'
@@ -38,32 +38,94 @@ function FormSection({ title, children }: { title: string; children: ReactNode }
   )
 }
 
-/** Where this loan type posts principal, interest, penalties, fees and the rest in the chart of accounts. Read only. */
+const LINK_KINDS: { event: number; status: number | null; label: string }[] = [
+  { event: 11, status: 11, label: 'Principal · Current' }, { event: 11, status: 12, label: 'Principal · Past due' },
+  { event: 11, status: 13, label: 'Principal · In litigation' }, { event: 11, status: 14, label: 'Principal · Restructured' },
+  { event: 21, status: null, label: 'Accrued interest receivable' }, { event: 22, status: null, label: 'Unearned interest' },
+  { event: 23, status: null, label: 'Interest paid (income)' }, { event: 24, status: null, label: 'Interest earned' },
+  { event: 25, status: null, label: 'Interest waived' }, { event: 26, status: null, label: 'Interest rebate' },
+  { event: 31, status: null, label: 'Service fee' }, { event: 36, status: null, label: 'Collection fee' }, { event: 37, status: null, label: 'Insurance' },
+  { event: 41, status: null, label: 'Penalty / fines' }, { event: 42, status: null, label: 'Penalty waived' },
+]
+
+/** Where this loan type posts principal, interest, penalties, fees and the rest in the chart of accounts. An administrator can point a link at another account, add one that is missing or remove one that is not needed for posting. */
 function WiredAccounts({ code }: { code: number }) {
+  const qc = useQueryClient()
   const { data, error, isLoading } = useQuery({ queryKey: ['loan-type-accounts', code], queryFn: () => getLoanTypeAccounts(code), staleTime: 60_000 })
+  const [reason, setReason] = useState('')
+  const [editKey, setEditKey] = useState<string | null>(null)
+  const [account, setAccount] = useState('')
+  const [adding, setAdding] = useState('')
+  const [fail, setFail] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const keyOf = (e: number, s: number | null) => `${e}-${s ?? 0}`
+  const run = async (job: () => Promise<WiredAccount[]>) => {
+    if (reason.trim().length < 3) { setFail('Give a reason for the change first.'); return }
+    setBusy(true)
+    try {
+      qc.setQueryData(['loan-type-accounts', code], await job())
+      setFail(null); setEditKey(null); setAccount(''); setAdding('')
+    } catch (e) { setFail((e as Error).message) } finally { setBusy(false) }
+  }
+  const missing = LINK_KINDS.filter((k) => !data?.some((a) => keyOf(a.event, a.status) === keyOf(k.event, k.status)))
   return (
-    <Box sx={{ mt: 2 }}>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.5 }} color="text.secondary">Ledger accounts (chart of accounts)</Typography>
+    <Box sx={{ mt: 1 }}>
       {error && <Alert severity="error" sx={{ py: 0 }}>{(error as Error).message}</Alert>}
+      {fail && <Alert severity="error" sx={{ py: 0, mb: 1 }} onClose={() => setFail(null)}>{fail}</Alert>}
       {isLoading && <Skeleton variant="rounded" height={90} />}
       {data && data.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">No ledger accounts are set for this loan type, so nothing can be posted for it.</Typography>}
       {data && data.length > 0 && (
         <Table size="small" aria-label="Ledger accounts of this loan type" sx={{ '& td, & th': { py: 0.4 } }}>
-          <TableHead><TableRow><TableCell>Posts</TableCell><TableCell>Account no.</TableCell><TableCell>Account</TableCell></TableRow></TableHead>
+          <TableHead><TableRow><TableCell>Posts</TableCell><TableCell>Account no.</TableCell><TableCell>Account</TableCell><TableCell /></TableRow></TableHead>
           <TableBody>
-            {data.map((a) => (
-              <TableRow key={`${a.event}-${a.status ?? 0}`}>
-                <TableCell>{a.what}{a.statusName ? ` · ${a.statusName}` : ''}</TableCell>
-                <TableCell sx={{ fontVariantNumeric: 'tabular-nums' }}>{a.account}</TableCell>
-                <TableCell sx={{ color: a.accountActive && a.accountName ? undefined : 'error.main' }}>
-                  {a.accountName ?? 'Not in the chart of accounts'}{a.accountName && !a.accountActive ? ' (switched off)' : ''}
-                </TableCell>
-              </TableRow>
-            ))}
+            {data.map((a) => {
+              const k = keyOf(a.event, a.status)
+              return (
+                <TableRow key={k}>
+                  <TableCell>{a.what}{a.statusName ? ` · ${a.statusName}` : ''}</TableCell>
+                  <TableCell sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {editKey === k
+                      ? <TextField size="small" autoFocus value={account} onChange={(e) => setAccount(e.target.value)} sx={{ width: 130 }} slotProps={{ htmlInput: { 'aria-label': 'New account number', maxLength: 10 } }} />
+                      : a.account}
+                  </TableCell>
+                  <TableCell sx={{ color: a.accountActive && a.accountName ? undefined : 'error.main' }}>
+                    {a.accountName ?? 'Not in the chart of accounts'}{a.accountName && !a.accountActive ? ' (switched off)' : ''}
+                  </TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    {editKey === k ? (
+                      <>
+                        <Button size="small" disabled={busy || !account.trim()} onClick={() => void run(() => changeLoanTypeLink(code, { event: a.event, status: a.status, account, reason }))}>Save</Button>
+                        <Button size="small" color="inherit" onClick={() => setEditKey(null)}>Cancel</Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="small" disabled={busy} onClick={() => { setEditKey(k); setAccount(a.account) }}>Change</Button>
+                        {a.removable && <Button size="small" color="error" disabled={busy} onClick={() => void run(() => removeLoanTypeLink(code, a.event, a.status, reason))}>Remove</Button>}
+                      </>
+                    )}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       )}
-      <Typography sx={{ fontSize: 12, mt: 0.5 }} color="text.secondary">Principal is shown for each loan status. A new loan type copies these accounts from the type it starts from.</Typography>
+      {missing.length > 0 && (
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 1.25 }}>
+          <TextField select size="small" label="Add a link" value={adding} onChange={(e) => setAdding(e.target.value)} sx={{ minWidth: 230 }}>
+            {missing.map((k) => <MenuItem key={keyOf(k.event, k.status)} value={keyOf(k.event, k.status)}>{k.label}</MenuItem>)}
+          </TextField>
+          {adding && <TextField size="small" label="Account no." value={account} onChange={(e) => setAccount(e.target.value)} sx={{ width: 140 }} slotProps={{ htmlInput: { maxLength: 10 } }} />}
+          {adding && (
+            <Button size="small" variant="outlined" disabled={busy || !account.trim()} onClick={() => {
+              const k = missing.find((m) => keyOf(m.event, m.status) === adding)!
+              void run(() => addLoanTypeLink(code, { event: k.event, status: k.status, account, reason }))
+            }}>Add</Button>
+          )}
+        </Box>
+      )}
+      <TextField size="small" fullWidth label="Reason for a change (needed for Change, Remove and Add)" value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mt: 1.5 }}
+        helperText="Kept in the audit log with the account before and after. New postings use the new account; entries already posted are not changed. Principal, interest paid, service fee and penalty can be changed but not removed." slotProps={{ htmlInput: { maxLength: 255 } }} />
     </Box>
   )
 }

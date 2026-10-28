@@ -8,6 +8,8 @@ const SAVED = 'coop:loanapp-saved'
 const CLOSE_ALL = 'coop:close-detached'
 
 export const LOAN_APP_ROUTE = '#/loan-application'
+export const LOAN_SETUP_ROUTE = '#/loan-setup'
+export const SETUP_SIZE = { w: 1180, h: 800 }
 
 export const SEARCH_SIZE = { w: 560, h: 520 }
 export const FORM_SIZE = { w: 1120, h: 780 }
@@ -30,6 +32,19 @@ export function openLoanApplicationWindow(start: Start): boolean {
       url: `index.html${hash}`, title: 'New loan application', visible: false, width: small ? SEARCH_SIZE.w : FORM_SIZE.w, height: small ? SEARCH_SIZE.h : FORM_SIZE.h, minWidth: 480, minHeight: 400, decorations: true, center: true,
     })
     w.once('tauri://error', (e) => console.error('Could not open the loan application window', e))
+  })
+  return true
+}
+
+/** Opens Loan Setup in a window of its own (its Amortization tab when asked). Returns false when the window could not be opened. */
+export function openLoanSetupWindow(tab: 'types' | 'amortization' = 'types'): boolean {
+  const hash = `${LOAN_SETUP_ROUTE}?tab=${tab}`
+  if (!inTauri) return window.open(`${window.location.pathname}${hash}`, '_blank', `popup,width=${SETUP_SIZE.w},height=${SETUP_SIZE.h}`) != null
+  import('@tauri-apps/api/webviewWindow').then(({ WebviewWindow }) => {
+    const w = new WebviewWindow(`loansetup-${Date.now()}`, {
+      url: `index.html${hash}`, title: 'Loan Setup', visible: false, width: SETUP_SIZE.w, height: SETUP_SIZE.h, minWidth: 760, minHeight: 520, decorations: true, center: true,
+    })
+    w.once('tauri://error', (e) => console.error('Could not open the loan setup window', e))
   })
   return true
 }
