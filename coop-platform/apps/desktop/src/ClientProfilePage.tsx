@@ -248,7 +248,6 @@ function PersonalTab({ m, lk }: { m: Member; lk?: Lookups }) {
         <Field label="Date of birth" value={m.dateOfBirth ? `${fmtDate(m.dateOfBirth)}${age != null ? ` · ${age} yrs` : ''}` : null} col="DateOfBirth" raw={m.dateOfBirth} kind="date" />
         <SelectField label="Gender" lookup="gender" code={m.gender} lk={lk} col="Gender" />
         <SelectField label="Civil status" lookup="civilStatus" code={m.civilStatus} lk={lk} col="CivilStatus" />
-        <SelectField label="Religion" lookup="religion" code={m.religion} lk={lk} col="ReligionID" />
       </Section>
 
       <Section title="Contact">
