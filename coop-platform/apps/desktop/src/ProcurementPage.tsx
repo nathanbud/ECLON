@@ -105,7 +105,7 @@ function NewOrderDialog({ request, onClose }: { request?: PrSummary; onClose: ()
 }
 
 /** Asks for a reason, then runs the action. */
-function ReasonDialog({ title, label, onRun, onClose }: { title: string; label: string; onRun: (note: string) => Promise<unknown>; onClose: () => void }) {
+export function ReasonDialog({ title, label, onRun, onClose }: { title: string; label: string; onRun: (note: string) => Promise<unknown>; onClose: () => void }) {
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   return (

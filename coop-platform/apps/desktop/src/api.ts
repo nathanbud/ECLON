@@ -966,3 +966,38 @@ export interface GrSummary { id: number; receiptNo: string; orderId: number; ord
 export const listReceipts = (orderId?: number) => getJson<GrSummary[]>(`/api/procurement/receipts${orderId ? `?orderId=${orderId}` : ''}`)
 export const createReceipt = (b: { orderId: number; deliveryNote?: string; remarks?: string; lines: { lineNo: number; quantity: number }[] }) => send<GrSummary>('POST', '/api/procurement/receipts', b)
 export const reverseReceipt = (id: number, note: string) => send<GrSummary>('POST', `/api/procurement/receipts/${id}/reverse`, { note })
+
+// ---- inventory (guide phase 13) ----------------------------------------------------------------------------------------
+export interface InvUnit { code: string; name: string }
+export interface InvCategory { id: number; name: string }
+export interface InvWarehouse { id: number; code: string; name: string; active: boolean }
+export interface InvProduct { id: number; sku: string; name: string; categoryId: number | null; category: string | null; unit: string; cost: number; reorderLevel: number; trackBatch: boolean; trackExpiry: boolean; active: boolean; onHand: number; low: boolean }
+export interface InvProductIn { sku?: string; name?: string; categoryId?: number | null; unit?: string; reorderLevel?: number | null; trackBatch?: boolean; trackExpiry?: boolean; active?: boolean }
+export interface InvStockRow { warehouseId: number; warehouse: string; batchId: number; batchNo: string; expiry: string | null; quantity: number }
+export interface InvLedgerRow { id: number; txnNo: string; date: string; type: string; productId: number; sku: string; product: string; warehouseId: number; warehouse: string; batchNo: string; quantity: number; unitCost: number; refType: string | null; refNo: string | null; remarks: string | null; by: string }
+export interface InvMoveIn { type: 'RECEIVE' | 'ISSUE' | 'RETURN'; productId: number; warehouseId: number; batchNo?: string; expiryDate?: string | null; quantity: number; unitCost?: number | null; reference?: string; remarks?: string }
+export interface InvAdjSummary { id: number; adjustNo: string; warehouseId: number; warehouse: string; type: string; reason: string; status: 'SUBMITTED' | 'APPROVED' | 'REJECTED'; requestedBy: string; decidedBy: string | null; decisionNote: string | null }
+export interface InvAdjLine { productId: number; sku: string; product: string; batchNo: string; quantity: number }
+export interface InvCountSummary { id: number; countNo: string; warehouseId: number; warehouse: string; countDate: string; status: 'SUBMITTED' | 'APPROVED' | 'REJECTED'; countedBy: string; decidedBy: string | null; decisionNote: string | null; differences: number }
+export interface InvCountLine { productId: number; sku: string; product: string; batchNo: string; systemQty: number; countedQty: number; variance: number }
+export const listInvUnits = () => getJson<InvUnit[]>('/api/inventory/units')
+export const listInvCategories = () => getJson<InvCategory[]>('/api/inventory/categories')
+export const addInvCategory = (name: string) => send<InvCategory>('POST', '/api/inventory/categories', { name })
+export const listInvWarehouses = (activeOnly = false) => getJson<InvWarehouse[]>(`/api/inventory/warehouses?activeOnly=${activeOnly}`)
+export const addInvWarehouse = (b: { code: string; name: string }) => send<InvWarehouse>('POST', '/api/inventory/warehouses', b)
+export const updateInvWarehouse = (id: number, b: { name?: string; active?: boolean }) => send<InvWarehouse>('PUT', `/api/inventory/warehouses/${id}`, b)
+export const listInvProducts = (q?: string, activeOnly = false) => getJson<InvProduct[]>(`/api/inventory/products?activeOnly=${activeOnly}${q ? `&q=${encodeURIComponent(q)}` : ''}`)
+export const addInvProduct = (b: InvProductIn) => send<InvProduct>('POST', '/api/inventory/products', b)
+export const updateInvProduct = (id: number, b: InvProductIn) => send<InvProduct>('PUT', `/api/inventory/products/${id}`, b)
+export const getInvStock = (id: number) => getJson<InvStockRow[]>(`/api/inventory/products/${id}/stock`)
+export const getInvLedger = (productId?: number, warehouseId?: number) => getJson<InvLedgerRow[]>(`/api/inventory/ledger?limit=200${productId ? `&productId=${productId}` : ''}${warehouseId ? `&warehouseId=${warehouseId}` : ''}`)
+export const moveInvStock = (b: InvMoveIn) => send<{ txnNo: string; unitCost: number }>('POST', '/api/inventory/movements', b)
+export const transferInvStock = (b: { productId: number; fromWarehouseId: number; toWarehouseId: number; batchNo?: string; quantity: number; remarks?: string }) => send<{ outTxnNo: string; inTxnNo: string }>('POST', '/api/inventory/transfers', b)
+export const listInvAdjustments = () => getJson<InvAdjSummary[]>('/api/inventory/adjustments')
+export const getInvAdjustment = (id: number) => getJson<{ summary: InvAdjSummary; lines: InvAdjLine[] }>(`/api/inventory/adjustments/${id}`)
+export const createInvAdjustment = (b: { warehouseId: number; type: string; reason: string; lines: { productId: number; batchNo?: string; quantity: number }[] }) => send<InvAdjSummary>('POST', '/api/inventory/adjustments', b)
+export const decideInvAdjustment = (id: number, kind: 'approve' | 'reject', note?: string) => send<InvAdjSummary>('POST', `/api/inventory/adjustments/${id}/${kind}`, { note })
+export const listInvCounts = () => getJson<InvCountSummary[]>('/api/inventory/counts')
+export const getInvCount = (id: number) => getJson<{ summary: InvCountSummary; lines: InvCountLine[] }>(`/api/inventory/counts/${id}`)
+export const createInvCount = (b: { warehouseId: number; lines: { productId: number; batchNo?: string; countedQty: number }[] }) => send<InvCountSummary>('POST', '/api/inventory/counts', b)
+export const decideInvCount = (id: number, kind: 'approve' | 'reject', note?: string) => send<InvCountSummary>('POST', `/api/inventory/counts/${id}/${kind}`, { note })
