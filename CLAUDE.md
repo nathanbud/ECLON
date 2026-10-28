@@ -49,6 +49,12 @@ java -jar target/coop-core-0.1.0-SNAPSHOT.jar   # run
 
 Required env vars: `DB_USER`, `DB_PASSWORD`, `DEV_API_USER`, `DEV_API_PASSWORD`. Set `COOP_EDIT_ENABLED=true` to allow profile edits (use `DB_USER=coop_app`). Optional: `DB_HOST`, `DB_PORT`, `DB_NAME`, `SERVER_PORT`. Take the DB password from `db.txt` at runtime and do not write it into any file.
 
+### Conventions and checks (see `coop-platform/documentation/testing.md`)
+
+- Audit rows: `AuditLog.write(...)` only. Controller errors: `ApiErrors`. Migrations: `scripts/migrate.ps1` (records versions in `ecis_schema_migration`; the 43 existing ones are baselined). Never edit an applied migration.
+- Screens: `src/api/<topic>.ts`, `src/ui/format.ts` and `src/ui/dialogs.tsx` for shared pieces, `src/profile/*` for the member profile, `LIGHT`/`tint`/`tileFill` for colours (no new hard-coded hex). `npm run check` = type-check + lint + Vitest; CI runs the same plus the backend rule tests.
+- Run the whole backend suite with `scripts/test-all.ps1` (sets a small connection pool; `-SkipRealData` skips the `realdata`-tagged tests). `iaccs_sim` is a tiny sample, not a test copy.
+
 ### Desktop commands (`coop-platform/apps/desktop`, Tauri 2 + React + MUI + TanStack Query)
 
 ```
