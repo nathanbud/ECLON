@@ -500,7 +500,7 @@ export default function LoanSetupPage({ initialTab = 'types', fullHeight = false
   return (
     <Box component="main" sx={(t) => ({ minHeight: fullHeight ? '100dvh' : 'calc(100dvh - 44px)', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
-        <PageTitle title="Loan Setup">The loan products and the lists behind the loan application. Each change asks for a reason and is kept in the audit log.</PageTitle>
+        {!fullHeight && (<PageTitle title="Loan Setup">The loan products and the lists behind the loan application. Each change asks for a reason and is kept in the audit log.</PageTitle>)}
         {!me.admin ? <Alert severity="info">Only administrators can change the loan setup.</Alert> : (
           <>
             <Box sx={{ mb: 2.5 }}><Segmented label="Loan setup sections" value={tab} onChange={setTab} options={[...TABS]} /></Box>
