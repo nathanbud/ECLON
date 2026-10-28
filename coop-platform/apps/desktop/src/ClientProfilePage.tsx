@@ -590,7 +590,7 @@ function CoMakerNote({ id }: { id: Id }) {
   )
 }
 
-function ShareCapitalTab({ id }: { id: Id }) {
+export function ShareCapitalTab({ id, teller = false }: { id: Id; teller?: boolean }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
   const [withdrawing, setWithdrawing] = useState<ShareAccount | null>(null)
   const [paying, setPaying] = useState<ShareAccount | null>(null)
@@ -618,8 +618,8 @@ function ShareCapitalTab({ id }: { id: Id }) {
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{a.held > 0 ? peso(a.held) : '—'}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{peso(a.balance)}</TableCell>
                 <TableCell align="right">
-                  {a.status === 15 && <Button size="small" onClick={(e) => { e.stopPropagation(); setPaying(a) }}>Post payment</Button>}
-                  {a.status === 15 && a.balance - a.held > 0 && <Button size="small" onClick={(e) => { e.stopPropagation(); setWithdrawing(a) }}>Withdraw</Button>}
+                  {teller && a.status === 15 && <Button size="small" onClick={(e) => { e.stopPropagation(); setPaying(a) }}>Post payment</Button>}
+                  {teller && a.status === 15 && a.balance - a.held > 0 && <Button size="small" onClick={(e) => { e.stopPropagation(); setWithdrawing(a) }}>Withdraw</Button>}
                 </TableCell>
               </TableRow>
             ))}
@@ -797,8 +797,9 @@ function ShareHistoryDialog({ id, typeCode, refNo, onClose }: { id: Id; typeCode
   )
 }
 
-function SavingsTab({ id }: { id: Id }) {
+export function SavingsTab({ id, teller = false }: { id: Id; teller?: boolean }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
+  const [cash, setCash] = useState<{ account: SavingsAccount; mode: 'deposit' | 'withdraw' } | null>(null)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-savings', id], queryFn: () => getSavings(id.branchCode, id.clientId), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
   if (isLoading) return <Skeleton variant="rounded" height={160} />
@@ -812,7 +813,7 @@ function SavingsTab({ id }: { id: Id }) {
           <TableHead>
             <TableRow>
               <TableCell>Type</TableCell><TableCell>Account no.</TableCell><TableCell>Opened</TableCell><TableCell>Status</TableCell><TableCell>Last activity</TableCell>
-              <TableCell align="right">Rate %</TableCell><TableCell align="right">Balance</TableCell><TableCell align="right">On hold</TableCell><TableCell align="right">Available</TableCell>
+              <TableCell align="right">Rate %</TableCell><TableCell align="right">Balance</TableCell><TableCell align="right">On hold</TableCell><TableCell align="right">Available</TableCell>{teller && <TableCell />}{teller && <TableCell />}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -824,6 +825,16 @@ function SavingsTab({ id }: { id: Id }) {
                 <TableCell align="right" sx={num}>{peso(a.balance)}</TableCell>
                 <TableCell align="right" sx={num}>{a.held ? peso(a.held) : '—'}</TableCell>
                 <TableCell align="right" sx={num}>{peso(a.available)}</TableCell>
+                {teller && (
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    {a.status === 15 && (
+                      <>
+                        <Button size="small" onClick={(e) => { e.stopPropagation(); setCash({ account: a, mode: 'deposit' }) }}>Deposit</Button>
+                        <Button size="small" onClick={(e) => { e.stopPropagation(); setCash({ account: a, mode: 'withdraw' }) }}>Withdraw</Button>
+                      </>
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             ))}
             <TableRow>
@@ -831,11 +842,13 @@ function SavingsTab({ id }: { id: Id }) {
               <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{peso(data.totalBalance)}</TableCell>
               <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{data.totalHeld ? peso(data.totalHeld) : '—'}</TableCell>
               <TableCell />
+              {teller && <TableCell />}
             </TableRow>
           </TableBody>
         </Table>
       </TableCard>
       {open && <SavingsHistoryDialog id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
+    {cash && <SavingsCashDialog id={id} account={cash.account} mode={cash.mode} onClose={() => setCash(null)} />}
     </>
   )
 }
@@ -844,7 +857,7 @@ function SavingsTab({ id }: { id: Id }) {
 const TD_STATUS: Record<string, string> = { ACTIVE: 'Running', MATURED: 'Matured', CLOSED: 'Closed', NO_LEDGER: 'Certificate only' }
 
 /** Time deposits of the member, read only. The old master row is never closed when a certificate is paid out, so the status is worked out from the ledger. */
-function TimeDepositsTab({ id }: { id: Id }) {
+export function TimeDepositsTab({ id, teller = false }: { id: Id; teller?: boolean }) {
   const [showClosed, setShowClosed] = useState(false)
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
   const [placing, setPlacing] = useState(false)
@@ -857,7 +870,7 @@ function TimeDepositsTab({ id }: { id: Id }) {
   return (
     <>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, mb: 0.5 }}>
-        <Button size="small" variant="outlined" startIcon={<FiPlus />} onClick={() => setPlacing(true)}>Place a time deposit</Button>
+        {teller && <Button size="small" variant="outlined" startIcon={<FiPlus />} onClick={() => setPlacing(true)}>Place a time deposit</Button>}
         <FormControlLabel control={<Switch size="small" checked={showClosed} onChange={(_, v) => setShowClosed(v)} />} label="Show closed certificates" />
       </Box>
       {!data || data.deposits.length === 0 ? <EmptyState icon={<FiInfo />} title="No time deposits" hint="This client has no running time deposit certificates." /> : (
@@ -881,13 +894,13 @@ function TimeDepositsTab({ id }: { id: Id }) {
                   <TableCell align="right" sx={num}>{d.accruedInterest ? peso(d.accruedInterest) : '—'}</TableCell>
                   <TableCell align="right" sx={num}>{d.estimatedInterest == null ? '—' : peso(d.estimatedInterest)}</TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    {d.status === 'ACTIVE' && (d.typeCode === 2 || d.typeCode === 4) && (
+                    {teller && d.status === 'ACTIVE' && (d.typeCode === 2 || d.typeCode === 4) && (
                       <Button size="small" onClick={(e) => { e.stopPropagation(); setInterestFor(d) }}>Withdraw interest</Button>
                     )}
-                    {d.status === 'ACTIVE' && [1, 2, 3, 4].includes(d.typeCode) && (
+                    {teller && d.status === 'ACTIVE' && [1, 2, 3, 4].includes(d.typeCode) && (
                       <Button size="small" color="warning" onClick={(e) => { e.stopPropagation(); setClosing({ d, mode: 'PAYOUT' }) }}>Pre-terminate</Button>
                     )}
-                    {d.status === 'MATURED' && [1, 2, 3, 4].includes(d.typeCode) && (
+                    {teller && d.status === 'MATURED' && [1, 2, 3, 4].includes(d.typeCode) && (
                       <>
                         <Button size="small" onClick={(e) => { e.stopPropagation(); setClosing({ d, mode: 'PAYOUT' }) }}>Pay out</Button>
                         <Button size="small" onClick={(e) => { e.stopPropagation(); setClosing({ d, mode: 'RENEW' }) }}>Renew</Button>

@@ -32,7 +32,7 @@ class FrontOfficeAccess {
         new TabDef("otc", "OTC Voucher", List.of(30)),
         new TabDef("handover", "Cash Handover", List.of(31, 32)),
         new TabDef("bank", "Bank Trans", List.of(33, 35)),
-        new TabDef("savings", "Savings", List.of()),
+        new TabDef("accounts", "Member Accounts", List.of()),
         new TabDef("passbook", "Passbook", List.of()),
         new TabDef("sales", "Sales Receipt", List.of(41)),
         new TabDef("salesReturn", "Sales Return", List.of(42)),

@@ -14,7 +14,7 @@ const stateLabel: Record<LoanScheduleRow['state'], string> = { PAID: 'Paid', PAR
 const stateColor: Record<LoanScheduleRow['state'], 'success' | 'warning' | 'error' | 'default'> = { PAID: 'success', PARTIAL: 'warning', PAST_DUE: 'error', UPCOMING: 'default' }
 
 /** A member's loans: what is owed, what is late, and the schedule and ledger behind each. Read-only. */
-export default function LoansTab({ branchCode, clientId }: { branchCode: number; clientId: number }) {
+export default function LoansTab({ branchCode, clientId, teller = false }: { branchCode: number; clientId: number; teller?: boolean }) {
   const [paid, setPaid] = useState(false)
   const [open, setOpen] = useState<LoanItem | null>(null)
   const [paying, setPaying] = useState<LoanItem | null>(null)
@@ -58,7 +58,7 @@ export default function LoansTab({ branchCode, clientId }: { branchCode: number;
                 <TableCell>{l.nextDueDate ? `${l.nextDueDate} · ${money((l.nextDuePrincipal ?? 0) + (l.nextDueInterest ?? 0))}` : '—'}</TableCell>
                 <TableCell align="right">
                   <Button size="small" color="inherit" onClick={(e) => { e.stopPropagation(); setProfile(l) }}>Profile</Button>
-                  {l.outstanding > 0 && l.status !== 13 && <Button size="small" onClick={(e) => { e.stopPropagation(); setPaying(l) }}>Pay</Button>}
+                  {teller && l.outstanding > 0 && l.status !== 13 && <Button size="small" onClick={(e) => { e.stopPropagation(); setPaying(l) }}>Pay</Button>}
                 </TableCell>
               </TableRow>
             ))}

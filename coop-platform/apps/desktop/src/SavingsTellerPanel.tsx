@@ -1,31 +1,31 @@
-import { Alert, Box, Button, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import { Box, Button, Tab, Tabs, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { getLookups, getMember, getSavings, type SavingsAccount } from './api'
+import { getLookups, getMember } from './api'
 import { displayName, memberNo, type Id } from './clients'
-import { SavingsCashDialog } from './ClientProfilePage'
+import { SavingsTab, ShareCapitalTab, TimeDepositsTab } from './ClientProfilePage'
 import { FindBody } from './FindClientDialog'
 import { glass } from './glass'
+import LoansTab from './LoansTab'
 
-const peso = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const SECTIONS = ['Savings', 'Share Capital', 'Loans', 'Time Deposits'] as const
 
 /**
- * Cash deposits to and withdrawals from a member's savings account. This lives in the Front Office only: the teller finds the member here, and the posting rules (open drawer,
- * limits, holds, supervisor approvals) are the cashier's. The member's profile only shows the accounts.
+ * Every cash deposit and withdrawal on a member's accounts happens here, in the teller window, and nowhere else: savings deposits and withdrawals, share capital payments and
+ * withdrawals, loan payments, and time deposit placements, interest withdrawals and pre-terminations. The member's profile only shows the accounts. The posting rules (open
+ * drawer, limits, holds, supervisor approvals) belong to the cashier signed in here.
  */
-export default function SavingsTellerPanel() {
+export default function MemberAccountsPanel() {
   const { data: lk } = useQuery({ queryKey: ['lookups'], queryFn: getLookups, staleTime: Infinity })
   const [id, setId] = useState<Id | null>(null)
-  const [cash, setCash] = useState<{ account: SavingsAccount; mode: 'deposit' | 'withdraw' } | null>(null)
+  const [section, setSection] = useState<(typeof SECTIONS)[number]>('Savings')
   const member = useQuery({ queryKey: ['member', id], queryFn: () => getMember(id!.branchCode, id!.clientId), enabled: !!id })
-  const savings = useQuery({ queryKey: ['member-savings', id], queryFn: () => getSavings(id!.branchCode, id!.clientId), enabled: !!id })
-  const num = { fontVariantNumeric: 'tabular-nums' } as const
 
   if (!id) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', pt: '6vh' }}>
         <Box sx={(t) => ({ width: '100%', maxWidth: 580, overflow: 'hidden', ...glass(t, { elevated: true }) })}>
-          <Typography sx={{ px: 2, pt: 1.5, fontSize: 13 }} color="text.secondary">Find the member to take a savings deposit from or pay a withdrawal to.</Typography>
+          <Typography sx={{ px: 2, pt: 1.5, fontSize: 13 }} color="text.secondary">Find the member to take a deposit from or pay a withdrawal to.</Typography>
           <FindBody inline lk={lk} onPick={setId} />
         </Box>
       </Box>
@@ -35,44 +35,17 @@ export default function SavingsTellerPanel() {
     <Box sx={{ minWidth: 0 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
         <Typography sx={{ fontWeight: 700, fontSize: 16 }}>{member.data ? displayName(member.data) : '…'}</Typography>
-        <Typography sx={{ fontSize: 13, ...num }} color="text.secondary">{memberNo(id)}</Typography>
+        <Typography sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{memberNo(id)}</Typography>
         <Box sx={{ flex: 1 }} />
-        <Button size="small" onClick={() => { setId(null); setCash(null) }}>Change member</Button>
+        <Button size="small" onClick={() => setId(null)}>Change member</Button>
       </Box>
-      {savings.error && <Alert severity="error">{(savings.error as Error).message}</Alert>}
-      {savings.isLoading && <Skeleton variant="rounded" height={120} />}
-      {savings.data && savings.data.accounts.length === 0 && <Typography color="text.secondary">This member has no savings accounts.</Typography>}
-      {savings.data && savings.data.accounts.length > 0 && (
-        <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
-          <Table size="small" aria-label="Savings accounts">
-            <TableHead>
-              <TableRow>
-                <TableCell>Type</TableCell><TableCell>Account no.</TableCell><TableCell>Status</TableCell>
-                <TableCell align="right">Balance</TableCell><TableCell align="right">On hold</TableCell><TableCell align="right">Available</TableCell><TableCell />
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {savings.data.accounts.map((a) => (
-                <TableRow key={`${a.typeCode}-${a.refNo}`} hover>
-                  <TableCell>{a.type ?? `Type ${a.typeCode}`}</TableCell><TableCell>{a.refNoText ?? a.refNo}</TableCell><TableCell>{a.statusName}</TableCell>
-                  <TableCell align="right" sx={num}>{peso(a.balance)}</TableCell>
-                  <TableCell align="right" sx={num}>{a.held ? peso(a.held) : '—'}</TableCell>
-                  <TableCell align="right" sx={num}>{peso(a.available)}</TableCell>
-                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    {a.status === 15 && (
-                      <>
-                        <Button size="small" onClick={() => setCash({ account: a, mode: 'deposit' })}>Deposit</Button>
-                        <Button size="small" onClick={() => setCash({ account: a, mode: 'withdraw' })}>Withdraw</Button>
-                      </>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Box>
-      )}
-      {cash && <SavingsCashDialog id={id} account={cash.account} mode={cash.mode} onClose={() => { setCash(null); void savings.refetch() }} />}
+      <Tabs value={section} onChange={(_, v) => setSection(v)} aria-label="Member accounts" sx={(t) => ({ minHeight: 38, px: 1, mb: 1, ...glass(t), '& .MuiTab-root': { minHeight: 38, textTransform: 'none' } })}>
+        {SECTIONS.map((x) => <Tab key={x} value={x} label={x} />)}
+      </Tabs>
+      {section === 'Savings' && <SavingsTab id={id} teller />}
+      {section === 'Share Capital' && <ShareCapitalTab id={id} teller />}
+      {section === 'Loans' && <LoansTab branchCode={id.branchCode} clientId={id.clientId} teller />}
+      {section === 'Time Deposits' && <TimeDepositsTab id={id} teller />}
     </Box>
   )
 }
