@@ -40,7 +40,7 @@ class MemberChangeController {
     @GetMapping("/capabilities")
     Capabilities capabilities(Authentication auth) {
         boolean on = changes.editAvailable();
-        return new Capabilities(on && canEdit(auth), on && officer(auth), auth.getAuthorities().stream().anyMatch((a) -> a.getAuthority().equals("PERM_MEMBER_IMAGES")));
+        return new Capabilities(on && canEdit(auth), on && officer(auth), canEdit(auth) && auth.getAuthorities().stream().anyMatch((a) -> a.getAuthority().equals("PERM_MEMBER_IMAGES")));
     }
 
     /** Proposes changes to a client. The client is not updated until a Membership Officer approves. */

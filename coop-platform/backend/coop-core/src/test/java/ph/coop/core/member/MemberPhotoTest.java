@@ -51,7 +51,7 @@ class MemberPhotoTest {
     void aPhotoIsAddedAndTheNewestIsServed() throws Exception {
         int id = someMember();
         int before = jdbc.queryForObject("SELECT COUNT(*) FROM image WHERE ImageBR_CODE = 1 AND ClientIDimg = ? AND ImageType = 'img'", Integer.class, id);
-        Authentication a = me("PERM_MEMBER_IMAGES");
+        Authentication a = me("PERM_MEMBER_IMAGES", "PERM_MEMBER_EDIT");
         assertEquals(HttpStatus.CREATED, images.setPhoto(1, id, new MockMultipartFile("file", "p.jpg", "image/jpeg", JPEG), a).getStatusCode());
         assertEquals(before + 1, jdbc.queryForObject("SELECT COUNT(*) FROM image WHERE ImageBR_CODE = 1 AND ClientIDimg = ? AND ImageType = 'img'", Integer.class, id));
         assertArrayEquals(JPEG, images.photo(1, id).getBody());
@@ -61,7 +61,7 @@ class MemberPhotoTest {
     @Test
     void otherFilesAndOversizePicturesAreRefused() {
         int id = someMember();
-        Authentication a = me("PERM_MEMBER_IMAGES");
+        Authentication a = me("PERM_MEMBER_IMAGES", "PERM_MEMBER_EDIT");
         assertThrows(ResponseStatusException.class, () -> images.setPhoto(1, id, new MockMultipartFile("file", "x.txt", "text/plain", "hello".getBytes()), a));
         assertThrows(ResponseStatusException.class, () -> images.setPhoto(1, id, new MockMultipartFile("file", "e.jpg", "image/jpeg", new byte[0]), a));
         byte[] big = new byte[MemberImageController.MAX_PHOTO_BYTES + 1];
@@ -75,7 +75,9 @@ class MemberPhotoTest {
     @Test
     void withoutThePermissionNothingIsAdded() {
         int id = someMember();
-        Authentication a = me("PERM_MEMBER_EDIT");
-        assertThrows(AccessDeniedException.class, () -> images.setPhoto(1, id, new MockMultipartFile("file", "p.jpg", "image/jpeg", JPEG), a));
+        Authentication editOnly = me("PERM_MEMBER_EDIT");
+        assertThrows(AccessDeniedException.class, () -> images.setPhoto(1, id, new MockMultipartFile("file", "p.jpg", "image/jpeg", JPEG), editOnly));
+        Authentication imagesOnly = me("PERM_MEMBER_IMAGES");
+        assertThrows(AccessDeniedException.class, () -> images.setPhoto(1, id, new MockMultipartFile("file", "p.jpg", "image/jpeg", JPEG), imagesOnly));
     }
 }

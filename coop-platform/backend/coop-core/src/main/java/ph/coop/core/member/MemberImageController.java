@@ -45,11 +45,11 @@ class MemberImageController {
     static final int MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 
     /**
-     * Sets a member's photo. Insert-only: a new {@code img} row is added and the newest wins, so earlier photos stay. Needs the legacy "edit client images" permission.
+     * Sets a member's photo. Insert-only: a new {@code img} row is added and the newest wins, so earlier photos stay. Needs both the legacy "edit client" and "edit client images" permissions.
      * Only JPEG and PNG are accepted, checked by their first bytes, up to 3 MB.
      */
     @PostMapping("/photo")
-    @PreAuthorize("hasAuthority('PERM_MEMBER_IMAGES')")
+    @PreAuthorize("hasAuthority('PERM_MEMBER_IMAGES') and hasAuthority('PERM_MEMBER_EDIT')")
     ResponseEntity<Void> setPhoto(@PathVariable int branchCode, @PathVariable int clientId, @RequestParam("file") MultipartFile file, Authentication auth) throws java.io.IOException {
         byte[] data = file.getBytes();
         if (data.length == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The picture is empty.");
