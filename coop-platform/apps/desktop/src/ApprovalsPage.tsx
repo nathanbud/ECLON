@@ -5,6 +5,7 @@ import { listChanges } from './api'
 import type { Id } from './clients'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
+import MemberRequestsPanel from './MemberRequests'
 import WorkflowInbox from './WorkflowInbox'
 
 const when = (at: string) => new Date(at.replace(' ', 'T')).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -53,6 +54,7 @@ export default function ApprovalsPage({ onOpenClient }: { onOpenClient: (id: Id)
             </Table>
           </Box>
         )}
+        <MemberRequestsPanel />
         <WorkflowInbox />
       </Box>
     </Box>

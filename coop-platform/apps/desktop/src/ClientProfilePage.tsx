@@ -19,6 +19,7 @@ import { tileFill } from './theme'
 import { displayName, memberNo, statusOf, type Id } from './clients'
 import LoansTab from './LoansTab'
 import DocumentsPanel from './DocumentsPanel'
+import { CloseDialog, RegisterDialog } from './MemberRequests'
 import FindClientDialog, { FindBody } from './FindClientDialog'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
@@ -1240,6 +1241,8 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
   const [error, setError] = useState<string | null>(null)
   const [discarding, setDiscarding] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [registering, setRegistering] = useState(false)
+  const [closing, setClosing] = useState(false)
 
   const { data: lk } = useQuery({ queryKey: ['lookups'], queryFn: getLookups, staleTime: Infinity })
   const { data: caps } = useQuery({ queryKey: ['capabilities'], queryFn: getCapabilities, staleTime: 60_000 })
@@ -1342,13 +1345,21 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
           <Button onClick={leave} color="error">Discard</Button>
         </DialogActions>
       </Dialog>
-      <Snackbar open={!!notice} autoHideDuration={3000} onClose={() => setNotice(null)} message={notice} />
+      {registering && <RegisterDialog lk={lk} onClose={() => setRegistering(false)} onDone={setNotice} />}
+      <Snackbar open={!!notice}autoHideDuration={3000} onClose={() => setNotice(null)} message={notice} />
 
       <Box component="section" aria-label="Client profile" sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, maxWidth: 1600, width: '100%', mx: 'auto', p: 1.5 }}>
         {selected
           ? (
             <EditCtx.Provider value={{ editing, draft, set }}>
               {pending && <PendingBanner change={pending} id={selected} canApprove={!!caps?.approve} onDone={setNotice} />}
+              {caps?.edit && member && (member.accountStatus ?? 1) !== 3 && !editing && (
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 0.5 }}>
+                  <Button size="small" onClick={() => setRegistering(true)}>Register new member</Button>
+                  <Button size="small" color="error" onClick={() => setClosing(true)}>Close membership</Button>
+                </Box>
+              )}
+              {closing && member && <CloseDialog branchCode={selected.branchCode} clientId={selected.clientId} name={displayName(member)} onClose={() => setClosing(false)} onDone={setNotice} />}
               {editing && <EditBar changes={changes} saving={saving} error={error} onSave={save} onCancel={cancel} />}
               <Profile key={key} id={selected} lk={lk} />
             </EditCtx.Provider>
@@ -1358,6 +1369,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
             <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', pt: '10vh' }}>
               <Box sx={(t) => ({ width: '100%', maxWidth: 580, overflow: 'hidden', ...glass(t, { elevated: true }) })}>
                 <FindBody inline lk={lk} onPick={onSelect} />
+                {caps?.edit && <Box sx={{ p: 1, textAlign: 'center' }}><Button size="small" onClick={() => setRegistering(true)}>Register new member</Button></Box>}
               </Box>
             </Box>
           )}

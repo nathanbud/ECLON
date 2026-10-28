@@ -1127,3 +1127,16 @@ export const saveWorkflowDefinition = (entityType: string, active: boolean, step
 export const getWorkflowWaiting = () => getJson<WorkflowWaiting[]>('/api/workflow/waiting')
 export const getWorkflowInstance = (entityType: string, entityId: string) => getJson<WorkflowInstance>(`/api/workflow/${entityType}/${entityId}`)
 export const decideWorkflow = (entityType: string, entityId: string, kind: 'approve' | 'reject', note?: string) => send<WorkflowInstance>('POST', `/api/workflow/${entityType}/${entityId}/${kind}`, { note })
+
+// ---- member lifecycle: register and close (maker-checker) ------------------------------------------------------------
+
+export interface MemberRequest {
+  id: number; branchCode: number; kind: 'REGISTER' | 'CLOSE'; clientId: number | null; summary: string; status: string
+  requestedBy: string; requestedAt: string; decidedBy: string | null; decidedAt: string | null; decisionNote: string | null; payload: Record<string, string>
+}
+export const listMemberRequests = (status = 'PENDING') => getJson<MemberRequest[]>(`/api/member-requests?status=${status}`)
+export const registerMember = (body: { branchCode: number; clientType: number; fields: Record<string, string> }) => send<MemberRequest>('POST', '/api/member-requests/registrations', body)
+export const requestClosure = (body: { branchCode: number; clientId: number; reason: number; dateDeceased: string | null; note: string | null }) => send<MemberRequest>('POST', '/api/member-requests/closures', body)
+export const approveMemberRequest = (id: number) => send<MemberRequest>('POST', `/api/member-requests/${id}/approve`, {})
+export const rejectMemberRequest = (id: number, note: string) => send<MemberRequest>('POST', `/api/member-requests/${id}/reject`, { note })
+export const withdrawMemberRequest = (id: number) => send<MemberRequest>('POST', `/api/member-requests/${id}/withdraw`)
