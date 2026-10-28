@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
 import {
-  getCapabilities, getFingerprints, getMemberTemplate, registerMember, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, getTimeDeposits, getTimeDepositHistory, type TimeDeposit, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, getCoMakerNotice, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
+  getCapabilities, getFingerprints, getMemberTemplate, registerMember, type StagedFinger, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, getTimeDeposits, getTimeDepositHistory, type TimeDeposit, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, getCoMakerNotice, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
   type Change, type DetailField, type Lookups, type Member, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck, type ShareAccount,
 } from './api'
 import { appBackground, glass } from './glass'
@@ -22,6 +22,7 @@ import DocumentsPanel from './DocumentsPanel'
 import MemberPhotoDialog from './MemberPhotoDialog'
 import { useLeaveGuard } from './leaveGuard'
 import FingerprintDialog from './FingerprintDialog'
+import StagedFingerprintDialog from './StagedFingerprintDialog'
 import { CloseDialog, ReactivateDialog } from './MemberRequests'
 import FindClientDialog, { FindBody } from './FindClientDialog'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
@@ -1145,29 +1146,49 @@ function TabContent({ tab, m, lk }: { tab: number; m: Member; lk?: Lookups }) {
 }
 
 /** The header of a member who is being registered: no photo, status or fingerprint yet, only the name as it is typed. */
-function NewMemberHeader() {
+function NewMemberHeader({ photo, prints, canImages, onPhoto, onPrints }: { photo: string | null; prints: number; canImages: boolean; onPhoto: () => void; onPrints: () => void }) {
   const { draft } = useEdit()
   const name = [draft.LName, [draft.FName, draft.MName].filter(Boolean).join(' ')].filter(Boolean).join(', ')
   return (
     <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 2, p: 1.75, ...glass(t, { elevated: true }) })}>
-      <Avatar variant="rounded" sx={{ width: 72, height: 72, borderRadius: '8px', background: `linear-gradient(160deg, ${tileFill.orange}F2, ${tileFill.orange})` }}><FiUser size={34} aria-hidden /></Avatar>
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 1.25, flexShrink: 0, width: 120 }}>
+        <Box sx={{ position: 'relative' }}>
+          <Avatar variant="rounded" src={photo ?? undefined} alt="New photo" sx={{ width: 120, height: 120, borderRadius: '8px', background: `linear-gradient(160deg, ${tileFill.orange}F2, ${tileFill.orange})` }}><FiUser size={56} aria-hidden /></Avatar>
+          {canImages && (
+            <Tooltip title="Take or upload a photo">
+              <IconButton size="small" aria-label="Take or upload a photo" onClick={onPhoto} sx={{ position: 'absolute', right: -8, bottom: -8, width: 30, height: 30, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}><FiCamera size={14} /></IconButton>
+            </Tooltip>
+          )}
+        </Box>
+        {canImages && (
+          <Chip size="small" variant="outlined" clickable color={prints ? 'success' : 'default'} icon={<IoFingerPrint />} onClick={onPrints}
+            label={prints ? `Fingerprint · ${prints}/10` : 'Fingerprint'} aria-label="Fingerprints" sx={{ justifyContent: 'flex-start' }} />
+        )}
+      </Box>
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Chip size="small" color="primary" label="New member" icon={<FiPlus />} sx={{ ...quietChip, mb: 0.75 }} />
         <Typography component="h2" noWrap sx={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{name || 'Unnamed member'}</Typography>
-        <Typography sx={{ fontSize: 13 }} color="text.secondary">The member number, photo and fingerprint are added after a Membership Officer approves the registration.</Typography>
+        <Typography sx={{ fontSize: 13 }} color="text.secondary">The member number is given when a Membership Officer approves. {canImages ? 'The photo and fingerprints taken here are kept with the registration until then.' : 'A photo and fingerprints need the edit-client-images permission.'}</Typography>
       </Box>
     </Box>
   )
 }
 
 /** Registering a new member on the member profile itself: the same tabs and fields, all open for typing. Sending asks a Membership Officer (not you) to approve. */
-function NewMemberScreen({ lk, onClose, onDone }: { lk?: Lookups; onClose: () => void; onDone: (msg: string) => void }) {
+function NewMemberScreen({ lk, canImages, onClose, onDone }: { lk?: Lookups; canImages: boolean; onClose: () => void; onDone: (msg: string) => void }) {
   const qc = useQueryClient()
   const [draft, setDraft] = useState<Record<string, string>>({ ClientType: '1' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [discarding, setDiscarding] = useState(false)
-  const typed = Object.keys(draft).filter((k) => k !== 'ClientType').length
+  const [photo, setPhoto] = useState<Blob | null>(null)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [consent, setConsent] = useState(false)
+  const [prints, setPrints] = useState<StagedFinger[]>([])
+  const [photoOpen, setPhotoOpen] = useState(false)
+  const [printsOpen, setPrintsOpen] = useState(false)
+  const typed = Object.keys(draft).filter((k) => k !== 'ClientType').length + (photo ? 1 : 0) + prints.length
+  const keepPhoto = (b: Blob) => { setPhoto(b); setPhotoUrl((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(b) }) }
   useLeaveGuard(typed > 0 ? 'The new member you are registering has not been sent yet.' : null)
   const set = (col: string, value: string, original: string) =>
     setDraft((d) => {
@@ -1181,7 +1202,9 @@ function NewMemberScreen({ lk, onClose, onDone }: { lk?: Lookups; onClose: () =>
     setSaving(true)
     setError(null)
     try {
-      const r = await registerMember({ branchCode: 1, clientType: Number(ClientType || 1), fields })
+      const encoded = photo ? await new Promise<string>((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(',')[1] ?? ''); fr.onerror = () => no(new Error('The photo could not be read.')); fr.readAsDataURL(photo) }) : null
+      const staged = encoded || prints.length ? { photo: encoded, consent, fingerprints: prints } : undefined
+      const r = await registerMember({ branchCode: 1, clientType: Number(ClientType || 1), fields, staged })
       void qc.invalidateQueries({ queryKey: ['member-requests'] })
       onDone(`Registration sent for approval: ${r.summary}`)
       onClose()
@@ -1205,7 +1228,10 @@ function NewMemberScreen({ lk, onClose, onDone }: { lk?: Lookups; onClose: () =>
         </Box>
         {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
       </Box>
-      <Profile id={FRESH_ID} lk={lk} fresh />
+      <Profile id={FRESH_ID} lk={lk} fresh newHeader={<NewMemberHeader photo={photoUrl} prints={prints.length} canImages={canImages} onPhoto={() => setPhotoOpen(true)} onPrints={() => setPrintsOpen(true)} />} />
+      {photoOpen && <MemberPhotoDialog id={FRESH_ID} name={draft.LName ? `${draft.LName}, ${draft.FName ?? ''}` : 'the new member'} onPick={keepPhoto} onClose={() => setPhotoOpen(false)} onDone={onDone} />}
+      {printsOpen && <StagedFingerprintDialog memberKey={`new-${[draft.LName, draft.FName, draft.DateOfBirth].join('|')}`} name={draft.LName ? `${draft.LName}, ${draft.FName ?? ''}` : 'the new member'} consent={consent} prints={prints}
+        onChange={(c, p) => { setConsent(c); setPrints(p) }} onClose={() => setPrintsOpen(false)} />}
       <Dialog open={discarding} onClose={() => setDiscarding(false)}>
         <DialogTitle>Discard this registration?</DialogTitle>
         <DialogContent><DialogContentText>What you typed will be lost.</DialogContentText></DialogContent>
@@ -1218,7 +1244,7 @@ function NewMemberScreen({ lk, onClose, onDone }: { lk?: Lookups; onClose: () =>
   )
 }
 
-function Profile({ id, lk, canPhoto = false, onNotice, fresh = false }: { id: Id; lk?: Lookups; canPhoto?: boolean; onNotice?: (msg: string) => void; fresh?: boolean }) {
+function Profile({ id, lk, canPhoto = false, onNotice, fresh = false, newHeader }: { id: Id; lk?: Lookups; canPhoto?: boolean; onNotice?: (msg: string) => void; fresh?: boolean; newHeader?: ReactNode }) {
   const groups = fresh ? FRESH_GROUPS : GROUPS
   const [tab, setTab] = useState(groups[0].tabs[0])
   const group = Math.max(0, groups.findIndex((g) => g.tabs.includes(tab)))
@@ -1244,7 +1270,7 @@ function Profile({ id, lk, canPhoto = false, onNotice, fresh = false }: { id: Id
   }
   return (
     <>
-      {fresh ? <NewMemberHeader /> : <ProfileHeader m={m} lk={lk} canPhoto={canPhoto} onNotice={onNotice} />}
+      {fresh ? newHeader : <ProfileHeader m={m} lk={lk} canPhoto={canPhoto} onNotice={onNotice} />}
       {/* One folder: the tab strip and the page below share a frame, and the open tab takes the page's own fill so the two read as connected. */}
       <Box sx={(t) => ({ mt: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', ...glass(t) })}>
         <Tabs value={group} onChange={(_, v) => setTab(groups[v].tabs[0])} aria-label="Profile sections"
@@ -1514,7 +1540,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
 
       <Box component="section" aria-label="Client profile" sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, maxWidth: 1600, width: '100%', mx: 'auto', p: 1.5 }}>
         {registering
-          ? <NewMemberScreen lk={lk} onClose={() => setRegistering(false)} onDone={setNotice} />
+          ? <NewMemberScreen lk={lk} canImages={!!caps?.images} onClose={() => setRegistering(false)} onDone={setNotice} />
           : selected
           ? (
             <EditCtx.Provider value={{ editing, draft, set }}>

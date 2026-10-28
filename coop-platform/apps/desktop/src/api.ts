@@ -1144,7 +1144,11 @@ export interface MemberRequest {
   requestedBy: string; requestedAt: string; decidedBy: string | null; decidedAt: string | null; decisionNote: string | null; payload: Record<string, string>
 }
 export const listMemberRequests = (status = 'PENDING') => getJson<MemberRequest[]>(`/api/member-requests?status=${status}`)
-export const registerMember = (body: { branchCode: number; clientType: number; fields: Record<string, string> }) => send<MemberRequest>('POST', '/api/member-requests/registrations', body)
+export interface StagedFinger { finger: number; template: string; format: string; quality: number; device: string }
+export interface StagedItems { photo: string | null; consent: boolean; fingerprints: StagedFinger[] }
+export const checkFingerprintDuplicate = (body: { template: string; format: string; staged: StagedFinger[] }) =>
+  send<{ duplicate: boolean; message: string | null }>('POST', '/api/member-requests/biometric-check', body)
+export const registerMember = (body: { branchCode: number; clientType: number; fields: Record<string, string>; staged?: StagedItems }) => send<MemberRequest>('POST', '/api/member-requests/registrations', body)
 export const requestClosure = (body: { branchCode: number; clientId: number; reason: number; dateDeceased: string | null; note: string | null }) => send<MemberRequest>('POST', '/api/member-requests/closures', body)
 export const approveMemberRequest = (id: number) => send<MemberRequest>('POST', `/api/member-requests/${id}/approve`, {})
 export const rejectMemberRequest = (id: number, note: string) => send<MemberRequest>('POST', `/api/member-requests/${id}/reject`, { note })

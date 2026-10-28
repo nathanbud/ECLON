@@ -30,7 +30,7 @@ async function fileToJpeg(file: File): Promise<Blob> {
  * Takes a picture with the camera or uploads one from a file, shows it, and saves it as the member's photo on confirmation.
  * Offered only to people granted the "edit client images" permission; the server checks it again.
  */
-export default function MemberPhotoDialog({ id, name, onClose, onDone }: { id: Id; name: string; onClose: () => void; onDone: (msg: string) => void }) {
+export default function MemberPhotoDialog({ id, name, onClose, onDone, onPick }: { id: Id; name: string; onClose: () => void; onDone: (msg: string) => void; onPick?: (photo: Blob) => void }) {
   const qc = useQueryClient()
   const video = useRef<HTMLVideoElement>(null)
   const stream = useRef<MediaStream | null>(null)
@@ -85,6 +85,7 @@ export default function MemberPhotoDialog({ id, name, onClose, onDone }: { id: I
   const save = async () => {
     if (!blob) return
     setSaving(true)
+    if (onPick) { onPick(blob); onDone('Photo kept with the registration'); onClose(); return }
     try {
       await uploadMemberPhoto(id.branchCode, id.clientId, blob)
       await qc.invalidateQueries({ queryKey: ['member-image', 'photo'] })

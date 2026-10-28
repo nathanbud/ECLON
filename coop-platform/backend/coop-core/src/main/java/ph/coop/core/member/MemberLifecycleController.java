@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import ph.coop.core.biometric.BiometricStaging;
 import ph.coop.core.db.Db;
 
 /**
@@ -38,7 +39,15 @@ public class MemberLifecycleController {
     public record Request(long id, int branchCode, String kind, Integer clientId, String summary, String status, String requestedBy,
                           String requestedAt, String decidedBy, String decidedAt, String decisionNote, Map<String, String> payload) {}
 
-    public record Register(int branchCode, int clientType, Map<String, String> fields) {}
+    public record Register(int branchCode, int clientType, Map<String, String> fields, BiometricStaging.StagedItems staged) {
+        public Register(int branchCode, int clientType, Map<String, String> fields) {
+            this(branchCode, clientType, fields, null);
+        }
+    }
+
+    public record Check(String template, String format, List<BiometricStaging.StagedFinger> staged) {}
+
+    public record CheckResult(boolean duplicate, String message) {}
 
     public record Close(int branchCode, int clientId, int reason, String dateDeceased, String note) {}
 
@@ -57,8 +66,9 @@ public class MemberLifecycleController {
     private final boolean enabled;
     private final MembershipPolicyController policy;
     private final ClientDetailController details;
+    private final BiometricStaging staging;
 
-    MemberLifecycleController(JdbcTemplate jdbc, Db db, LookupController lookups, ObjectMapper json, PlatformTransactionManager txManager, MembershipPolicyController policy, ClientDetailController details,
+    MemberLifecycleController(JdbcTemplate jdbc, Db db, LookupController lookups, ObjectMapper json, PlatformTransactionManager txManager, MembershipPolicyController policy, ClientDetailController details, BiometricStaging staging,
                               @Value("${coop.edit.enabled:false}") boolean enabled) {
         this.jdbc = jdbc;
         this.db = db;
@@ -68,6 +78,7 @@ public class MemberLifecycleController {
         this.enabled = enabled;
         this.policy = policy;
         this.details = details;
+        this.staging = staging;
     }
 
     private static boolean has(Authentication auth, String authority) {
@@ -90,6 +101,14 @@ public class MemberLifecycleController {
         return details.blankDetails();
     }
 
+    /** Whether a fresh scan matches a finger already enrolled, or held for another registration, so the teller hears at once rather than when the request is sent. */
+    @PostMapping("/biometric-check")
+    @PreAuthorize("hasAuthority('PERM_MEMBER_EDIT') and hasAuthority('PERM_MEMBER_IMAGES')")
+    public CheckResult biometricCheck(@RequestBody Check c) {
+        String message = staging.duplicate(c.template(), c.format(), -1, c.staged());
+        return new CheckResult(message != null, message);
+    }
+
     @GetMapping("/count")
     public int count(Authentication auth) {
         return list("PENDING", auth).size();
@@ -105,6 +124,10 @@ public class MemberLifecycleController {
         List<String> problems = LifecycleRules.registrationProblems(req.clientType(), fields, LocalDate.now());
         if (!problems.isEmpty()) throw bad(String.join(" ", problems));
         String key = LifecycleRules.duplicateKey(fields);
+        if (req.staged() != null && !req.staged().isEmpty() && !has(auth, "PERM_MEMBER_IMAGES")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You need the edit-client-images permission to take a photo or fingerprints.");
+        }
+        staging.validate(req.staged());
         return tx.execute((s) -> {
             List<Long> same = jdbc.queryForList("SELECT ClientID FROM client WHERE ClientIDBrCode = ? AND LOWER(TRIM(LName)) = ? AND LOWER(TRIM(FName)) = ? AND DateOfBirth = ? LIMIT 1", Long.class,
                 req.branchCode(), fields.get("LName").toLowerCase(), fields.get("FName").toLowerCase(), fields.get("DateOfBirth"));
@@ -114,9 +137,10 @@ public class MemberLifecycleController {
             }
             Map<String, String> payload = new LinkedHashMap<>(fields);
             payload.put("_clientType", Integer.toString(req.clientType()));
-            String summary = fields.get("LName") + ", " + fields.get("FName") + " (" + LifecycleRules.TYPES.get(req.clientType()) + ")";
+            String summary = fields.get("LName") + ", " + fields.get("FName") + " (" + LifecycleRules.TYPES.get(req.clientType()) + ")" + staging.describe(req.staged());
             long id = db.insertReturningId("INSERT INTO ecis_member_request (branch_code, kind, client_id, summary, payload, status, requested_by, requested_at) VALUES (?, 'REGISTER', NULL, ?, ?, 'PENDING', ?, NOW())", "id",
                 req.branchCode(), summary, write(payload), auth.getName());
+            staging.stage(id, req.staged());
             audit(auth.getName(), "MEMBER_REGISTER_REQUESTED", req.branchCode() + "-new", null, summary, "Request #" + id);
             return load(id);
         });
@@ -185,6 +209,7 @@ public class MemberLifecycleController {
             String done;
             if (r.kind().equals("REGISTER")) {
                 int clientId = openMember(r, auth.getName());
+                staging.release(id, r.branchCode(), clientId, auth.getName(), r.requestedBy());
                 jdbc.update("UPDATE ecis_member_request SET client_id = ? WHERE id = ?", clientId, id);
                 done = "Member " + clientId + " opened";
             } else if (r.kind().equals("REACTIVATE")) {
@@ -208,6 +233,7 @@ public class MemberLifecycleController {
         if (problem != null) throw new ResponseStatusException(has(auth, "ROLE_MEMBERSHIP_OFFICER") ? HttpStatus.BAD_REQUEST : HttpStatus.FORBIDDEN, problem);
         return tx.execute((s) -> {
             Request r = lockPending(id);
+            staging.discard(id);
             jdbc.update("UPDATE ecis_member_request SET status = 'REJECTED', decided_by = ?, decided_at = NOW(), decision_note = ? WHERE id = ?", auth.getName(), d.note().trim(), id);
             audit(auth.getName(), "MEMBER_" + r.kind() + "_REJECTED", r.branchCode() + "-" + (r.clientId() == null ? "new" : r.clientId()), null, null, "Request #" + id + " by " + r.requestedBy() + ". " + d.note().trim());
             return load(id);
@@ -220,6 +246,7 @@ public class MemberLifecycleController {
         return tx.execute((s) -> {
             Request r = lockPending(id);
             if (!r.requestedBy().equalsIgnoreCase(auth.getName())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the person who made the request can withdraw it.");
+            staging.discard(id);
             jdbc.update("UPDATE ecis_member_request SET status = 'WITHDRAWN', decided_by = ?, decided_at = NOW() WHERE id = ?", auth.getName(), id);
             audit(auth.getName(), "MEMBER_" + r.kind() + "_WITHDRAWN", r.branchCode() + "-" + (r.clientId() == null ? "new" : r.clientId()), null, null, "Request #" + id);
             return load(id);

@@ -53,12 +53,29 @@ public class BiometricVault {
     }
 
     public byte[] seal(byte[] template, int branch, int client, int finger) {
+        return sealWith(template, aad(branch, client, finger));
+    }
+
+    public byte[] open(byte[] sealed, int branch, int client, int finger) {
+        return openWith(sealed, aad(branch, client, finger));
+    }
+
+    /** Seals a template that does not belong to a member yet (one held for a registration), bound to a scope such as the request and finger. */
+    public byte[] sealScoped(byte[] template, String scope) {
+        return sealWith(template, scope.getBytes(StandardCharsets.US_ASCII));
+    }
+
+    public byte[] openScoped(byte[] sealed, String scope) {
+        return openWith(sealed, scope.getBytes(StandardCharsets.US_ASCII));
+    }
+
+    private byte[] sealWith(byte[] template, byte[] aad) {
         try {
             byte[] iv = new byte[IV_BYTES];
             random.nextBytes(iv);
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
             c.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, iv));
-            c.updateAAD(aad(branch, client, finger));
+            c.updateAAD(aad);
             byte[] body = c.doFinal(template);
             byte[] out = Arrays.copyOf(iv, IV_BYTES + body.length);
             System.arraycopy(body, 0, out, IV_BYTES, body.length);
@@ -68,11 +85,11 @@ public class BiometricVault {
         }
     }
 
-    public byte[] open(byte[] sealed, int branch, int client, int finger) {
+    private byte[] openWith(byte[] sealed, byte[] aad) {
         try {
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
             c.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, sealed, 0, IV_BYTES));
-            c.updateAAD(aad(branch, client, finger));
+            c.updateAAD(aad);
             return c.doFinal(sealed, IV_BYTES, sealed.length - IV_BYTES);
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("A stored fingerprint could not be read back.", e);

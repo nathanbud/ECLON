@@ -10,10 +10,10 @@ import { findScanner, type ScanResult } from './fingerprintScanner'
 const NAMES: Record<number, string> = {
   1: 'Thumb', 2: 'Index', 3: 'Middle', 4: 'Ring', 5: 'Little', 6: 'Thumb', 7: 'Index', 8: 'Middle', 9: 'Ring', 10: 'Little',
 }
-const RIGHT = [1, 2, 3, 4, 5]
-const LEFT = [6, 7, 8, 9, 10]
+export const RIGHT = [1, 2, 3, 4, 5]
+export const LEFT = [6, 7, 8, 9, 10]
 
-function Fingers({ title, ids, s, selected, onPick }: { title: string; ids: number[]; s: FingerprintSummary; selected: number | null; onPick: (f: number) => void }) {
+export function Fingers({ title, ids, s, selected, onPick }: { title: string; ids: number[]; s: FingerprintSummary; selected: number | null; onPick: (f: number) => void }) {
   return (
     <Box>
       <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">{title}</Typography>
