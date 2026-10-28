@@ -23,6 +23,8 @@ import ReportsPage from './ReportsPage'
 import DocumentsPage from './DocumentsPage'
 import WorkflowSettingsPage from './WorkflowSettingsPage'
 import MembershipPolicyPage from './MembershipPolicyPage'
+import { Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material'
+import { unsavedWork } from './leaveGuard'
 import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
@@ -45,6 +47,14 @@ function Signed() {
   const [cameFromSettings, setCameFromSettings] = useState(false)
   const navigate = (v: View) => { if (v === 'loanapp' && openLoanApplicationWindow({})) return; setCameFromSettings(view === 'settings' && v !== 'home'); setView(v) }
   const openClient = (id: Id) => { setClient(id); setView('members') }
+  const [leaving, setLeaving] = useState<string | null>(null)
+  /** Straight to the dashboard, asking first when a screen holds unsaved work. */
+  const goHome = (direct: boolean) => {
+    const unsaved = unsavedWork()
+    if (unsaved) { setLeaving(unsaved); return }
+    if (direct) setCameFromSettings(false)
+    setView('home')
+  }
   // H goes to the main dashboard from any screen. It is ignored while typing, with a modifier key held, or while a dialog is open, so it never interrupts work.
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
@@ -52,15 +62,22 @@ function Signed() {
       const t = e.target as HTMLElement | null
       if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return
       if (document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')) return
-      setCameFromSettings(false)
-      setView('home')
+      goHome(true)
     }
     window.addEventListener('keydown', on)
     return () => window.removeEventListener('keydown', on)
   }, [])
   return (
     <ToolbarSlotProvider>
-      <TopBar title={titles[view]} onHome={view === 'home' ? undefined : () => { if (cameFromSettings && view !== 'settings') { setCameFromSettings(false); setView('settings') } else setView('home') }} onNavigate={navigate} onOpenClient={openClient} />
+      <Dialog open={!!leaving} onClose={() => setLeaving(null)} aria-labelledby="leave-title">
+        <DialogTitle id="leave-title">Leave without saving?</DialogTitle>
+        <DialogContent><DialogContentText>{leaving} Going to the dashboard will lose it.</DialogContentText></DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLeaving(null)} autoFocus>Stay</Button>
+          <Button color="error" onClick={() => { setLeaving(null); setCameFromSettings(false); setView('home') }}>Leave</Button>
+        </DialogActions>
+      </Dialog>
+      <TopBar title={titles[view]} onHome={view === 'home' ? undefined : () => { const unsaved = unsavedWork(); if (unsaved) { setLeaving(unsaved); return } if (cameFromSettings && view !== 'settings') { setCameFromSettings(false); setView('settings') } else setView('home') }} onNavigate={navigate} onOpenClient={openClient} />
       <ErrorBoundary resetKey={view}>
         {(view === 'home' || view === 'loanapp') && <Dashboard onOpen={navigate} />}
         {view === 'loanapp' && <LoanApplicationDialog onClose={() => setView('home')} />}

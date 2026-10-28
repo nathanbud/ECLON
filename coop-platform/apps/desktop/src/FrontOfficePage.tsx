@@ -18,6 +18,7 @@ import { TimeDepositNoticesPanel } from './TimeDepositNoticesPanel'
 import DrawerClose from './DrawerClose'
 import FoFindDialog from './FoFindDialog'
 import SavingsTellerPanel from './SavingsTellerPanel'
+import { useLeaveGuard } from './leaveGuard'
 import { LoanApplicationsPanel } from './LoanApplicationsPanel'
 import { LoanReleasePanel } from './LoanReleasePanel'
 import { VoucherPayoutPanel } from './VoucherPayoutPanel'
@@ -199,6 +200,7 @@ export default function FrontOfficePage() {
   const [shown, setShown] = useState<Shown>({ kind: 'none' })
   const [form, setForm] = useState<FoForm | null>(null)
   const [dirty, setDirty] = useState(false)
+  useLeaveGuard(dirty ? 'You have a transaction in progress that is not saved.' : null)
   const [navList, setNavList] = useState<FoSummary[]>([])
   const [finding, setFinding] = useState(false)
   const [focusKey, setFocusKey] = useState<string | null>(null)

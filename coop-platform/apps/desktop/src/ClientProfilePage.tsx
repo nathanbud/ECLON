@@ -20,6 +20,7 @@ import { displayName, memberNo, statusOf, type Id } from './clients'
 import LoansTab from './LoansTab'
 import DocumentsPanel from './DocumentsPanel'
 import MemberPhotoDialog from './MemberPhotoDialog'
+import { useLeaveGuard } from './leaveGuard'
 import FingerprintDialog from './FingerprintDialog'
 import { CloseDialog, ReactivateDialog, RegisterDialog } from './MemberRequests'
 import FindClientDialog, { FindBody } from './FindClientDialog'
@@ -1331,6 +1332,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
     enabled: !!selected,
   })
   const changes = Object.keys(draft).length
+  useLeaveGuard(editing && changes > 0 ? `You have ${changes} unsaved change${changes === 1 ? '' : 's'} on this profile.` : null)
   const key = selected ? `${selected.branchCode}-${selected.clientId}` : ''
 
   // Opening another client ends any edit in progress. (State is reset while rendering, not in an effect, so the
