@@ -20,18 +20,31 @@ Each voucher has one debit line on 20126 (no client) and, per member, credit lin
 
 2026: 25,189 members, 166,028,494.02 credited in total (14 per cent of members got a share capital credit, 82 per cent a savings credit, 84 per cent a mutual benefit credit).
 
-## The rule so far
+## The rule (fitted 2026-10-28 on the 2026 run, 25,189 members)
 
-* **Dividend = 8% of the paid-up share capital** for members whose balance did not move during the year: 1,225 with 21,000 got 1,680.00, 20,000 got 1,600.00, 127,000 got 10,160.00 (checked on about 20 of 40 sampled members, exactly). Members whose balance moved got between 7.5% and 11.6% of the average balance, so the balance is averaged over some period I have not fitted (the calendar year and the 12 months to the cut-off both come close, neither is exact).
-* **Out of that total** the member's insurance-type contributions are taken first: mutual benefit (mostly 902.17, a full year; lower for members who joined or paid part) and HABP (861.60 to 864.06, 697.83 or lower). What is left is credited to savings, or to share capital when there is no savings account, or to the receivable.
-* A few members receive more than 8% (one 20%): probably the patronage refund (interest paid on loans), which is not separated in the data.
+For each member the amount credited in total is:
+
+`total = round(8% x average share capital) + round(8.23% x loan charges paid)`
+
+* **Dividend, 8%**: the paid-up share capital (class 31 type 1, event 11) is taken at the **12 month-end balances of the calendar year before the cut-off** (31 January to 31 December 2025), averaged, then x 8%, rounded half up.
+* **Patronage refund, 8.23%**: loan events **23 (interest), 31 (service fee) and 24** paid on the member's class 12 loans from 1 January to 31 December 2025 (by `TR_DATE`), x 8.23%, rounded half up. Event 41 (penalty) and 22 do not count (tested: 11,153 of 11,155 members with a refund fit 23+31+24, no other combination comes near).
+* **Together they match 25,165 of 25,189 members to the cent** (99.9%); 14,030 members have a dividend only, the rest also a refund. The 24 misses are not examined.
+* The rates 8% and 8.23% are 2026's. They are most likely declared yearly, so the app must take them as inputs.
+
+## How the total is split (partly fitted)
+
+Order of credits: mutual benefit fund (2021401) first, then hospitalization (2021403), then the rest to savings (2010101) or, with no savings account, to share capital (3010101).
+
+* **Mutual benefit** = `min(902.17 - paid in since the last run, total)`, where "paid in" is the member's credits to the fund (cash receipts and vouchers, not the small type 81 postings) after the previous cut-off date. Exact for **20,521 of 25,189** members (81%). The rest are members with a smaller, repeated amount (710.69, 87.31, 317.99 and so on, the same value for hundreds of members), so it depends on a date, probably a prorated first year; not fitted.
+* **Hospitalization** is paid up to a cap less the same kind of payments. The cap is **864.06, 863.03 or 861.60** for about 13,400 of the roughly 14,000 members who also got savings, and other lower figures for the rest. What decides which of the three is not known.
+* The debit is one line per voucher on 20126 for the sum.
 
 ## Not known, needed before anything is built
 
-* The averaging period and method for the share capital balance, and the rate and whether it is declared by the general assembly each year (8% in 2026; 2024 and 2025 not yet checked).
-* How the mutual benefit and HABP amounts are worked out (days covered, age, claims?).
-* The patronage refund rule and its fund.
-* Which members are excluded (closed, resigned, dormant), and how the receivable is chosen.
+* Why 902.17 for the mutual benefit fund and what the smaller repeated amounts are (a prorated first year?).
+* What makes the hospitalization cap 864.06, 863.03 or 861.60 (age band, date joined?).
+* Whether the 8% and 8.23% are set each year, and what 2024 and 2025 used (not checked).
+* Which members are left out, how the receivable (101204, 60 members) is chosen, and the 24 members the total does not fit.
 * Who approves it: the old run was encoded and posted by one person; the app would need three, as for the other runs.
 
-Scratch analysis: 2024-2026 lines were pulled with the `coop_app` user and compared against `sldtl` class 31 type 1; the scripts are not kept.
+Scratch analysis: the lines were pulled with the `coop_app` user and compared against `sldtl` (class 31 type 1 for share capital, class 12 events 23, 31 and 24 for loan charges, class 29 types 5 and 6 for the funds); the scripts are not kept.
