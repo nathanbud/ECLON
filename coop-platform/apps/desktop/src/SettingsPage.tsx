@@ -1,11 +1,11 @@
 import { Box, ButtonBase, InputAdornment, TextField, Typography } from '@mui/material'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMonitor, FiSearch, FiShield, FiSliders, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
+import { FiBook, FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMonitor, FiSearch, FiShield, FiSliders, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
 
-type Who = 'admin' | 'accountant' | 'documents'
+type Who = 'admin' | 'accountant' | 'documents' | 'anyone'
 interface Item { label: string; note: string; icon: ReactNode; color: string; view?: View; who: Who }
 interface Category { id: string; label: string; icon: ReactNode; color: string; items: Item[] }
 
@@ -40,6 +40,12 @@ const categories: Category[] = [
     id: 'accounting', label: 'Accounting', icon: <FiBookOpen />, color: '#FF9500',
     items: [
       { label: 'Chart of Accounts', note: 'Add, rename, move and switch off ledger accounts', icon: <FiBookOpen />, color: '#FF9500', view: 'accounts', who: 'accountant' },
+    ],
+  },
+  {
+    id: 'documentation', label: 'Documentation', icon: <FiBook />, color: '#5856D6',
+    items: [
+      { label: 'Documentation', note: 'Keyboard shortcuts, the rules the system follows, where to do things, and the design notes', icon: <FiBook />, color: '#5856D6', view: 'documentation', who: 'anyone' },
     ],
   },
   {
@@ -89,7 +95,7 @@ function Row({ item, allowed, onOpen }: { item: Item; allowed: boolean; onOpen: 
         <Box aria-hidden sx={{ color: 'text.disabled', display: 'flex' }}><FiChevronRight /></Box>
       ) : (
         <Typography color="text.secondary" sx={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-          {item.view ? <><FiLock size={12} />{item.who === 'admin' ? 'Administrators' : 'Accountants'}</> : 'Coming soon'}
+          {item.view ? <><FiLock size={12} />{item.who === 'admin' ? 'Administrators' : item.who === 'anyone' ? 'Everyone' : 'Accountants'}</> : 'Coming soon'}
         </Typography>
       )}
     </ButtonBase>
@@ -106,7 +112,7 @@ export default function SettingsPage({ onOpen }: { onOpen: (v: View) => void }) 
   const me = useMe()
   const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
   const clerk = me.roles.some((r) => r.replace('ROLE_', '') === 'DOCUMENT_CLERK')
-  const allowed = (i: Item) => (i.who === 'admin' ? me.admin : i.who === 'documents' ? accountant || clerk : accountant)
+  const allowed = (i: Item) => (i.who === 'anyone' ? true : i.who === 'admin' ? me.admin : i.who === 'documents' ? accountant || clerk : accountant)
   const [pick, setPick] = useState(() => stored() ?? categories[0].id)
   const [q, setQ] = useState('')
   const query = q.trim().toLowerCase()
