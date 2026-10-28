@@ -289,14 +289,14 @@ function ProfileHeader({ m, lk, canPhoto = false, onNotice }: { m: Member; lk?: 
     <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 2, p: 1.75, ...glass(t, { elevated: true }) })}>
       <Box sx={{ position: 'relative', flexShrink: 0, '&:hover .photo-edit, &:focus-within .photo-edit': { opacity: 1 } }}>
         <Avatar variant="rounded" src={photo ?? undefined} alt={`Photo of ${displayName(m)}`} sx={{
-          width: 68, height: 68, fontSize: 24, fontWeight: 600, color: '#fff', borderRadius: '5px',
+          width: 120, height: 120, fontSize: 36, fontWeight: 600, color: '#fff', borderRadius: '8px',
           background: `linear-gradient(160deg, ${tileFill.orange}F2, ${tileFill.orange})`,
           boxShadow: '0 1px 2px rgba(0,0,0,0.14)',
-        }}><FiUser size={34} aria-hidden /></Avatar>
+        }}><FiUser size={56} aria-hidden /></Avatar>
         {canPhoto && (
           <Tooltip title="Take or upload a photo">
             <IconButton className="photo-edit" size="small" aria-label="Take or upload a photo" onClick={() => setPhotoOpen(true)}
-              sx={{ position: 'absolute', right: -6, bottom: -6, width: 26, height: 26, bgcolor: 'background.paper', border: 1, borderColor: 'divider', opacity: 0.85, transition: 'opacity .15s', '&:hover': { bgcolor: 'background.paper' } }}>
+              sx={{ position: 'absolute', right: -8, bottom: -8, width: 30, height: 30, bgcolor: 'background.paper', border: 1, borderColor: 'divider', opacity: 0.85, transition: 'opacity .15s', '&:hover': { bgcolor: 'background.paper' } }}>
               <FiCamera size={14} />
             </IconButton>
           </Tooltip>
