@@ -25,6 +25,17 @@ person (the head cashier, no approver), `DTUPD_TAG` 1, `DTCOCI_TYPE` 1:
 Deposit: counts must add up to the amount and the vault must hold it. Withdrawal: the ledger balance of the bank account must cover it. Control number from `Db.nextControlNumber`.
 Test: `BankCashPostingTest` (posts, compares, rolls back).
 
+## Bank interest and bank charges (mapped 2026-10-28, nothing to build)
+
+The old system has **no transaction type of its own** for them. Nothing outside types 33 and 35 touches a bank ledger account (class 11, type 2) except General Journals (module 1, types 1 and 6), vouchers (2/21, 2/22) and receipts (3/10) that are about something else.
+The accountant records both at month end inside a General Journal (module 1, type 1) whose explanation begins "Bank Reconciliation" (about 70 from June 2025 to March 2026, for example 2026 nos. 12818 and 13309, up to 46 lines each, encoded by one accountant and posted by another):
+
+* **Interest on deposits and investments**: debit the bank account (`1002xxxx`), credit **440501** "Int.income from deposit/investment". Interest on a term placement goes in two steps: credit `101901` "Interest receivables" for what was accrued and 440501 for the rest.
+* **Bank charges**: rare, about 10 lines in the period, debit **50317** "Taxes, fees and charges" (11,655.00 in all), credit the bank account.
+* **The rest of the same journals**: unidentified deposits and transfers booked to "Other payable - <bank>" (`20134xx`), cheques on hand (100111), error corrections.
+
+The app's journals (`/api/journals`, creator, approver and poster, posted as a legacy General Journal) already take these lines, so a separate write path would only repeat them. Use a journal with the reconciliation's outstanding items as the guide.
+
 ## Not built
 
-Bank charges and interest, check clearing, a screen for it (the endpoints exist).
+Cheque (`transck`) clearing from the bank statement.
