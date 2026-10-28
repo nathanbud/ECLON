@@ -81,4 +81,24 @@ class ProcurementRulesTest {
         assertFalse(ProcurementRules.requestProblems("", today, null, lines).isEmpty());
         assertFalse(ProcurementRules.requestProblems("Supplies", today, today.minusDays(1), lines).isEmpty());
     }
+
+    @Test
+    void receivingIsLimitedToWhatIsStillExpected() {
+        List<ProcurementRules.Open> lines = List.of(new ProcurementRules.Open(1, d("10"), d("4")), new ProcurementRules.Open(2, d("5"), d("0")));
+        assertTrue(ProcurementRules.receiptProblems("APPROVED", lines, List.of(new ProcurementRules.Take(1, d("6")), new ProcurementRules.Take(2, d("5")))).isEmpty());
+        assertTrue(ProcurementRules.receiptProblems("PARTIAL", lines, List.of(new ProcurementRules.Take(1, d("0.5")))).isEmpty());
+        assertFalse(ProcurementRules.receiptProblems("APPROVED", lines, List.of(new ProcurementRules.Take(1, d("6.001")))).isEmpty(), "more than expected");
+        assertFalse(ProcurementRules.receiptProblems("APPROVED", lines, List.of(new ProcurementRules.Take(3, d("1")))).isEmpty(), "no such line");
+        assertFalse(ProcurementRules.receiptProblems("APPROVED", lines, List.of(new ProcurementRules.Take(1, d("1")), new ProcurementRules.Take(1, d("1")))).isEmpty(), "twice");
+        assertFalse(ProcurementRules.receiptProblems("APPROVED", lines, List.of(new ProcurementRules.Take(1, d("0")))).isEmpty());
+        assertFalse(ProcurementRules.receiptProblems("APPROVED", lines, List.of()).isEmpty());
+        for (String status : new String[] {"DRAFT", "RECEIVED", "CANCELLED"}) assertFalse(ProcurementRules.receiptProblems(status, lines, List.of(new ProcurementRules.Take(1, d("1")))).isEmpty(), status);
+    }
+
+    @Test
+    void theOrderMovesFromApprovedToPartialToReceived() {
+        assertEquals("APPROVED", ProcurementRules.statusAfter(List.of(new ProcurementRules.Open(1, d("10"), d("0")), new ProcurementRules.Open(2, d("5"), d("0")))));
+        assertEquals("PARTIAL", ProcurementRules.statusAfter(List.of(new ProcurementRules.Open(1, d("10"), d("10")), new ProcurementRules.Open(2, d("5"), d("1")))));
+        assertEquals("RECEIVED", ProcurementRules.statusAfter(List.of(new ProcurementRules.Open(1, d("10"), d("10")), new ProcurementRules.Open(2, d("5"), d("5")))));
+    }
 }

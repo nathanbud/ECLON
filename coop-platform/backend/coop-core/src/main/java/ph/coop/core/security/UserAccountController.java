@@ -28,11 +28,11 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api")
 class UserAccountController {
 
-    /** Roles an administrator may grant. MEMBERSHIP_OFFICER approves member changes; ACCOUNTANT works with journals and accounting periods; PURCHASER makes purchase requests, orders and suppliers; PURCHASE_APPROVER approves them. */
+    /** Roles an administrator may grant. MEMBERSHIP_OFFICER approves member changes; ACCOUNTANT works with journals and accounting periods; PURCHASER makes purchase requests, orders and suppliers; PURCHASE_APPROVER approves them; RECEIVER records goods received. */
     /** Held by a person who signed in with a temporary password: they can do nothing but replace it. */
     static final String PASSWORD_CHANGE_REQUIRED = "PWD_CHANGE_REQUIRED";
 
-    static final Set<String> GRANTABLE_ROLES = Set.of("MEMBERSHIP_OFFICER", "ACCOUNTANT", "PURCHASER", "PURCHASE_APPROVER");
+    static final Set<String> GRANTABLE_ROLES = Set.of("MEMBERSHIP_OFFICER", "ACCOUNTANT", "PURCHASER", "PURCHASE_APPROVER", "RECEIVER");
 
     private final JdbcTemplate jdbc;
     private final Db db;

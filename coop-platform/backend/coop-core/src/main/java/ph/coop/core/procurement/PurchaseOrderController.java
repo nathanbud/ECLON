@@ -27,7 +27,7 @@ import ph.coop.core.procurement.ProcurementRules.Line;
  */
 @RestController
 @RequestMapping("/api/procurement/orders")
-@PreAuthorize("hasAnyRole('PURCHASER','PURCHASE_APPROVER','ACCOUNTANT','ADMIN')")
+@PreAuthorize("hasAnyRole('RECEIVER','PURCHASER','PURCHASE_APPROVER','ACCOUNTANT','ADMIN')")
 class PurchaseOrderController {
 
     record LineIn(String description, String unit, BigDecimal quantity, BigDecimal unitCost) {}

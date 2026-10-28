@@ -37,6 +37,11 @@ class ProcurementSupport {
         if (!has(auth, "ADMIN") && !has(auth, "PURCHASER")) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You need the Purchaser role for this.");
     }
 
+    /** Administrators and receivers (the people at the receiving point) record goods received. */
+    void requireReceiver(Authentication auth) {
+        if (!has(auth, "ADMIN") && !has(auth, "RECEIVER")) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You need the Receiver role for this.");
+    }
+
     /** Administrators and purchase approvers approve or reject. */
     void requireApprover(Authentication auth) {
         if (!has(auth, "ADMIN") && !has(auth, "PURCHASE_APPROVER")) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You need the Purchase Approver role for this.");

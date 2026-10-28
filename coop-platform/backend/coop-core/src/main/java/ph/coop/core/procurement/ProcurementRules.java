@@ -85,4 +85,33 @@ final class ProcurementRules {
         out.addAll(lineProblems(lines));
         return out;
     }
+
+    /** An order line as far as receiving goes: how much was ordered and how much has come in. */
+    record Open(int lineNo, BigDecimal ordered, BigDecimal received) {}
+
+    /** What one receipt takes in on an order line. */
+    record Take(int lineNo, BigDecimal quantity) {}
+
+    /** The problems with a receipt: the order must be approved (or partly received), each line must exist once, be above zero and not exceed what is still to come. */
+    static List<String> receiptProblems(String orderStatus, List<Open> lines, List<Take> takes) {
+        List<String> out = new ArrayList<>();
+        if (!orderStatus.equals("APPROVED") && !orderStatus.equals("PARTIAL")) out.add("The order is " + orderStatus.toLowerCase() + ", goods can be received only on an approved order that is not yet complete.");
+        if (takes == null || takes.isEmpty()) { out.add("Enter the quantity received on at least one line."); return out; }
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        for (Take t : takes) {
+            Open o = lines.stream().filter((l) -> l.lineNo() == t.lineNo()).findFirst().orElse(null);
+            if (o == null) { out.add("The order has no line " + t.lineNo() + "."); continue; }
+            if (!seen.add(t.lineNo())) { out.add("Line " + t.lineNo() + " is listed twice."); continue; }
+            if (t.quantity() == null || t.quantity().signum() <= 0) out.add("Line " + t.lineNo() + ": the quantity must be more than zero.");
+            else if (t.quantity().compareTo(o.ordered().subtract(o.received())) > 0) out.add("Line " + t.lineNo() + ": only " + o.ordered().subtract(o.received()).stripTrailingZeros().toPlainString() + " more is expected, not " + t.quantity().stripTrailingZeros().toPlainString() + ".");
+        }
+        return out;
+    }
+
+    /** The order's status once these quantities have been received: APPROVED when nothing has come in, PARTIAL while some is missing, RECEIVED when every line is complete. */
+    static String statusAfter(List<Open> lines) {
+        boolean any = lines.stream().anyMatch((l) -> l.received().signum() > 0);
+        boolean all = lines.stream().allMatch((l) -> l.received().compareTo(l.ordered()) >= 0);
+        return all ? "RECEIVED" : any ? "PARTIAL" : "APPROVED";
+    }
 }

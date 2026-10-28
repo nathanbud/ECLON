@@ -106,7 +106,7 @@ export default function Dashboard({ onOpen }: { onOpen: (v: View) => void }) {
   const pending = count?.pending
   const { data: tdCount } = useQuery({ queryKey: ['td-maturity-count'], queryFn: getTdMaturityCount, refetchInterval: 60_000, retry: false })
   // administrators and accountants open Settings; what is inside is checked again per item
-  const purchasingAllowed = me.admin || me.roles.some((r) => ['PURCHASER', 'PURCHASE_APPROVER', 'ACCOUNTANT'].includes(r.replace('ROLE_', '')))
+  const purchasingAllowed = me.admin || me.roles.some((r) => ['PURCHASER', 'PURCHASE_APPROVER', 'RECEIVER', 'ACCOUNTANT'].includes(r.replace('ROLE_', '')))
   const settingsAllowed = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
 
   return (

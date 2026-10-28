@@ -16,9 +16,19 @@ So this module is new, in `ecis_*` tables (`V029_procurement.sql`, applied), des
 * Screen: the Purchasing tile (the old placeholder "Payables"), tabs Requests, Orders, Suppliers (`ProcurementPage`).
 * Tests: `ProcurementRulesTest` (pure) and `ProcurementFlowTest` (real database, rolled back).
 
+## Stage 2 (built 2026-10-28): goods receipt
+
+`V030_goods_receipt.sql` (applied): `ecis_goods_receipt` and `ecis_goods_receipt_line`; `GoodsReceiptController` (`/api/procurement/receipts`, `GR-2026-0001`); screen: Receive button on an approved order and a Receipts tab.
+
+* A **RECEIVER** (new role, granted by API; ADMIN also may) records what came in against an APPROVED or PARTIAL order, with the supplier's delivery receipt number: any lines, any quantity above zero up to what is still expected (no over-receipt tolerance).
+* The order moves **APPROVED, PARTIAL, RECEIVED** by what has come in (`ProcurementRules.statusAfter`); `qty_received` on the order lines is updated in the same transaction.
+* **The person who made the order cannot receive its goods.**
+* A receipt is never edited. A **PURCHASE_APPROVER (not the receiver) reverses it with a reason**: status REVERSED, the quantities come back off the order, the order status is recalculated. An order that has received goods cannot be cancelled.
+* Audit rows `procurement.receipt.create` and `.reverse`. Tests: `GoodsReceiptTest` (real database, rolled back) and the receiving cases in `ProcurementRulesTest`.
+* Not yet: receiving does not move stock (inventory is phase 13; a receipt will be what creates RECEIVE inventory transactions), and there is no CLOSED status for an order that will never be completed.
+
 ## Next stages
 
-2. Goods receipt against an approved order (partial receipts, `qty_received`, order status RECEIVED / CLOSED), later feeding inventory (phase 13).
 3. Supplier invoice with a three-way check (order, receipt, invoice), accounts payable account and due dates by the supplier's terms.
 4. Supplier payment, and the accounting entries as journals through the existing journal flow (Dr expense or inventory, Cr accounts payable 2010501; Dr accounts payable, Cr bank), so approval and posting stay maker-checker.
 Decisions for the owner before stage 3: which expense or inventory accounts purchases go to, whether input VAT (10403) is separated, and approval limits by amount.
