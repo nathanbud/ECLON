@@ -297,7 +297,7 @@ function ProfileHeader({ m, lk, canPhoto = false, onNotice }: { m: Member; lk?: 
           background: `linear-gradient(160deg, ${tileFill.orange}F2, ${tileFill.orange})`,
           boxShadow: '0 1px 2px rgba(0,0,0,0.14)',
         }}><FiUser size={56} aria-hidden /></Avatar>
-        {canPhoto && (
+        {canPhoto && editing && (
           <Tooltip title="Take or upload a photo">
             <IconButton className="photo-edit" size="small" aria-label="Take or upload a photo" onClick={() => setPhotoOpen(true)}
               sx={{ position: 'absolute', right: -8, bottom: -8, width: 30, height: 30, bgcolor: 'background.paper', border: 1, borderColor: 'divider', opacity: 0.85, transition: 'opacity .15s', '&:hover': { bgcolor: 'background.paper' } }}>
