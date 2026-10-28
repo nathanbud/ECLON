@@ -1183,3 +1183,40 @@ export const enrolFingerprint = (b: number, c: number, body: { finger: number; t
 export const verifyFingerprint = (b: number, c: number, body: { template: string; format: string }) =>
   send<{ matched: boolean; finger: number | null; fingerName: string | null; score: number }>('POST', fpUrl(b, c, 'fingerprints/verify'), body)
 export const revokeFingerprint = (b: number, c: number, finger: number, reason: string) => send<FingerprintSummary>('POST', fpUrl(b, c, `fingerprints/${finger}/revoke`), { reason })
+
+// ---- importing a list of members (Advanced mode) ----------------------------------------------------------------------
+
+export interface ImportRow { line: number; name: string; ok: boolean; problems: string[] }
+export interface ImportPreview { fileName: string; total: number; ok: number; errors: number; ignoredColumns: string[]; rows: ImportRow[] }
+export interface ImportBatch {
+  id: number; branchCode: number; fileName: string; totalRows: number; okRows: number; uploadedBy: string; uploadedAt: string; status: string
+  decidedBy: string | null; decidedAt: string | null; decisionNote: string | null; openedCount: number | null; failedCount: number | null
+}
+
+async function sendFile<T>(url: string, file: File): Promise<T> {
+  const body = new FormData()
+  body.append('file', file, file.name)
+  const res = await http(url, { method: 'POST', body })
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`
+    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status text */ }
+    throw new Error(message)
+  }
+  return res.json() as Promise<T>
+}
+export const previewMemberImport = (file: File) => sendFile<ImportPreview>('/api/member-imports/preview', file)
+export const uploadMemberImport = (file: File, skipErrors: boolean) => sendFile<ImportBatch>(`/api/member-imports?skipErrors=${skipErrors}`, file)
+export const listMemberImports = (status = 'PENDING') => getJson<ImportBatch[]>(`/api/member-imports?status=${status}`)
+export const approveMemberImport = (id: number) => send<ImportBatch>('POST', `/api/member-imports/${id}/approve`, {})
+export const rejectMemberImport = (id: number, note: string) => send<ImportBatch>('POST', `/api/member-imports/${id}/reject`, { note })
+export const withdrawMemberImport = (id: number) => send<ImportBatch>('POST', `/api/member-imports/${id}/withdraw`, {})
+export async function downloadMemberImportTemplate(): Promise<void> {
+  const res = await http('/api/member-imports/template')
+  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'members-template.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}

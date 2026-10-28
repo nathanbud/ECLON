@@ -90,7 +90,7 @@ public class MemberLifecycleController {
     @GetMapping
     public List<Request> list(@RequestParam(defaultValue = "PENDING") String status, Authentication auth) {
         boolean officer = has(auth, "ROLE_MEMBERSHIP_OFFICER");
-        String where = " WHERE status = ?" + (officer ? "" : " AND requested_by = ?");
+        String where = " WHERE status = ? AND batch_id IS NULL" + (officer ? "" : " AND requested_by = ?");
         Object[] args = officer ? new Object[] {status} : new Object[] {status, auth.getName()};
         return jdbc.query(SELECT + where + " ORDER BY requested_at DESC LIMIT 200", (rs, i) -> map(rs), args);
     }

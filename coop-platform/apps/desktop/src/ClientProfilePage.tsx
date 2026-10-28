@@ -23,6 +23,7 @@ import MemberPhotoDialog from './MemberPhotoDialog'
 import { useLeaveGuard } from './leaveGuard'
 import FingerprintDialog from './FingerprintDialog'
 import StagedFingerprintDialog from './StagedFingerprintDialog'
+import AdvancedRegistration from './AdvancedRegistration'
 import { CloseDialog, ReactivateDialog } from './MemberRequests'
 import FindClientDialog, { FindBody } from './FindClientDialog'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
@@ -1431,6 +1432,8 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
   const [discarding, setDiscarding] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [registering, setRegistering] = useState(false)
+  const [advanced, setAdvanced] = useState(false)
+  const me = useMe()
   const [closing, setClosing] = useState(false)
   const [reactivating, setReactivating] = useState(false)
 
@@ -1539,7 +1542,9 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
       <Snackbar open={!!notice}autoHideDuration={3000} onClose={() => setNotice(null)} message={notice} />
 
       <Box component="section" aria-label="Client profile" sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, maxWidth: 1600, width: '100%', mx: 'auto', p: 1.5 }}>
-        {registering
+        {advanced
+          ? <AdvancedRegistration onClose={() => setAdvanced(false)} onDone={setNotice} />
+          : registering
           ? <NewMemberScreen lk={lk} canImages={!!caps?.images} onClose={() => setRegistering(false)} onDone={setNotice} />
           : selected
           ? (
@@ -1567,7 +1572,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
             <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', pt: '10vh' }}>
               <Box sx={(t) => ({ width: '100%', maxWidth: 580, overflow: 'hidden', ...glass(t, { elevated: true }) })}>
                 <FindBody inline lk={lk} onPick={onSelect} />
-                {caps?.edit && <Box sx={{ p: 1, textAlign: 'center' }}><Button size="small" onClick={() => setRegistering(true)}>Register new member</Button></Box>}
+                {caps?.edit && <Box sx={{ p: 1, textAlign: 'center' }}><Button size="small" onClick={() => setRegistering(true)}>Register new member</Button>{me.admin && <Button size="small" color="warning" onClick={() => setAdvanced(true)}>Advanced mode: import a list</Button>}</Box>}
               </Box>
             </Box>
           )}

@@ -1,7 +1,7 @@
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { approveMemberRequest, listMemberRequests, rejectMemberRequest, requestClosure, requestReactivation, withdrawMemberRequest, type MemberRequest } from './api'
+import { approveMemberImport, approveMemberRequest, listMemberImports, listMemberRequests, rejectMemberImport, withdrawMemberImport, type ImportBatch, rejectMemberRequest, requestClosure, requestReactivation, withdrawMemberRequest, type MemberRequest } from './api'
 import { glass } from './glass'
 import { useMe } from './session'
 import { ReasonDialog } from './ProcurementPage'
@@ -75,6 +75,59 @@ export function ReactivateDialog({ branchCode, clientId, name, onClose, onDone }
   )
 }
 
+/** Lists of members uploaded in Advanced mode, each approved or rejected as a whole. */
+function ImportBatches() {
+  const me = useMe()
+  const qc = useQueryClient()
+  const list = useQuery({ queryKey: ['member-imports', 'PENDING'], queryFn: () => listMemberImports('PENDING'), refetchInterval: 30_000 })
+  const [rejecting, setRejecting] = useState<ImportBatch | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<string | null>(null)
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ['member-imports'] }); void qc.invalidateQueries({ queryKey: ['member-requests'] }); void qc.invalidateQueries({ queryKey: ['members'] }) }
+  const act = useMutation({
+    mutationFn: ({ b, kind }: { b: ImportBatch; kind: 'approve' | 'withdraw' }) => (kind === 'approve' ? approveMemberImport(b.id) : withdrawMemberImport(b.id)),
+    onSuccess: (b, v) => {
+      setError(null)
+      if (v.kind === 'approve') setResult(`${b.fileName}: ${b.openedCount ?? 0} member${b.openedCount === 1 ? '' : 's'} opened${b.failedCount ? `, ${b.failedCount} could not be opened and are left as separate requests (${b.decisionNote ?? ''})` : ''}.`)
+      refresh()
+    },
+    onError: (e) => setError((e as Error).message),
+  })
+  const items = list.data ?? []
+  if (items.length === 0 && !result && !list.error) return null
+  return (
+    <Box sx={{ mt: 3 }}>
+      <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 0.5 }}>Member lists (Advanced mode)</Typography>
+      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
+      {result && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setResult(null)}>{result}</Alert>}
+      {items.length > 0 && (
+        <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
+          <Table size="small" aria-label="Member lists waiting for approval">
+            <TableHead><TableRow><TableCell>List</TableCell><TableCell align="right">Members</TableCell><TableCell>Uploaded by</TableCell><TableCell>When</TableCell><TableCell /></TableRow></TableHead>
+            <TableBody>
+              {items.map((b) => (
+                <TableRow key={b.id} hover>
+                  <TableCell sx={{ fontWeight: 600 }}>{b.fileName}</TableCell>
+                  <TableCell align="right">{b.okRows}{b.totalRows !== b.okRows ? ` of ${b.totalRows}` : ''}</TableCell>
+                  <TableCell>{b.uploadedBy}</TableCell><TableCell sx={{ whiteSpace: 'nowrap' }}>{when(b.uploadedAt)}</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    {me.canApprove && b.uploadedBy.toLowerCase() !== me.username.toLowerCase() && <>
+                      <Button size="small" disabled={act.isPending} onClick={() => act.mutate({ b, kind: 'approve' })}>{act.isPending ? 'Opening…' : 'Approve all'}</Button>
+                      <Button size="small" color="error" disabled={act.isPending} onClick={() => setRejecting(b)}>Reject</Button>
+                    </>}
+                    {b.uploadedBy.toLowerCase() === me.username.toLowerCase() && <Button size="small" disabled={act.isPending} onClick={() => act.mutate({ b, kind: 'withdraw' })}>Withdraw</Button>}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Box>
+      )}
+      {rejecting && <ReasonDialog title={`Reject ${rejecting.fileName}`} label="Reason" onRun={(n) => rejectMemberImport(rejecting.id, n).then(refresh)} onClose={() => setRejecting(null)} />}
+    </Box>
+  )
+}
+
 /** New-member, closing and reactivation requests waiting for a decision. Officers decide; the person who asked can withdraw. */
 export default function MemberRequestsPanel() {
   const me = useMe()
@@ -89,8 +142,9 @@ export default function MemberRequestsPanel() {
     onError: (e) => setError((e as Error).message),
   })
   const items = list.data ?? []
-  if (items.length === 0 && !list.error) return null
+  if (items.length === 0 && !list.error) return <ImportBatches />
   return (
+    <>
     <Box sx={{ mt: 3 }}>
       <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 0.5 }}>New members and closings</Typography>
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
@@ -116,5 +170,7 @@ export default function MemberRequestsPanel() {
       </Box>
       {rejecting && <ReasonDialog title={`Reject: ${rejecting.summary}`} label="Reason" onRun={(n) => rejectMemberRequest(rejecting.id, n).then(refresh)} onClose={() => setRejecting(null)} />}
     </Box>
+    <ImportBatches />
+    </>
   )
 }
