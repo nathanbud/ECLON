@@ -220,6 +220,8 @@ export type MemberDetails = Record<string, DetailSection[]>
 export const getMemberDetails = (branchCode: number, clientId: number) =>
   getJson<MemberDetails>(`/api/members/${branchCode}/${clientId}/details`)
 
+export const getMemberTemplate = () => getJson<MemberDetails>('/api/member-requests/template')
+
 export interface HistoryEntry { at: string; user: string | null; activity: string | null; info: string | null; from: string | null; to: string | null }
 export const HISTORY_PAGE = 25
 export const getMemberHistory = (branchCode: number, clientId: number, page: number) =>

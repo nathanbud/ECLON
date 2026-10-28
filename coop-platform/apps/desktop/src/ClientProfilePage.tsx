@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
 import {
-  getCapabilities, getFingerprints, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, getTimeDeposits, getTimeDepositHistory, type TimeDeposit, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, getCoMakerNotice, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
+  getCapabilities, getFingerprints, getMemberTemplate, registerMember, getLookups, getMember, getMemberBilling, getMemberDetails, getMemberHistory, askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, getTimeDeposits, getTimeDepositHistory, type TimeDeposit, postSavingsDeposit, postSavingsWithdrawal, getShareHistory, getShares, getCoMakerNotice, postSharePayment, postShareWithdrawal, type SharePaymentReceipt, type ShareWithdrawalOut, getPendingChange, HISTORY_PAGE, approveChange, rejectChange, submitChange, withdrawChange,
   type Change, type DetailField, type Lookups, type Member, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck, type ShareAccount,
 } from './api'
 import { appBackground, glass } from './glass'
@@ -22,7 +22,7 @@ import DocumentsPanel from './DocumentsPanel'
 import MemberPhotoDialog from './MemberPhotoDialog'
 import { useLeaveGuard } from './leaveGuard'
 import FingerprintDialog from './FingerprintDialog'
-import { CloseDialog, ReactivateDialog, RegisterDialog } from './MemberRequests'
+import { CloseDialog, ReactivateDialog } from './MemberRequests'
 import FindClientDialog, { FindBody } from './FindClientDialog'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
@@ -41,6 +41,17 @@ const TABS = [
 /** The two main tabs and the sub-tabs under each; anything not named in Info or Accounts is under Other so nothing is lost. */
 const INFO_TABS = ['Membership', 'Personal', 'Business / Employment', 'Education', 'Contacts & IDs', 'Spouse Info']
 const ACCOUNT_TABS = ['Share Capital', 'Savings', 'Time Deposits', 'Loans', 'Billing', 'Pledges / Insurances']
+const FRESH_GROUPS: { label: string; tabs: number[] }[] = [
+  { label: 'Info', tabs: INFO_TABS.map((n) => TABS.indexOf(n)) },
+  { label: 'Other', tabs: [TABS.indexOf('Groups')] },
+]
+const FRESH_ID: Id = { branchCode: 1, clientId: 0 }
+const BLANK_MEMBER = {
+  id: FRESH_ID, firstName: null, lastName: null, accountName: null, dateOpened: null, accountStatus: null, cellNumber: null, city: null, closedDate: null, updatedAt: null,
+  middleName: null, suffix: null, clientType: null, dateOfBirth: null, gender: null, civilStatus: null, email: null, street: null, barangay: null, province: null, referenceId: null,
+  accountType: null, alertLevel: null, department: null, profession: null, religion: null, mailingAddress: null, dosriTag: null, includeHealthCare: null, monthlyIncome: null,
+  zipCode: null, residenceSince: null, residenceType: null, provStreet: null, provBarangay: null, provCity: null, provProvince: null,
+} as Member
 const GROUPS: { label: string; tabs: number[] }[] = [
   { label: 'Info', tabs: INFO_TABS.map((n) => TABS.indexOf(n)) },
   { label: 'Accounts', tabs: ACCOUNT_TABS.map((n) => TABS.indexOf(n)) },
@@ -232,8 +243,8 @@ function MembershipTab({ m, lk }: { m: Member; lk?: Lookups }) {
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', alignItems: 'start' }}>
       <Section title="Membership" columns={2}>
-        <Field label="Member no." value={memberNo(m.id)} />
-        <Field label="Status" value={st.label} />
+        <Field label="Member no." value={m.id.clientId === 0 ? 'Given on approval' : memberNo(m.id)} />
+        <Field label="Status" value={m.id.clientId === 0 ? 'New' : st.label} />
         <Field label="Date opened" value={fmtDate(m.dateOpened)} />
         <Field label="Date closed" value={fmtDate(m.closedDate)} />
         <SelectField label="Membership type" lookup="clientType" code={m.clientType} lk={lk} col="ClientType" />
@@ -444,7 +455,7 @@ function DetailsTab({ id, tab, title, lk }: { id: Id; tab: string; title: string
   const { editing } = useEdit()
   const { data, error, isLoading } = useQuery({
     queryKey: ['member-details', id],
-    queryFn: () => getMemberDetails(id.branchCode, id.clientId),
+    queryFn: () => (id.clientId === 0 ? getMemberTemplate() : getMemberDetails(id.branchCode, id.clientId)),
     staleTime: 60_000,
   })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
@@ -1133,13 +1144,91 @@ function TabContent({ tab, m, lk }: { tab: number; m: Member; lk?: Lookups }) {
   return <DetailsTab id={m.id} tab={key} title={TABS[tab]} lk={lk} />
 }
 
-function Profile({ id, lk, canPhoto = false, onNotice }: { id: Id; lk?: Lookups; canPhoto?: boolean; onNotice?: (msg: string) => void }) {
-  const [tab, setTab] = useState(GROUPS[0].tabs[0])
-  const group = Math.max(0, GROUPS.findIndex((g) => g.tabs.includes(tab)))
-  const { data: m, error, isLoading } = useQuery({
+/** The header of a member who is being registered: no photo, status or fingerprint yet, only the name as it is typed. */
+function NewMemberHeader() {
+  const { draft } = useEdit()
+  const name = [draft.LName, [draft.FName, draft.MName].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+  return (
+    <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 2, p: 1.75, ...glass(t, { elevated: true }) })}>
+      <Avatar variant="rounded" sx={{ width: 72, height: 72, borderRadius: '8px', background: `linear-gradient(160deg, ${tileFill.orange}F2, ${tileFill.orange})` }}><FiUser size={34} aria-hidden /></Avatar>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Chip size="small" color="primary" label="New member" icon={<FiPlus />} sx={{ ...quietChip, mb: 0.75 }} />
+        <Typography component="h2" noWrap sx={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{name || 'Unnamed member'}</Typography>
+        <Typography sx={{ fontSize: 13 }} color="text.secondary">The member number, photo and fingerprint are added after a Membership Officer approves the registration.</Typography>
+      </Box>
+    </Box>
+  )
+}
+
+/** Registering a new member on the member profile itself: the same tabs and fields, all open for typing. Sending asks a Membership Officer (not you) to approve. */
+function NewMemberScreen({ lk, onClose, onDone }: { lk?: Lookups; onClose: () => void; onDone: (msg: string) => void }) {
+  const qc = useQueryClient()
+  const [draft, setDraft] = useState<Record<string, string>>({ ClientType: '1' })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [discarding, setDiscarding] = useState(false)
+  const typed = Object.keys(draft).filter((k) => k !== 'ClientType').length
+  useLeaveGuard(typed > 0 ? 'The new member you are registering has not been sent yet.' : null)
+  const set = (col: string, value: string, original: string) =>
+    setDraft((d) => {
+      const next = { ...d }
+      if (value === original) delete next[col]
+      else next[col] = value
+      return next
+    })
+  const send = async () => {
+    const { ClientType, ...fields } = draft
+    setSaving(true)
+    setError(null)
+    try {
+      const r = await registerMember({ branchCode: 1, clientType: Number(ClientType || 1), fields })
+      void qc.invalidateQueries({ queryKey: ['member-requests'] })
+      onDone(`Registration sent for approval: ${r.summary}`)
+      onClose()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+  const ready = !!draft.LName?.trim() && !!draft.FName?.trim()
+  return (
+    <EditCtx.Provider value={{ editing: true, draft, set }}>
+      <Box sx={{ mb: 1.5 }}>
+        <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1, ...glass(t) })}>
+          <FiEdit2 aria-hidden />
+          <Typography sx={{ flex: 1, fontSize: 13.5 }} role="status">
+            Registering a new member. Last name, first name, date of birth, gender and civil status are required. Sending asks a Membership Officer other than you to approve.
+          </Typography>
+          <Button size="small" onClick={() => (typed > 0 ? setDiscarding(true) : onClose())} disabled={saving}>Cancel</Button>
+          <Button size="small" variant="contained" startIcon={<FiSave />} onClick={() => void send()} disabled={saving || !ready}>{saving ? 'Sending…' : 'Send for approval'}</Button>
+        </Box>
+        {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
+      </Box>
+      <Profile id={FRESH_ID} lk={lk} fresh />
+      <Dialog open={discarding} onClose={() => setDiscarding(false)}>
+        <DialogTitle>Discard this registration?</DialogTitle>
+        <DialogContent><DialogContentText>What you typed will be lost.</DialogContentText></DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDiscarding(false)} autoFocus>Keep editing</Button>
+          <Button color="error" onClick={onClose}>Discard</Button>
+        </DialogActions>
+      </Dialog>
+    </EditCtx.Provider>
+  )
+}
+
+function Profile({ id, lk, canPhoto = false, onNotice, fresh = false }: { id: Id; lk?: Lookups; canPhoto?: boolean; onNotice?: (msg: string) => void; fresh?: boolean }) {
+  const groups = fresh ? FRESH_GROUPS : GROUPS
+  const [tab, setTab] = useState(groups[0].tabs[0])
+  const group = Math.max(0, groups.findIndex((g) => g.tabs.includes(tab)))
+  const loaded = useQuery({
     queryKey: ['member', id],
     queryFn: () => getMember(id.branchCode, id.clientId),
+    enabled: !fresh,
   })
+  const m = fresh ? BLANK_MEMBER : loaded.data
+  const { error, isLoading } = loaded
 
   if (error) return <Alert severity="error" sx={{ m: 2 }}>{(error as Error).message}</Alert>
   if (isLoading || !m) {
@@ -1155,10 +1244,10 @@ function Profile({ id, lk, canPhoto = false, onNotice }: { id: Id; lk?: Lookups;
   }
   return (
     <>
-      <ProfileHeader m={m} lk={lk} canPhoto={canPhoto} onNotice={onNotice} />
+      {fresh ? <NewMemberHeader /> : <ProfileHeader m={m} lk={lk} canPhoto={canPhoto} onNotice={onNotice} />}
       {/* One folder: the tab strip and the page below share a frame, and the open tab takes the page's own fill so the two read as connected. */}
       <Box sx={(t) => ({ mt: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', ...glass(t) })}>
-        <Tabs value={group} onChange={(_, v) => setTab(GROUPS[v].tabs[0])} aria-label="Profile sections"
+        <Tabs value={group} onChange={(_, v) => setTab(groups[v].tabs[0])} aria-label="Profile sections"
           sx={(t) => {
             const dark = t.palette.mode === 'dark'
             const page = dark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)'
@@ -1178,9 +1267,9 @@ function Profile({ id, lk, canPhoto = false, onNotice }: { id: Id; lk?: Lookups;
               },
             }
           }}>
-          {GROUPS.map((g) => <Tab key={g.label} label={g.label} />)}
+          {groups.map((g) => <Tab key={g.label} label={g.label} />)}
         </Tabs>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" aria-label={`${GROUPS[group].label} sections`}
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" aria-label={`${groups[group].label} sections`}
           sx={(t) => {
             const dark = t.palette.mode === 'dark'
             return {
@@ -1190,7 +1279,7 @@ function Profile({ id, lk, canPhoto = false, onNotice }: { id: Id; lk?: Lookups;
               '& .MuiTab-root': { minHeight: 36, fontSize: 13.5, px: 1.5, textTransform: 'none' },
             }
           }}>
-          {GROUPS[group].tabs.map((i) => <Tab key={TABS[i]} value={i} label={TABS[i]} />)}
+          {groups[group].tabs.map((i) => <Tab key={TABS[i]} value={i} label={TABS[i]} />)}
         </Tabs>
         <Box sx={(t) => ({ flex: 1, overflow: 'auto', p: 1.5, background: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)' })}>
           <TabContent tab={tab} m={m} lk={lk} />
@@ -1421,11 +1510,12 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
           <Button onClick={leave} color="error">Discard</Button>
         </DialogActions>
       </Dialog>
-      {registering && <RegisterDialog lk={lk} onClose={() => setRegistering(false)} onDone={setNotice} />}
       <Snackbar open={!!notice}autoHideDuration={3000} onClose={() => setNotice(null)} message={notice} />
 
       <Box component="section" aria-label="Client profile" sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, maxWidth: 1600, width: '100%', mx: 'auto', p: 1.5 }}>
-        {selected
+        {registering
+          ? <NewMemberScreen lk={lk} onClose={() => setRegistering(false)} onDone={setNotice} />
+          : selected
           ? (
             <EditCtx.Provider value={{ editing, draft, set }}>
               {pending && <PendingBanner change={pending} id={selected} canApprove={!!caps?.approve} onDone={setNotice} />}

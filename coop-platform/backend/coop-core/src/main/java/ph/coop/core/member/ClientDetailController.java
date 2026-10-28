@@ -206,15 +206,22 @@ class ClientDetailController {
             return row;
         }, branchCode, clientId);
         if (rows.isEmpty()) return ResponseEntity.notFound().build();
-        Map<String, String> row = rows.get(0);
+        return ResponseEntity.ok(sectionsOf(rows.get(0)));
+    }
 
+    private Map<String, List<Section>> sectionsOf(Map<String, String> row) {
         Map<String, List<Section>> out = new LinkedHashMap<>();
         TABS.forEach((tab, sections) -> {
             List<Section> list = new ArrayList<>();
             sections.forEach((title, specs) -> list.add(new Section(title, specs.stream().map((s) -> field(s, row.get(s.column()))).toList())));
             out.put(tab, list);
         });
-        return ResponseEntity.ok(out);
+        return out;
+    }
+
+    /** The same tabs and fields as a member's details, all empty: the form a new member's registration is filled in on. */
+    Map<String, List<Section>> blankDetails() {
+        return sectionsOf(new LinkedHashMap<>());
     }
 
     record HistoryEntry(String at, String user, String activity, String info, String from, String to) {}

@@ -56,8 +56,9 @@ public class MemberLifecycleController {
     private final TransactionTemplate tx;
     private final boolean enabled;
     private final MembershipPolicyController policy;
+    private final ClientDetailController details;
 
-    MemberLifecycleController(JdbcTemplate jdbc, Db db, LookupController lookups, ObjectMapper json, PlatformTransactionManager txManager, MembershipPolicyController policy,
+    MemberLifecycleController(JdbcTemplate jdbc, Db db, LookupController lookups, ObjectMapper json, PlatformTransactionManager txManager, MembershipPolicyController policy, ClientDetailController details,
                               @Value("${coop.edit.enabled:false}") boolean enabled) {
         this.jdbc = jdbc;
         this.db = db;
@@ -66,6 +67,7 @@ public class MemberLifecycleController {
         this.tx = new TransactionTemplate(txManager);
         this.enabled = enabled;
         this.policy = policy;
+        this.details = details;
     }
 
     private static boolean has(Authentication auth, String authority) {
@@ -80,6 +82,12 @@ public class MemberLifecycleController {
         String where = " WHERE status = ?" + (officer ? "" : " AND requested_by = ?");
         Object[] args = officer ? new Object[] {status} : new Object[] {status, auth.getName()};
         return jdbc.query(SELECT + where + " ORDER BY requested_at DESC LIMIT 200", (rs, i) -> map(rs), args);
+    }
+
+    /** The empty profile a registration is filled in on: the same tabs and fields as a member's details. */
+    @GetMapping("/template")
+    public Map<String, List<ClientDetailController.Section>> template() {
+        return details.blankDetails();
     }
 
     @GetMapping("/count")
