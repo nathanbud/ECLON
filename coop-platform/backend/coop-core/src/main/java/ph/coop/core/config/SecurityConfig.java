@@ -55,6 +55,8 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(a -> a
                 .requestMatchers("/actuator/health").permitAll()
+                // what the sign-in screen shows before anyone has signed in: the cooperative's name, tagline and logo
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/public/**").permitAll()
                 .anyRequest().authenticated())
             .httpBasic(b -> b.authenticationEntryPoint(entryPoint(attempts)))
             .addFilterAfter(new TemporaryPasswordGate(), BasicAuthenticationFilter.class);
@@ -109,7 +111,7 @@ public class SecurityConfig {
         return (username) -> {
             // A fresh object each time: Spring wipes the password from the user it authenticated, so a shared one
             // would stop working after the first sign-in.
-            if (username.equals(devUser)) return User.withUsername(devUser).password(devHash).roles("ADMIN").accountLocked(attempts.isLocked(devUser)).build();
+            if (username.equals(devUser)) return User.withUsername(devUser).password(devHash).roles("ADMIN", "SUPERADMIN").accountLocked(attempts.isLocked(devUser)).build();
             List<UserDetails> found = jdbc.query("""
                     SELECT a.AccessUserName, c.password_hash, a.AccessLevel, a.AccessCanEditClient, c.must_change, c.expires_at, a.AccessCanEditClientImages
                     FROM access a JOIN ecis_user_credential c ON c.username = a.AccessUserName
@@ -121,6 +123,7 @@ public class SecurityConfig {
                     roles.add(new SimpleGrantedAuthority("ROLE_USER"));
                     String level = rs.getString(3);
                     if ("ADMIN".equalsIgnoreCase(level) || "SUPERADMIN".equalsIgnoreCase(level)) roles.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                    if ("SUPERADMIN".equalsIgnoreCase(level)) roles.add(new SimpleGrantedAuthority("ROLE_SUPERADMIN"));
                     if (rs.getInt(4) == 1) roles.add(new SimpleGrantedAuthority("PERM_MEMBER_EDIT"));
                     if (rs.getInt(7) == 1) roles.add(new SimpleGrantedAuthority("PERM_MEMBER_IMAGES"));
                     String name = rs.getString(1); // the name as stored, whatever case was typed

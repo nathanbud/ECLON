@@ -1,12 +1,12 @@
 import { Box, ButtonBase, InputAdornment, TextField, Typography } from '@mui/material'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { FiBook, FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMonitor, FiSearch, FiShield, FiSliders, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
+import { FiBook, FiImage, FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMonitor, FiSearch, FiShield, FiSliders, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
 import { tint } from './theme'
 import { useMe } from './session'
 
-type Who = 'admin' | 'accountant' | 'documents' | 'anyone'
+type Who = 'admin' | 'accountant' | 'documents' | 'anyone' | 'superadmin'
 interface Item { label: string; note: string; icon: ReactNode; color: string; view?: View; who: Who }
 interface Category { id: string; label: string; icon: ReactNode; color: string; items: Item[] }
 
@@ -53,6 +53,7 @@ const categories: Category[] = [
     id: 'system', label: 'System', icon: <FiMonitor />, color: tint.gray[0],
     items: [
       { label: 'System', note: 'Branch, dates and system preferences', icon: <FiShield />, color: tint.gray[0], who: 'admin' },
+      { label: 'Sign-in screen', note: 'The cooperative\'s logo, name and tagline shown on the sign-in screen', icon: <FiImage />, color: tint.indigo[0], view: 'branding', who: 'superadmin' },
       { label: 'Backup', note: 'Back up and restore the data', icon: <FiDownloadCloud />, color: '#5AC8FA', who: 'admin' },
     ],
   },
@@ -96,7 +97,7 @@ function Row({ item, allowed, onOpen }: { item: Item; allowed: boolean; onOpen: 
         <Box aria-hidden sx={{ color: 'text.disabled', display: 'flex' }}><FiChevronRight /></Box>
       ) : (
         <Typography color="text.secondary" sx={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-          {item.view ? <><FiLock size={12} />{item.who === 'admin' ? 'Administrators' : item.who === 'anyone' ? 'Everyone' : 'Accountants'}</> : 'Coming soon'}
+          {item.view ? <><FiLock size={12} />{item.who === 'admin' ? 'Administrators' : item.who === 'superadmin' ? 'Superadmin' : item.who === 'anyone' ? 'Everyone' : 'Accountants'}</> : 'Coming soon'}
         </Typography>
       )}
     </ButtonBase>
@@ -112,8 +113,9 @@ function Group({ children }: { children: ReactNode }) {
 export default function SettingsPage({ onOpen }: { onOpen: (v: View) => void }) {
   const me = useMe()
   const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
+  const superadmin = me.roles.some((r) => r.replace('ROLE_', '') === 'SUPERADMIN')
   const clerk = me.roles.some((r) => r.replace('ROLE_', '') === 'DOCUMENT_CLERK')
-  const allowed = (i: Item) => (i.who === 'anyone' ? true : i.who === 'admin' ? me.admin : i.who === 'documents' ? accountant || clerk : accountant)
+  const allowed = (i: Item) => (i.who === 'anyone' ? true : i.who === 'superadmin' ? superadmin : i.who === 'admin' ? me.admin : i.who === 'documents' ? accountant || clerk : accountant)
   const [pick, setPick] = useState(() => stored() ?? categories[0].id)
   const [q, setQ] = useState('')
   const query = q.trim().toLowerCase()

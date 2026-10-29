@@ -74,3 +74,27 @@ export const saveWorkflowDefinition = (entityType: string, active: boolean, step
 export const getWorkflowWaiting = () => getJson<WorkflowWaiting[]>('/api/workflow/waiting')
 export const getWorkflowInstance = (entityType: string, entityId: string) => getJson<WorkflowInstance>(`/api/workflow/${entityType}/${entityId}`)
 export const decideWorkflow = (entityType: string, entityId: string, kind: 'approve' | 'reject', note?: string) => send<WorkflowInstance>('POST', `/api/workflow/${entityType}/${entityId}/${kind}`, { note })
+
+// ---- sign-in screen branding (read by everyone, changed by a SUPERADMIN) -------------------------------------------------
+
+export interface Branding { coopName: string | null; tagline: string | null; hasLogo: boolean; version: string }
+
+/** Read before anyone has signed in, so no sign-in is sent. */
+export async function getBranding(): Promise<Branding> {
+  const res = await fetch('/api/public/branding', { cache: 'no-store' })
+  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  return res.json()
+}
+export const setBrandingText = (coopName: string, tagline: string) => send<Branding>('PUT', '/api/admin/branding', { coopName, tagline })
+export const removeBrandingLogo = () => send<Branding>('DELETE', '/api/admin/branding/logo')
+export async function uploadBrandingLogo(file: File): Promise<Branding> {
+  const body = new FormData()
+  body.append('file', file, file.name)
+  const res = await http('/api/admin/branding/logo', { method: 'POST', body })
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`
+    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status text */ }
+    throw new Error(message)
+  }
+  return res.json()
+}

@@ -2,10 +2,11 @@ import { Alert, Box, Button, CircularProgress, IconButton, InputAdornment, TextF
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { FiAlertTriangle, FiEye, FiEyeOff } from 'react-icons/fi'
 import { signIn, type Me } from './api'
+import { BrandBlock, Mark, useBranding } from './BrandBlock'
 import { brand } from './brand'
 import { LIGHT } from './glass'
 import { tileFill } from './theme'
-import { Logo, WindowControls } from './TopBar'
+import { WindowControls } from './TopBar'
 
 const LAST_USER = 'coop.lastUser'
 const remembered = () => {
@@ -34,17 +35,12 @@ function useServerStatus(): 'checking' | 'online' | 'offline' {
   return status
 }
 
-/** The cooperative's mark: its own logo when one is set, otherwise the Coop Platform mark. */
-function Mark({ size }: { size: number }) {
-  if (brand.logoUrl) return <Box component="img" src={brand.logoUrl} alt={`${brand.coop} logo`} sx={{ width: size, height: size, objectFit: 'contain' }} />
-  return <Box sx={{ display: 'flex', '& svg': { width: size, height: size } }}><Logo /></Box>
-}
-
-/** The left half: the cooperative's mark and name, the system, and whether the server is up. */
-function BrandPanel({ status }: { status: 'checking' | 'online' | 'offline' }) {
+/** The left half: the cooperative's logo, name and tagline. */
+function BrandPanel() {
+  const b = useBranding()
   return (
     <Box
-      component="section" aria-label={`About ${brand.product}`}
+      component="section" aria-label={`About ${b.name}`}
       sx={(t) => ({
         position: 'relative', overflow: 'hidden', display: { xs: 'none', md: 'flex' }, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', p: { md: 6, lg: 8 },
         background: dark(t)
@@ -58,19 +54,19 @@ function BrandPanel({ status }: { status: 'checking' | 'online' | 'offline' }) {
         <Box sx={{ position: 'absolute', width: 460, height: 460, top: -160, left: -140, borderRadius: '50%', filter: 'blur(100px)', opacity: 0.28, bgcolor: tileFill.indigo }} />
         <Box sx={{ position: 'absolute', width: 420, height: 420, bottom: -170, right: -120, borderRadius: '50%', filter: 'blur(100px)', opacity: 0.2, bgcolor: tileFill.teal }} />
       </Box>
-
-      <Box sx={{ position: 'relative', textAlign: 'center', animation: 'signInRise 520ms cubic-bezier(.2,.8,.2,1) both', '@media (prefers-reduced-motion: reduce)': { animation: 'none' } }}>
-        <Box sx={{ display: 'inline-flex', mb: 3 }}><Mark size={104} /></Box>
-        <Typography component="h1" sx={{ fontSize: { md: 40, lg: 48 }, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.1 }}>{brand.product}</Typography>
-        <Typography sx={{ mt: 1.25, fontSize: 14, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600 }} color="text.secondary">{brand.coop}</Typography>
-        <Box aria-hidden sx={(t) => ({ width: 40, height: 2, borderRadius: 1, mx: 'auto', my: 3, bgcolor: dark(t) ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.18)' })} />
-        <Typography sx={{ fontSize: 15 }} color="text.secondary">{brand.system}</Typography>
+      <Box sx={{ position: 'relative', animation: 'signInRise 520ms cubic-bezier(.2,.8,.2,1) both', '@media (prefers-reduced-motion: reduce)': { animation: 'none' } }}>
+        <BrandBlock name={b.name} tagline={b.tagline} logo={b.logo} custom={b.custom} />
       </Box>
+    </Box>
+  )
+}
 
-      <Box role="status" sx={{ position: 'absolute', left: 0, right: 0, bottom: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75 }}>
-        <Box aria-hidden sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: status === 'online' ? 'success.main' : status === 'offline' ? 'error.main' : 'text.disabled' }} />
-        <Typography sx={{ fontSize: 12.5 }} color="text.secondary">{status === 'online' ? 'Server online' : status === 'offline' ? 'Server not reachable' : 'Checking the server…'}</Typography>
-      </Box>
+/** Whether the server answers, shown at the foot of the right side where the person is looking. */
+function ServerStatus({ status }: { status: 'checking' | 'online' | 'offline' }) {
+  return (
+    <Box role="status" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 0.75 }}>
+      <Box aria-hidden sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: status === 'online' ? 'success.main' : status === 'offline' ? 'error.main' : 'text.disabled' }} />
+      <Typography sx={{ fontSize: 12.5 }} color="text.secondary">{status === 'online' ? 'Server online' : status === 'offline' ? 'Server not reachable' : 'Checking the server…'}</Typography>
     </Box>
   )
 }
@@ -78,6 +74,7 @@ function BrandPanel({ status }: { status: 'checking' | 'online' | 'offline' }) {
 /** The sign-in screen: the cooperative and the system on the left, the form on the right. On a narrow window only the form is shown, under a small header. */
 export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
   const status = useServerStatus()
+  const b = useBranding()
   const [username, setUsername] = useState(remembered)
   const [password, setPassword] = useState('')
   const [reveal, setReveal] = useState(false)
@@ -110,16 +107,16 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
         <WindowControls />
       </Box>
 
-      <BrandPanel status={status} />
+      <BrandPanel />
 
-      <Box component="main" sx={(t) => ({ display: 'grid', placeItems: 'center', p: { xs: 2, md: 6 }, pt: { xs: 8, md: 6 }, background: dark(t) ? 'radial-gradient(900px 600px at 100% 100%, rgba(94,92,230,0.14) 0%, transparent 60%)' : `radial-gradient(900px 600px at 100% 100%, ${LIGHT.washLilac} 0%, transparent 60%)` })}>
+      <Box component="main" sx={(t) => ({ display: 'grid', gridTemplateRows: '1fr auto', justifyItems: 'center', alignItems: 'center', p: { xs: 2, md: 6 }, pt: { xs: 8, md: 6 }, background: dark(t) ? 'radial-gradient(900px 600px at 100% 100%, rgba(94,92,230,0.14) 0%, transparent 60%)' : `radial-gradient(900px 600px at 100% 100%, ${LIGHT.washLilac} 0%, transparent 60%)` })}>
         <Box component="form" onSubmit={submit} noValidate sx={{ width: '100%', maxWidth: 400, animation: 'signInRise 460ms cubic-bezier(.2,.8,.2,1) both', '@media (prefers-reduced-motion: reduce)': { animation: 'none' } }}>
           {/* Shown instead of the left half when the window is narrow. */}
           <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1.25, mb: 3 }}>
-            <Mark size={32} />
+            <Mark size={32} logo={b.logo} alt={b.name} />
             <Box>
-              <Typography component="p" sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{brand.product}</Typography>
-              <Typography sx={{ fontSize: 11.5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }} color="text.secondary">{brand.coop}</Typography>
+              <Typography component="p" sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{b.name}</Typography>
+              {!b.custom && <Typography sx={{ fontSize: 11.5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }} color="text.secondary">{brand.coop}</Typography>}
             </Box>
           </Box>
 
@@ -163,6 +160,8 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
             No password yet, or yours expired? Ask an administrator for a temporary one. Everything you do here is recorded under your name.
           </Typography>
         </Box>
+        {/* Left edge in line with the form, and at the foot of the window. */}
+        <Box sx={{ width: '100%', maxWidth: 400, pb: { xs: 1, md: 1.5 }, alignSelf: 'end' }}><ServerStatus status={status} /></Box>
       </Box>
     </Box>
   )
