@@ -1,6 +1,7 @@
 package ph.coop.core.biometric;
 
-import java.util.ArrayList;
+
+import ph.coop.core.audit.AuditLog;import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -209,7 +210,7 @@ public class FingerprintController {
     }
 
     private void audit(String user, String action, int branch, int client, String prev, String next, String reason) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (NOW(), ?, ?, 'client', ?, ?, ?, ?)", user, action, branch + "-" + client, prev, next, reason);
+        AuditLog.write(jdbc, null, user, action, "client", branch + "-" + client, prev, next, reason);
     }
 
     /** Used by tests to tell the matcher apart from the stand-in. */

@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -136,8 +137,7 @@ class SavingsPostingController {
 
             for (long[] o : spent) {
                 jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", r.branch() + "/" + r.year() + "/2/23/" + r.controlNo(), o[0]);
-                jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (NOW(), ?, 'savings.withdrawal.override.used', 'fo_override', ?, ?)",
-                    auth.getName(), String.valueOf(o[0]), "allowed by user " + o[1] + " for " + r.branch() + "/" + r.year() + "/2/23/" + r.controlNo() + " amount " + amount.toPlainString());
+                AuditLog.write(jdbc, null, auth.getName(), "savings.withdrawal.override.used", "fo_override", String.valueOf(o[0]), null, "allowed by user " + o[1] + " for " + r.branch() + "/" + r.year() + "/2/23/" + r.controlNo() + " amount " + amount.toPlainString(), null);
             }
             return receipt("WITHDRAWAL", r, req, c, a, amount, a.balance().subtract(amount), p);
         });

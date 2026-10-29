@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -134,8 +135,7 @@ class LoanPaymentController {
             if (spent != null) {
                 String ref = r.branch() + "/" + r.year() + "/3/10/" + r.controlNo();
                 jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", ref, spent[0]);
-                jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (NOW(), ?, 'loan.payment.override.used', 'fo_override', ?, ?)",
-                    auth.getName(), String.valueOf(spent[0]), "allowed by user " + spent[1] + " for " + ref + " " + b.approval().description());
+                AuditLog.write(jdbc, null, auth.getName(), "loan.payment.override.used", "fo_override", String.valueOf(spent[0]), null, "allowed by user " + spent[1] + " for " + ref + " " + b.approval().description(), null);
             }
             return new Receipt(r.branch(), r.year(), r.controlNo(), r.documentNo(), r.date().toString(), req.clientId(), c.name(),
                 (t.type() == null ? "Loan " + req.typeCode() : t.type()) + " " + req.refNo(), amount, b.penalty(), b.interest(), b.principal(), b.balanceAfter(), p.name());

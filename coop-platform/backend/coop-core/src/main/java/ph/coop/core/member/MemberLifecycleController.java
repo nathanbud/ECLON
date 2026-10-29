@@ -1,7 +1,8 @@
 package ph.coop.core.member;
 
 
-import static ph.coop.core.web.ApiErrors.bad;import com.fasterxml.jackson.core.JsonProcessingException;
+
+import ph.coop.core.audit.AuditLog;import static ph.coop.core.web.ApiErrors.bad;import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -469,7 +470,7 @@ public class MemberLifecycleController {
     }
 
     private void audit(String user, String action, String entityId, String prev, String next, String reason) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (NOW(), ?, ?, 'client', ?, ?, ?, ?)", user, action, entityId, prev, next, reason);
+        AuditLog.write(jdbc, null, user, action, "client", entityId, prev, next, reason);
     }
 
     private static LocalDate parseDate(String s) {

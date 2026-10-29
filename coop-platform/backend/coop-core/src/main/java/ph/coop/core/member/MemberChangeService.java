@@ -1,6 +1,7 @@
 package ph.coop.core.member;
 
-import ph.coop.core.db.Db;
+
+import ph.coop.core.audit.AuditLog;import ph.coop.core.db.Db;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -259,8 +260,7 @@ class MemberChangeService {
     }
 
     private void audit(String user, String action, String entityId, String prev, String next, String reason) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (NOW(), ?, ?, 'client', ?, ?, ?, ?)",
-            user, action, entityId, prev, next, reason);
+        AuditLog.write(jdbc, null, user, action, "client", entityId, prev, next, reason);
     }
 
     private static String show(Map<Integer, String> lookup, String code) {

@@ -1,6 +1,7 @@
 package ph.coop.core.security;
 
-import ph.coop.core.db.Db;
+
+import ph.coop.core.audit.AuditLog;import ph.coop.core.db.Db;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -402,7 +403,7 @@ class UserProfileController {
     }
 
     private void audit(String by, String action, String subject, String prev, String next) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value) VALUES (NOW(), ?, ?, 'user', ?, ?, ?)", by, action, subject, prev, next);
+        AuditLog.write(jdbc, null, by, action, "user", subject, prev, next, null);
     }
 
     private static boolean sameValue(Spec spec, String a, String b) {

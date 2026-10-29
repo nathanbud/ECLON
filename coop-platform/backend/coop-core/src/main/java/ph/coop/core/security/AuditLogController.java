@@ -28,7 +28,7 @@ class AuditLogController {
         this.jdbc = jdbc;
     }
 
-    record Entry(long id, LocalDateTime at, String username, String action, String entity, String entityId, String previous, String current, String reason) {}
+    record Entry(long id, LocalDateTime at, String username, String action, String entity, String entityId, String previous, String current, String reason, String clientIp, String clientInfo) {}
 
     record PageOf(List<Entry> content, long totalElements, int number, int size) {}
 
@@ -65,10 +65,10 @@ class AuditLogController {
         List<Object> pageArgs = new ArrayList<>(args);
         pageArgs.add(size);
         pageArgs.add((long) page * size);
-        List<Entry> rows = jdbc.query("SELECT id, at, username, action, entity, entity_id, prev_value, new_value, reason FROM ecis_audit_log" + where
+        List<Entry> rows = jdbc.query("SELECT id, at, username, action, entity, entity_id, prev_value, new_value, reason, client_ip, client_info FROM ecis_audit_log" + where
                 + " ORDER BY id DESC LIMIT ? OFFSET ?",
             (rs, i) -> new Entry(rs.getLong(1), rs.getTimestamp(2).toLocalDateTime(), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6),
-                rs.getString(7), rs.getString(8), rs.getString(9)),
+                rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10), rs.getString(11)),
             pageArgs.toArray());
         return new PageOf(rows, total == null ? 0 : total, page, size);
     }

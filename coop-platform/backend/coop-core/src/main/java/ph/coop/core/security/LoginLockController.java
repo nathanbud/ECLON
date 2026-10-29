@@ -1,6 +1,7 @@
 package ph.coop.core.security;
 
-import java.util.List;
+
+import ph.coop.core.audit.AuditLog;import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -37,7 +38,7 @@ class LoginLockController {
     @PostMapping("/users/{username}/unlock")
     Locked unlock(@PathVariable String username, Authentication auth) {
         if (!attempts.unlock(username)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That sign-in is not locked.");
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (NOW(), ?, 'signin.unlocked', 'user', ?, 'lock lifted by an administrator')", auth.getName(), username);
+        AuditLog.write(jdbc, null, auth.getName(), "signin.unlocked", "user", username, null, "lock lifted by an administrator", null);
         return new Locked(username.toLowerCase(), 0);
     }
 }

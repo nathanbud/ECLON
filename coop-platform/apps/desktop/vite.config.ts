@@ -29,6 +29,8 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
     // The first render of a Material UI screen can take several seconds when files run side by side on a busy machine.
+    // Two workers at a time: a Material UI test environment is heavy, and more than that starved this machine of memory.
+    maxWorkers: 2,
     testTimeout: 20_000,
     hookTimeout: 20_000,
   },

@@ -1,6 +1,7 @@
 package ph.coop.core.member;
 
-import java.util.List;
+
+import ph.coop.core.audit.AuditLog;import java.util.List;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -60,8 +61,7 @@ class MemberImageController {
         if (exists == null || exists == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found.");
         jdbc.update("INSERT INTO image (ImageBR_CODE, ClientIDimg, ImageType, ImageFileSize, ImageFile, ImageRemarks, ImageDateTimeAdded) VALUES (?, ?, 'img', ?, ?, ?, NOW())",
             branchCode, clientId, data.length, data, "Set by " + auth.getName());
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (NOW(), ?, 'member.photo.set', 'client', ?, NULL, ?, 'Photo added')",
-            auth.getName(), branchCode + "-" + clientId, data.length + " bytes, " + type);
+        AuditLog.write(jdbc, null, auth.getName(), "member.photo.set", "client", branchCode + "-" + clientId, null, data.length + " bytes, " + type, "Photo added");
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 

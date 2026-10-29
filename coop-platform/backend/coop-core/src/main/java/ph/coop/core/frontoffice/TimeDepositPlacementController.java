@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -211,8 +212,7 @@ class TimeDepositPlacementController {
             if (spent != null) {
                 String used = r.branch() + "/" + r.year() + "/3/10/" + r.controlNo();
                 jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", used, spent[0]);
-                jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (NOW(), ?, 'td.rate.override.used', 'fo_override', ?, ?)",
-                    auth.getName(), String.valueOf(spent[0]), "allowed by user " + spent[1] + " for " + used + " " + c.rateDescription());
+                AuditLog.write(jdbc, null, auth.getName(), "td.rate.override.used", "fo_override", String.valueOf(spent[0]), null, "allowed by user " + spent[1] + " for " + used + " " + c.rateDescription(), null);
             }
             String type = jdbc.queryForList("SELECT SLTypeM_DESC FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", String.class, p.branch(), CLASS_TD, req.typeCode())
                 .stream().findFirst().orElse("Time deposit");

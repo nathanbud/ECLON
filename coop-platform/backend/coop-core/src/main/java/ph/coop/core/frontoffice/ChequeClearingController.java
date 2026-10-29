@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -112,8 +113,7 @@ class ChequeClearingController {
                     r.year(), r.ctlNo(), r.seq());
                 if (u == 0) continue;
                 n++;
-                jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (NOW(), ?, 'cheque.clear', 'transck', ?, 'not cleared', ?, ?)",
-                    auth.getName(), r.year() + "/10/" + r.ctlNo() + "/" + r.seq(), "cleared: cheque " + r.number() + " " + r.amount().toPlainString() + " (" + r.documentNo() + ")" + (r.due() ? "" : " before " + r.clearsOn()), why);
+                AuditLog.write(jdbc, null, auth.getName(), "cheque.clear", "transck", r.year() + "/10/" + r.ctlNo() + "/" + r.seq(), "not cleared", "cleared: cheque " + r.number() + " " + r.amount().toPlainString() + " (" + r.documentNo() + ")" + (r.due() ? "" : " before " + r.clearsOn()), why);
             }
             return n;
         });

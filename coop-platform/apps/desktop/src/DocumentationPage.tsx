@@ -57,6 +57,7 @@ const WHERE: [string, string][] = [
   ['Fingerprints', 'The Fingerprint tag under the photo. The member\'s consent comes first and can be withdrawn, which erases every fingerprint. Until a scanner is connected a simulator is used for testing only.'],
   ['Loan Setup', 'Settings > Loan Setup opens in a window of its own. Tabs: loan types, purposes, collateral, co-maker holds and amortization. Opening a loan type shows Setup and COA Links; an administrator can change, add or remove its links to the chart of accounts there (principal, interest, penalty and fees), with a reason, audited. New postings use the new account.'],
   ['Sign-in screen wording', 'Settings > System > Sign-in screen (SUPERADMIN only): the cooperative’s logo, name and tagline shown on the left of the sign-in screen, with a live preview. Everyone sees them, including people not signed in yet.'],
+  ['Audit log and its seals', 'Settings > Audit Log (administrators): every change with who, what, when, where (address and device), why, before and after. The banner shows how far the log is sealed; the log is sealed every night, each seal chained to the one before, and Check the seals reports any entry that was changed or removed. Nothing in the app can edit or delete an audit entry.'],
   ['Settings', 'Administrator controls: users and permissions, the audit log, membership policy, approval workflows, documents, loan setup and the chart of accounts.'],
 ]
 

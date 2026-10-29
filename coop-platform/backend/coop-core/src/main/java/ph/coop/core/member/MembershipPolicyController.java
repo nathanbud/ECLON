@@ -1,6 +1,7 @@
 package ph.coop.core.member;
 
-import java.util.List;
+
+import ph.coop.core.audit.AuditLog;import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -51,8 +52,7 @@ public class MembershipPolicyController {
         db.upsert("ecis_setting", java.util.Map.of("setting_key", RETURNING_PAYS_SHARE),
             new java.util.LinkedHashMap<>(java.util.Map.of("setting_value", Boolean.toString(c.returningPaysShareCapital()), "updated_by", auth.getName())));
         jdbc.update("UPDATE ecis_setting SET updated_at = NOW() WHERE setting_key = ?", RETURNING_PAYS_SHARE);
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (NOW(), ?, 'membership.policy.changed', 'setting', ?, ?, ?, ?)",
-            auth.getName(), RETURNING_PAYS_SHARE, Boolean.toString(before), Boolean.toString(c.returningPaysShareCapital()), c.reason().trim());
+        AuditLog.write(jdbc, null, auth.getName(), "membership.policy.changed", "setting", RETURNING_PAYS_SHARE, Boolean.toString(before), Boolean.toString(c.returningPaysShareCapital()), c.reason().trim());
         return new Policy(c.returningPaysShareCapital());
     }
 }

@@ -1,6 +1,7 @@
 package ph.coop.core.biometric;
 
-import java.time.LocalDateTime;
+
+import ph.coop.core.audit.AuditLog;import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
@@ -184,6 +185,6 @@ public class BiometricStaging {
     }
 
     private void audit(String user, String action, int branch, int client, String next, String reason) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (NOW(), ?, ?, 'client', ?, NULL, ?, ?)", user, action, branch + "-" + client, next, reason);
+        AuditLog.write(jdbc, null, user, action, "client", branch + "-" + client, null, next, reason);
     }
 }

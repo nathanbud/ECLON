@@ -226,8 +226,7 @@ class PenaltyWaiverController {
         int n = jdbc.update("UPDATE ecis_fo_override SET status = ?, decided_by = ?, decided_at = ?, note = ? WHERE id = ? AND status = 'PENDING'",
             d.approve() ? "APPROVED" : "REJECTED", p.id(), Timestamp.valueOf(LocalDateTime.now(clock)), note, id);
         if (n == 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "This request has already been decided.");
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value, reason) VALUES (NOW(), ?, ?, 'fo_override', ?, ?, ?)",
-            auth.getName(), d.approve() ? "fo.override.approve" : "fo.override.reject", String.valueOf(id), KIND + " " + row.get(0)[2], note);
+        AuditLog.write(jdbc, null, auth.getName(), d.approve() ? "fo.override.approve" : "fo.override.reject", "fo_override", String.valueOf(id), null, KIND + " " + row.get(0)[2], note);
         return Map.of("status", d.approve() ? "APPROVED" : "REJECTED");
     }
 

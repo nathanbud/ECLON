@@ -73,7 +73,7 @@ export const saveUserTransactionTypes = (username: string, changes: { code: numb
 
 export interface AuditEntry {
   id: number; at: string; username: string; action: string; entity: string; entityId: string
-  previous: string | null; current: string | null; reason: string | null
+  previous: string | null; current: string | null; reason: string | null; clientIp: string | null; clientInfo: string | null
 }
 export interface AuditFilter { user?: string; entity?: string; action?: string; q?: string; from?: string; to?: string }
 export const getAuditLog = (f: AuditFilter, page: number, size: number) => {
@@ -82,3 +82,11 @@ export const getAuditLog = (f: AuditFilter, page: number, size: number) => {
   return getJson<{ content: AuditEntry[]; totalElements: number; number: number; size: number }>(`/api/admin/audit-log?${p}`)
 }
 export const getAuditFacets = () => getJson<{ entities: string[]; actions: string[]; users: string[] }>('/api/admin/audit-log/facets')
+
+// ---- audit integrity (administrators) ------------------------------------------------------------------------------------
+
+export interface AuditIntegrity { installed: boolean; seals: number; lastSealedId: number; lastSealedAt: string | null; unsealedRows: number; nightly: boolean }
+export interface AuditVerification { ok: boolean; sealsChecked: number; rowsChecked: number; unsealedRows: number; problems: string[] }
+export const getAuditIntegrity = () => getJson<AuditIntegrity>('/api/admin/audit/integrity')
+export const sealAuditLog = () => send<AuditIntegrity>('POST', '/api/admin/audit/integrity/seal')
+export const verifyAuditLog = () => send<AuditVerification>('POST', '/api/admin/audit/integrity/verify')

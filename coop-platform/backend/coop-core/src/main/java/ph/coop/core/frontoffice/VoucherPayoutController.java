@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -148,8 +149,7 @@ class VoucherPayoutController {
             String ref = r.branch() + "/" + r.year() + "/2/24/" + r.controlNo();
             for (long[] o : spent) {
                 jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", ref, o[0]);
-                jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (NOW(), ?, 'voucher.payout.override.used', 'fo_override', ?, ?)",
-                    auth.getName(), String.valueOf(o[0]), "allowed by user " + o[1] + " for " + ref + " amount " + amount.toPlainString());
+                AuditLog.write(jdbc, null, auth.getName(), "voucher.payout.override.used", "fo_override", String.valueOf(o[0]), null, "allowed by user " + o[1] + " for " + ref + " amount " + amount.toPlainString(), null);
             }
             return new Receipt(r.branch(), r.year(), r.controlNo(), r.documentNo(), r.date().toString(), req.clientId(), c.payable().client(), req.refNo(), amount, p.name());
         });

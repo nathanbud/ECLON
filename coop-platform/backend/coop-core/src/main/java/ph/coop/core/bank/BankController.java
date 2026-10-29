@@ -1,6 +1,7 @@
 package ph.coop.core.bank;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -273,7 +274,7 @@ class BankController {
     }
 
     private void audit(Authentication auth, String action, long id, String detail) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (NOW(), ?, ?, 'bank_recon', ?, ?)", auth.getName(), action, String.valueOf(id), detail);
+        AuditLog.write(jdbc, null, auth.getName(), action, "bank_recon", String.valueOf(id), null, detail, null);
     }
 
     private void requireTables() {
