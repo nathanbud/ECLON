@@ -98,6 +98,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
   }
 
   const runs: Record<string, (() => void) | undefined> = {
+    New: caps?.edit && !editing && !registering && !advanced && !saving ? () => { setRegistering(true); setError(null) } : undefined,
     Edit: caps?.edit && selected && member && !pending && !editing ? () => { setEditing(true); setError(null) } : undefined,
     Save: editing && changes > 0 && !saving ? save : undefined,
     Cancel: editing && !saving ? cancel : undefined,
@@ -149,7 +150,6 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
               {pending && <PendingBanner change={pending} id={selected} canApprove={!!caps?.approve} onDone={setNotice} />}
               {member && (member.accountStatus ?? 1) !== 3 && !editing && (
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 0.5 }}>
-                  <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => setRegistering(true)}>Register new member</Button></Gated>
                   <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" color="error" onClick={() => setClosing(true)}>Close membership</Button></Gated>
                 </Box>
               )}
@@ -170,7 +170,6 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
               <Box sx={(t) => ({ width: '100%', maxWidth: 580, overflow: 'hidden', ...glass(t, { elevated: true }) })}>
                 <FindBody inline lk={lk} onPick={onSelect} />
                 <Box sx={{ p: 1, textAlign: 'center' }}>
-                  <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => setRegistering(true)}>Register new member</Button></Gated>
                   <Gated allowed={!!caps?.edit && me.admin} reason={caps?.edit ? NEEDS_ADMIN : NEEDS_EDIT}><Button size="small" color="warning" onClick={() => setAdvanced(true)}>Advanced mode: import a list</Button></Gated>
                 </Box>
               </Box>

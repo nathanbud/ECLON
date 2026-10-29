@@ -18,6 +18,7 @@ const SHORTCUTS: { area: string; rows: [string, string][] }[] = [
     rows: [
       ['Alt+C', 'Open the Client Profile menu in the title bar.'],
       [`${MOD}F`, 'Find a client.'],
+      [`${MOD}N`, 'New: register a new member (when you may edit clients and are not already editing).'],
       [`${MOD}E`, 'Edit the open profile (when you may edit it and no change is waiting).'],
       [`${MOD}S`, 'Save the changes for approval.'],
       ['Esc', 'Cancel editing.'],
@@ -51,7 +52,7 @@ const RULES: [string, string][] = [
 const WHERE: [string, string][] = [
   ['Cash deposits and withdrawals', 'Only in the Front Office, on the Member Accounts tab: savings deposits and withdrawals, share capital payments and withdrawals, loan payments, and time deposit placement, interest withdrawal and pre-termination. A member\'s profile only shows the accounts.'],
   ['New loan applications', 'Only from the Loan Application tile. The member\'s Loans tab shows loans and their profile.'],
-  ['Members', 'Client Profile: Info (Membership, Personal, Business / Employment, Education, Contacts & IDs, Spouse Info), Accounts (Share Capital, Savings, Time Deposits, Loans, Billing, Pledges / Insurances) and Other. Register a new member (the profile opens blank and in edit mode), close, or reactivate one from there; an officer other than the requester approves under Approvals.'],
+  ['Members', 'Client Profile: Info (Membership, Personal, Business / Employment, Education, Contacts & IDs, Spouse Info), Accounts (Share Capital, Savings, Time Deposits, Loans, Billing, Pledges / Insurances) and Other. Register a new member with Client Profile menu > New (Ctrl+N; the form opens blank), close or reactivate one from the profile; an officer other than the requester approves under Approvals.'],
   ['Registering many members', 'Advanced mode, for administrators: on the Client Profile finder screen choose Advanced mode: import a list. Upload a CSV or Excel file (download the blank Excel list: its Guide sheet explains each column), see every row checked, and send the valid ones. A Membership Officer other than the uploader approves the whole list under Approvals, which opens the members. Photos and fingerprints are added afterwards on each member.'],
   ['Member photo', 'The camera icon on the photo, shown only in edit mode, to people with both the edit-client and edit-client-images permissions. Photos are added, never overwritten.'],
   ['Fingerprints', 'The Fingerprint tag under the photo. The member\'s consent comes first and can be withdrawn, which erases every fingerprint. Until a scanner is connected a simulator is used for testing only.'],
