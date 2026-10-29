@@ -109,7 +109,7 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
 
       <BrandPanel />
 
-      <Box component="main" sx={(t) => ({ display: 'grid', gridTemplateRows: '1fr auto', justifyItems: 'center', alignItems: 'center', p: { xs: 2, md: 6 }, pt: { xs: 8, md: 6 }, background: dark(t) ? 'radial-gradient(900px 600px at 100% 100%, rgba(94,92,230,0.14) 0%, transparent 60%)' : `radial-gradient(900px 600px at 100% 100%, ${LIGHT.washLilac} 0%, transparent 60%)` })}>
+      <Box component="main" sx={(t) => ({ position: 'relative', display: 'grid', gridTemplateRows: '1fr', justifyItems: 'center', alignItems: 'center', p: { xs: 2, md: 6 }, pt: { xs: 8, md: 6 }, background: dark(t) ? 'radial-gradient(900px 600px at 100% 100%, rgba(94,92,230,0.14) 0%, transparent 60%)' : `radial-gradient(900px 600px at 100% 100%, ${LIGHT.washLilac} 0%, transparent 60%)` })}>
         <Box component="form" onSubmit={submit} noValidate sx={{ width: '100%', maxWidth: 400, animation: 'signInRise 460ms cubic-bezier(.2,.8,.2,1) both', '@media (prefers-reduced-motion: reduce)': { animation: 'none' } }}>
           {/* Shown instead of the left half when the window is narrow. */}
           <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1.25, mb: 3 }}>
@@ -160,8 +160,10 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
             No password yet, or yours expired? Ask an administrator for a temporary one. Everything you do here is recorded under your name.
           </Typography>
         </Box>
-        {/* Left edge in line with the form, and at the foot of the window. */}
-        <Box sx={{ width: '100%', maxWidth: 400, pb: { xs: 1, md: 1.5 }, alignSelf: 'end' }}><ServerStatus status={status} /></Box>
+        {/* Left edge in line with the form, and right at the foot of the window. */}
+        <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 14, px: { xs: 2, md: 6 }, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+          <Box sx={{ width: '100%', maxWidth: 400 }}><ServerStatus status={status} /></Box>
+        </Box>
       </Box>
     </Box>
   )
