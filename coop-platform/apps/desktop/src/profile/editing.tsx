@@ -31,6 +31,8 @@ export function useBound({ col, raw, kind = 'text' }: Bind) {
 export const fieldSx = (live: boolean) => ({
   '& .MuiOutlinedInput-root': { fontSize: 14, backgroundColor: live ? 'background.paper' : 'transparent' },
   '& .MuiOutlinedInput-notchedOutline': { borderColor: live ? 'text.disabled' : 'divider' },
+  '& .MuiOutlinedInput-input': { paddingTop: '5px', paddingBottom: '5px', paddingLeft: '10px', paddingRight: '10px' },
+  '& .MuiOutlinedInput-root.MuiInputBase-multiline': { padding: '5px 10px' },
   '& .MuiInputLabel-root': { fontSize: 13 },
   ...(live ? {} : { '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' } }),
 }) as const

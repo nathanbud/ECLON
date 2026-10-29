@@ -40,14 +40,14 @@ export function InlineField({ label, value }: { label: string; value?: Value }) 
 
 export function Section({ title, children, action, columns }: { title: string; children: ReactNode; action?: ReactNode; columns?: number }) {
   return (
-    <Box sx={(t) => ({ p: 1.5, mb: 1.5, breakInside: 'avoid', ...glass(t) })}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, minHeight: 24 }}>
+    <Box sx={(t) => ({ p: 1.25, mb: 1, breakInside: 'avoid', ...glass(t) })}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75, minHeight: 22 }}>
         <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">
           {title}
         </Typography>
         {action}
       </Box>
-      <Box sx={{ display: 'grid', gap: '12px 14px', gridTemplateColumns: columns ? `repeat(${columns}, minmax(0, 1fr))` : 'repeat(auto-fill, minmax(132px, 1fr))' }}>{children}</Box>
+      <Box sx={{ display: 'grid', gap: '8px 12px', gridTemplateColumns: columns ? `repeat(${columns}, minmax(0, 1fr))` : 'repeat(auto-fill, minmax(132px, 1fr))' }}>{children}</Box>
     </Box>
   )
 }
