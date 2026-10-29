@@ -1,5 +1,5 @@
 import { type ChequeIn } from './deposits'
-import { getJson, send } from './http'
+import { getJson, http, send } from './http'
 
 // ---- loans (read-only) ---------------------------------------------------------------------------------------------
 
@@ -170,3 +170,24 @@ export const askPenaltyWaiver = (b: PenaltyWaiverReq) => send<{ status: string }
 export const postPenaltyWaiver = (b: PenaltyWaiverReq) => send<{ year: number; controlNo: number; documentNo: string; amount: number }>('POST', '/api/loan-penalty-waivers/post', b)
 export const getPenaltyWaiversPending = () => getJson<PenaltyWaiverPending[]>('/api/loan-penalty-waivers/pending')
 export const decidePenaltyWaiver = (id: number, approve: boolean, note: string) => send<{ status: string }>('POST', `/api/loan-penalty-waivers/${id}/decide`, { approve, note })
+
+/**
+ * Fetches the loan's Interest and Penalty Computation Worksheet as of a date (a PDF or an Excel file) with the sign-in and hands it to the browser as a download.
+ * The server writes each download to the audit log and the export log. Resolves to the file name.
+ */
+export async function downloadLoanWorksheet(branchCode: number, clientId: number, typeCode: number, refNo: number, asOf: string, kind: 'pdf' | 'xlsx'): Promise<string> {
+  const res = await http(`/api/members/${branchCode}/${clientId}/loans/${typeCode}/${refNo}/worksheet/${kind}?asOf=${encodeURIComponent(asOf)}`)
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`
+    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status message */ }
+    throw new Error(message)
+  }
+  const name = `loan-worksheet-12${String(typeCode).padStart(2, '0')}-${String(refNo).padStart(8, '0')}-${asOf}.${kind}`
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(url)
+  return name
+}
