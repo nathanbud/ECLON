@@ -113,7 +113,7 @@ function RegisterTab({ reg }: { reg: Register }) {
   const activate = useMutation({ mutationFn: activateNotice, onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
   return (
     <Box>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+      <Stack direction="row" spacing={1} sx={{ mb: 1.5, alignItems: 'center' }}>
         <Typography color="text.secondary" sx={{ flex: 1, fontSize: 13 }}>{reg.note}</Typography>
         <Button variant="contained" size="small" onClick={() => setEditing('new')}>Add</Button>
       </Stack>
@@ -188,7 +188,7 @@ function RequestsTab() {
   const today = new Date().toISOString().slice(0, 10)
   return (
     <Box>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+      <Stack direction="row" spacing={1} sx={{ mb: 1.5, alignItems: 'center' }}>
         <Typography color="text.secondary" sx={{ flex: 1, fontSize: 13 }}>
           Requests from people about their own data. The due date is 30 days from receipt unless the server is set otherwise; confirm the period that applies with the data protection officer. Check the person's identity before anything is handed over or erased.
         </Typography>
@@ -203,7 +203,7 @@ function RequestsTab() {
           const kind = String(r.request_type)
           return (
             <Box key={id} sx={(t) => ({ p: 1.5, ...glass(t) })}>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                 <Typography sx={{ fontWeight: 600 }}>{String(r.ref)}</Typography>
                 <Chip size="small" label={label(kind)} />
                 <Chip size="small" color={open ? 'warning' : r.status === 'FULFILLED' ? 'success' : 'default'} label={label(String(r.status))} />
@@ -215,7 +215,7 @@ function RequestsTab() {
               <Typography sx={{ fontSize: 13.5, mt: 0.5 }}>{String(r.requester_name)}{r.client_id != null ? ` · member ${r.branch_code}-${r.client_id}` : ''} — {String(r.summary)}</Typography>
               {r.outcome != null && <Typography color="text.secondary" sx={{ fontSize: 13 }}>Outcome: {String(r.outcome)}</Typography>}
               {open && (
-                <Stack direction="row" spacing={0.5} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
+                <Stack direction="row" spacing={0.5} useFlexGap sx={{ mt: 1, flexWrap: 'wrap' }}>
                   {r.identity_verified !== 1 && <Button size="small" onClick={() => setAsking({ row: r, step: 'verify-identity', title: 'Identity checked', label: 'How was the identity checked?' })}>Check identity</Button>}
                   {r.status === 'OPEN' && <Button size="small" onClick={() => void run(startPrivacyRequest(id))}>Start</Button>}
                   {(kind === 'ACCESS' || kind === 'PORTABILITY') && r.identity_verified === 1 && <Button size="small" onClick={() => void run(downloadMemberPackage(id, String(r.ref)))}>Download member data</Button>}

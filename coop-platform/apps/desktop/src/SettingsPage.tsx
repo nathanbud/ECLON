@@ -20,7 +20,7 @@ const categories: Category[] = [
     items: [
       { label: 'Users', note: 'Temporary passwords, levels, permissions and who may do loans alone', icon: <FiUserCheck />, color: tint.blue[0], view: 'users', who: 'admin' },
       { label: 'Audit Log', note: 'Every change made in the system, who made it and why', icon: <FiClipboard />, color: tint.gray[1], view: 'audit', who: 'admin' },
-      { label: 'Data privacy', note: 'Requests about people's data, incidents, sharing, assessments, notices, retention and the export log', icon: <FiShield />, color: tint.purple[0], view: 'privacy', who: 'privacy' },
+      { label: 'Data privacy', note: 'Requests about people’s data, incidents, sharing, assessments, notices, retention and the export log', icon: <FiShield />, color: tint.purple[0], view: 'privacy', who: 'privacy' },
       { label: 'Approval workflows', note: 'Extra approvals for purchases and stock adjustments, and the amounts they start at', icon: <FiGitMerge />, color: tint.orange[0], view: 'workflows', who: 'accountant' },
       { label: 'Documents', note: 'Scanned IDs, contracts and deeds kept for members, assets and other records, and who may read them', icon: <FiFileText />, color: tint.indigo[0], view: 'documents', who: 'documents' },
     ],
