@@ -45,6 +45,7 @@ export function SystemLine({ custom, size = 15 }: { custom: boolean; size?: numb
       <Typography sx={{ fontSize: size }} color="text.secondary">{custom ? `${brand.product} · ${brand.system}` : brand.system}</Typography>
       {/* Below it, the build the person is running: useful to quote when asking for help. */}
       <Typography title={`Built ${appVersion.date}`} sx={{ fontSize: size - 1, mt: 0.25, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{versionLabel}</Typography>
+      <Typography sx={{ fontSize: size - 1, mt: 0.25 }} color="text.secondary">Developed By: {brand.developer}</Typography>
     </>
   )
 }

@@ -43,6 +43,7 @@ describe('sign-in screen', () => {
     expect(screen.getAllByText(brand.coop).length).toBeGreaterThan(0)
     expect(screen.getByText(brand.system)).toBeInTheDocument()
     expect(screen.getByText(versionLabel)).toBeInTheDocument() // the build number, under the system line
+    expect(screen.getByText(`Developed By: ${brand.developer}`)).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Welcome back' })).toBeInTheDocument()
   })
 

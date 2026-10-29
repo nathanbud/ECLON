@@ -8,4 +8,5 @@ export const brand = {
   coop: 'BSUCMPC',
   logoUrl: null as string | null,
   system: 'Enterprise Cooperative Information System',
+  developer: 'NSK Tech',
 }
