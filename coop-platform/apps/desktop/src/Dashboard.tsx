@@ -9,7 +9,7 @@ import { getPendingCount, getTdMaturityCount } from './api'
 import { useMe } from './session'
 import { tileFill, useThemeMode, type Tint } from './theme'
 
-export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'amortization' | 'settings' | 'frontoffice' | 'loanapp' | 'procurement' | 'inventory' | 'pos' | 'assets' | 'reports' | 'documents' | 'workflows' | 'membershippolicy' | 'documentation' | 'branding'
+export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'amortization' | 'settings' | 'frontoffice' | 'loanapp' | 'procurement' | 'inventory' | 'pos' | 'assets' | 'reports' | 'documents' | 'workflows' | 'membershippolicy' | 'documentation' | 'branding' | 'privacy'
 
 // Every item is a square of 1x1 or 2x2 cells on a landscape 5 x 4 grid (3 x 4 + 8 = 20 cells, no gaps).
 type Size = 'md' | 'sm'
@@ -110,7 +110,7 @@ export default function Dashboard({ onOpen }: { onOpen: (v: View) => void }) {
   const posAllowed = me.admin || me.roles.some((r) => ['POS_CASHIER', 'POS_SUPERVISOR', 'STOREKEEPER', 'ACCOUNTANT'].includes(r.replace('ROLE_', '')))
   const inventoryAllowed = me.admin || me.roles.some((r) => ['STOREKEEPER', 'STOCK_APPROVER', 'RECEIVER', 'PURCHASER', 'PURCHASE_APPROVER', 'ACCOUNTANT'].includes(r.replace('ROLE_', '')))
   const purchasingAllowed = me.admin || me.roles.some((r) => ['PURCHASER', 'PURCHASE_APPROVER', 'RECEIVER', 'ACCOUNTANT'].includes(r.replace('ROLE_', '')))
-  const settingsAllowed = me.admin || me.roles.some((r) => ['ACCOUNTANT', 'DOCUMENT_CLERK'].includes(r.replace('ROLE_', '')))
+  const settingsAllowed = me.admin || me.roles.some((r) => ['ACCOUNTANT', 'DOCUMENT_CLERK', 'DATA_PROTECTION_OFFICER'].includes(r.replace('ROLE_', '')))
 
   return (
     <Box component="main" sx={{

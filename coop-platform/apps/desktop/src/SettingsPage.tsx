@@ -6,7 +6,7 @@ import { appBackground, glass } from './glass'
 import { tint } from './theme'
 import { useMe } from './session'
 
-type Who = 'admin' | 'accountant' | 'documents' | 'anyone' | 'superadmin'
+type Who = 'admin' | 'privacy' | 'accountant' | 'documents' | 'anyone' | 'superadmin'
 interface Item { label: string; note: string; icon: ReactNode; color: string; view?: View; who: Who }
 interface Category { id: string; label: string; icon: ReactNode; color: string; items: Item[] }
 
@@ -20,6 +20,7 @@ const categories: Category[] = [
     items: [
       { label: 'Users', note: 'Temporary passwords, levels, permissions and who may do loans alone', icon: <FiUserCheck />, color: tint.blue[0], view: 'users', who: 'admin' },
       { label: 'Audit Log', note: 'Every change made in the system, who made it and why', icon: <FiClipboard />, color: tint.gray[1], view: 'audit', who: 'admin' },
+      { label: 'Data privacy', note: 'Requests about people's data, incidents, sharing, assessments, notices, retention and the export log', icon: <FiShield />, color: tint.purple[0], view: 'privacy', who: 'privacy' },
       { label: 'Approval workflows', note: 'Extra approvals for purchases and stock adjustments, and the amounts they start at', icon: <FiGitMerge />, color: tint.orange[0], view: 'workflows', who: 'accountant' },
       { label: 'Documents', note: 'Scanned IDs, contracts and deeds kept for members, assets and other records, and who may read them', icon: <FiFileText />, color: tint.indigo[0], view: 'documents', who: 'documents' },
     ],
@@ -97,7 +98,7 @@ function Row({ item, allowed, onOpen }: { item: Item; allowed: boolean; onOpen: 
         <Box aria-hidden sx={{ color: 'text.disabled', display: 'flex' }}><FiChevronRight /></Box>
       ) : (
         <Typography color="text.secondary" sx={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-          {item.view ? <><FiLock size={12} />{item.who === 'admin' ? 'Administrators' : item.who === 'superadmin' ? 'Superadmin' : item.who === 'anyone' ? 'Everyone' : 'Accountants'}</> : 'Coming soon'}
+          {item.view ? <><FiLock size={12} />{item.who === 'admin' ? 'Administrators' : item.who === 'superadmin' ? 'Superadmin' : item.who === 'privacy' ? 'Data protection officers' : item.who === 'anyone' ? 'Everyone' : 'Accountants'}</> : 'Coming soon'}
         </Typography>
       )}
     </ButtonBase>
@@ -114,8 +115,9 @@ export default function SettingsPage({ onOpen }: { onOpen: (v: View) => void }) 
   const me = useMe()
   const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
   const superadmin = me.roles.some((r) => r.replace('ROLE_', '') === 'SUPERADMIN')
+  const dpo = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'DATA_PROTECTION_OFFICER')
   const clerk = me.roles.some((r) => r.replace('ROLE_', '') === 'DOCUMENT_CLERK')
-  const allowed = (i: Item) => (i.who === 'anyone' ? true : i.who === 'superadmin' ? superadmin : i.who === 'admin' ? me.admin : i.who === 'documents' ? accountant || clerk : accountant)
+  const allowed = (i: Item) => (i.who === 'anyone' ? true : i.who === 'superadmin' ? superadmin : i.who === 'privacy' ? dpo : i.who === 'admin' ? me.admin : i.who === 'documents' ? accountant || clerk : accountant)
   const [pick, setPick] = useState(() => stored() ?? categories[0].id)
   const [q, setQ] = useState('')
   const query = q.trim().toLowerCase()

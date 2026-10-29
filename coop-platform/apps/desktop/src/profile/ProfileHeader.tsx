@@ -7,9 +7,12 @@ import { useMemberImage } from '../memberImage'
 import { Avatar, Box, Chip, IconButton, Tooltip, Typography } from '@mui/material'
 import { glass } from '../glass'
 import { tileFill } from '../theme'
-import { FiAlertTriangle, FiCamera, FiCheckCircle, FiEdit2, FiSlash, FiUser } from 'react-icons/fi'
+import { FiAlertTriangle, FiCamera, FiCheckCircle, FiEdit2, FiShield, FiSlash, FiUser } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
 import FingerprintDialog from '../FingerprintDialog'
+import PrivacyNoticeDialog from '../PrivacyNoticeDialog'
+import { getMemberPrivacy } from '../api'
+import { useMe } from '../session'
 import MemberPhotoDialog from '../MemberPhotoDialog'
 import { InlineField, SelectField, quietChip } from './fields'
 import { fmtDate, yearsSince } from './format'
@@ -18,6 +21,9 @@ export function ProfileHeader({ m, lk, canPhoto = false, onNotice }: { m: Member
   const { editing } = useEdit()
   const [photoOpen, setPhotoOpen] = useState(false)
   const [fingerOpen, setFingerOpen] = useState(false)
+  const [noticeOpen, setNoticeOpen] = useState(false)
+  const canEdit = useMe().canEdit
+  const privacy = useQuery({ queryKey: ['member-privacy', m.id.branchCode, m.id.clientId], queryFn: () => getMemberPrivacy(m.id.branchCode, m.id.clientId), staleTime: 60_000, retry: false })
   const prints = useQuery({ queryKey: ['fingerprints', m.id], queryFn: () => getFingerprints(m.id.branchCode, m.id.clientId), staleTime: 60_000, retry: false })
   const st = statusOf(m, lk)
   const photo = useMemberImage('photo', m.id)
@@ -44,7 +50,10 @@ export function ProfileHeader({ m, lk, canPhoto = false, onNotice }: { m: Member
       </Box>
         <Chip size="small" variant="outlined" clickable color={prints.data?.fingers.length ? 'success' : 'default'} icon={<IoFingerPrint />} onClick={() => setFingerOpen(true)}
           label={prints.data?.fingers.length ? `Fingerprint · ${prints.data.fingers.length}/10` : 'Fingerprint'} aria-label="Fingerprints" sx={{ justifyContent: 'flex-start', flex: 1 }} />
+        <Chip size="small" variant="outlined" clickable color={privacy.data?.upToDate ? 'success' : 'default'} icon={<FiShield />} onClick={() => setNoticeOpen(true)}
+          label={privacy.data?.upToDate ? 'Privacy notice given' : 'Privacy notice'} aria-label="Privacy notice" sx={{ justifyContent: 'flex-start', flex: 1 }} />
       </Box>
+      {noticeOpen && <PrivacyNoticeDialog branchCode={m.id.branchCode} clientId={m.id.clientId} name={displayName(m)} canRecord={canEdit} onClose={() => setNoticeOpen(false)} onDone={(msg) => { void privacy.refetch(); onNotice?.(msg) }} />}
       {fingerOpen && <FingerprintDialog id={m.id} name={displayName(m)} canManage={canPhoto} onClose={() => setFingerOpen(false)} onDone={(msg) => { void prints.refetch(); onNotice?.(msg) }} />}
       {photoOpen && <MemberPhotoDialog id={m.id} name={displayName(m)} onClose={() => setPhotoOpen(false)} onDone={(msg) => onNotice?.(msg)} />}
       <Box sx={{ minWidth: 0, flex: 1 }}>

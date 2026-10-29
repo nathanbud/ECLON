@@ -33,7 +33,7 @@ class UserAccountController {
     /** Held by a person who signed in with a temporary password: they can do nothing but replace it. */
     static final String PASSWORD_CHANGE_REQUIRED = "PWD_CHANGE_REQUIRED";
 
-    static final Set<String> GRANTABLE_ROLES = Set.of("MEMBERSHIP_OFFICER", "ACCOUNTANT", "PURCHASER", "PURCHASE_APPROVER", "RECEIVER", "STOREKEEPER", "STOCK_APPROVER", "POS_CASHIER", "POS_SUPERVISOR", "ASSET_CUSTODIAN", "DOCUMENT_CLERK", "MANAGER", "CREDIT_COMMITTEE");
+    static final Set<String> GRANTABLE_ROLES = Set.of("MEMBERSHIP_OFFICER", "DATA_PROTECTION_OFFICER", "ACCOUNTANT", "PURCHASER", "PURCHASE_APPROVER", "RECEIVER", "STOREKEEPER", "STOCK_APPROVER", "POS_CASHIER", "POS_SUPERVISOR", "ASSET_CUSTODIAN", "DOCUMENT_CLERK", "MANAGER", "CREDIT_COMMITTEE");
 
     private final JdbcTemplate jdbc;
     private final Db db;

@@ -1,7 +1,7 @@
 import { Alert, Box, Button, List, ListItemButton, ListItemText, ListSubheader, Skeleton, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { listReports, runReport, type ReportColumn, type ReportInfo, type ReportResult } from './api'
+import { listReports, logExport, runReport, type ReportColumn, type ReportInfo, type ReportResult } from './api'
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
@@ -108,7 +108,7 @@ export default function ReportsPage({ onOpen }: { onOpen: (v: View) => void }) {
                     slotProps={p.type === 'date' ? { inputLabel: { shrink: true } } : undefined} sx={{ width: p.type === 'date' ? 170 : 220 }} />
                 ))}
                 <Button variant="contained" sx={{ mt: 0.25 }} disabled={run.isPending} onClick={() => { setError(null); run.mutate() }}>Run</Button>
-                {run.data && <Button sx={{ mt: 0.25 }} onClick={() => download(`${picked.id}.csv`, toCsv(run.data))}>Save as CSV</Button>}
+                {run.data && <Button sx={{ mt: 0.25 }} onClick={() => { download(`${picked.id}.csv`, toCsv(run.data)); void logExport('REPORT', picked.id, run.data.table.rows.length) }}>Save as CSV</Button>}
                 {run.data && <Button sx={{ mt: 0.25 }} onClick={() => window.print()}>Print</Button>}
               </Stack>
               {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
