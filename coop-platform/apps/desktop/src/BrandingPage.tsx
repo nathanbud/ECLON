@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { FiTrash2, FiUpload } from 'react-icons/fi'
 import { getBranding, removeBrandingLogo, setBrandingText, uploadBrandingLogo } from './api'
-import { BrandBlock } from './BrandBlock'
+import { BrandBlock, SystemLine } from './BrandBlock'
 import { brand } from './brand'
 import { appBackground, glass, LIGHT } from './glass'
 import { tileFill } from './theme'
@@ -98,7 +98,8 @@ export default function BrandingPage() {
             <Box sx={{ position: 'relative' }}>
               <BrandBlock name={shownName} tagline={tagline.trim() || null} logo={logo} custom={!!name.trim()} size={72} scale={0.62} />
             </Box>
-            <Typography sx={{ position: 'absolute', bottom: 10, left: 0, right: 0, textAlign: 'center', fontSize: 11.5 }} color="text.secondary">Preview</Typography>
+            <Box sx={{ position: 'absolute', left: 16, bottom: 10 }}><SystemLine custom={!!name.trim()} size={11} /></Box>
+            <Typography sx={{ position: 'absolute', bottom: 10, right: 16, fontSize: 11 }} color="text.secondary">Preview</Typography>
           </Box>
         </Box>
       </Box>

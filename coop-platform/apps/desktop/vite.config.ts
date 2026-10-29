@@ -1,9 +1,21 @@
+import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
+
+// The version is the one in package.json (Semantic Versioning: MAJOR.MINOR.PATCH). The build is the git commit it was made from and the day it was made; without git it says so.
+const git = (cmd: string, fallback: string) => { try { return execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() || fallback } catch { return fallback } }
+const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version as string
+const dirty = git('git status --porcelain', '') ? '+' : ''
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+    __APP_BUILD__: JSON.stringify(git('git rev-parse --short HEAD', 'unknown') + dirty),
+    __APP_BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10)),
+  },
   server: {
     port: 5173,
     strictPort: true,

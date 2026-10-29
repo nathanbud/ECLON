@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Me } from './api'
 import { brand } from './brand'
 import SignInPage from './SignInPage'
+import { versionLabel } from './version'
 import { AppThemeProvider } from './theme'
 
 const me: Me = { username: 'nathan', name: 'Nathan', roles: [], canEdit: false, canApprove: false, admin: false, mustChangePassword: false }
@@ -41,6 +42,7 @@ describe('sign-in screen', () => {
     // The acronym is also in the narrow-window header, so more than one is expected.
     expect(screen.getAllByText(brand.coop).length).toBeGreaterThan(0)
     expect(screen.getByText(brand.system)).toBeInTheDocument()
+    expect(screen.getByText(versionLabel)).toBeInTheDocument() // the build number, under the system line
     expect(screen.getByRole('heading', { level: 2, name: 'Welcome back' })).toBeInTheDocument()
   })
 

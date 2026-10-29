@@ -2,7 +2,7 @@ import { Alert, Box, Button, CircularProgress, IconButton, InputAdornment, TextF
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { FiAlertTriangle, FiEye, FiEyeOff } from 'react-icons/fi'
 import { signIn, type Me } from './api'
-import { BrandBlock, Mark, useBranding } from './BrandBlock'
+import { BrandBlock, Mark, SystemLine, useBranding } from './BrandBlock'
 import { brand } from './brand'
 import { LIGHT } from './glass'
 import { tileFill } from './theme'
@@ -12,6 +12,9 @@ const LAST_USER = 'coop.lastUser'
 const remembered = () => {
   try { return localStorage.getItem(LAST_USER) ?? '' } catch { return '' }
 }
+
+/** The gap between the foot-of-window text and the window's edges, the same on the left and at the bottom, on both sides of the screen. */
+const EDGE = 14
 
 const dark = (t: Theme) => t.palette.mode === 'dark'
 
@@ -57,6 +60,8 @@ function BrandPanel() {
       <Box sx={{ position: 'relative', animation: 'signInRise 520ms cubic-bezier(.2,.8,.2,1) both', '@media (prefers-reduced-motion: reduce)': { animation: 'none' } }}>
         <BrandBlock name={b.name} tagline={b.tagline} logo={b.logo} custom={b.custom} />
       </Box>
+      {/* At the foot of the left side, on the same line as the server status on the right, and aligned to the left edge. */}
+      <Box sx={{ position: 'absolute', left: EDGE, right: EDGE, bottom: EDGE }}><SystemLine custom={b.custom} size={13} /></Box>
     </Box>
   )
 }
@@ -161,7 +166,7 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
           </Typography>
         </Box>
         {/* Left edge in line with the form, and right at the foot of the window. */}
-        <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 14, px: { xs: 2, md: 6 }, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+        <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: EDGE, px: { xs: 2, md: 6 }, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
           <Box sx={{ width: '100%', maxWidth: 400 }}><ServerStatus status={status} /></Box>
         </Box>
       </Box>

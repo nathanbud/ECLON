@@ -2,6 +2,7 @@ import { Box, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { getBranding, type Branding } from './api'
 import { brand } from './brand'
+import { appVersion, versionLabel } from './version'
 import { Logo } from './TopBar'
 
 /** The sign-in screen's wording: what the SUPERADMIN set, or the defaults in brand.ts where nothing is set (or the server cannot be asked). */
@@ -33,8 +34,17 @@ export function BrandBlock({ name, tagline, logo, custom, size = 104, scale = 1 
       {tagline
         ? <Typography sx={{ mt: 1.5 * scale, fontSize: 19 * scale, lineHeight: 1.4, maxWidth: 440, mx: 'auto' }} color="text.secondary">{tagline}</Typography>
         : !custom && <Typography sx={{ mt: 1.25, fontSize: 14 * scale, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600 }} color="text.secondary">{brand.coop}</Typography>}
-      <Box aria-hidden sx={(t) => ({ width: 40, height: 2, borderRadius: 1, mx: 'auto', my: 3 * scale, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.18)' })} />
-      <Typography sx={{ fontSize: 15 * scale }} color="text.secondary">{custom ? `${brand.product} · ${brand.system}` : brand.system}</Typography>
     </Box>
+  )
+}
+
+/** The line naming the system, set at the foot of the left side and aligned to its left edge. */
+export function SystemLine({ custom, size = 15 }: { custom: boolean; size?: number }) {
+  return (
+    <>
+      <Typography sx={{ fontSize: size }} color="text.secondary">{custom ? `${brand.product} · ${brand.system}` : brand.system}</Typography>
+      {/* Below it, the build the person is running: useful to quote when asking for help. */}
+      <Typography title={`Built ${appVersion.date}`} sx={{ fontSize: size - 1, mt: 0.25, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{versionLabel}</Typography>
+    </>
   )
 }
