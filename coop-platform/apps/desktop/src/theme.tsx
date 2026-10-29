@@ -17,6 +17,9 @@ export type Tint = keyof typeof tint
 
 /** Corner radius for every box and component in the app. */
 export const RADIUS = 5
+/** The inner padding of every input, select and text area in the app (top and bottom, left and right, in pixels). Change it here and nowhere else. */
+export const INPUT_PAD = { y: 5, x: 10 } as const
+const inputPad = `${INPUT_PAD.y}px ${INPUT_PAD.x}px`
 
 // Tile fills deep enough for white labels to reach WCAG AA (4.5:1); `tint` stays for accents on neutral surfaces.
 export const tileFill: Record<Tint, string> = {
@@ -76,7 +79,13 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
       },
       components: {
         MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' }, rounded: { borderRadius: RADIUS } } },
-        MuiOutlinedInput: { styleOverrides: { root: { borderRadius: RADIUS, fontSize: 13.5 } } },
+        MuiOutlinedInput: {
+          styleOverrides: {
+            root: { borderRadius: RADIUS, fontSize: 13.5, // A text area gets its padding on the field, not on the text inside it, or it would be counted twice.
+            '&.MuiInputBase-multiline': { padding: inputPad, '& .MuiOutlinedInput-input': { padding: 0 } } },
+            input: { padding: inputPad },
+          },
+        },
         MuiChip: { styleOverrides: { root: { borderRadius: RADIUS } } },
         MuiAvatar: { styleOverrides: { root: { borderRadius: RADIUS } } },
         MuiIconButton: { styleOverrides: { root: { borderRadius: RADIUS } } },

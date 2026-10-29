@@ -133,11 +133,11 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
           )}
 
           <TextField
-            label="Username" size="medium" value={username} onChange={(e) => setUsername(e.target.value)} fullWidth autoFocus={!username}
+            label="Username" size="small" value={username} onChange={(e) => setUsername(e.target.value)} fullWidth autoFocus={!username}
             autoComplete="username" sx={{ mb: 2, '& .MuiOutlinedInput-root': { fontSize: 16 }, '& .MuiInputLabel-root': { fontSize: 15 } }}
           />
           <TextField
-            label="Password" size="medium" type={reveal ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} onKeyUp={watchCaps} onKeyDown={watchCaps}
+            label="Password" size="small" type={reveal ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} onKeyUp={watchCaps} onKeyDown={watchCaps}
             fullWidth autoFocus={!!username} autoComplete="current-password"
             helperText={capsLock ? 'Caps Lock is on.' : undefined}
             slotProps={{

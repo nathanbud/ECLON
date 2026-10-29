@@ -32,7 +32,7 @@ export function InlineField({ label, value }: { label: string; value?: Value }) 
       <TextField
         id={id} hiddenLabel size="small" value={value == null ? '' : String(value)} placeholder="—" fullWidth
         slotProps={{ input: { readOnly: true }, htmlInput: { title: value == null ? undefined : String(value) } }}
-        sx={{ ...fieldSx(false), '& .MuiOutlinedInput-input': { py: '4px', fontSize: 13 } }}
+        sx={{ ...fieldSx(false), '& .MuiOutlinedInput-input': { fontSize: 13 } }}
       />
     </>
   )
@@ -82,7 +82,7 @@ export function SelectField({ label, lookup, code, lk, inline = false, col }: {
   const sx = {
     ...fieldSx(live),
     '& .MuiSelect-icon': { opacity: live ? 1 : 0.35 },
-    ...(inline ? { '& .MuiSelect-select': { py: '4px', fontSize: 13 } } : {}),
+    ...(inline ? { '& .MuiSelect-select': { fontSize: 13 } } : {}),
   }
   const items = [
     <MenuItem key="" value=""><em>—</em></MenuItem>,

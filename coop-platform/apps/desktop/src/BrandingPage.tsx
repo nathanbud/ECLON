@@ -81,9 +81,9 @@ export default function BrandingPage() {
                 </Stack>
               </Box>
 
-              <TextField label="Cooperative name" value={name} onChange={(e) => setName(e.target.value)} size="medium" fullWidth disabled={!superadmin}
+              <TextField label="Cooperative name" value={name} onChange={(e) => setName(e.target.value)} fullWidth disabled={!superadmin}
                 placeholder={brand.product} helperText={`${name.trim().length}/${NAME_MAX}. Empty shows “${brand.product}”.`} slotProps={{ htmlInput: { maxLength: NAME_MAX } }} />
-              <TextField label="Tagline" value={tagline} onChange={(e) => setTagline(e.target.value)} size="medium" fullWidth multiline minRows={2} disabled={!superadmin}
+              <TextField label="Tagline" value={tagline} onChange={(e) => setTagline(e.target.value)} fullWidth multiline minRows={2} disabled={!superadmin}
                 helperText={`${tagline.trim().length}/${TAGLINE_MAX}. A short line under the name. Optional.`} slotProps={{ htmlInput: { maxLength: TAGLINE_MAX } }} />
 
               <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
