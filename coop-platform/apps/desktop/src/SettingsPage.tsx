@@ -1,6 +1,6 @@
 import { Box, ButtonBase, InputAdornment, TextField, Typography } from '@mui/material'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { FiBook, FiImage, FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMonitor, FiSearch, FiShield, FiSliders, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
+import { FiBook, FiImage, FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMonitor, FiSearch, FiSend, FiShield, FiSliders, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
 import { tint } from './theme'
@@ -42,6 +42,12 @@ const categories: Category[] = [
     id: 'accounting', label: 'Accounting', icon: <FiBookOpen />, color: tint.orange[0],
     items: [
       { label: 'Chart of Accounts', note: 'Add, rename, move and switch off ledger accounts', icon: <FiBookOpen />, color: tint.orange[0], view: 'accounts', who: 'accountant' },
+    ],
+  },
+  {
+    id: 'credit', label: 'Credit reporting', icon: <FiSend />, color: tint.purple[0],
+    items: [
+      { label: 'CIC submission', note: 'Header record, members’ and loans’ data files, encryption and sending to the Credit Information Corporation', icon: <FiSend />, color: tint.purple[0], view: 'cic', who: 'accountant' },
     ],
   },
   {
