@@ -56,6 +56,18 @@ class ChequeClearingTest {
     }
 
     @Test
+    void aClearingDayInTheFutureOrBeforeTheReceiptIsRefused() {
+        assumeTrue(db.tableExists("ecis_cheque_clearing"), "V048_cheque_clearing_record.sql has not been run");
+        List<Row> open = clearing.list(admin(), false);
+        assumeTrue(!open.isEmpty(), "no uncleared cheques in this database");
+        Item item = new Item(open.get(0).year(), open.get(0).ctlNo(), open.get(0).seq());
+        assertThrows(ResponseStatusException.class, () -> clearing.clear(new ClearRequest(List.of(item), "integration test", LocalDate.now().plusDays(1).toString(), null), admin()), "future day");
+        assertThrows(ResponseStatusException.class, () -> clearing.clear(new ClearRequest(List.of(item), "integration test", "10/31/2026", null), admin()), "date format");
+        assertThrows(ResponseStatusException.class, () -> clearing.clear(new ClearRequest(List.of(item), "integration test", "2000-01-01", null), admin()), "before the receipt");
+        assertThrows(ResponseStatusException.class, () -> clearing.clear(new ClearRequest(List.of(item), "integration test", null, "x".repeat(41)), admin()), "long bank reference");
+    }
+
+    @Test
     void anOrdinaryUserCannotSeeOrClear() {
         Authentication nobody = new TestingAuthenticationToken("nobody-at-all", null);
         assertThrows(ResponseStatusException.class, () -> clearing.list(nobody, false));
@@ -73,8 +85,14 @@ class ChequeClearingTest {
         if (!r.due()) {
             assertThrows(ResponseStatusException.class, () -> clearing.clear(new ClearRequest(List.of(item), null), admin()), "early clearing needs a reason");
         }
-        var done = clearing.clear(new ClearRequest(List.of(item), "integration test"), admin());
+        assumeTrue(db.tableExists("ecis_cheque_clearing"), "V048_cheque_clearing_record.sql has not been run");
+        var done = clearing.clear(new ClearRequest(List.of(item), "integration test", LocalDate.now().toString(), " BANK-REF-1 "), admin());
         assertEquals(1, done.cleared());
+        var rec = jdbc.queryForMap("SELECT cleared_on, bank_reference, cleared_by FROM ecis_cheque_clearing WHERE tr_year = ? AND ctl_no = ? AND seq_no = ?", r.year(), r.ctlNo(), r.seq());
+        assertEquals(LocalDate.now().toString(), rec.get("cleared_on").toString());
+        assertEquals("BANK-REF-1", rec.get("bank_reference"));
+        assertEquals("itest-admin", rec.get("cleared_by"));
+        assertEquals("itest-admin", clearing.list(admin(), true).stream().filter((x) -> x.year() == r.year() && x.ctlNo() == r.ctlNo() && x.seq() == r.seq()).findFirst().orElseThrow().clearedBy());
         Integer flag = jdbc.queryForObject("SELECT CKISCLEARED FROM transck WHERE CKTR_YEAR = ? AND CKTR_CODE = 10 AND CKTR_CTLNO = ? AND CKSEQ_NO = ?", Integer.class, r.year(), r.ctlNo(), r.seq());
         assertEquals(1, flag);
         assertFalse(clearing.list(admin(), false).stream().anyMatch((x) -> x.year() == r.year() && x.ctlNo() == r.ctlNo() && x.seq() == r.seq()));

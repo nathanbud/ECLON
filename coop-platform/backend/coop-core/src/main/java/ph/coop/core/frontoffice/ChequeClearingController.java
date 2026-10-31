@@ -31,11 +31,14 @@ import ph.coop.core.db.Db;
 class ChequeClearingController {
 
     record Row(int year, long ctlNo, int seq, String documentNo, String receiptDate, String client, String number, String bank, String chequeDate,
-               String kind, BigDecimal amount, String clearsOn, boolean due, boolean cleared) {}
+               String kind, BigDecimal amount, String clearsOn, boolean due, boolean cleared, String clearedOn, String clearedBy, String bankReference) {}
 
     record Item(int year, long ctlNo, int seq) {}
 
-    record ClearRequest(List<Item> items, String reason) {}
+    /** {@code clearedOn} is the day the bank released the money (today when empty); {@code bankReference} is optional. */
+    record ClearRequest(List<Item> items, String reason, String clearedOn, String bankReference) {
+        ClearRequest(List<Item> items, String reason) { this(items, reason, null, null); }
+    }
 
     record Cleared(int cleared, int skipped) {}
 
@@ -74,8 +77,10 @@ class ChequeClearingController {
         LocalDate today = LocalDate.now(clock);
         return jdbc.query("""
                 SELECT c.CKTR_YEAR, c.CKTR_CTLNO, c.CKSEQ_NO, t.TR_DOCNO, t.TR_DATE, t.CLIENTNAME, c.CKCHECKNO, COALESCE(NULLIF(b.BCDesc2, ''), b.BCDesc),
-                  c.CKCHECKDATE, k.ChkTypeDesc, c.CKAMT, COALESCE(c.CKCLRG_DAYS, 0), c.CKISCLEARED
+                  c.CKCHECKDATE, k.ChkTypeDesc, c.CKAMT, COALESCE(c.CKCLRG_DAYS, 0), c.CKISCLEARED,
+                  cc.cleared_on, cc.cleared_by, cc.bank_reference
                 FROM transck c
+                LEFT JOIN ecis_cheque_clearing cc ON cc.tr_year = c.CKTR_YEAR AND cc.ctl_no = c.CKTR_CTLNO AND cc.seq_no = c.CKSEQ_NO
                 JOIN transsum t ON t.TR_BRCODE = c.CKTR_BRCODE AND t.TR_YEAR = c.CKTR_YEAR AND t.TR_MODULE = c.CKTR_MODULE AND t.TR_CODE = c.CKTR_CODE AND t.TR_CTLNO = c.CKTR_CTLNO
                 LEFT JOIN bankcode b ON b.BCBR_CODE = c.CKTR_BRCODE AND b.BCID = c.CKBANK_CODE
                 LEFT JOIN chktype k ON k.ChkTypeID = c.CKCHECKTYPE
@@ -86,7 +91,8 @@ class ChequeClearingController {
                 LocalDate on = clearsOn(received, rs.getInt(12));
                 java.sql.Date cd = rs.getDate(9);
                 return new Row(rs.getInt(1), rs.getLong(2), rs.getInt(3), rs.getString(4), received.toString(), rs.getString(6), rs.getString(7), rs.getString(8),
-                    cd == null ? null : cd.toLocalDate().toString(), rs.getString(10), rs.getBigDecimal(11), on.toString(), !today.isBefore(on), rs.getInt(13) == 1);
+                    cd == null ? null : cd.toLocalDate().toString(), rs.getString(10), rs.getBigDecimal(11), on.toString(), !today.isBefore(on), rs.getInt(13) == 1,
+                    rs.getDate(14) == null ? null : rs.getDate(14).toLocalDate().toString(), rs.getString(15), rs.getString(16));
             }, today.getYear() - 1, all ? 1 : 0);
     }
 
@@ -97,7 +103,19 @@ class ChequeClearingController {
         if (req.items() == null || req.items().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose the cheques to clear.");
         if (!db.canUpdateColumn("transck", "CKISCLEARED"))
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Clearing is not set up yet. An administrator has to run database/migrations/V026_cheque_clearing.sql.");
+        if (!db.tableExists("ecis_cheque_clearing"))
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Clearing records are not set up yet. An administrator has to run database/migrations/V048_cheque_clearing_record.sql.");
         String reason = req.reason() == null ? "" : req.reason().trim();
+        LocalDate today = LocalDate.now(clock);
+        LocalDate clearedOn;
+        try {
+            clearedOn = req.clearedOn() == null || req.clearedOn().isBlank() ? today : LocalDate.parse(req.clearedOn().trim());
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The day the cheque cleared must look like 2026-10-31.");
+        }
+        if (clearedOn.isAfter(today)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A cheque cannot clear on a day that has not come yet.");
+        String bankRef = req.bankReference() == null || req.bankReference().isBlank() ? null : req.bankReference().trim();
+        if (bankRef != null && bankRef.length() > 40) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The bank reference can be at most 40 characters.");
         List<Row> open = list(auth, false);
         List<Row> chosen = new ArrayList<>();
         for (Item it : req.items())
@@ -106,6 +124,9 @@ class ChequeClearingController {
         boolean early = chosen.stream().anyMatch((r) -> !r.due());
         if (early && reason.length() < 5) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Some of these cheques are not yet due. Give a reason (at least 5 characters) for clearing them early.");
         String why = reason.isEmpty() ? null : reason.substring(0, Math.min(reason.length(), 250));
+        for (Row r : chosen)
+            if (clearedOn.isBefore(LocalDate.parse(r.receiptDate())))
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cheque " + r.number() + " was received on " + r.receiptDate() + ", so it cannot have cleared before that.");
         int done = tx.execute((st) -> {
             int n = 0;
             for (Row r : chosen) {
@@ -113,6 +134,8 @@ class ChequeClearingController {
                     r.year(), r.ctlNo(), r.seq());
                 if (u == 0) continue;
                 n++;
+                jdbc.update("INSERT INTO ecis_cheque_clearing (tr_year, ctl_no, seq_no, cleared_on, bank_reference, early_reason, cleared_by, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    r.year(), r.ctlNo(), r.seq(), java.sql.Date.valueOf(clearedOn), bankRef, r.due() ? null : why, auth.getName(), java.sql.Timestamp.valueOf(java.time.LocalDateTime.now(clock)));
                 AuditLog.write(jdbc, null, auth.getName(), "cheque.clear", "transck", r.year() + "/10/" + r.ctlNo() + "/" + r.seq(), "not cleared", "cleared: cheque " + r.number() + " " + r.amount().toPlainString() + " (" + r.documentNo() + ")" + (r.due() ? "" : " before " + r.clearsOn()), why);
             }
             return n;

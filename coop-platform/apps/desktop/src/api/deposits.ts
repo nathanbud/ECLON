@@ -71,10 +71,11 @@ export const postSavingsWithdrawal = (b: SavingsCashIn) => send<SavingsReceipt>(
 export interface ChequeClearRow {
   year: number; ctlNo: number; seq: number; documentNo: string; receiptDate: string; client: string | null; number: string; bank: string | null
   chequeDate: string | null; kind: string | null; amount: number; clearsOn: string; due: boolean; cleared: boolean
+  clearedOn: string | null; clearedBy: string | null; bankReference: string | null
 }
 export const getChequeClearing = () => getJson<ChequeClearRow[]>('/api/front-office/cheque-clearing')
-export const clearCheques = (items: { year: number; ctlNo: number; seq: number }[], reason: string) =>
-  send<{ cleared: number; skipped: number }>('POST', '/api/front-office/cheque-clearing', { items, reason })
+export const clearCheques = (items: { year: number; ctlNo: number; seq: number }[], reason: string, clearedOn?: string, bankReference?: string) =>
+  send<{ cleared: number; skipped: number }>('POST', '/api/front-office/cheque-clearing', { items, reason, clearedOn, bankReference })
 
 // ---- returned cheques ---------------------------------------------------------------------------------------------------
 export interface ChequeReturnCandidate {

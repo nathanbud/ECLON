@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { clearCheques, getChequeClearing } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
+import { fmtDate } from './profile/format'
 
 /**
  * Cheques taken at the window that are not cleared yet. The head cashier (or an accountant or administrator) marks the ones the bank has
@@ -14,6 +15,9 @@ export function ChequeClearingPanel() {
   const list = useQuery({ queryKey: ['cheque-clearing'], queryFn: getChequeClearing, retry: false })
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [reason, setReason] = useState('')
+  const today = new Date().toLocaleDateString('en-CA')
+  const [clearedOn, setClearedOn] = useState(today)
+  const [bankReference, setBankReference] = useState('')
   const [note, setNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const key = (r: { year: number; ctlNo: number; seq: number }) => `${r.year}/${r.ctlNo}/${r.seq}`
@@ -21,9 +25,9 @@ export function ChequeClearingPanel() {
   const chosen = rows.filter((r) => picked.has(key(r)))
   const early = chosen.some((r) => !r.due)
   const run = useMutation({
-    mutationFn: () => clearCheques(chosen.map((r) => ({ year: r.year, ctlNo: r.ctlNo, seq: r.seq })), reason),
+    mutationFn: () => clearCheques(chosen.map((r) => ({ year: r.year, ctlNo: r.ctlNo, seq: r.seq })), reason, clearedOn, bankReference.trim() || undefined),
     onSuccess: (r) => {
-      setError(null); setPicked(new Set()); setReason(''); setNote(`${r.cleared} cheque${r.cleared === 1 ? '' : 's'} cleared.${r.skipped ? ` ${r.skipped} skipped (already cleared).` : ''}`)
+      setError(null); setPicked(new Set()); setReason(''); setBankReference(''); setClearedOn(today); setNote(`${r.cleared} cheque${r.cleared === 1 ? '' : 's'} cleared.${r.skipped ? ` ${r.skipped} skipped (already cleared).` : ''}`)
       void qc.invalidateQueries({ queryKey: ['cheque-clearing'] })
     },
     onError: (e) => setError((e as Error).message),
@@ -51,13 +55,13 @@ export function ChequeClearingPanel() {
                 {rows.map((r) => (
                   <TableRow key={key(r)} hover selected={picked.has(key(r))} onClick={() => toggle(r)} sx={{ cursor: 'pointer' }}>
                     <TableCell padding="checkbox"><Checkbox size="small" checked={picked.has(key(r))} slotProps={{ input: { 'aria-label': `Clear cheque ${r.number}` } }} /></TableCell>
-                    <TableCell>{r.receiptDate}</TableCell>
+                    <TableCell>{fmtDate(r.receiptDate)}</TableCell>
                     <TableCell>{r.documentNo}</TableCell>
                     <TableCell>{r.client ?? ''}</TableCell>
                     <TableCell>{r.number}{r.kind ? ` · ${r.kind}` : ''}</TableCell>
                     <TableCell>{r.bank ?? ''}</TableCell>
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(r.amount)}</TableCell>
-                    <TableCell sx={{ color: r.due ? 'success.main' : 'text.secondary' }}>{r.due ? 'Due' : r.clearsOn}</TableCell>
+                    <TableCell sx={{ color: r.due ? 'success.main' : 'text.secondary' }}>{r.due ? 'Due' : fmtDate(r.clearsOn)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -67,8 +71,10 @@ export function ChequeClearingPanel() {
             <Button size="small" onClick={() => setPicked(new Set(rows.filter((r) => r.due).map(key)))}>Choose all due</Button>
             <Typography sx={{ fontSize: 13.5 }}>{chosen.length} chosen · <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(total)}</b></Typography>
             <Box sx={{ flex: 1 }} />
+            <TextField size="small" type="date" label="Cleared on" value={clearedOn} onChange={(e) => setClearedOn(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today } }} />
+            <TextField size="small" label="Bank reference (optional)" value={bankReference} onChange={(e) => setBankReference(e.target.value)} slotProps={{ htmlInput: { maxLength: 40 } }} />
             {early && <TextField size="small" label="Reason for clearing early" value={reason} onChange={(e) => setReason(e.target.value)} sx={{ minWidth: 260 }} />}
-            <Button variant="contained" disabled={chosen.length === 0 || run.isPending || (early && reason.trim().length < 5)} onClick={() => run.mutate()}>
+            <Button variant="contained" disabled={chosen.length === 0 || !clearedOn || run.isPending || (early && reason.trim().length < 5)} onClick={() => run.mutate()}>
               {run.isPending ? 'Clearing…' : 'Mark cleared'}
             </Button>
           </Box>
