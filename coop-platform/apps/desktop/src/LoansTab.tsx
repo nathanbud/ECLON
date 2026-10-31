@@ -1,6 +1,8 @@
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Skeleton, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { DetailPanel } from './profile/fields'
+import { fmtDate } from './profile/format'
 import LoanProfileDialog from './LoanProfileDialog'
 import { askFoOverride, checkLoanPayment, getLoanDetail, getLoans, postLoanPayment, type LoanItem, type LoanPaymentBreakdown, type LoanPaymentReceipt, type LoanScheduleRow } from './api'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
@@ -41,16 +43,16 @@ export default function LoansTab({ branchCode, clientId, teller = false }: { bra
           </TableHead>
           <TableBody>
             {data.loans.map((l) => (
-              <TableRow key={`${l.typeCode}-${l.refNo}`} hover sx={{ cursor: 'pointer' }} onClick={() => setOpen(l)}>
+              <TableRow key={`${l.typeCode}-${l.refNo}`} hover selected={open?.typeCode === l.typeCode && open.refNo === l.refNo} sx={{ cursor: 'pointer' }} onClick={() => setOpen(open?.typeCode === l.typeCode && open.refNo === l.refNo ? null : l)}>
                 <TableCell>{l.type ?? `Type ${l.typeCode}`} #{l.refNo}{l.restructured && <Chip size="small" label="Restructured" sx={{ ml: 1 }} />}</TableCell>
                 <TableCell><Chip size="small" label={l.statusName} color={l.status === 11 ? 'success' : l.status === 12 || l.status === 13 ? 'error' : 'default'} variant="outlined" /></TableCell>
-                <TableCell>{l.date ?? '—'}</TableCell>
+                <TableCell>{fmtDate(l.date) ?? '—'}</TableCell>
                 <TableCell align="right" sx={num}>{money(l.amount)}</TableCell>
                 <TableCell>{l.terms} {l.termUnit?.toLowerCase() ?? ''}{l.paymentMode ? ` · ${l.paymentMode.toLowerCase()}` : ''}</TableCell>
                 <TableCell align="right" sx={num}>{l.interestRate == null ? '—' : l.interestRate.toFixed(2)}</TableCell>
                 <TableCell align="right" sx={num}>{money(l.outstanding)}</TableCell>
                 <TableCell align="right" sx={{ color: l.pastDuePrincipal > 0 ? 'error.main' : undefined, ...num }}>{l.pastDuePrincipal > 0 ? `${money(l.pastDuePrincipal)} (${l.daysPastDue} d)` : '—'}</TableCell>
-                <TableCell>{l.nextDueDate ? `${l.nextDueDate} · ${money((l.nextDuePrincipal ?? 0) + (l.nextDueInterest ?? 0))}` : '—'}</TableCell>
+                <TableCell>{l.nextDueDate ? `${fmtDate(l.nextDueDate)} · ${money((l.nextDuePrincipal ?? 0) + (l.nextDueInterest ?? 0))}` : '—'}</TableCell>
                 <TableCell align="right">
                   <Button size="small" color="inherit" onClick={(e) => { e.stopPropagation(); setProfile(l) }}>Profile</Button>
                   {teller && l.outstanding > 0 && l.status !== 13 && <Button size="small" onClick={(e) => { e.stopPropagation(); setPaying(l) }}>Pay</Button>}
@@ -60,7 +62,7 @@ export default function LoansTab({ branchCode, clientId, teller = false }: { bra
           </TableBody>
         </Table>
       )}
-      {open && <LoanDialog branchCode={branchCode} clientId={clientId} loan={open} onClose={() => setOpen(null)} />}
+      {open && <LoanDetail key={`${open.typeCode}-${open.refNo}`} branchCode={branchCode} clientId={clientId} loan={open} onClose={() => setOpen(null)} />}
       {paying && <LoanPaymentDialog clientId={clientId} loan={paying} onClose={() => setPaying(null)} />}
       {profile && <LoanProfileDialog branchCode={branchCode} clientId={clientId} typeCode={profile.typeCode} refNo={profile.refNo} onClose={() => setProfile(null)} />}
     </>
@@ -133,7 +135,7 @@ function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan
             {check && (
               <Table size="small" aria-label="How the payment is split">
                 <TableBody>
-                  <TableRow><TableCell>Interest due ({check.days} days since {check.interestFrom})</TableCell><TableCell align="right" sx={num}>{money(check.interestDue)}</TableCell></TableRow>
+                  <TableRow><TableCell>Interest due ({check.days} days since {fmtDate(check.interestFrom)})</TableCell><TableCell align="right" sx={num}>{money(check.interestDue)}</TableCell></TableRow>
                   <TableRow><TableCell>Goes to penalty</TableCell><TableCell align="right" sx={num}>{money(check.penalty)}</TableCell></TableRow>
                   <TableRow><TableCell>Goes to interest</TableCell><TableCell align="right" sx={num}>{money(check.interest)}</TableCell></TableRow>
                   <TableRow><TableCell>Goes to principal</TableCell><TableCell align="right" sx={num}>{money(check.principal)}</TableCell></TableRow>
@@ -164,7 +166,7 @@ function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan
         )}
         {receipt && (
           <Box sx={{ display: 'grid', gap: 0.5, pt: 1, fontSize: 14 }}>
-            <Box>Receipt <strong>{receipt.documentNo}</strong> (control {receipt.controlNo}) dated {receipt.date}</Box>
+            <Box>Receipt <strong>{receipt.documentNo}</strong> (control {receipt.controlNo}) dated {fmtDate(receipt.date)}</Box>
             <Box>{receipt.clientName}</Box>
             <Box>{receipt.loan}</Box>
             <Box>Received <strong>{money(receipt.amount)}</strong>: {receipt.penalty > 0 ? `penalty ${money(receipt.penalty)}, ` : ''}interest {money(receipt.interest)}, principal {money(receipt.principal)}</Box>
@@ -190,19 +192,17 @@ function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan
   )
 }
 
-function LoanDialog({ branchCode, clientId, loan, onClose }: { branchCode: number; clientId: number; loan: LoanItem; onClose: () => void }) {
+function LoanDetail({ branchCode, clientId, loan, onClose }: { branchCode: number; clientId: number; loan: LoanItem; onClose: () => void }) {
   const [tab, setTab] = useState(0)
   const { data, error } = useQuery({ queryKey: ['member-loan', branchCode, clientId, loan.typeCode, loan.refNo], queryFn: () => getLoanDetail(branchCode, clientId, loan.typeCode, loan.refNo) })
   const l = data?.loan ?? loan
   const facts: [string, string][] = [
-    ['Released', l.date ?? '—'], ['First due', l.firstDue ?? '—'], ['Matures', l.maturity ?? '—'], ['Interest', `${l.interestRate == null ? '—' : l.interestRate.toFixed(2)}% · ${l.amortization ?? '—'}`],
+    ['Released', fmtDate(l.date) ?? '—'], ['First due', fmtDate(l.firstDue) ?? '—'], ['Matures', fmtDate(l.maturity) ?? '—'], ['Interest', `${l.interestRate == null ? '—' : l.interestRate.toFixed(2)}% · ${l.amortization ?? '—'}`],
     ['Purpose', l.purpose ?? '—'], ['Collateral', l.collateral ? `${l.collateral}${l.collateralAmount ? ` · ${money(l.collateralAmount)}` : ''}` : '—'],
-    ['Principal paid', money(l.principalPaid)], ['Interest paid', money(l.interestPaid)], ['Last payment', l.lastPayment ?? '—'], ['Renewals', String(l.renewals)],
+    ['Principal paid', money(l.principalPaid)], ['Interest paid', money(l.interestPaid)], ['Last payment', fmtDate(l.lastPayment) ?? '—'], ['Renewals', String(l.renewals)],
   ]
   return (
-    <Dialog open onClose={onClose} maxWidth="lg" fullWidth>
-      <DialogTitle>{l.type ?? `Type ${l.typeCode}`} #{l.refNo} · {l.statusName} · {money(l.amount)} · owes {money(l.outstanding)}</DialogTitle>
-      <DialogContent>
+    <DetailPanel title={`${l.type ?? `Type ${l.typeCode}`} #${l.refNo} · ${l.statusName} · ${money(l.amount)} · owes ${money(l.outstanding)}`} onClose={onClose}>
         {error && <Alert severity="error">{(error as Error).message}</Alert>}
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '4px 16px', mb: 1.5, fontSize: 13 }}>
           {facts.map(([k, v]) => <Box key={k}><Typography component="span" sx={{ fontSize: 12 }} color="text.secondary">{k}: </Typography>{v}</Box>)}
@@ -217,7 +217,7 @@ function LoanDialog({ branchCode, clientId, loan, onClose }: { branchCode: numbe
             <TableBody>
               {data.schedule.map((r) => (
                 <TableRow key={r.dueDate}>
-                  <TableCell>{r.dueDate}</TableCell>
+                  <TableCell>{fmtDate(r.dueDate)}</TableCell>
                   <TableCell align="right" sx={num}>{money(r.principalDue)}</TableCell><TableCell align="right" sx={num}>{money(r.interestDue)}</TableCell><TableCell align="right" sx={num}>{money(r.principalBalance)}</TableCell>
                   <TableCell>
                     <Chip size="small" label={stateLabel[r.state]} color={stateColor[r.state]} variant={r.state === 'UPCOMING' ? 'outlined' : 'filled'} />
@@ -234,12 +234,12 @@ function LoanDialog({ branchCode, clientId, loan, onClose }: { branchCode: numbe
             {data.entriesTruncated && <Alert severity="warning" sx={{ mb: 1 }}>Only the first 1,000 entries are shown.</Alert>}
             <Table size="small" aria-label="Loan ledger">
               <TableHead>
-                <TableRow><TableCell>Date</TableCell><TableCell>Entry</TableCell><TableCell>Transaction</TableCell><TableCell>Document</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell><TableCell align="right">Principal balance</TableCell></TableRow>
+                <TableRow><TableCell>Date</TableCell><TableCell>Entry</TableCell><TableCell>TR</TableCell><TableCell>Document</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell><TableCell align="right">Principal balance</TableCell></TableRow>
               </TableHead>
               <TableBody>
                 {data.entries.map((e, i) => (
                   <TableRow key={`${e.documentNo}-${e.event}-${i}`}>
-                    <TableCell>{e.date}</TableCell><TableCell>{e.eventName ?? `Event ${e.event}`}</TableCell><TableCell>{e.transaction ?? `Type ${e.transactionCode}`}</TableCell><TableCell>{e.documentNo ?? '—'}</TableCell>
+                    <TableCell>{fmtDate(e.date)}</TableCell><TableCell>{e.eventName ?? `Event ${e.event}`}</TableCell><TableCell>{e.transaction ?? `Type ${e.transactionCode}`}</TableCell><TableCell>{e.documentNo ?? '—'}</TableCell>
                     <TableCell align="right" sx={num}>{e.debit ? money(e.debit) : ''}</TableCell><TableCell align="right" sx={num}>{e.credit ? money(e.credit) : ''}</TableCell>
                     <TableCell align="right" sx={num}>{e.principalBalance == null ? '' : money(e.principalBalance)}</TableCell>
                   </TableRow>
@@ -248,8 +248,6 @@ function LoanDialog({ branchCode, clientId, loan, onClose }: { branchCode: numbe
             </Table>
           </>
         )}
-      </DialogContent>
-      <DialogActions><Button onClick={onClose}>Close</Button></DialogActions>
-    </Dialog>
+    </DetailPanel>
   )
 }

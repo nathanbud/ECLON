@@ -45,6 +45,7 @@ export const postBankWithdrawal = (body: BankCashIn) => send<BankCashOut>('POST'
 export interface SavingsAccount {
   typeCode: number; type: string | null; refNo: number; refNoText: string | null; opened: string | null; status: number; statusName: string
   interestRate: number | null; minimumBalance: number | null; balance: number; held: number; available: number; lastActivity: string | null
+  /** Cheque money not yet cleared: in the balance, not available. */ uncleared: number
 }
 export interface SavingsSummary { accounts: SavingsAccount[]; totalBalance: number; totalHeld: number }
 export interface SavingsHold { reason: string | null; description: string | null; amount: number; date: string | null; reference: string | null }

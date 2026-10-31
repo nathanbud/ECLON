@@ -143,7 +143,7 @@ class LoansController {
         // ledger entries oldest first, with the principal balance after each one
         record Raw(LocalDate date, int event, String eventName, int code, String name, String doc, BigDecimal amount) {}
         List<Raw> raw = jdbc.query("""
-                SELECT d.TR_DATE, d.SLE_CODE, e.SLE_TypeDesc, d.TR_CODE, tt.TransTypeDesc, d.TR_DOCNO, d.AMT
+                SELECT d.TR_DATE, d.SLE_CODE, e.SLE_TypeDesc, d.TR_CODE, COALESCE(NULLIF(tt.TransTypeDesc2, ''), tt.TransTypeDesc), d.TR_DOCNO, d.AMT
                 FROM sldtl d
                 LEFT JOIN (SELECT SLE_TypeCode, MIN(SLE_TypeDesc) AS SLE_TypeDesc FROM sle_type GROUP BY SLE_TypeCode) e ON e.SLE_TypeCode = d.SLE_CODE
                 LEFT JOIN transtype tt ON tt.TransTypeID = d.TR_CODE

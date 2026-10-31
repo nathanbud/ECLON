@@ -22,7 +22,7 @@ const TABS = [
 ]
 
 const dark = (t: Theme) => t.palette.mode === 'dark'
-const fmtDate = (s: string) => new Date(`${s.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+const fmtDate = (s: string) => `${s.slice(5, 7)}/${s.slice(8, 10)}/${s.slice(0, 4)}`
 
 // ---- edit state ---------------------------------------------------------------------------------------------------
 // While editing, every change is kept here, keyed by column (or by "code|permission" for the transaction types table),

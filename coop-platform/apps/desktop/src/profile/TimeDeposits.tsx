@@ -2,9 +2,9 @@ import { type Id } from '../clients'
 import { useState } from 'react'
 import { getTimeDepositHistory, getTimeDeposits, type TimeDeposit } from '../api'
 import { useQuery } from '@tanstack/react-query'
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Skeleton, Switch, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import { Alert, Box, Button, FormControlLabel, Skeleton, Switch, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { FiInfo, FiPlus } from 'react-icons/fi'
-import { EmptyState, TableCard } from './fields'
+import { DetailPanel, EmptyState, TableCard } from './fields'
 import { fmtDate, peso } from './format'
 import TimeDepositPlaceDialog from '../TimeDepositPlaceDialog'
 import TimeDepositInterestDialog from '../TimeDepositInterestDialog'
@@ -40,7 +40,7 @@ export function TimeDepositsTab({ id, teller = false }: { id: Id; teller?: boole
             </TableHead>
             <TableBody>
               {data.deposits.map((d) => (
-                <TableRow key={`${d.typeCode}-${d.refNo}`} hover sx={{ cursor: 'pointer' }} onClick={() => setOpen({ typeCode: d.typeCode, refNo: d.refNo })}>
+                <TableRow key={`${d.typeCode}-${d.refNo}`} hover selected={open?.typeCode === d.typeCode && open.refNo === d.refNo} sx={{ cursor: 'pointer' }} onClick={() => setOpen(open?.typeCode === d.typeCode && open.refNo === d.refNo ? null : { typeCode: d.typeCode, refNo: d.refNo })}>
                   <TableCell>{d.type ?? `Type ${d.typeCode}`}</TableCell><TableCell>{d.certificate ?? d.refNo}</TableCell>
                   <TableCell>{fmtDate(d.placed) ?? '—'}</TableCell><TableCell>{fmtDate(d.maturity) ?? '—'}</TableCell>
                   <TableCell align="right" sx={num}>{d.termDays}</TableCell>
@@ -79,7 +79,7 @@ export function TimeDepositsTab({ id, teller = false }: { id: Id; teller?: boole
       <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
         Interest at maturity is an estimate: the rate over the term on a 30-day month, 360-day year. A renewal also carries a 10.00 certificate fee. A running Lock In pays its interest by the year on request (Withdraw interest, from an anniversary on). A matured certificate is paid out or renewed, and a running one pre-terminated (a termination charge, and interest at a reduced rate for the days held), only when someone asks for it here; the voucher then waits on the Front Office Disburse tab. The TD Maturities tab of the Front Office lists what is due.
       </Typography>
-      {open && <TimeDepositHistoryDialog id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
+      {open && <TimeDepositHistory key={`${open.typeCode}-${open.refNo}`} id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
       {placing && <TimeDepositPlaceDialog clientId={id.clientId} onClose={() => setPlacing(false)} />}
       {interestFor && <TimeDepositInterestDialog clientId={id.clientId} typeCode={interestFor.typeCode} refNo={interestFor.refNo}
         label={`${interestFor.type ?? 'Time deposit'} ${interestFor.certificate ?? interestFor.refNo}`} onClose={() => setInterestFor(null)} />}
@@ -89,43 +89,38 @@ export function TimeDepositsTab({ id, teller = false }: { id: Id; teller?: boole
   )
 }
 
-function TimeDepositHistoryDialog({ id, typeCode, refNo, onClose }: { id: Id; typeCode: number; refNo: number; onClose: () => void }) {
+function TimeDepositHistory({ id, typeCode, refNo, onClose }: { id: Id; typeCode: number; refNo: number; onClose: () => void }) {
   const [page, setPage] = useState(0)
   const size = 25
   const { data, error } = useQuery({ queryKey: ['member-td-history', id, typeCode, refNo, page], queryFn: () => getTimeDepositHistory(id.branchCode, id.clientId, typeCode, refNo, page, size) })
   const num = { fontVariantNumeric: 'tabular-nums' } as const
   return (
-    <Dialog open onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{data ? `${data.deposit.type ?? 'Time deposit'} ${data.deposit.certificate ?? ''}` : 'Time deposit'}</DialogTitle>
-      <DialogContent>
+    <DetailPanel
+      title={data ? `${data.deposit.type ?? 'Time deposit'} ${data.deposit.certificate ?? ''}` : 'Time deposit'} onClose={onClose}
+      footer={data && data.totalEntries > size ? <>
+        <Box sx={{ flex: 1 }} />
+        <Button disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Newer</Button>
+        <Button disabled={(page + 1) * size >= data.totalEntries} onClick={() => setPage((p) => p + 1)}>Older</Button>
+      </> : undefined}
+    >
         {error && <Alert severity="error">{(error as Error).message}</Alert>}
         {data && data.entries.length === 0 && <Alert severity="info">This certificate has no entries in the ledger.</Alert>}
         {data && data.entries.length > 0 && (
           <Table size="small" aria-label="Time deposit entries">
             <TableHead>
-              <TableRow><TableCell>Date</TableCell><TableCell>Transaction</TableCell><TableCell>Document</TableCell><TableCell>Entry</TableCell><TableCell align="right">Amount</TableCell><TableCell align="right">Principal after</TableCell></TableRow>
+              <TableRow><TableCell>Date</TableCell><TableCell>TR</TableCell><TableCell>Document</TableCell><TableCell>Entry</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell><TableCell align="right">Principal after</TableCell></TableRow>
             </TableHead>
             <TableBody>
               {data.entries.map((e, i) => (
                 <TableRow key={`${e.documentNo}-${i}`}>
                   <TableCell>{fmtDate(e.date) ?? '—'}</TableCell><TableCell>{e.transaction ?? `Code ${e.transactionCode}`}</TableCell><TableCell>{e.documentNo ?? '—'}</TableCell><TableCell>{e.eventName}</TableCell>
-                  <TableCell align="right" sx={{ color: e.amount < 0 ? 'error.main' : undefined, ...num }}>{peso(e.amount)}</TableCell>
+                  <TableCell align="right" sx={{ color: 'error.main', ...num }}>{e.amount < 0 ? peso(-e.amount) : ''}</TableCell><TableCell align="right" sx={num}>{e.amount > 0 ? peso(e.amount) : ''}</TableCell>
                   <TableCell align="right" sx={num}>{e.event === 11 ? peso(e.balanceAfter) : ''}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
-      </DialogContent>
-      <DialogActions>
-        {data && data.totalEntries > size && (
-          <>
-            <Button disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Newer</Button>
-            <Button disabled={(page + 1) * size >= data.totalEntries} onClick={() => setPage((p) => p + 1)}>Older</Button>
-          </>
-        )}
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
-    </Dialog>
+    </DetailPanel>
   )
 }

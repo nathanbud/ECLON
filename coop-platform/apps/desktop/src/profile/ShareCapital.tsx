@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { getShareHistory, getShares, postSharePayment, postShareWithdrawal, type ShareAccount, type SharePaymentReceipt, type ShareWithdrawalOut } from '../api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField } from '@mui/material'
-import { EmptyState, TableCard } from './fields'
+import { DetailPanel, EmptyState, TableCard } from './fields'
 import { FiInfo } from 'react-icons/fi'
 import { CoMakerNote } from './CoMakerNote'
 import { fmtDate, peso } from './format'
@@ -31,7 +31,7 @@ export function ShareCapitalTab({ id, teller = false }: { id: Id; teller?: boole
           </TableHead>
           <TableBody>
             {data.accounts.map((a) => (
-              <TableRow key={`${a.typeCode}-${a.refNo}`} hover sx={{ cursor: 'pointer' }} onClick={() => setOpen({ typeCode: a.typeCode, refNo: a.refNo })}>
+              <TableRow key={`${a.typeCode}-${a.refNo}`} hover selected={open?.typeCode === a.typeCode && open.refNo === a.refNo} sx={{ cursor: 'pointer' }} onClick={() => setOpen(open?.typeCode === a.typeCode && open.refNo === a.refNo ? null : { typeCode: a.typeCode, refNo: a.refNo })}>
                 <TableCell>{a.type ?? `Type ${a.typeCode}`}</TableCell><TableCell>{a.refNoText ?? a.refNo}</TableCell>
                 <TableCell>{fmtDate(a.opened) ?? '—'}</TableCell><TableCell>{a.statusName}</TableCell><TableCell>{fmtDate(a.lastActivity) ?? '—'}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{peso(a.minimumBalance)}</TableCell>
@@ -51,7 +51,7 @@ export function ShareCapitalTab({ id, teller = false }: { id: Id; teller?: boole
           </TableBody>
         </Table>
       </TableCard>
-      {open && <ShareHistoryDialog id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
+      {open && <ShareHistory key={`${open.typeCode}-${open.refNo}`} id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
       {paying && <SharePaymentDialog id={id} account={paying} onClose={() => setPaying(null)} />}
       {withdrawing && <ShareWithdrawalDialog id={id} account={withdrawing} onClose={() => setWithdrawing(null)} />}
     </>
@@ -181,38 +181,36 @@ function ShareWithdrawalDialog({ id, account, onClose }: { id: Id; account: Shar
   )
 }
 
-function ShareHistoryDialog({ id, typeCode, refNo, onClose }: { id: Id; typeCode: number; refNo: number; onClose: () => void }) {
+function ShareHistory({ id, typeCode, refNo, onClose }: { id: Id; typeCode: number; refNo: number; onClose: () => void }) {
   const [page, setPage] = useState(0)
   const size = 25
   const { data, error } = useQuery({ queryKey: ['member-share-history', id, typeCode, refNo, page], queryFn: () => getShareHistory(id.branchCode, id.clientId, typeCode, refNo, page, size) })
   return (
-    <Dialog open onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{data ? `${data.account.type ?? 'Share capital'} ${data.account.refNoText ?? ''}` : 'Share capital'}</DialogTitle>
-      <DialogContent>
+    <DetailPanel
+      title={data ? `${data.account.type ?? 'Share capital'} ${data.account.refNoText ?? ''}` : 'Share capital'} onClose={onClose}
+      footer={<>
+        {data && <Box sx={{ flex: 1, fontSize: 13 }}>{data.totalEntries} entries</Box>}
+        <Button disabled={page === 0} onClick={() => setPage(page - 1)}>Newer</Button>
+        <Button disabled={!data || (page + 1) * size >= data.totalEntries} onClick={() => setPage(page + 1)}>Older</Button>
+      </>}
+    >
         {error && <Alert severity="error">{(error as Error).message}</Alert>}
         {data && (
           <Table size="small" aria-label="Share capital entries">
             <TableHead>
-              <TableRow><TableCell>Date</TableCell><TableCell>Transaction</TableCell><TableCell>Document</TableCell><TableCell align="right">Amount</TableCell><TableCell align="right">Balance</TableCell></TableRow>
+              <TableRow><TableCell>Date</TableCell><TableCell>TR</TableCell><TableCell>Document</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell><TableCell align="right">Balance</TableCell></TableRow>
             </TableHead>
             <TableBody>
               {data.entries.map((e, i) => (
                 <TableRow key={`${e.documentNo}-${i}`}>
                   <TableCell>{fmtDate(e.date) ?? '—'}</TableCell><TableCell>{e.transaction ?? `Code ${e.transactionCode}`}</TableCell><TableCell>{e.documentNo ?? '—'}</TableCell>
-                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{peso(e.amount)}</TableCell>
+                  <TableCell align="right" sx={{ color: 'error.main', fontVariantNumeric: 'tabular-nums' }}>{e.amount < 0 ? peso(-e.amount) : ''}</TableCell><TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{e.amount > 0 ? peso(e.amount) : ''}</TableCell>
                   <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{peso(e.balanceAfter)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
-      </DialogContent>
-      <DialogActions>
-        {data && <Box sx={{ flex: 1, pl: 2, fontSize: 13 }}>{data.totalEntries} entries</Box>}
-        <Button disabled={page === 0} onClick={() => setPage(page - 1)}>Newer</Button>
-        <Button disabled={!data || (page + 1) * size >= data.totalEntries} onClick={() => setPage(page + 1)}>Older</Button>
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
-    </Dialog>
+    </DetailPanel>
   )
 }

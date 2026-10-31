@@ -100,7 +100,7 @@ class ShareCapitalController {
         // Newest first. Each row's balance is the account balance minus everything newer than it.
         record Raw(LocalDate date, LocalDate gl, int code, String name, String doc, BigDecimal amount) {}
         List<Raw> window = jdbc.query("""
-                SELECT d.TR_DATE, d.GL_DATE, d.TR_CODE, tt.TransTypeDesc, d.TR_DOCNO, -d.AMT
+                SELECT d.TR_DATE, d.GL_DATE, d.TR_CODE, COALESCE(NULLIF(tt.TransTypeDesc2, ''), tt.TransTypeDesc), d.TR_DOCNO, -d.AMT
                 FROM sldtl d LEFT JOIN transtype tt ON tt.TransTypeID = d.TR_CODE
                 WHERE d.SL_BRCODE = ? AND d.SL_CLIENTID = ? AND d.SLC_CODE = ? AND d.SLT_CODE = ? AND d.REF_NO = ?
                 ORDER BY d.TR_DATE DESC, d.SEQNO DESC LIMIT ?

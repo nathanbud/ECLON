@@ -1,6 +1,6 @@
 import { fieldSx, type Bind, type Value, useBound } from './editing'
-import { Box, MenuItem, TextField, Typography } from '@mui/material'
-import { type ReactNode, useId } from 'react'
+import { Box, Button, MenuItem, TextField, Typography } from '@mui/material'
+import { type ReactNode, useEffect, useId, useRef } from 'react'
 import { glass } from '../glass'
 import { type Lookups } from '../api'
 
@@ -111,6 +111,22 @@ export const quietChip = {
 } as const
 
 /** Glass panel holding a table, so the list tabs match the section cards. */
+/** The details of the row picked in a list, shown below the list instead of in a pop-up. It scrolls into view when it opens. */
+export function DetailPanel({ title, onClose, footer, children }: { title: ReactNode; onClose: () => void; footer?: ReactNode; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => { ref.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }) }, [])
+  return (
+    <Box ref={ref} component="section" aria-label="Account details" sx={(t) => ({ mt: 2, ...glass(t) })}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, borderBottom: 1, borderColor: 'divider' }}>
+        <Typography component="h3" sx={{ flex: 1, fontWeight: 600, fontSize: 15 }}>{title}</Typography>
+        <Button size="small" onClick={onClose}>Close</Button>
+      </Box>
+      <Box sx={{ p: 2, overflow: 'auto' }}>{children}</Box>
+      {footer && <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 2, py: 1, borderTop: 1, borderColor: 'divider' }}>{footer}</Box>}
+    </Box>
+  )
+}
+
 export function TableCard({ children }: { children: ReactNode }) {
   return <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>{children}</Box>
 }

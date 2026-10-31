@@ -101,7 +101,7 @@ class TimeDepositController {
         // Newest first. The balance shown is of the principal only: what the certificate held after that row.
         record Raw(LocalDate date, LocalDate gl, int code, String name, String doc, int event, BigDecimal amount) {}
         List<Raw> window = jdbc.query("""
-                SELECT d.TR_DATE, d.GL_DATE, d.TR_CODE, tt.TransTypeDesc, d.TR_DOCNO, d.SLE_CODE, -d.AMT
+                SELECT d.TR_DATE, d.GL_DATE, d.TR_CODE, COALESCE(NULLIF(tt.TransTypeDesc2, ''), tt.TransTypeDesc), d.TR_DOCNO, d.SLE_CODE, -d.AMT
                 FROM sldtl d LEFT JOIN transtype tt ON tt.TransTypeID = d.TR_CODE
                 WHERE d.SL_BRCODE = ? AND d.SL_CLIENTID = ? AND d.SLC_CODE = ? AND d.SLT_CODE = ? AND d.REF_NO = ?
                 ORDER BY d.TR_DATE DESC, d.SEQNO DESC LIMIT ?

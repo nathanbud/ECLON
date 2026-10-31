@@ -4,8 +4,8 @@ import { moneyOr } from '../ui/format'
 // ---- formatting helpers -------------------------------------------------------------------------------------------
 
 const parseDate = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00`)
-export const fmtDate = (iso?: string | null) =>
-  iso ? parseDate(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : null
+/** A date as numbers, month first: 2026-01-31 reads 01/31/2026. */
+export const fmtDate = (iso?: string | null) => (iso ? `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(0, 4)}` : null)
 export const yearsSince = (iso?: string | null) => {
   if (!iso) return null
   const d = parseDate(iso)

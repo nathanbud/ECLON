@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, postSavingsDeposit, postSavingsWithdrawal, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck } from '../api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField } from '@mui/material'
-import { EmptyState, TableCard } from './fields'
+import { DetailPanel, EmptyState, TableCard } from './fields'
 import { FiInfo } from 'react-icons/fi'
 import { CoMakerNote } from './CoMakerNote'
 import { fmtDate, peso } from './format'
@@ -26,16 +26,17 @@ export function SavingsTab({ id, teller = false }: { id: Id; teller?: boolean })
           <TableHead>
             <TableRow>
               <TableCell>Type</TableCell><TableCell>Account no.</TableCell><TableCell>Opened</TableCell><TableCell>Status</TableCell><TableCell>Last activity</TableCell>
-              <TableCell align="right">Rate %</TableCell><TableCell align="right">Balance</TableCell><TableCell align="right">On hold</TableCell><TableCell align="right">Available</TableCell>{teller && <TableCell />}{teller && <TableCell />}
+              <TableCell align="right">Rate %</TableCell><TableCell align="right">Balance</TableCell><TableCell align="right">Uncleared</TableCell><TableCell align="right">On hold</TableCell><TableCell align="right">Available</TableCell>{teller && <TableCell />}{teller && <TableCell />}
             </TableRow>
           </TableHead>
           <TableBody>
             {data.accounts.map((a) => (
-              <TableRow key={`${a.typeCode}-${a.refNo}`} hover sx={{ cursor: 'pointer' }} onClick={() => setOpen({ typeCode: a.typeCode, refNo: a.refNo })}>
+              <TableRow key={`${a.typeCode}-${a.refNo}`} hover selected={open?.typeCode === a.typeCode && open.refNo === a.refNo} sx={{ cursor: 'pointer' }} onClick={() => setOpen(open?.typeCode === a.typeCode && open.refNo === a.refNo ? null : { typeCode: a.typeCode, refNo: a.refNo })}>
                 <TableCell>{a.type ?? `Type ${a.typeCode}`}</TableCell><TableCell>{a.refNoText ?? a.refNo}</TableCell>
                 <TableCell>{fmtDate(a.opened) ?? '—'}</TableCell><TableCell>{a.statusName}</TableCell><TableCell>{fmtDate(a.lastActivity) ?? '—'}</TableCell>
                 <TableCell align="right" sx={num}>{a.interestRate == null ? '—' : a.interestRate.toFixed(2)}</TableCell>
                 <TableCell align="right" sx={num}>{peso(a.balance)}</TableCell>
+                <TableCell align="right" sx={num}>{a.uncleared ? peso(a.uncleared) : '—'}</TableCell>
                 <TableCell align="right" sx={num}>{a.held ? peso(a.held) : '—'}</TableCell>
                 <TableCell align="right" sx={num}>{peso(a.available)}</TableCell>
                 {teller && (
@@ -53,6 +54,7 @@ export function SavingsTab({ id, teller = false }: { id: Id; teller?: boolean })
             <TableRow>
               <TableCell colSpan={6} sx={{ fontWeight: 700 }}>Total savings</TableCell>
               <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{peso(data.totalBalance)}</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{data.accounts.some((a) => a.uncleared) ? peso(data.accounts.reduce((n, a) => n + a.uncleared, 0)) : '—'}</TableCell>
               <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{data.totalHeld ? peso(data.totalHeld) : '—'}</TableCell>
               <TableCell />
               {teller && <TableCell />}
@@ -60,7 +62,7 @@ export function SavingsTab({ id, teller = false }: { id: Id; teller?: boolean })
           </TableBody>
         </Table>
       </TableCard>
-      {open && <SavingsHistoryDialog id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
+      {open && <SavingsHistory key={`${open.typeCode}-${open.refNo}`} id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
     {cash && <SavingsCashDialog id={id} account={cash.account} mode={cash.mode} onClose={() => setCash(null)} />}
     </>
   )
@@ -168,16 +170,29 @@ export function SavingsCashDialog({ id, account, mode, onClose }: { id: Id; acco
   )
 }
 
-function SavingsHistoryDialog({ id, typeCode, refNo, onClose }: { id: Id; typeCode: number; refNo: number; onClose: () => void }) {
+function SavingsHistory({ id, typeCode, refNo, onClose }: { id: Id; typeCode: number; refNo: number; onClose: () => void }) {
   const [page, setPage] = useState(0)
   const size = 25
   const { data, error } = useQuery({ queryKey: ['member-savings-history', id, typeCode, refNo, page], queryFn: () => getSavingsHistory(id.branchCode, id.clientId, typeCode, refNo, page, size) })
   const num = { fontVariantNumeric: 'tabular-nums' } as const
   return (
-    <Dialog open onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{data ? `${data.account.type ?? 'Savings'} ${data.account.refNoText ?? ''}` : 'Savings'}</DialogTitle>
-      <DialogContent>
+    <DetailPanel
+      title={data ? `${data.account.type ?? 'Savings'} ${data.account.refNoText ?? ''}` : 'Savings'} onClose={onClose}
+      footer={<>
+        {data && <Box sx={{ flex: 1, fontSize: 13 }}>{data.totalEntries} entries</Box>}
+        <Button disabled={page === 0} onClick={() => setPage(page - 1)}>Newer</Button>
+        <Button disabled={!data || (page + 1) * size >= data.totalEntries} onClick={() => setPage(page + 1)}>Older</Button>
+      </>}
+    >
         {error && <Alert severity="error">{(error as Error).message}</Alert>}
+        {data && (
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '4px 16px', mb: 1.5, fontSize: 13 }}>
+            {([['Ledger balance', data.account.balance], ['Uncleared cheques', data.account.uncleared], ['Cleared balance', data.account.balance - data.account.uncleared],
+              ['On hold', data.account.held], ['Available to withdraw', data.account.available]] as [string, number][]).map(([k, v]) => (
+              <Box key={k}><Box component="span" sx={{ fontSize: 12, color: 'text.secondary' }}>{k}: </Box><Box component="span" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: k === 'Available to withdraw' ? 700 : undefined }}>{peso(v)}</Box></Box>
+            ))}
+          </Box>
+        )}
         {data && data.holds.length > 0 && (
           <Alert severity="warning" sx={{ mb: 2 }}>
             {data.holds.map((h, i) => (
@@ -188,26 +203,19 @@ function SavingsHistoryDialog({ id, typeCode, refNo, onClose }: { id: Id; typeCo
         {data && (
           <Table size="small" aria-label="Savings entries">
             <TableHead>
-              <TableRow><TableCell>Date</TableCell><TableCell>Transaction</TableCell><TableCell>Document</TableCell><TableCell align="right">Amount</TableCell><TableCell align="right">Balance</TableCell></TableRow>
+              <TableRow><TableCell>Date</TableCell><TableCell>TR</TableCell><TableCell>Document</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell><TableCell align="right">Balance</TableCell></TableRow>
             </TableHead>
             <TableBody>
               {data.entries.map((e, i) => (
                 <TableRow key={`${e.documentNo}-${i}`}>
                   <TableCell>{fmtDate(e.date) ?? '—'}</TableCell><TableCell>{e.transaction ?? `Code ${e.transactionCode}`}</TableCell><TableCell>{e.documentNo ?? '—'}</TableCell>
-                  <TableCell align="right" sx={{ color: e.amount < 0 ? 'error.main' : undefined, ...num }}>{peso(e.amount)}</TableCell>
+                  <TableCell align="right" sx={{ color: 'error.main', ...num }}>{e.amount < 0 ? peso(-e.amount) : ''}</TableCell><TableCell align="right" sx={num}>{e.amount > 0 ? peso(e.amount) : ''}</TableCell>
                   <TableCell align="right" sx={num}>{peso(e.balanceAfter)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
-      </DialogContent>
-      <DialogActions>
-        {data && <Box sx={{ flex: 1, pl: 2, fontSize: 13 }}>{data.totalEntries} entries</Box>}
-        <Button disabled={page === 0} onClick={() => setPage(page - 1)}>Newer</Button>
-        <Button disabled={!data || (page + 1) * size >= data.totalEntries} onClick={() => setPage(page + 1)}>Older</Button>
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
-    </Dialog>
+    </DetailPanel>
   )
 }
