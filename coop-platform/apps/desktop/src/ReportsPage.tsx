@@ -82,7 +82,7 @@ export default function ReportsPage({ onOpen }: { onOpen: (v: View) => void }) {
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1350, mx: 'auto', display: 'grid', gridTemplateColumns: { xs: '1fr', md: '300px 1fr' }, gap: 2, alignItems: 'start' }}>
         <Box sx={(t) => ({ p: 1, ...glass(t) })} className="no-print">
-          {accountant && <Button fullWidth sx={{ justifyContent: 'flex-start', mb: 1 }} onClick={() => onOpen('accounting')}>Trial balance, statements, journals, periods →</Button>}
+          {accountant && <Button fullWidth sx={{ justifyContent: 'flex-start', mb: 1 }} onClick={() => onOpen('accounting')}>Trial balance, statements, journals, memos, periods →</Button>}
           {list.isLoading && <Skeleton variant="rounded" height={160} />}
           {list.data?.length === 0 && <Typography sx={{ p: 1 }} color="text.secondary">No reports are open to your roles.</Typography>}
           <List dense disablePadding>

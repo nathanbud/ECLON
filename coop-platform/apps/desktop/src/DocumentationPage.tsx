@@ -42,6 +42,7 @@ const SHORTCUTS: { area: string; rows: [string, string][] }[] = [
 ]
 
 const RULES: [string, string][] = [
+  ['Debit/credit memos', 'Accounting > Memos (accountants and administrators): an adjustment or transfer that changes members’ savings or share capital accounts and ledger accounts in one balanced entry, for example from a deceased member to a beneficiary. A debit takes money out of a member’s account, a credit puts it in. It must give the reason and who authorised it, and it can never take a member’s account below zero. The person who makes it, the person who approves it and the person who posts it must be three different people. A posted memo is reversed by a new memo, never edited. Loans are not included yet.'],
   ['Where an entry came from', 'In the details of a Savings, Share Capital, Time Deposit or Loan account, click a ledger row (or press Enter on it) to see the transaction behind it: the header, the general ledger and subsidiary ledger lines it wrote (with their totals), the cheques it carried, the source reference and the description. It only opens transactions that are in that member’s own ledger, and nothing in it can be changed.'],
   ['Beneficiaries', 'Client Profile > Info > Beneficiaries (right of Spouse Info). A person with edit permission adds, changes or removes a beneficiary by sending a request; a Membership Officer other than the sender approves or rejects it on the Approvals tile, and only then does the list change. A removal needs a reason, and the removed details are kept in the Audit Log.'],
   ['Finding a client', 'A search by name lists active clients only, so it is quicker. Turn on Include inactive in Find Client to see dormant and closed ones. A member ID or reference number finds the client whatever the status. The title-bar search and the pickers in Front Office, Loan Application and co-makers list active clients only. A word that starts a last or first name is found at once; a word from the middle of a name or account name takes a moment longer. When more than a page matches, the list says so instead of counting them.'],
@@ -77,6 +78,7 @@ const DOCS: [string, string][] = [
   ['savings-posting-map.md, savings-interest-map.md', 'Savings deposits, withdrawals and quarterly interest.'],
   ['time-deposit-map.md, time-deposit-accrual-map.md', 'Time deposits: placement, interest, payout, renewal and pre-termination.'],
   ['dividend-map.md', 'The annual dividend and patronage refund.'],
+  ['debit-credit-memo-map.md', 'How the old system posted debit/credit memos, and what the new Memos screen does.'],
   ['cheque-receipt-posting-map.md, bank-cash-posting-map.md, voucher-payout-map.md', 'Cheques, bank transfers and voucher payouts.'],
   ['procurement-design.md, inventory-design.md, pos-design.md, fixed-assets-design.md', 'Purchasing, stock, point of sale and fixed assets.'],
   ['document-management-design.md, workflow-design.md, reporting-design.md', 'Documents, approval workflows and reports.'],
