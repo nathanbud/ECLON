@@ -41,7 +41,9 @@ class LoansController {
 
     record ScheduleRow(LocalDate dueDate, BigDecimal principalDue, BigDecimal interestDue, BigDecimal principalBalance, String state, BigDecimal principalPaid) {}
 
-    record Entry(LocalDate date, int event, String eventName, int transactionCode, String transaction, String documentNo, BigDecimal debit, BigDecimal credit, BigDecimal principalBalance) {}
+    record Entry(LocalDate date, int event, String eventName, int transactionCode, String transaction, String documentNo, BigDecimal debit, BigDecimal credit, BigDecimal principalBalance,
+                  /** For a payment made by cheque: the cheque number, whether it has cleared, and the day it cleared when that was recorded. Empty for other entries. */
+                  String chequeNo, Boolean chequeCleared, LocalDate clearedOn) {}
 
     record Detail(Loan loan, String remarks, List<CoMaker> coMakers, List<ScheduleRow> schedule, List<Entry> entries, boolean entriesTruncated) {}
 
@@ -141,15 +143,19 @@ class LoansController {
         }
 
         // ledger entries oldest first, with the principal balance after each one
-        record Raw(LocalDate date, int event, String eventName, int code, String name, String doc, BigDecimal amount) {}
+        record Raw(LocalDate date, int event, String eventName, int code, String name, String doc, BigDecimal amount, String chequeNo, Boolean cleared, LocalDate clearedOn) {}
         List<Raw> raw = jdbc.query("""
-                SELECT d.TR_DATE, d.SLE_CODE, e.SLE_TypeDesc, d.TR_CODE, COALESCE(NULLIF(tt.TransTypeDesc2, ''), tt.TransTypeDesc), d.TR_DOCNO, d.AMT
+                SELECT d.TR_DATE, d.SLE_CODE, e.SLE_TypeDesc, d.TR_CODE, COALESCE(NULLIF(tt.TransTypeDesc2, ''), tt.TransTypeDesc), d.TR_DOCNO, d.AMT,
+                       CASE WHEN d.COCI_TYPE = 2 AND d.AMT < 0 THEN d.CHECKNO END,
+                       CASE WHEN d.COCI_TYPE = 2 AND d.AMT < 0 THEN (SELECT COALESCE(k.CKISCLEARED, 0) FROM transck k WHERE k.CKTR_BRCODE = d.SL_BRCODE AND k.CKTR_YEAR = EXTRACT(YEAR FROM d.TR_DATE) AND k.CKTR_CODE = d.TR_CODE AND k.CKTR_CTLNO = d.TR_CTLNO AND k.CKCHECKNO = d.CHECKNO AND k.CKCOCI_TYPE = 2 LIMIT 1) END,
+                       CASE WHEN d.COCI_TYPE = 2 AND d.AMT < 0 THEN (SELECT cc.cleared_on FROM transck k JOIN ecis_cheque_clearing cc ON cc.tr_year = k.CKTR_YEAR AND cc.ctl_no = k.CKTR_CTLNO AND cc.seq_no = k.CKSEQ_NO WHERE k.CKTR_BRCODE = d.SL_BRCODE AND k.CKTR_YEAR = EXTRACT(YEAR FROM d.TR_DATE) AND k.CKTR_CODE = d.TR_CODE AND k.CKTR_CTLNO = d.TR_CTLNO AND k.CKCHECKNO = d.CHECKNO AND k.CKCOCI_TYPE = 2 LIMIT 1) END
                 FROM sldtl d
                 LEFT JOIN (SELECT SLE_TypeCode, MIN(SLE_TypeDesc) AS SLE_TypeDesc FROM sle_type GROUP BY SLE_TypeCode) e ON e.SLE_TypeCode = d.SLE_CODE
                 LEFT JOIN transtype tt ON tt.TransTypeID = d.TR_CODE
                 WHERE d.SL_BRCODE = ? AND d.SL_CLIENTID = ? AND d.SLC_CODE = ? AND d.SLT_CODE = ? AND d.REF_NO = ?
                 ORDER BY d.TR_DATE, d.SEQNO LIMIT ?
-                """, (rs, i) -> new Raw(rs.getDate(1).toLocalDate(), rs.getInt(2), rs.getString(3), rs.getInt(4), rs.getString(5), rs.getString(6), rs.getBigDecimal(7)),
+                """, (rs, i) -> new Raw(rs.getDate(1).toLocalDate(), rs.getInt(2), rs.getString(3), rs.getInt(4), rs.getString(5), rs.getString(6), rs.getBigDecimal(7),
+                rs.getString(8), rs.getObject(9) == null ? null : rs.getInt(9) == 1, rs.getDate(10) == null ? null : rs.getDate(10).toLocalDate()),
             branchCode, clientId, CLASS_LOANS, typeCode, refNo, MAX_ENTRIES + 1);
         boolean truncated = raw.size() > MAX_ENTRIES;
         List<Entry> entries = new ArrayList<>();
@@ -157,7 +163,7 @@ class LoansController {
         for (Raw r : raw.subList(0, Math.min(raw.size(), MAX_ENTRIES))) {
             if (r.event() == PRINCIPAL) principal = principal.add(r.amount());
             entries.add(new Entry(r.date(), r.event(), r.eventName(), r.code(), r.name(), r.doc(),
-                r.amount().signum() > 0 ? r.amount() : BigDecimal.ZERO, r.amount().signum() < 0 ? r.amount().negate() : BigDecimal.ZERO, r.event() == PRINCIPAL ? principal : null));
+                r.amount().signum() > 0 ? r.amount() : BigDecimal.ZERO, r.amount().signum() < 0 ? r.amount().negate() : BigDecimal.ZERO, r.event() == PRINCIPAL ? principal : null, r.chequeNo(), r.cleared(), r.clearedOn()));
         }
         return new Detail(loan, remarks, coMakers, schedule, entries, truncated);
     }

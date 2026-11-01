@@ -35,7 +35,8 @@ class TimeDepositController {
 
     record Summary(List<Deposit> deposits, BigDecimal totalBalance, BigDecimal totalAccrued, LocalDate asOf) {}
 
-    record Entry(LocalDate date, LocalDate glDate, int transactionCode, String transaction, String documentNo, int event, String eventName, BigDecimal amount, BigDecimal balanceAfter) {}
+    record Entry(LocalDate date, LocalDate glDate, int transactionCode, String transaction, String documentNo, int event, String eventName, BigDecimal amount, BigDecimal balanceAfter,
+                  /** For money paid in by cheque: the cheque number, whether it has cleared, and the day it cleared when that was recorded. Empty for other entries. */ String chequeNo, Boolean chequeCleared, LocalDate clearedOn) {}
 
     record History(Deposit deposit, List<Entry> entries, int page, int size, long totalEntries) {}
 
@@ -99,19 +100,23 @@ class TimeDepositController {
             Long.class, branchCode, clientId, CLASS_TD, typeCode, refNo);
 
         // Newest first. The balance shown is of the principal only: what the certificate held after that row.
-        record Raw(LocalDate date, LocalDate gl, int code, String name, String doc, int event, BigDecimal amount) {}
+        record Raw(LocalDate date, LocalDate gl, int code, String name, String doc, int event, BigDecimal amount, String chequeNo, Boolean cleared, LocalDate clearedOn) {}
         List<Raw> window = jdbc.query("""
-                SELECT d.TR_DATE, d.GL_DATE, d.TR_CODE, COALESCE(NULLIF(tt.TransTypeDesc2, ''), tt.TransTypeDesc), d.TR_DOCNO, d.SLE_CODE, -d.AMT
+                SELECT d.TR_DATE, d.GL_DATE, d.TR_CODE, COALESCE(NULLIF(tt.TransTypeDesc2, ''), tt.TransTypeDesc), d.TR_DOCNO, d.SLE_CODE, -d.AMT,
+                       CASE WHEN d.SLE_CODE = 11 AND d.COCI_TYPE = 2 AND d.AMT < 0 THEN d.CHECKNO END,
+                       CASE WHEN d.SLE_CODE = 11 AND d.COCI_TYPE = 2 AND d.AMT < 0 THEN (SELECT COALESCE(k.CKISCLEARED, 0) FROM transck k WHERE k.CKTR_BRCODE = d.SL_BRCODE AND k.CKTR_YEAR = EXTRACT(YEAR FROM d.TR_DATE) AND k.CKTR_CODE = d.TR_CODE AND k.CKTR_CTLNO = d.TR_CTLNO AND k.CKCHECKNO = d.CHECKNO AND k.CKCOCI_TYPE = 2 LIMIT 1) END,
+                       CASE WHEN d.SLE_CODE = 11 AND d.COCI_TYPE = 2 AND d.AMT < 0 THEN (SELECT cc.cleared_on FROM transck k JOIN ecis_cheque_clearing cc ON cc.tr_year = k.CKTR_YEAR AND cc.ctl_no = k.CKTR_CTLNO AND cc.seq_no = k.CKSEQ_NO WHERE k.CKTR_BRCODE = d.SL_BRCODE AND k.CKTR_YEAR = EXTRACT(YEAR FROM d.TR_DATE) AND k.CKTR_CODE = d.TR_CODE AND k.CKTR_CTLNO = d.TR_CTLNO AND k.CKCHECKNO = d.CHECKNO AND k.CKCOCI_TYPE = 2 LIMIT 1) END
                 FROM sldtl d LEFT JOIN transtype tt ON tt.TransTypeID = d.TR_CODE
                 WHERE d.SL_BRCODE = ? AND d.SL_CLIENTID = ? AND d.SLC_CODE = ? AND d.SLT_CODE = ? AND d.REF_NO = ?
                 ORDER BY d.TR_DATE DESC, d.SEQNO DESC LIMIT ?
-                """, (rs, i) -> new Raw(rs.getDate(1).toLocalDate(), rs.getDate(2) == null ? null : rs.getDate(2).toLocalDate(), rs.getInt(3), rs.getString(4), rs.getString(5), rs.getInt(6), rs.getBigDecimal(7)),
+                """, (rs, i) -> new Raw(rs.getDate(1).toLocalDate(), rs.getDate(2) == null ? null : rs.getDate(2).toLocalDate(), rs.getInt(3), rs.getString(4), rs.getString(5), rs.getInt(6), rs.getBigDecimal(7),
+                rs.getString(8), rs.getObject(9) == null ? null : rs.getInt(9) == 1, rs.getDate(10) == null ? null : rs.getDate(10).toLocalDate()),
                 branchCode, clientId, CLASS_TD, typeCode, refNo, (page + 1) * size);
         List<Entry> entries = new ArrayList<>();
         BigDecimal running = deposit.balance();
         for (int i = 0; i < window.size(); i++) {
             Raw r = window.get(i);
-            if (i >= page * size) entries.add(new Entry(r.date(), r.gl(), r.code(), r.name(), r.doc(), r.event(), TimeDepositRules.eventName(r.event()), r.amount(), running));
+            if (i >= page * size) entries.add(new Entry(r.date(), r.gl(), r.code(), r.name(), r.doc(), r.event(), TimeDepositRules.eventName(r.event()), r.amount(), running, r.chequeNo(), r.cleared(), r.clearedOn()));
             if (r.event() == PRINCIPAL) running = running.subtract(r.amount());
         }
         return new History(deposit, entries, page, size, total == null ? 0 : total);

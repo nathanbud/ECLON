@@ -234,12 +234,13 @@ function LoanDetail({ branchCode, clientId, loan, onClose }: { branchCode: numbe
             {data.entriesTruncated && <Alert severity="warning" sx={{ mb: 1 }}>Only the first 1,000 entries are shown.</Alert>}
             <Table size="small" aria-label="Loan ledger">
               <TableHead>
-                <TableRow><TableCell>Date</TableCell><TableCell>Entry</TableCell><TableCell>TR</TableCell><TableCell>Document</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell><TableCell align="right">Principal balance</TableCell></TableRow>
+                <TableRow><TableCell>Date</TableCell><TableCell>Entry</TableCell><TableCell>TR</TableCell><TableCell>Document</TableCell><TableCell>Cheque</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell><TableCell align="right">Principal balance</TableCell></TableRow>
               </TableHead>
               <TableBody>
                 {data.entries.map((e, i) => (
                   <TableRow key={`${e.documentNo}-${e.event}-${i}`}>
                     <TableCell>{fmtDate(e.date)}</TableCell><TableCell>{e.eventName ?? `Event ${e.event}`}</TableCell><TableCell>{e.transaction ?? `Type ${e.transactionCode}`}</TableCell><TableCell>{e.documentNo ?? '—'}</TableCell>
+                    <TableCell>{e.chequeNo ? `${e.chequeNo} · ${e.chequeCleared ? (e.clearedOn ? `cleared ${fmtDate(e.clearedOn)}` : 'cleared') : 'not cleared'}` : ''}</TableCell>
                     <TableCell align="right" sx={num}>{e.debit ? money(e.debit) : ''}</TableCell><TableCell align="right" sx={num}>{e.credit ? money(e.credit) : ''}</TableCell>
                     <TableCell align="right" sx={num}>{e.principalBalance == null ? '' : money(e.principalBalance)}</TableCell>
                   </TableRow>

@@ -203,12 +203,13 @@ function SavingsHistory({ id, typeCode, refNo, onClose }: { id: Id; typeCode: nu
         {data && (
           <Table size="small" aria-label="Savings entries">
             <TableHead>
-              <TableRow><TableCell>Date</TableCell><TableCell>TR</TableCell><TableCell>Document</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell><TableCell align="right">Balance</TableCell></TableRow>
+              <TableRow><TableCell>Date</TableCell><TableCell>TR</TableCell><TableCell>Document</TableCell><TableCell>Cheque</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell><TableCell align="right">Balance</TableCell></TableRow>
             </TableHead>
             <TableBody>
               {data.entries.map((e, i) => (
                 <TableRow key={`${e.documentNo}-${i}`}>
                   <TableCell>{fmtDate(e.date) ?? '—'}</TableCell><TableCell>{e.transaction ?? `Code ${e.transactionCode}`}</TableCell><TableCell>{e.documentNo ?? '—'}</TableCell>
+                  <TableCell>{e.chequeNo ? `${e.chequeNo} · ${e.chequeCleared ? (e.clearedOn ? `cleared ${fmtDate(e.clearedOn)}` : 'cleared') : 'not cleared'}` : ''}</TableCell>
                   <TableCell align="right" sx={{ color: 'error.main', ...num }}>{e.amount < 0 ? peso(-e.amount) : ''}</TableCell><TableCell align="right" sx={num}>{e.amount > 0 ? peso(e.amount) : ''}</TableCell>
                   <TableCell align="right" sx={num}>{peso(e.balanceAfter)}</TableCell>
                 </TableRow>
