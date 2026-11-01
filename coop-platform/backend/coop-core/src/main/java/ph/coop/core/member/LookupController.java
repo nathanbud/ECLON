@@ -38,6 +38,7 @@ public class LookupController {
         Map.entry("restrik", new String[] {"restrik", "RestrikID", "RestrikDesc"}),
         Map.entry("branch", new String[] {"branches", "BranchesID", "BranchesDesc"}),
         Map.entry("user", new String[] {"access", "AccessID", "AccessUserName"}),
+        Map.entry("relation", new String[] {"relation", "RelationID", "RelationDesc"}),
         Map.entry("billType", new String[] {"billtype", "BillTypeID", "BillTypeDesc"}),
         Map.entry("billStatus", new String[] {"billstat", "BillStatID", "BillStatDesc"}));
 

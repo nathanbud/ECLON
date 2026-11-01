@@ -170,7 +170,7 @@ export const unlockUser = (username: string) => send<LockedUser>('POST', `/api/a
 // ---- member lifecycle: register and close (maker-checker) ------------------------------------------------------------
 
 export interface MemberRequest {
-  id: number; branchCode: number; kind: 'REGISTER' | 'CLOSE' | 'REACTIVATE'; clientId: number | null; summary: string; status: string
+  id: number; branchCode: number; kind: 'REGISTER' | 'CLOSE' | 'REACTIVATE' | 'BENEF'; clientId: number | null; summary: string; status: string
   requestedBy: string; requestedAt: string; decidedBy: string | null; decidedAt: string | null; decisionNote: string | null; payload: Record<string, string>
 }
 export const listMemberRequests = (status = 'PENDING') => getJson<MemberRequest[]>(`/api/member-requests?status=${status}`)

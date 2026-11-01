@@ -1,6 +1,7 @@
 import { getMember, type Lookups, type Member } from '../api'
 import { BLANK_MEMBER, FRESH_GROUPS, GROUPS, TABS, TAB_KEYS } from './constants'
 import { BillingTab, DetailsTab, HistoryTab, MembershipTab, PersonalTab } from './InfoTabs'
+import { BeneficiariesTab } from './Beneficiaries'
 import { ShareCapitalTab } from './ShareCapital'
 import { SavingsTab } from './Savings'
 import { TimeDepositsTab } from './TimeDeposits'
@@ -18,6 +19,7 @@ function TabContent({ tab, m, lk }: { tab: number; m: Member; lk?: Lookups }) {
   if (key === 'membership') return <MembershipTab m={m} lk={lk} />
   if (key === 'personal') return <PersonalTab m={m} lk={lk} />
   if (key === 'history') return <HistoryTab id={m.id} />
+  if (key === 'beneficiaries') return <BeneficiariesTab id={m.id} lk={lk} />
   if (key === 'billing') return <BillingTab id={m.id} />
   if (key === 'shares') return <ShareCapitalTab id={m.id} />
   if (key === 'savings') return <SavingsTab id={m.id} />

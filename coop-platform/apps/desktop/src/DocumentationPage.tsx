@@ -42,6 +42,7 @@ const SHORTCUTS: { area: string; rows: [string, string][] }[] = [
 ]
 
 const RULES: [string, string][] = [
+  ['Beneficiaries', 'Client Profile > Info > Beneficiaries (right of Spouse Info). A person with edit permission adds, changes or removes a beneficiary by sending a request; a Membership Officer other than the sender approves or rejects it on the Approvals tile, and only then does the list change. A removal needs a reason, and the removed details are kept in the Audit Log.'],
   ['Finding a client', 'A search by name lists active clients only, so it is quicker. Turn on Include inactive in Find Client to see dormant and closed ones. A member ID or reference number finds the client whatever the status. The title-bar search and the pickers in Front Office, Loan Application and co-makers list active clients only. A word that starts a last or first name is found at once; a word from the middle of a name or account name takes a moment longer. When more than a page matches, the list says so instead of counting them.'],
   ['Posted money entries never change', 'A mistake is fixed with a reversal and a corrected entry, never by editing. Every entry balances (debits equal credits) before it posts.'],
   ['Maker and checker', 'The person who asks is never the person who approves. This holds for profile changes, new members, closings, reactivations, journals, loans, purchases and stock adjustments.'],

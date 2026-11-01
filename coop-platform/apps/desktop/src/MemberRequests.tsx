@@ -159,7 +159,7 @@ export default function MemberRequestsPanel() {
           <TableBody>
             {items.map((r) => (
               <TableRow key={r.id} hover>
-                <TableCell><Typography component="span" sx={{ fontWeight: 600 }}>{r.kind === 'REGISTER' ? 'New member' : r.kind === 'REACTIVATE' ? 'Reactivate' : 'Close'}</Typography>{' '}{r.summary}</TableCell>
+                <TableCell><Typography component="span" sx={{ fontWeight: 600 }}>{r.kind === 'REGISTER' ? 'New member' : r.kind === 'REACTIVATE' ? 'Reactivate' : r.kind === 'BENEF' ? 'Beneficiary' : 'Close'}</Typography>{' '}{r.summary}</TableCell>
                 <TableCell>{r.requestedBy}</TableCell><TableCell sx={{ whiteSpace: 'nowrap' }}>{when(r.requestedAt)}</TableCell>
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                   {me.canApprove && <>

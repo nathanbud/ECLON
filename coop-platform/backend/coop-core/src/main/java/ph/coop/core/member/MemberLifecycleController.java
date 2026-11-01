@@ -57,6 +57,9 @@ public class MemberLifecycleController {
 
     public record Decision(String note) {}
 
+    /** A request to add, change or remove one beneficiary. {@code action} is ADD, EDIT or REMOVE; {@code benefId} names the row for the last two; {@code note} is the reason for a removal. */
+    public record BeneficiaryRequest(int branchCode, int clientId, String action, Long benefId, String name, Integer relation, String dateOfBirth, String occupation, Integer type, String note) {}
+
     private static final String SELECT = "SELECT id, branch_code, kind, client_id, summary, status, requested_by, requested_at, decided_by, decided_at, decision_note, payload FROM ecis_member_request";
     private static final int DEFAULT_DEPT = 2;
 
@@ -69,8 +72,9 @@ public class MemberLifecycleController {
     private final MembershipPolicyController policy;
     private final ClientDetailController details;
     private final BiometricStaging staging;
+    private final BeneficiaryChanges beneficiaries;
 
-    MemberLifecycleController(JdbcTemplate jdbc, Db db, LookupController lookups, ObjectMapper json, PlatformTransactionManager txManager, MembershipPolicyController policy, ClientDetailController details, BiometricStaging staging,
+    MemberLifecycleController(JdbcTemplate jdbc, Db db, LookupController lookups, ObjectMapper json, PlatformTransactionManager txManager, MembershipPolicyController policy, ClientDetailController details, BiometricStaging staging, BeneficiaryChanges beneficiaries,
                               @Value("${coop.edit.enabled:false}") boolean enabled) {
         this.jdbc = jdbc;
         this.db = db;
@@ -81,6 +85,7 @@ public class MemberLifecycleController {
         this.policy = policy;
         this.details = details;
         this.staging = staging;
+        this.beneficiaries = beneficiaries;
     }
 
     private static boolean has(Authentication auth, String authority) {
@@ -171,6 +176,20 @@ public class MemberLifecycleController {
         });
     }
 
+    /** Asks to add, change or remove a beneficiary of a member. A Membership Officer other than the requester decides; nothing touches the beneficiary list until then. */
+    @PostMapping("/beneficiaries")
+    @PreAuthorize("hasAuthority('PERM_MEMBER_EDIT')")
+    public Request beneficiary(@RequestBody BeneficiaryRequest req, Authentication auth) {
+        requireAvailable();
+        return tx.execute((s) -> {
+            var prepared = beneficiaries.prepare(new BeneficiaryChanges.Change(req.branchCode(), req.clientId(), req.action(), req.benefId(), req.name(), req.relation(), req.dateOfBirth(), req.occupation(), req.type(), req.note()));
+            long id = db.insertReturningId("INSERT INTO ecis_member_request (branch_code, kind, client_id, summary, payload, status, requested_by, requested_at) VALUES (?, 'BENEF', ?, ?, ?, 'PENDING', ?, NOW())", "id",
+                req.branchCode(), req.clientId(), prepared.summary().length() > 160 ? prepared.summary().substring(0, 160) : prepared.summary(), write(prepared.payload()), auth.getName());
+            audit(auth.getName(), "MEMBER_BENEFICIARY_REQUESTED", req.branchCode() + "-" + req.clientId(), null, prepared.summary(), "Request #" + id);
+            return load(id);
+        });
+    }
+
     @PostMapping("/reactivations")
     @PreAuthorize("hasAuthority('PERM_MEMBER_EDIT')")
     public Request reactivate(@RequestBody Reactivate req, Authentication auth) {
@@ -214,6 +233,8 @@ public class MemberLifecycleController {
                 staging.release(id, r.branchCode(), clientId, auth.getName(), r.requestedBy());
                 jdbc.update("UPDATE ecis_member_request SET client_id = ? WHERE id = ?", clientId, id);
                 done = "Member " + clientId + " opened";
+            } else if (r.kind().equals("BENEF")) {
+                done = beneficiaries.apply(r.branchCode(), r.clientId(), r.payload(), id, r.requestedBy(), auth.getName());
             } else if (r.kind().equals("REACTIVATE")) {
                 reactivateMember(r, auth.getName());
                 done = "Member " + r.clientId() + " reactivated";
