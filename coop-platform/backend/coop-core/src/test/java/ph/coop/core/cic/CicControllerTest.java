@@ -44,6 +44,17 @@ class CicControllerTest {
         return new CicController.NewBatch("Standard", LocalDate.now().toString(), "co008840", "1.0", "January data");
     }
 
+    /** The zip holds one text file named like the zip, {provider}_CSDF_{yyyyMMddHHmmss}.txt, at its root; returns the text. */
+    static String unzip(byte[] zip) {
+        try (java.util.zip.ZipInputStream z = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(zip))) {
+            java.util.zip.ZipEntry txt = z.getNextEntry();
+            assertTrue(txt.getName().matches("CO008840_CSDF_\\d{14}\\.txt"), txt.getName());
+            return new String(z.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
     @Test
     void aBatchGetsItsHeaderRowAndIsAudited() {
         Map<String, Object> b = cic.create(valid(), who);
@@ -70,12 +81,37 @@ class CicControllerTest {
     }
 
     @Test
-    void stepsThatNeedTheCicLayoutAnswerNotImplemented() {
+    void stepsWhoseLayoutIsNotKnownAnswerNotImplemented() {
         long id = ((Number) cic.create(valid(), who).get("id")).longValue();
-        for (var step : List.<java.util.function.LongFunction<Map<String, Object>>>of(cic::members, cic::loans, cic::files, cic::encrypt, cic::excel, cic::transmittal, cic::submit, cic::outstandingBalance)) {
+        for (var step : List.<java.util.function.LongFunction<Map<String, Object>>>of(cic::encrypt, cic::excel, cic::transmittal, cic::outstandingBalance)) {
             ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> step.apply(id));
             assertEquals(HttpStatus.NOT_IMPLEMENTED, e.getStatusCode());
         }
-        assertEquals(HttpStatus.NOT_FOUND, assertThrows(ResponseStatusException.class, () -> cic.members(-1)).getStatusCode());
+        assertEquals(HttpStatus.NOT_FOUND, assertThrows(ResponseStatusException.class, () -> cic.encrypt(-1)).getStatusCode());
+    }
+
+    @Test
+    void aTrialBatchIsGeneratedAndCheckedButNotApprovedWhileTheMappingIsUnconfirmed() {
+        long id = ((Number) cic.create(valid(), who).get("id")).longValue();
+        Map<String, Object> b = cic.generate(id, 25, who);
+        assertEquals("VALIDATED", b.get("status"));
+        int contracts = ((Number) b.get("installment_contracts")).intValue() + ((Number) b.get("other_contracts")).intValue();
+        assertEquals(25, contracts);
+        assertTrue(((Number) b.get("subjects")).intValue() > 0);
+        assertEquals(false, b.get("mappingConfirmed"));
+        var f = cic.findings(id, null);
+        assertTrue(f.stream().anyMatch((x) -> "WARNING".equals(x.get("severity")) && String.valueOf(x.get("field")).startsWith("Mapping")), "the unverified columns are listed");
+        Map<String, Object> page = cic.records(id, "CI", null, 0, 10);
+        assertTrue(((Number) page.get("total")).longValue() + ((Number) cic.records(id, "CN", null, 0, 10).get("total")).longValue() == 25);
+        var file = cic.file(id, who);
+        assertTrue(file.getHeaders().getFirst("Content-Disposition").contains("PREVIEW_CO008840_CSDF_"));
+        String text = unzip(file.getBody());
+        String[] lines = text.split("\r\n", -1);
+        assertTrue(lines[0].startsWith("HD|CO008840|"));
+        assertTrue(lines[lines.length - 1].startsWith("FT|CO008840|"));
+        assertEquals(String.valueOf(lines.length - 2), lines[lines.length - 1].split("\\|")[3], "the footer counts the records between header and footer");
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> cic.approve(id, new CicController.Approval(true, null), new TestingAuthenticationToken("boss", "x", "ROLE_ADMIN")));
+        assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
+        assertThrows(ResponseStatusException.class, () -> cic.submit(id, new CicController.Submission("R1"), who), "not approved");
     }
 }

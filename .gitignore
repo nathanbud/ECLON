@@ -28,3 +28,7 @@ data/
 
 # database and key backups (never commit)
 backups/
+
+# Real CIC submission files hold members personal data; never commit them
+pics/CIC/**/*_CSDF_*
+pics/CIC/**/*.txt

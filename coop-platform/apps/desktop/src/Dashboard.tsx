@@ -25,27 +25,24 @@ function Tile({ screen, color, index, onOpen, badge }: { screen: Screen; color: 
   const c = tileFill[color]
   return (
     <ButtonBase
-      onClick={onOpen} aria-label={badge ? `${screen.label}, ${badge} waiting` : screen.label}
+      onClick={onOpen} aria-label={badge ? `${screen.label}, ${badge} waiting` : screen.label} title={screen.note}
       sx={{
-        minWidth: 0, minHeight: 112, borderRadius: '5px', overflow: 'hidden', color: '#fff', textAlign: 'left', position: 'relative', p: 1.5,
-        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between',
+        minWidth: 0, aspectRatio: '1 / 1', borderRadius: '5px', overflow: 'hidden', color: '#fff', textAlign: 'center', position: 'relative', p: 0.75,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0.75,
         background: `linear-gradient(160deg, ${c}F2 0%, ${c} 100%)`,
-        boxShadow: `inset 0 0 0 1px rgba(255,255,255,${dark ? 0.12 : 0.18}), 0 1px 2px rgba(0,0,0,0.12), 0 3px 8px rgba(0,0,0,0.08)`,
+        boxShadow: `inset 0 0 0 1px rgba(255,255,255,${dark ? 0.12 : 0.18}), 0 1px 2px rgba(0,0,0,0.12)`,
         transition: `transform 220ms ${EASE}, box-shadow 220ms ${EASE}`,
-        '&:hover': { transform: 'translateY(-1px)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.22), 0 6px 14px rgba(0,0,0,0.16)' },
+        '&:hover': { transform: 'translateY(-1px)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.22), 0 4px 10px rgba(0,0,0,0.16)' },
         '&:active': { transform: 'scale(0.97)', transitionDuration: '90ms' },
-        '&.Mui-focusVisible': { outline: '3px solid #fff', outlineOffset: '-5px' },
+        '&.Mui-focusVisible': { outline: '3px solid #fff', outlineOffset: '-4px' },
         ...enter(index),
       }}
     >
-      <Box aria-hidden sx={{ fontSize: 26, lineHeight: 0, display: 'flex', opacity: 0.95 }}>{screen.icon}</Box>
+      <Box aria-hidden sx={{ fontSize: 26, lineHeight: 0, display: 'flex', opacity: 0.95, flexShrink: 0 }}>{screen.icon}</Box>
+      <Typography sx={{ fontWeight: 600, fontSize: 11.5, lineHeight: 1.2, width: '100%', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{screen.label}</Typography>
       {!!badge && (
-        <Box aria-hidden sx={{ position: 'absolute', top: 8, right: 8, minWidth: 20, height: 20, px: 0.75, borderRadius: '5px', bgcolor: '#fff', color: '#1d1d1f', fontSize: 12, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{badge}</Box>
+        <Box aria-hidden sx={{ position: 'absolute', top: 4, right: 4, minWidth: 18, height: 18, px: 0.5, borderRadius: '5px', bgcolor: '#fff', color: '#1d1d1f', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{badge}</Box>
       )}
-      <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
-        <Typography noWrap sx={{ fontWeight: 600, fontSize: 14.5, lineHeight: 1.25, letterSpacing: '-0.01em' }}>{screen.label}</Typography>
-        <Typography sx={{ fontSize: 11.5, opacity: 0.88, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{screen.note}</Typography>
-      </Box>
     </ButtonBase>
   )
 }
@@ -56,9 +53,9 @@ const when = (at: string | null) => (at ? new Date(at.replace(' ', 'T')).toLocal
 function WaitingCard({ onOpen }: { onOpen: (v: View, tab?: string) => void }) {
   const { data } = useQuery({ queryKey: ['inbox'], queryFn: getInbox, refetchInterval: 30_000, retry: false })
   if (!data) return null
-  const items = data.items.slice(0, 5)
+  const items = data.items.slice(0, 3)
   return (
-    <Box component="section" aria-label="Waiting for you" sx={(t) => ({ p: 1.75, mb: 2.5, ...glass(t) })}>
+    <Box component="section" aria-label="Waiting for you" sx={(t) => ({ p: 1.25, mb: 1.5, ...glass(t) })}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: items.length ? 1 : 0 }}>
         <Box aria-hidden sx={{ display: 'flex', color: 'text.secondary' }}><FiInbox /></Box>
         <Typography component="h2" sx={{ flex: 1, fontSize: 14.5, fontWeight: 700 }}>Waiting for you{data.total ? ` (${data.total})` : ''}</Typography>
@@ -92,23 +89,24 @@ export default function Dashboard({ onOpen }: { onOpen: (v: View, tab?: string) 
 
   return (
     <Box component="main" sx={{
-      height: 'calc(100dvh - 44px)', overflow: 'auto', p: 3,
+      height: 'calc(100dvh - 44px)', overflow: 'auto', p: { xs: 1.5, md: 2 },
       background: dark
         ? 'radial-gradient(1200px 600px at 15% 0%, #1b3a6b 0%, transparent 60%), radial-gradient(900px 600px at 100% 100%, #3b1f5e 0%, transparent 55%), #0b0b0f'
         : 'radial-gradient(1200px 600px at 15% 0%, #DCE6F2 0%, transparent 60%), radial-gradient(900px 600px at 100% 100%, #E5E1F0 0%, transparent 55%), #F3F4F6',
     }}>
-      <Box sx={{ maxWidth: 1040, mx: 'auto' }}>
-        <Typography component="h1" variant="h5" sx={{ mb: 0.25, fontWeight: 700, letterSpacing: '-0.02em' }}>
+      <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
+        <Typography component="h1" variant="h5" sx={{ mb: 0, fontWeight: 700, letterSpacing: '-0.02em', fontSize: 20 }}>
           Good {hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}, {me.name}
         </Typography>
-        <Typography color="text.secondary" sx={{ mb: 2, fontSize: 13 }}>Choose where to work. The menu on the left is always there.</Typography>
+        <Typography color="text.secondary" sx={{ mb: 1, fontSize: 12.5 }}>Choose where to work. The menu on the left is always there.</Typography>
 
         <WaitingCard onOpen={onOpen} />
 
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', columnGap: 3, rowGap: 1.5 }}>
         {groups.map((g) => (
-          <Box key={g.id} component="section" aria-label={g.label} sx={{ mb: 2.5 }}>
-            <Typography component="h2" sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">{g.label}</Typography>
-            <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))' }}>
+          <Box key={g.id} component="section" aria-label={g.label}>
+            <Typography component="h2" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.5 }} color="text.secondary">{g.label}</Typography>
+            <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: 'repeat(3, 92px)' }}>
               {g.screens.map((s) => (
                 <Tile
                   key={s.id} screen={s} color={g.color} index={index++} onOpen={() => onOpen(s.view, s.tab)}
@@ -118,6 +116,7 @@ export default function Dashboard({ onOpen }: { onOpen: (v: View, tab?: string) 
             </Box>
           </Box>
         ))}
+        </Box>
       </Box>
     </Box>
   )

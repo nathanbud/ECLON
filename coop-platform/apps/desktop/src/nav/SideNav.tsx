@@ -1,7 +1,7 @@
 import { Badge, Box, ButtonBase, IconButton, Tooltip, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { FiChevronsLeft, FiChevronsRight } from 'react-icons/fi'
+import { FiChevronDown, FiChevronRight, FiChevronsLeft, FiChevronsRight } from 'react-icons/fi'
 import { getInboxCount } from '../api'
 import type { View } from '../Dashboard'
 import { useMe } from '../session'
@@ -12,6 +12,9 @@ const KEY = 'coop.nav.collapsed'
 const EASE = 'cubic-bezier(.2,.8,.2,1)'
 const WIDE = 236
 const NARROW = 56
+
+const SHUT = 'coop.nav.shut'
+const shutStored = (): string[] => { try { return JSON.parse(localStorage.getItem(SHUT) ?? '[]') as string[] } catch { return [] } }
 
 const stored = () => { try { return localStorage.getItem(KEY) === '1' } catch { return false } }
 
@@ -29,6 +32,8 @@ export default function SideNav({ view, tab, onNavigate }: { view: View; tab?: s
   const me = useMe()
   const waiting = useInboxCount()
   const [collapsed, setCollapsed] = useState(stored)
+  const [shut, setShut] = useState<string[]>(shutStored)
+  const fold = (id: string) => setShut((c) => { const n = c.includes(id) ? c.filter((x) => x !== id) : [...c, id]; try { localStorage.setItem(SHUT, JSON.stringify(n)) } catch { /* storage unavailable */ } return n })
   const toggle = () => setCollapsed((c) => { const n = !c; try { localStorage.setItem(KEY, n ? '1' : '0') } catch { /* storage unavailable */ } return n })
   const here = view === 'home' ? 'home' : screenFor(view, tab)?.id
   const groups = byDomain(me)
@@ -38,10 +43,11 @@ export default function SideNav({ view, tab, onNavigate }: { view: View; tab?: s
       <ButtonBase
         role="link" component="a" aria-current={active ? 'page' : undefined} aria-label={count ? `${label}, ${count} waiting` : label} onClick={(e) => { e.preventDefault(); go() }}
         sx={(t) => ({
-          width: '100%', display: 'flex', alignItems: 'center', gap: 1.25, justifyContent: 'flex-start', textAlign: 'left', borderRadius: '5px',
+          width: '100%', display: 'flex', alignItems: 'center', gap: 1.25, justifyContent: 'flex-start', textAlign: 'left', borderRadius: 0,
           px: collapsed ? 0 : 1, pl: !collapsed && sub ? 3.5 : undefined, py: sub ? 0.4 : 0.65, minHeight: sub ? 28 : 34, ...(collapsed && { justifyContent: 'center' }),
           fontSize: sub ? 13 : 14, fontWeight: active ? 600 : 500, color: 'text.primary',
           bgcolor: active ? (t.palette.mode === 'dark' ? 'rgba(10,132,255,0.28)' : 'rgba(0,122,255,0.14)') : 'transparent',
+          boxShadow: active ? `inset 2px 0 0 ${t.palette.primary.main}` : 'none',
           transition: `background-color 140ms ${EASE}`,
           '&:hover': { bgcolor: active ? undefined : t.palette.action.hover },
           '&.Mui-focusVisible': { outline: `2px solid ${t.palette.primary.main}`, outlineOffset: -1 },
@@ -64,8 +70,17 @@ export default function SideNav({ view, tab, onNavigate }: { view: View; tab?: s
       component="nav" aria-label="Main" data-collapsed={collapsed ? 'true' : 'false'}
       sx={(t) => ({
         width: collapsed ? NARROW : WIDE, flexShrink: 0, position: 'sticky', top: 44, alignSelf: 'flex-start', height: 'calc(100dvh - 44px)', overflowY: 'auto', overflowX: 'hidden',
-        px: 0.75, py: 1, borderRight: `1px solid ${t.palette.divider}`, transition: `width 180ms ${EASE}`,
-        backgroundColor: t.palette.mode === 'dark' ? 'rgba(28,28,30,0.55)' : 'rgba(255,255,255,0.55)', backdropFilter: 'blur(16px)',
+        px: 0, py: 0.5, borderRight: `1px solid ${t.palette.divider}`, transition: `width 180ms ${EASE}`,
+        backgroundColor: t.palette.background.paper,
+        // thin scrollbar as in VS Code: invisible until the pointer is over the menu, square thumb, darker when grabbed
+        scrollbarWidth: 'thin', scrollbarColor: 'transparent transparent',
+        '&:hover': { scrollbarColor: `${t.palette.mode === 'dark' ? 'rgba(121,121,121,0.4)' : 'rgba(100,100,100,0.4)'} transparent` },
+        '&::-webkit-scrollbar': { width: 10, height: 10 },
+        '&::-webkit-scrollbar-track': { background: 'transparent' },
+        '&::-webkit-scrollbar-thumb': { backgroundColor: 'transparent', borderRadius: 0 },
+        '&:hover::-webkit-scrollbar-thumb': { backgroundColor: t.palette.mode === 'dark' ? 'rgba(121,121,121,0.4)' : 'rgba(100,100,100,0.4)' },
+        '&:hover::-webkit-scrollbar-thumb:hover': { backgroundColor: t.palette.mode === 'dark' ? 'rgba(100,100,100,0.7)' : 'rgba(100,100,100,0.7)' },
+        '&:hover::-webkit-scrollbar-thumb:active': { backgroundColor: t.palette.mode === 'dark' ? 'rgba(191,191,191,0.4)' : 'rgba(0,0,0,0.6)' },
         '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
       })}
     >
@@ -76,19 +91,32 @@ export default function SideNav({ view, tab, onNavigate }: { view: View; tab?: s
           </IconButton>
         </Tooltip>
       </Box>
-      <Box component="ul" sx={{ m: 0, p: 0, display: 'grid', gap: 0.25 }}>
+      <Box component="ul" sx={{ m: 0, p: 0, display: 'grid', gap: 0 }}>
         {item('home', HOME.label, HOME.note, HOME.icon, tileFill.gray, here === 'home', () => onNavigate('home'))}
       </Box>
-      {groups.map((g) => (
-        <Box key={g.id} component="section" aria-label={g.label} sx={{ mt: collapsed ? 1 : 1.5 }}>
-          {collapsed
-            ? <Box aria-hidden sx={(t) => ({ height: '1px', mx: 1, mb: 0.75, bgcolor: t.palette.divider })} />
-            : <Typography component="h2" sx={{ px: 1, pb: 0.25, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">{g.label}</Typography>}
-          <Box component="ul" sx={{ m: 0, p: 0, display: 'grid', gap: 0.25 }}>
-            {g.screens.map((s: Screen) => item(s.id, s.label, s.note, s.icon, tileFill[g.color], here === s.id, () => onNavigate(s.view, s.tab), s.id === 'waiting' ? waiting : 0, !!s.tab))}
+      {groups.map((g) => {
+        const open = collapsed || !shut.includes(g.id)
+        return (
+          <Box key={g.id} component="section" aria-label={g.label} sx={(t) => ({ mt: 0.5, borderTop: `1px solid ${t.palette.divider}` })}>
+            {collapsed
+              ? <Box aria-hidden sx={{ height: 4 }} />
+              : (
+                <ButtonBase
+                  onClick={() => fold(g.id)} aria-expanded={open} aria-label={`${g.label} section`}
+                  sx={(t) => ({ width: '100%', justifyContent: 'flex-start', gap: 0.5, px: 0.75, py: 0.5, '&:hover': { bgcolor: t.palette.action.hover } })}
+                >
+                  <Box aria-hidden sx={{ display: 'flex', fontSize: 14, color: 'text.secondary' }}>{open ? <FiChevronDown /> : <FiChevronRight />}</Box>
+                  <Typography component="h2" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">{g.label}</Typography>
+                </ButtonBase>
+              )}
+            {open && (
+              <Box component="ul" sx={{ m: 0, p: 0, display: 'grid', gap: 0 }}>
+                {g.screens.map((s: Screen) => item(s.id, s.label, s.note, s.icon, tileFill[g.color], here === s.id, () => onNavigate(s.view, s.tab), s.id === 'waiting' ? waiting : 0, !!s.tab))}
+              </Box>
+            )}
           </Box>
-        </Box>
-      ))}
+        )
+      })}
     </Box>
   )
 }
