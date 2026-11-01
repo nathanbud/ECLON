@@ -13,7 +13,9 @@ export interface LoanSummary { loans: LoanItem[]; totalOutstanding: number; tota
 export interface LoanScheduleRow { dueDate: string; principalDue: number; interestDue: number; principalBalance: number; state: 'PAID' | 'PARTIAL' | 'PAST_DUE' | 'UPCOMING'; principalPaid: number }
 export interface LoanLedgerEntry { date: string; event: number; eventName: string | null; transactionCode: number; transaction: string | null; documentNo: string | null; debit: number; credit: number; principalBalance: number | null
   /** A payment made by cheque: the cheque, whether it cleared and the day it cleared when that was recorded. */
-  chequeNo?: string | null; chequeCleared?: boolean | null; clearedOn?: string | null }
+  chequeNo?: string | null; chequeCleared?: boolean | null; clearedOn?: string | null
+  /** The control number of the transaction behind the row; with the year of the date and the transaction code it opens the transaction. */
+  controlNo?: number | null }
 export interface LoanDetail {
   loan: LoanItem; remarks: string | null; coMakers: { clientId: number | null; name: string | null; address: string | null }[]
   schedule: LoanScheduleRow[]; entries: LoanLedgerEntry[]; entriesTruncated: boolean

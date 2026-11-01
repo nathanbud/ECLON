@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { DetailPanel } from './profile/fields'
 import { fmtDate } from './profile/format'
+import TransactionDialog, { txRowProps, type TxKey } from './TransactionDialog'
 import LoanProfileDialog from './LoanProfileDialog'
 import { askFoOverride, checkLoanPayment, getLoanDetail, getLoans, postLoanPayment, type LoanItem, type LoanPaymentBreakdown, type LoanPaymentReceipt, type LoanScheduleRow } from './api'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
@@ -194,6 +195,7 @@ function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan
 
 function LoanDetail({ branchCode, clientId, loan, onClose }: { branchCode: number; clientId: number; loan: LoanItem; onClose: () => void }) {
   const [tab, setTab] = useState(0)
+  const [tx, setTx] = useState<TxKey | null>(null)
   const { data, error } = useQuery({ queryKey: ['member-loan', branchCode, clientId, loan.typeCode, loan.refNo], queryFn: () => getLoanDetail(branchCode, clientId, loan.typeCode, loan.refNo) })
   const l = data?.loan ?? loan
   const facts: [string, string][] = [
@@ -238,7 +240,7 @@ function LoanDetail({ branchCode, clientId, loan, onClose }: { branchCode: numbe
               </TableHead>
               <TableBody>
                 {data.entries.map((e, i) => (
-                  <TableRow key={`${e.documentNo}-${e.event}-${i}`}>
+                  <TableRow key={`${e.documentNo}-${e.event}-${i}`} {...txRowProps({ date: e.date, transactionCode: e.transactionCode, controlNo: e.controlNo }, setTx)}>
                     <TableCell>{fmtDate(e.date)}</TableCell><TableCell>{e.eventName ?? `Event ${e.event}`}</TableCell><TableCell>{e.transaction ?? `Type ${e.transactionCode}`}</TableCell><TableCell>{e.documentNo ?? '—'}</TableCell>
                     <TableCell>{e.chequeNo ? `${e.chequeNo} · ${e.chequeCleared ? (e.clearedOn ? `cleared ${fmtDate(e.clearedOn)}` : 'cleared') : 'not cleared'}` : ''}</TableCell>
                     <TableCell align="right" sx={num}>{e.debit ? money(e.debit) : ''}</TableCell><TableCell align="right" sx={num}>{e.credit ? money(e.credit) : ''}</TableCell>
@@ -249,6 +251,7 @@ function LoanDetail({ branchCode, clientId, loan, onClose }: { branchCode: numbe
             </Table>
           </>
         )}
+      {tx && <TransactionDialog id={{ branchCode, clientId }} tx={tx} onClose={() => setTx(null)} />}
     </DetailPanel>
   )
 }

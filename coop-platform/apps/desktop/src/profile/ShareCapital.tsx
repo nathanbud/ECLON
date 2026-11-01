@@ -1,4 +1,5 @@
 import { type Id } from '../clients'
+import TransactionDialog, { txRowProps, type TxKey } from '../TransactionDialog'
 import { useState } from 'react'
 import { getShareHistory, getShares, postSharePayment, postShareWithdrawal, type ShareAccount, type SharePaymentReceipt, type ShareWithdrawalOut } from '../api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -183,6 +184,7 @@ function ShareWithdrawalDialog({ id, account, onClose }: { id: Id; account: Shar
 
 function ShareHistory({ id, typeCode, refNo, onClose }: { id: Id; typeCode: number; refNo: number; onClose: () => void }) {
   const [page, setPage] = useState(0)
+  const [tx, setTx] = useState<TxKey | null>(null)
   const size = 25
   const { data, error } = useQuery({ queryKey: ['member-share-history', id, typeCode, refNo, page], queryFn: () => getShareHistory(id.branchCode, id.clientId, typeCode, refNo, page, size) })
   return (
@@ -202,7 +204,7 @@ function ShareHistory({ id, typeCode, refNo, onClose }: { id: Id; typeCode: numb
             </TableHead>
             <TableBody>
               {data.entries.map((e, i) => (
-                <TableRow key={`${e.documentNo}-${i}`}>
+                <TableRow key={`${e.documentNo}-${i}`} {...txRowProps(e, setTx)}>
                   <TableCell>{fmtDate(e.date) ?? '—'}</TableCell><TableCell>{e.transaction ?? `Code ${e.transactionCode}`}</TableCell><TableCell>{e.documentNo ?? '—'}</TableCell>
                   <TableCell>{e.chequeNo ? `${e.chequeNo} · ${e.chequeCleared ? (e.clearedOn ? `cleared ${fmtDate(e.clearedOn)}` : 'cleared') : 'not cleared'}` : ''}</TableCell>
                   <TableCell align="right" sx={{ color: 'error.main', fontVariantNumeric: 'tabular-nums' }}>{e.amount < 0 ? peso(-e.amount) : ''}</TableCell><TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{e.amount > 0 ? peso(e.amount) : ''}</TableCell>
@@ -212,6 +214,7 @@ function ShareHistory({ id, typeCode, refNo, onClose }: { id: Id; typeCode: numb
             </TableBody>
           </Table>
         )}
+      {tx && <TransactionDialog id={id} tx={tx} onClose={() => setTx(null)} />}
     </DetailPanel>
   )
 }

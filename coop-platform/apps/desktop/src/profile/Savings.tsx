@@ -1,4 +1,5 @@
 import { type Id } from '../clients'
+import TransactionDialog, { txRowProps, type TxKey } from '../TransactionDialog'
 import { useEffect, useState } from 'react'
 import { askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, postSavingsDeposit, postSavingsWithdrawal, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck } from '../api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -172,6 +173,7 @@ export function SavingsCashDialog({ id, account, mode, onClose }: { id: Id; acco
 
 function SavingsHistory({ id, typeCode, refNo, onClose }: { id: Id; typeCode: number; refNo: number; onClose: () => void }) {
   const [page, setPage] = useState(0)
+  const [tx, setTx] = useState<TxKey | null>(null)
   const size = 25
   const { data, error } = useQuery({ queryKey: ['member-savings-history', id, typeCode, refNo, page], queryFn: () => getSavingsHistory(id.branchCode, id.clientId, typeCode, refNo, page, size) })
   const num = { fontVariantNumeric: 'tabular-nums' } as const
@@ -207,7 +209,7 @@ function SavingsHistory({ id, typeCode, refNo, onClose }: { id: Id; typeCode: nu
             </TableHead>
             <TableBody>
               {data.entries.map((e, i) => (
-                <TableRow key={`${e.documentNo}-${i}`}>
+                <TableRow key={`${e.documentNo}-${i}`} {...txRowProps(e, setTx)}>
                   <TableCell>{fmtDate(e.date) ?? '—'}</TableCell><TableCell>{e.transaction ?? `Code ${e.transactionCode}`}</TableCell><TableCell>{e.documentNo ?? '—'}</TableCell>
                   <TableCell>{e.chequeNo ? `${e.chequeNo} · ${e.chequeCleared ? (e.clearedOn ? `cleared ${fmtDate(e.clearedOn)}` : 'cleared') : 'not cleared'}` : ''}</TableCell>
                   <TableCell align="right" sx={{ color: 'error.main', ...num }}>{e.amount < 0 ? peso(-e.amount) : ''}</TableCell><TableCell align="right" sx={num}>{e.amount > 0 ? peso(e.amount) : ''}</TableCell>
@@ -217,6 +219,7 @@ function SavingsHistory({ id, typeCode, refNo, onClose }: { id: Id; typeCode: nu
             </TableBody>
           </Table>
         )}
+      {tx && <TransactionDialog id={id} tx={tx} onClose={() => setTx(null)} />}
     </DetailPanel>
   )
 }

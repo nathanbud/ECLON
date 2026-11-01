@@ -42,7 +42,8 @@ class ShareCapitalController {
     record Summary(List<Account> accounts, BigDecimal totalBalance) {}
 
     record Entry(LocalDate date, LocalDate glDate, int transactionCode, String transaction, String documentNo, BigDecimal amount, BigDecimal balanceAfter,
-                  /** For money paid in by cheque: the cheque number, whether it has cleared, and the day it cleared when that was recorded. Empty for other entries. */ String chequeNo, Boolean chequeCleared, LocalDate clearedOn) {}
+                  /** For money paid in by cheque: the cheque number, whether it has cleared, and the day it cleared when that was recorded. Empty for other entries. */ String chequeNo, Boolean chequeCleared, LocalDate clearedOn,
+                  /** The control number of the transaction behind the row: with the date's year and the transaction code it opens the transaction. */ Long controlNo) {}
 
     record History(Account account, List<Entry> entries, int page, int size, long totalEntries) {}
 
@@ -99,23 +100,24 @@ class ShareCapitalController {
                 """, Long.class, branchCode, clientId, CLASS_SHARE_CAPITAL, typeCode, refNo);
 
         // Newest first. Each row's balance is the account balance minus everything newer than it.
-        record Raw(LocalDate date, LocalDate gl, int code, String name, String doc, BigDecimal amount, String chequeNo, Boolean cleared, LocalDate clearedOn) {}
+        record Raw(LocalDate date, LocalDate gl, int code, String name, String doc, BigDecimal amount, String chequeNo, Boolean cleared, LocalDate clearedOn, long ctlNo) {}
         List<Raw> window = jdbc.query("""
                 SELECT d.TR_DATE, d.GL_DATE, d.TR_CODE, COALESCE(NULLIF(tt.TransTypeDesc2, ''), tt.TransTypeDesc), d.TR_DOCNO, -d.AMT,
                        CASE WHEN d.COCI_TYPE = 2 AND d.AMT < 0 THEN d.CHECKNO END,
                        CASE WHEN d.COCI_TYPE = 2 AND d.AMT < 0 THEN (SELECT COALESCE(k.CKISCLEARED, 0) FROM transck k WHERE k.CKTR_BRCODE = d.SL_BRCODE AND k.CKTR_YEAR = EXTRACT(YEAR FROM d.TR_DATE) AND k.CKTR_CODE = d.TR_CODE AND k.CKTR_CTLNO = d.TR_CTLNO AND k.CKCHECKNO = d.CHECKNO AND k.CKCOCI_TYPE = 2 LIMIT 1) END,
-                       CASE WHEN d.COCI_TYPE = 2 AND d.AMT < 0 THEN (SELECT cc.cleared_on FROM transck k JOIN ecis_cheque_clearing cc ON cc.tr_year = k.CKTR_YEAR AND cc.ctl_no = k.CKTR_CTLNO AND cc.seq_no = k.CKSEQ_NO WHERE k.CKTR_BRCODE = d.SL_BRCODE AND k.CKTR_YEAR = EXTRACT(YEAR FROM d.TR_DATE) AND k.CKTR_CODE = d.TR_CODE AND k.CKTR_CTLNO = d.TR_CTLNO AND k.CKCHECKNO = d.CHECKNO AND k.CKCOCI_TYPE = 2 LIMIT 1) END
+                       CASE WHEN d.COCI_TYPE = 2 AND d.AMT < 0 THEN (SELECT cc.cleared_on FROM transck k JOIN ecis_cheque_clearing cc ON cc.tr_year = k.CKTR_YEAR AND cc.ctl_no = k.CKTR_CTLNO AND cc.seq_no = k.CKSEQ_NO WHERE k.CKTR_BRCODE = d.SL_BRCODE AND k.CKTR_YEAR = EXTRACT(YEAR FROM d.TR_DATE) AND k.CKTR_CODE = d.TR_CODE AND k.CKTR_CTLNO = d.TR_CTLNO AND k.CKCHECKNO = d.CHECKNO AND k.CKCOCI_TYPE = 2 LIMIT 1) END,
+                       d.TR_CTLNO
                 FROM sldtl d LEFT JOIN transtype tt ON tt.TransTypeID = d.TR_CODE
                 WHERE d.SL_BRCODE = ? AND d.SL_CLIENTID = ? AND d.SLC_CODE = ? AND d.SLT_CODE = ? AND d.REF_NO = ?
                 ORDER BY d.TR_DATE DESC, d.SEQNO DESC LIMIT ?
                 """, (rs, i) -> new Raw(rs.getDate(1).toLocalDate(), rs.getDate(2) == null ? null : rs.getDate(2).toLocalDate(), rs.getInt(3), rs.getString(4), rs.getString(5), rs.getBigDecimal(6),
-                rs.getString(7), rs.getObject(8) == null ? null : rs.getInt(8) == 1, rs.getDate(9) == null ? null : rs.getDate(9).toLocalDate()),
+                rs.getString(7), rs.getObject(8) == null ? null : rs.getInt(8) == 1, rs.getDate(9) == null ? null : rs.getDate(9).toLocalDate(), rs.getLong(10)),
                 branchCode, clientId, CLASS_SHARE_CAPITAL, typeCode, refNo, (page + 1) * size);
         List<Entry> entries = new ArrayList<>();
         BigDecimal running = account.balance();
         for (int i = 0; i < window.size(); i++) {
             Raw r = window.get(i);
-            if (i >= page * size) entries.add(new Entry(r.date(), r.gl(), r.code(), r.name(), r.doc(), r.amount(), running, r.chequeNo(), r.cleared(), r.clearedOn()));
+            if (i >= page * size) entries.add(new Entry(r.date(), r.gl(), r.code(), r.name(), r.doc(), r.amount(), running, r.chequeNo(), r.cleared(), r.clearedOn(), r.ctlNo()));
             running = running.subtract(r.amount());
         }
         return new History(account, entries, page, size, total == null ? 0 : total);

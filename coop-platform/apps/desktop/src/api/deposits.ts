@@ -10,7 +10,9 @@ export interface ShareAccount {
 export interface ShareSummary { accounts: ShareAccount[]; totalBalance: number }
 export interface ShareEntry { date: string; glDate: string | null; transactionCode: number; transaction: string | null; documentNo: string | null; amount: number; balanceAfter: number
   /** Money paid in by cheque (savings only): the cheque, whether it cleared and the day it cleared when that was recorded. */
-  chequeNo?: string | null; chequeCleared?: boolean | null; clearedOn?: string | null }
+  chequeNo?: string | null; chequeCleared?: boolean | null; clearedOn?: string | null
+  /** The control number of the transaction behind the row; with the year of the date and the transaction code it opens the transaction. */
+  controlNo?: number | null }
 export interface ShareHistory { account: ShareAccount; entries: ShareEntry[]; page: number; size: number; totalEntries: number }
 
 export const getShares = (branchCode: number, clientId: number) => send<ShareSummary>('GET', `/api/members/${branchCode}/${clientId}/shares`)
@@ -99,7 +101,9 @@ export interface TimeDeposit {
 }
 export interface TimeDepositSummary { deposits: TimeDeposit[]; totalBalance: number; totalAccrued: number; asOf: string }
 export interface TimeDepositEntry { date: string; glDate: string | null; transactionCode: number; transaction: string | null; documentNo: string | null; event: number; eventName: string; amount: number; balanceAfter: number
-  chequeNo?: string | null; chequeCleared?: boolean | null; clearedOn?: string | null }
+  chequeNo?: string | null; chequeCleared?: boolean | null; clearedOn?: string | null
+  /** The control number of the transaction behind the row; with the year of the date and the transaction code it opens the transaction. */
+  controlNo?: number | null }
 export interface TimeDepositHistory { deposit: TimeDeposit; entries: TimeDepositEntry[]; page: number; size: number; totalEntries: number }
 export const getTimeDeposits = (branchCode: number, clientId: number, includeClosed: boolean) =>
   send<TimeDepositSummary>('GET', `/api/members/${branchCode}/${clientId}/time-deposits?includeClosed=${includeClosed}`)
