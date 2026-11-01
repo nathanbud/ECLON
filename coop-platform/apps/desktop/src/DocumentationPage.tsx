@@ -27,8 +27,7 @@ const SHORTCUTS: { area: string; rows: [string, string][] }[] = [
   {
     area: 'Front Office',
     rows: [
-      ['Alt+F', 'Open the Front Office menu in the title bar.'],
-      [`${MOD}1 to ${MOD}9`, 'Go to the first to ninth tab.'],
+      [`${MOD}1 to ${MOD}9`, 'Go to the first to ninth area of the window (Summary, Member Accounts, Cash, and so on). A tab with an entry form opens with a new entry ready.'],
       [`${MOD}F`, 'Find a transaction.'],
       [`${MOD}N`, 'Start a new draft.'],
       [`${MOD}D`, 'Copy the open transaction to a new draft.'],
