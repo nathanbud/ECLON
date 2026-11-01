@@ -427,17 +427,19 @@ function Setup({ keeper }: { keeper: boolean }) {
 }
 
 /** Inventory: products and stock, movements, approved adjustments and counts, warehouses. Storekeepers move stock, stock approvers (never the maker) decide adjustments and counts. */
-export default function InventoryPage() {
+const TABS = ['Products', 'Movements', 'Adjustments', 'Counts', 'Setup']
+
+export default function InventoryPage({ initialTab }: { initialTab?: string }) {
   const me = useMe()
   const role = (r: string) => me.roles.some((x) => x.replace('ROLE_', '') === r)
   const keeper = me.admin || role('STOREKEEPER')
   const approver = me.admin || role('STOCK_APPROVER')
-  const [tab, setTab] = useState(0)
+  const [tab, setTab] = useState(() => Math.max(0, TABS.indexOf(initialTab ?? '')))
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={(t) => ({ maxWidth: 1200, mx: 'auto', p: 2, ...glass(t) })}>
         <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 1 }}>Inventory</Typography>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>{['Products', 'Movements', 'Adjustments', 'Counts', 'Setup'].map((t) => <Tab key={t} label={t} />)}</Tabs>
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>{TABS.map((t) => <Tab key={t} label={t} />)}</Tabs>
         {tab === 0 && <Products keeper={keeper} />}
         {tab === 1 && <Movements keeper={keeper} />}
         {tab === 2 && <Adjustments keeper={keeper} approver={approver} user={me.username} />}

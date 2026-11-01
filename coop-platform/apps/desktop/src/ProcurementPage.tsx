@@ -369,18 +369,20 @@ function Suppliers({ buyer }: { buyer: boolean }) {
 }
 
 /** Purchasing: requests, orders and suppliers. Purchasers write them, approvers (never the same person) decide, receivers record the goods that arrive. Invoices and payment come next. */
-export default function ProcurementPage() {
+const TABS = ['Requests', 'Orders', 'Receipts', 'Suppliers']
+
+export default function ProcurementPage({ initialTab }: { initialTab?: string }) {
   const me = useMe()
   const role = (r: string) => me.roles.some((x) => x.replace('ROLE_', '') === r)
   const buyer = me.admin || role('PURCHASER')
   const approver = me.admin || role('PURCHASE_APPROVER')
   const receiver = me.admin || role('RECEIVER')
-  const [tab, setTab] = useState(0)
+  const [tab, setTab] = useState(() => Math.max(0, TABS.indexOf(initialTab ?? '')))
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={(t) => ({ maxWidth: 1100, mx: 'auto', p: 2, ...glass(t) })}>
         <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 1 }}>Purchasing</Typography>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>{['Requests', 'Orders', 'Receipts', 'Suppliers'].map((t) => <Tab key={t} label={t} />)}</Tabs>
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>{TABS.map((t) => <Tab key={t} label={t} />)}</Tabs>
         {tab === 0 && <Requests buyer={buyer} approver={approver} user={me.username} />}
         {tab === 1 && <Orders buyer={buyer} approver={approver} receiver={receiver} user={me.username} />}
         {tab === 2 && <Receipts approver={approver} user={me.username} />}

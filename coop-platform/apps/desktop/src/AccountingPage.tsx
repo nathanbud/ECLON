@@ -19,11 +19,12 @@ const today = () => new Date().toLocaleDateString('en-CA')
 const yearStart = () => `${new Date().getFullYear()}-01-01`
 
 /** Reports and bookkeeping: trial balance for everyone; statements, journals and periods for accountants and administrators. */
-export default function AccountingPage() {
+export default function AccountingPage({ initialTab }: { initialTab?: string }) {
   const me = useMe()
   const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
-  const [tab, setTab] = useState(0)
   const tabs = ['Trial balance', ...(accountant ? ['Statements', 'Journals', 'Memos', 'Periods', 'Banks', 'Penalty waivers'] : [])]
+  // a tab named by the side menu or the search opens first
+  const [tab, setTab] = useState(() => Math.max(0, tabs.indexOf(initialTab ?? '')))
   const [branch, setBranch] = useState('1')
   const branchCode = Number(branch)
   const ok = Number.isInteger(branchCode) && branchCode > 0

@@ -84,7 +84,7 @@ export function WindowControls() {
 }
 
 export default function TopBar({ title, onHome, onNavigate, onOpenClient }: {
-  title: string; onHome?: () => void; onNavigate: (v: View) => void; onOpenClient: (id: Id) => void
+  title: string; onHome?: () => void; onNavigate: (v: View, tab?: string) => void; onOpenClient: (id: Id) => void
 }) {
   const { mode, setMode } = useThemeMode()
   const hasMenu = useHasMenu()

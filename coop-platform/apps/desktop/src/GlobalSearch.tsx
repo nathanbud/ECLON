@@ -2,33 +2,24 @@ import { Autocomplete, Avatar, Box, CircularProgress, InputAdornment, TextField,
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { FiSearch, FiUser } from 'react-icons/fi'
-import { searchMembers } from './api'
+import { searchMembers, type Me } from './api'
 import { displayName, memberNo, type Id } from './clients'
 import type { View } from './Dashboard'
+import { DOMAINS, HOME, visibleScreens } from './nav/screens'
+import { useMe } from './session'
 
-interface Destination { label: string; hint: string; view?: View; keywords: string; group: 'Screens' | 'Modules' }
+interface Destination { label: string; hint: string; view: View; tab?: string; keywords: string; group: string }
 type Option =
   | (Destination & { kind: 'destination' })
   | { kind: 'client'; group: 'Clients'; label: string; hint: string; id: Id }
 
-// Everything the app offers, including modules that are not built yet (listed but disabled).
-const DESTINATIONS: Destination[] = [
-  { label: 'Home', hint: 'Dashboard', group: 'Screens', view: 'home', keywords: 'dashboard start main tiles' },
-  { label: 'Client Profile', hint: 'Find and view clients', group: 'Screens', view: 'members', keywords: 'members clients customers people profile search' },
-  { label: 'Front Office', hint: 'Teller transactions', group: 'Screens', view: 'frontoffice', keywords: 'teller cash receipt disburse withdrawal deposits encashment' },
-  { label: 'Chart of Accounts', hint: 'Back Office', group: 'Screens', view: 'accounts', keywords: 'back office accounts coa ledger gl' },
-  { label: 'Accounting', hint: 'Trial balance, statements, journals', group: 'Screens', view: 'accounting', keywords: 'reports accounting debit credit balance statement' },
-  { label: 'Approvals', hint: 'Changes waiting for approval', group: 'Screens', view: 'approvals', keywords: 'approve pending changes review requests membership officer' },
-  { label: 'Users', hint: 'Passwords and roles', group: 'Screens', view: 'users', keywords: 'accounts people passwords sign in roles membership officer administrators' },
-  { label: 'Loan Application', hint: 'Find a member and start a loan application', group: 'Screens', view: 'loanapp', keywords: 'loan apply new application borrow' },
-  { label: 'Payables', hint: 'Coming soon', group: 'Modules', keywords: 'bills suppliers' },
-  { label: 'Inventory', hint: 'Coming soon', group: 'Modules', keywords: 'stock items' },
-  { label: 'POS', hint: 'Coming soon', group: 'Modules', keywords: 'point of sale cashier' },
-  { label: 'Settings', hint: 'Coming soon', group: 'Modules', keywords: 'preferences configuration' },
-  { label: 'System', hint: 'Coming soon', group: 'Modules', keywords: 'users security audit' },
-  { label: 'Backup', hint: 'Coming soon', group: 'Modules', keywords: 'restore export' },
-  { label: 'Others', hint: 'Coming soon', group: 'Modules', keywords: 'misc' },
-]
+/** The screens this person may open, from the one list of screens the side menu and the tiles also use, plus Home. */
+function destinationsFor(me: Me): Destination[] {
+  return [
+    { label: HOME.label, hint: HOME.note, group: 'Go to', view: 'home', keywords: 'dashboard start main tiles' },
+    ...visibleScreens(me).map((s) => ({ label: s.label, hint: s.note, group: DOMAINS[s.domain].label, view: s.view, tab: s.tab, keywords: s.keywords ?? '' })),
+  ]
+}
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 export const GLOBAL_SEARCH_SHORTCUT = `${isMac ? '⌘' : 'Ctrl+'}K`
@@ -42,7 +33,8 @@ const matches = (d: Destination, q: string) => {
 }
 
 /** Searches the whole app: screens, modules and clients. Choosing a result jumps straight to it. */
-export default function GlobalSearch({ onNavigate, onOpenClient }: { onNavigate: (v: View) => void; onOpenClient: (id: Id) => void }) {
+export default function GlobalSearch({ onNavigate, onOpenClient }: { onNavigate: (v: View, tab?: string) => void; onOpenClient: (id: Id) => void }) {
+  const me = useMe()
   const [input, setInput] = useState('')
   const [q, setQ] = useState('')
   const ref = useRef<HTMLInputElement>(null)
@@ -71,7 +63,7 @@ export default function GlobalSearch({ onNavigate, onOpenClient }: { onNavigate:
     placeholderData: (prev) => prev,
   })
 
-  const destinations: Option[] = DESTINATIONS.filter((d) => matches(d, input)).map((d) => ({ ...d, kind: 'destination' as const }))
+  const destinations: Option[] = destinationsFor(me).filter((d) => matches(d, input)).map((d) => ({ ...d, kind: 'destination' as const }))
   const clients: Option[] = wantClients
     ? (data?.content ?? []).map((m) => ({
         kind: 'client' as const, group: 'Clients' as const, label: displayName(m),
@@ -87,15 +79,14 @@ export default function GlobalSearch({ onNavigate, onOpenClient }: { onNavigate:
       groupBy={(o) => o.group}
       filterOptions={(o) => o}
       getOptionLabel={(o) => o.label}
-      getOptionKey={(o) => (o.kind === 'client' ? `client-${o.id.branchCode}-${o.id.clientId}` : `dest-${o.label}`)}
-      getOptionDisabled={(o) => o.kind === 'destination' && !o.view}
+      getOptionKey={(o) => (o.kind === 'client' ? `client-${o.id.branchCode}-${o.id.clientId}` : `dest-${o.view}-${o.tab ?? ''}`)}
       value={null}
       inputValue={input}
       onInputChange={(_, v, reason) => { if (reason !== 'reset') setInput(v) }}
       onChange={(_, o) => {
         if (!o) return
         if (o.kind === 'client') onOpenClient(o.id)
-        else if (o.view) onNavigate(o.view)
+        else onNavigate(o.view, o.tab)
         setInput('')
         setQ('')
         ref.current?.blur()
