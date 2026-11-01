@@ -15,10 +15,10 @@ const member = (id: number, last: string, first: string): Member => ({
 
 vi.mock('./api', async (orig) => ({
   ...(await orig<typeof import('./api')>()),
-  searchMembers: vi.fn(async (q: string): Promise<Page<Member>> => {
-    const all = [member(100, 'Budikey', 'Nathaniel'), member(101, 'Budiman', 'Ana')]
+  searchMembers: vi.fn(async (q: string, _page: number, _size: number, includeInactive = false): Promise<Page<Member>> => {
+    const all = [member(100, 'Budikey', 'Nathaniel'), ...(includeInactive ? [{ ...member(102, 'Budikey', 'Old'), accountStatus: 3 }] : []), member(101, 'Budiman', 'Ana')]
     const content = all.filter((m) => m.lastName!.toLowerCase().includes(q.toLowerCase()))
-    return { content, totalElements: content.length, number: 0, size: 8 }
+    return { content, totalElements: content.length, number: 0, size: 8, last: q !== 'budi' }
   }),
 }))
 
@@ -58,5 +58,22 @@ describe('Find Client', () => {
     await waitFor(() => expect(screen.getAllByRole('option').length).toBe(2))
     await user.keyboard('{Escape}')
     expect(box).toHaveValue('')
+  })
+
+  it('says there are more matches, without a count, when the search stopped at a full page', async () => {
+    renderFind()
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('combobox'), 'budi')
+    expect(await screen.findByText('First 2 matches')).toBeInTheDocument()
+    expect(screen.getByText(/there are more matches/i)).toBeInTheDocument()
+  })
+
+  it('lists active clients only until Include inactive is turned on', async () => {
+    renderFind()
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('combobox'), 'budik')
+    await waitFor(() => expect(screen.getAllByRole('option').length).toBe(1))
+    await user.click(screen.getByRole('switch', { name: /include inactive/i }))
+    await waitFor(() => expect(screen.getAllByRole('option').length).toBe(2))
   })
 })

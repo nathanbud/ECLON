@@ -42,6 +42,7 @@ const SHORTCUTS: { area: string; rows: [string, string][] }[] = [
 ]
 
 const RULES: [string, string][] = [
+  ['Finding a client', 'A search by name lists active clients only, so it is quicker. Turn on Include inactive in Find Client to see dormant and closed ones. A member ID or reference number finds the client whatever the status. The title-bar search and the pickers in Front Office, Loan Application and co-makers list active clients only. A word that starts a last or first name is found at once; a word from the middle of a name or account name takes a moment longer. When more than a page matches, the list says so instead of counting them.'],
   ['Posted money entries never change', 'A mistake is fixed with a reversal and a corrected entry, never by editing. Every entry balances (debits equal credits) before it posts.'],
   ['Maker and checker', 'The person who asks is never the person who approves. This holds for profile changes, new members, closings, reactivations, journals, loans, purchases and stock adjustments.'],
   ['Everything is audited', 'Who, when, what changed (before and after) and why. Administrators read it under Settings > Audit Log. Passwords, fingerprint data and other secrets are never written to it.'],

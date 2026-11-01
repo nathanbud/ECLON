@@ -32,13 +32,14 @@ public class MemberController {
     @GetMapping
     public Page<Member> search(@RequestParam(defaultValue = "") String q,
                                @RequestParam(defaultValue = "0") int page,
-                               @RequestParam(defaultValue = "25") int size) {
+                               @RequestParam(defaultValue = "25") int size,
+                               @RequestParam(defaultValue = "false") boolean includeInactive) {
         var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE),
             Sort.by("lastName", "firstName"));
         String text = q.trim();
 
         // A member ID ("0001-0033189", "0001-0033189-9", "1-33189" or just "33189") or a reference ID ("A010352")
-        // is an exact lookup, not a name search.
+        // is an exact lookup, not a name search: it finds the member whatever the status. A name search lists active members only unless includeInactive is true.
         Matcher id = MEMBER_ID.matcher(text);
         if (id.matches()) {
             int clientId = Integer.parseInt(id.group(2));
@@ -51,7 +52,7 @@ public class MemberController {
             List<Member> found = members.findByReferenceIdIgnoreCase(text);
             return new PageImpl<>(found, pageable, found.size());
         }
-        return members.search(text, pageable);
+        return members.search(text, includeInactive, pageable);
     }
 
     @GetMapping("/{branchCode}/{clientId}")

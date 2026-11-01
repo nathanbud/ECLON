@@ -1,4 +1,4 @@
-import { Alert, Avatar, Box, Chip, CircularProgress, Dialog, IconButton, InputAdornment, Skeleton, TextField, Typography, type Theme } from '@mui/material'
+import { Alert, Avatar, Box, Chip, CircularProgress, Dialog, FormControlLabel, IconButton, InputAdornment, Skeleton, Switch, TextField, Typography, type Theme } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { FiCornerDownLeft, FiSearch, FiUser, FiX } from 'react-icons/fi'
@@ -54,6 +54,8 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
   const [input, setInput] = useState('')
   const [q, setQ] = useState('')
   const [active, setActive] = useState(0)
+  // A name search lists active members only; the switch adds dormant and closed ones.
+  const [inactive, setInactive] = useState(false)
   const activeRef = useRef<HTMLLIElement>(null)
 
   // Debounce typing so each keystroke doesn't hit the large member table.
@@ -64,14 +66,13 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
 
   const enabled = searchable(q)
   const { data, error, isFetching } = useQuery({
-    queryKey: ['members', q, 'find'],
-    queryFn: () => searchMembers(q, 0, MAX_RESULTS),
+    queryKey: ['members', q, 'find', inactive],
+    queryFn: () => searchMembers(q, 0, MAX_RESULTS, inactive),
     enabled,
     placeholderData: (prev) => prev,
   })
   const results = enabled ? data?.content ?? [] : []
-  const total = enabled && data ? data.totalElements : 0
-  const more = total - results.length
+  const hasMore = enabled && data?.last === false
 
   useEffect(() => { activeRef.current?.scrollIntoView({ block: 'nearest' }) }, [active, results.length])
 
@@ -93,7 +94,13 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
       </Box>
 
       <Box sx={{ px: 2.5, pt: 2.25, pb: 2 }}>
-        <Typography component="h2" sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Find Client</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <Typography component="h2" sx={{ flex: 1, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">Find Client</Typography>
+          <FormControlLabel
+            sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12.5 } }} label="Include inactive"
+            control={<Switch size="small" checked={inactive} onChange={(e) => { setInactive(e.target.checked); setActive(0) }} />}
+          />
+        </Box>
         <TextField
           id="find-client-input" fullWidth autoFocus value={input}
           onChange={(e) => { setInput(e.target.value); setActive(0) }}
@@ -148,14 +155,14 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
         {!error && enabled && !isFetching && results.length === 0 && (
           <Box sx={{ px: 2.5, py: 3, textAlign: 'center' }}>
             <Typography sx={{ fontSize: 14.5, fontWeight: 600, mb: 0.5 }}>No clients found</Typography>
-            <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing matches “{q}”. Check the spelling, or try the member ID.</Typography>
+            <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing matches “{q}”. Check the spelling, or try the member ID.{!inactive && ' Only active clients are listed: turn on Include inactive to see dormant and closed ones.'}</Typography>
           </Box>
         )}
 
         {results.length > 0 && (
           <>
             <Typography sx={{ px: 2.5, pt: 1.5, pb: 0.5, fontSize: 11.5, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">
-              {total > results.length ? `Top ${results.length} of ${total.toLocaleString()} clients` : `${results.length} client${results.length === 1 ? '' : 's'}`}
+              {hasMore ? `First ${results.length} matches` : `${results.length} client${results.length === 1 ? '' : 's'}`}
             </Typography>
             <Box component="ul" id="find-client-results" role="listbox" aria-label="Matching clients" sx={{ listStyle: 'none', m: 0, px: 1, pb: 1, display: 'grid', gap: 0.25 }}>
               {results.map((m, i) => {
@@ -195,9 +202,9 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
             </Box>
           </>
         )}
-        {more > 0 && (
+        {hasMore && (
           <Typography sx={{ px: 2.5, pb: 1.5, fontSize: 12.5 }} color="text.secondary">
-            {more.toLocaleString()} more match{more === 1 ? '' : 'es'}. Keep typing to narrow the list.
+            There are more matches. Keep typing to narrow the list.
           </Typography>
         )}
       </Box>

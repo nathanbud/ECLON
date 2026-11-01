@@ -43,12 +43,16 @@ export interface Member {
 export interface Page<T> {
   content: T[]
   totalElements: number
+  /** False when more results follow. A name search does not count every match, so the total is only a lower bound. */
+  last?: boolean
   number: number
   size: number
 }
 
-export async function searchMembers(q: string, page: number, size: number): Promise<Page<Member>> {
+/** A name search lists active members only; `includeInactive` adds dormant and closed ones. A member ID or reference is found whatever the status. */
+export async function searchMembers(q: string, page: number, size: number, includeInactive = false): Promise<Page<Member>> {
   const params = new URLSearchParams({ q, page: String(page), size: String(size) })
+  if (includeInactive) params.set('includeInactive', 'true')
   const res = await http(`/api/members?${params}`)
   if (!res.ok) throw new Error(`Request failed (${res.status})`)
   return res.json()
