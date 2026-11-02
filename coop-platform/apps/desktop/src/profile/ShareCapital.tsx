@@ -11,10 +11,8 @@ import { fmtDate, peso } from './format'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from '../ChequeFields'
 import MoneyField from '../MoneyField'
 
-export function ShareCapitalTab({ id, teller = false }: { id: Id; teller?: boolean }) {
+export function ShareCapitalTab({ id }: { id: Id; teller?: boolean }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
-  const [withdrawing, setWithdrawing] = useState<ShareAccount | null>(null)
-  const [paying, setPaying] = useState<ShareAccount | null>(null)
   const [showClosed, setShowClosed] = useState(false)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-shares', id], queryFn: () => getShares(id.branchCode, id.clientId), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
@@ -31,7 +29,7 @@ export function ShareCapitalTab({ id, teller = false }: { id: Id; teller?: boole
           <TableHead>
             <TableRow>
               <TableCell>Type</TableCell><TableCell>Account no.</TableCell><TableCell>Opened</TableCell><TableCell>Status</TableCell>
-              <TableCell>Last activity</TableCell><TableCell align="right">Minimum</TableCell><TableCell align="right">On hold</TableCell><TableCell align="right">Balance</TableCell><TableCell />
+              <TableCell>Last activity</TableCell><TableCell align="right">Minimum</TableCell><TableCell align="right">On hold</TableCell><TableCell align="right">Balance</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -42,32 +40,25 @@ export function ShareCapitalTab({ id, teller = false }: { id: Id; teller?: boole
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{peso(a.minimumBalance)}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{a.held > 0 ? peso(a.held) : '—'}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{peso(a.balance)}</TableCell>
-                <TableCell align="right">
-                  {teller && a.status === 15 && <Button size="small" onClick={(e) => { e.stopPropagation(); setPaying(a) }}>Post payment</Button>}
-                  {teller && a.status === 15 && a.balance - a.held > 0 && <Button size="small" onClick={(e) => { e.stopPropagation(); setWithdrawing(a) }}>Withdraw</Button>}
-                </TableCell>
               </TableRow>
             ))}
             <TableRow>
               <TableCell colSpan={7} sx={{ fontWeight: 700 }}>Total share capital</TableCell>
               <TableCell align="right" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{peso(data.totalBalance)}</TableCell>
-              <TableCell />
             </TableRow>
           </TableBody>
         </Table>
       </TableCard>
       {open && <ShareHistory key={`${open.typeCode}-${open.refNo}`} id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
-      {paying && <SharePaymentDialog id={id} account={paying} onClose={() => setPaying(null)} />}
-      {withdrawing && <ShareWithdrawalDialog id={id} account={withdrawing} onClose={() => setWithdrawing(null)} />}
     </>
   )
 }
 
-function SharePaymentDialog({ id, account, onClose }: { id: Id; account: ShareAccount; onClose: () => void }) {
+export function SharePaymentDialog({ id, account, initialAmount = '', initialExplanation = '', onClose }: { id: Id; account: ShareAccount; initialAmount?: string; initialExplanation?: string; onClose: () => void }) {
   const qc = useQueryClient()
-  const [amount, setAmount] = useState('')
+  const [amount, setAmount] = useState(initialAmount)
   const [receiptNo, setReceiptNo] = useState('')
-  const [explanation, setExplanation] = useState('')
+  const [explanation, setExplanation] = useState(initialExplanation)
   const [receipt, setReceipt] = useState<SharePaymentReceipt | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -131,10 +122,10 @@ function SharePaymentDialog({ id, account, onClose }: { id: Id; account: ShareAc
   )
 }
 
-function ShareWithdrawalDialog({ id, account, onClose }: { id: Id; account: ShareAccount; onClose: () => void }) {
+export function ShareWithdrawalDialog({ id, account, initialAmount = '', initialExplanation = '', onClose }: { id: Id; account: ShareAccount; initialAmount?: string; initialExplanation?: string; onClose: () => void }) {
   const qc = useQueryClient()
-  const [amount, setAmount] = useState('')
-  const [explanation, setExplanation] = useState('')
+  const [amount, setAmount] = useState(initialAmount)
+  const [explanation, setExplanation] = useState(initialExplanation)
   const [done, setDone] = useState<ShareWithdrawalOut | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)

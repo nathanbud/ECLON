@@ -49,7 +49,7 @@ test.describe('front office', () => {
     expect(index).toBeGreaterThanOrEqual(0)
     await page.keyboard.press(`Control+${index + 1}`)
     await expect(page.getByRole('tab', { name: 'Cash', exact: true })).toHaveAttribute('aria-selected', 'true')
-    await page.keyboard.press('Control+2')
+    await page.keyboard.press('Control+3')
     await expect(page.getByRole('tab', { name: /Summary/ })).toHaveAttribute('aria-selected', 'true')
   })
 

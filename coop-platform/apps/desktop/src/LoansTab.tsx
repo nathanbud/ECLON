@@ -17,10 +17,9 @@ const stateLabel: Record<LoanScheduleRow['state'], string> = { PAID: 'Paid', PAR
 const stateColor: Record<LoanScheduleRow['state'], 'success' | 'warning' | 'error' | 'default'> = { PAID: 'success', PARTIAL: 'warning', PAST_DUE: 'error', UPCOMING: 'default' }
 
 /** A member's loans: what is owed, what is late, and the schedule and ledger behind each. New applications are made only from the Loan Application tile. */
-export default function LoansTab({ branchCode, clientId, teller = false }: { branchCode: number; clientId: number; teller?: boolean }) {
+export default function LoansTab({ branchCode, clientId }: { branchCode: number; clientId: number; teller?: boolean }) {
   const [paid, setPaid] = useState(false)
   const [open, setOpen] = useState<LoanItem | null>(null)
-  const [paying, setPaying] = useState<LoanItem | null>(null)
   const [profile, setProfile] = useState<LoanItem | null>(null)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-loans', branchCode, clientId, paid], queryFn: () => getLoans(branchCode, clientId, paid), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
@@ -56,7 +55,6 @@ export default function LoansTab({ branchCode, clientId, teller = false }: { bra
                 <TableCell>{l.nextDueDate ? `${fmtDate(l.nextDueDate)} · ${money((l.nextDuePrincipal ?? 0) + (l.nextDueInterest ?? 0))}` : '—'}</TableCell>
                 <TableCell align="right">
                   <Button size="small" color="inherit" onClick={(e) => { e.stopPropagation(); setProfile(l) }}>Profile</Button>
-                  {teller && l.outstanding > 0 && l.status !== 13 && <Button size="small" onClick={(e) => { e.stopPropagation(); setPaying(l) }}>Pay</Button>}
                 </TableCell>
               </TableRow>
             ))}
@@ -64,17 +62,16 @@ export default function LoansTab({ branchCode, clientId, teller = false }: { bra
         </Table>
       )}
       {open && <LoanDetail key={`${open.typeCode}-${open.refNo}`} branchCode={branchCode} clientId={clientId} loan={open} onClose={() => setOpen(null)} />}
-      {paying && <LoanPaymentDialog clientId={clientId} loan={paying} onClose={() => setPaying(null)} />}
       {profile && <LoanProfileDialog branchCode={branchCode} clientId={clientId} typeCode={profile.typeCode} refNo={profile.refNo} onClose={() => setProfile(null)} />}
     </>
   )
 }
 
-function LoanPaymentDialog({ clientId, loan, onClose }: { clientId: number; loan: LoanItem; onClose: () => void }) {
+export function LoanPaymentDialog({ clientId, loan, initialAmount = '', initialExplanation = '', onClose }: { clientId: number; loan: LoanItem; initialAmount?: string; initialExplanation?: string; onClose: () => void }) {
   const qc = useQueryClient()
-  const [amount, setAmount] = useState('')
+  const [amount, setAmount] = useState(initialAmount)
   const [receiptNo, setReceiptNo] = useState('')
-  const [explanation, setExplanation] = useState('')
+  const [explanation, setExplanation] = useState(initialExplanation)
   const [check, setCheck] = useState<LoanPaymentBreakdown | null>(null)
   const [receipt, setReceipt] = useState<LoanPaymentReceipt | null>(null)
   const [error, setError] = useState<string | null>(null)

@@ -42,7 +42,8 @@ type Shown =
 
 /** The window's many tabs, grouped by what the teller is doing: one row of areas, and a second row of kinds only when an area has several. */
 const GROUPS: { key: string; label: string; tabs: string[] }[] = [
-  { key: 'members', label: 'Teller', tabs: ['accounts', 'passbook'] },
+  { key: 'members', label: 'Teller', tabs: ['accounts'] },
+  { key: 'passbook', label: 'Passbook', tabs: ['passbook'] },
   { key: 'summary', label: 'Summary', tabs: ['summary'] },
   { key: 'cash', label: 'Cash', tabs: ['disburse', 'encashment', 'otc', 'handover', 'bank'] },
   { key: 'sales', label: 'Sales', tabs: ['sales', 'salesReturn'] },
@@ -575,7 +576,8 @@ export default function FrontOfficePage() {
         )}
       </Box>
 
-      {/* One row of actions, and who is working on what date */}
+      {/* One row of actions, only where a transaction form is shown */}
+      {entryTab && (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', flexShrink: 0 }} role="toolbar" aria-label="Transaction actions">
         {entryTab && (<>
         <Button size="small" startIcon={<FiSearch />} disabled={!runs.find} onClick={runs.find} title={`${MOD}F`}>Find</Button>
@@ -594,10 +596,8 @@ export default function FrontOfficePage() {
             <Tooltip title="Next (PgDn)"><span><IconButton size="small" aria-label="Next transaction" disabled={!runs.down} onClick={runs.down}><FiChevronRight /></IconButton></span></Tooltip>
           </Box>
         )}
-        <Box sx={{ flex: 1 }} />
-        <Typography sx={{ fontSize: 13 }}>User: <b>{me.username}</b></Typography>
-        <Typography sx={{ fontSize: 13, ml: 2 }}>System date: <b style={{ fontVariantNumeric: 'tabular-nums' }}>{setup.systemDate}</b></Typography>
       </Box>
+      )}
 
       {editing && (
         <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 0.75, flexShrink: 0, ...glass(t) })} role="status">

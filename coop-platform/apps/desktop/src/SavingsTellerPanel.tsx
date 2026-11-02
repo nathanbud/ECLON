@@ -1,7 +1,7 @@
 import { Avatar, Box, Button, ButtonBase, Chip, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
-import { FiArrowDownCircle, FiArrowUpCircle, FiClock, FiDollarSign, FiPercent, FiUser } from 'react-icons/fi'
+import { useMemo, useRef, useState } from 'react'
+import { FiArrowDownCircle, FiChevronLeft, FiChevronRight, FiClock, FiDollarSign, FiPercent, FiUser } from 'react-icons/fi'
 import { getFoTellerTotals, getLoans, getLookups, getMember, getSavings, getShares, listFoTransactions, type FoSetup } from './api'
 import { displayName, memberNo, statusOf, type Id } from './clients'
 import MemberSearchBox from './MemberSearchBox'
@@ -11,6 +11,7 @@ import LoansTab from './LoansTab'
 import { useMemberImage } from './memberImage'
 import { fmtDate } from './profile/format'
 import { SavingsTab } from './profile/Savings'
+import TellerTransaction, { type TellerPreset } from './TellerTransaction'
 import { ShareCapitalTab } from './profile/ShareCapital'
 import { TimeDepositsTab } from './profile/TimeDeposits'
 import { tileFill } from './theme'
@@ -19,12 +20,11 @@ const SECTIONS = ['Savings', 'Share Capital', 'Loans', 'Time Deposits'] as const
 type Section = (typeof SECTIONS)[number]
 
 /** What a teller does most, each one opening the account type it belongs to (the posting itself, with its limits, holds and approvals, is in the section below). */
-const QUICK: { label: string; hint: string; section: Section; icon: React.ReactNode; color: string }[] = [
-  { label: 'Deposit', hint: 'Savings', section: 'Savings', icon: <FiArrowDownCircle />, color: tileFill.green },
-  { label: 'Withdraw', hint: 'Savings', section: 'Savings', icon: <FiArrowUpCircle />, color: tileFill.red },
-  { label: 'Share capital', hint: 'Pay or withdraw', section: 'Share Capital', icon: <FiPercent />, color: tileFill.blue },
-  { label: 'Loan payment', hint: 'Pay a loan', section: 'Loans', icon: <FiDollarSign />, color: tileFill.orange },
-  { label: 'Time deposit', hint: 'Place or pay out', section: 'Time Deposits', icon: <FiClock />, color: tileFill.purple },
+const QUICK: { label: string; section: Section; preset?: Omit<TellerPreset, 'seq'>; icon: React.ReactNode; color: string }[] = [
+  { label: 'Savings', section: 'Savings', preset: { kind: 'savings', mode: 'deposit' }, icon: <FiArrowDownCircle />, color: tileFill.green },
+  { label: 'Share capital', section: 'Share Capital', preset: { kind: 'share', mode: 'payment' }, icon: <FiPercent />, color: tileFill.blue },
+  { label: 'Loan', section: 'Loans', preset: { kind: 'loan', mode: 'payment' }, icon: <FiDollarSign />, color: tileFill.orange },
+  { label: 'Time deposit', section: 'Time Deposits', icon: <FiClock />, color: tileFill.purple },
 ]
 
 const REMINDERS = [
@@ -33,6 +33,96 @@ const REMINDERS = [
   'Print a receipt for every deposit and withdrawal.',
   'Follow the KYC and anti-money-laundering rules.',
 ]
+
+const COLS_KEY = 'coop.teller.cols'
+const DEFAULT_COLS = [0.3, 0.4, 0.3]
+/** A column narrower than this share of the width is dragged away: it is hidden. */
+const HIDE_BELOW = 0.1
+
+const storedCols = (): number[] => {
+  try {
+    const v = JSON.parse(localStorage.getItem(COLS_KEY) ?? 'null')
+    if (Array.isArray(v) && v.length === 3 && v.every((x) => typeof x === 'number' && x >= 0) && Math.abs(v[0] + v[1] + v[2] - 1) < 0.01 && v.some((x) => x > 0)) return v
+  } catch { /* storage unavailable */ }
+  return DEFAULT_COLS
+}
+
+/**
+ * The border between two columns: drag it to move the boundary, and drag it far enough to the side and the column there is hidden (a small tab stays to bring it back; a double
+ * click also brings it back). The widths are kept for next time.
+ */
+function Splitter({ index, cols, setCols, container }: { index: 0 | 1; cols: number[]; setCols: (c: number[]) => void; container: React.RefObject<HTMLDivElement | null> }) {
+  const drag = useRef<{ x: number; start: number[]; width: number } | null>(null)
+  const left = cols[index], right = cols[index + 1]
+  const restore = (side: 0 | 1) => {
+    const next = [...cols]
+    const i = index + side
+    const donor = next.map((v, k) => ({ v, k })).filter((o) => o.k !== i).sort((a, b) => b.v - a.v)[0].k
+    const give = Math.min(0.28, next[donor] - 0.12)
+    next[i] = give
+    next[donor] -= give
+    setCols(next)
+  }
+  const onMove = (e: React.PointerEvent) => {
+    const d = drag.current
+    if (!d) return
+    const dx = (e.clientX - d.x) / d.width
+    const next = [...d.start]
+    let a = d.start[index] + dx, b = d.start[index + 1] - dx
+    const total = d.start[index] + d.start[index + 1]
+    if (a < HIDE_BELOW) { a = 0; b = total } else if (b < HIDE_BELOW) { b = 0; a = total } else { a = Math.max(HIDE_BELOW, Math.min(total - HIDE_BELOW, a)); b = total - a }
+    next[index] = a
+    next[index + 1] = b
+    setCols(next)
+  }
+  const down = (e: React.PointerEvent<HTMLDivElement>) => {
+    const w = container.current?.getBoundingClientRect().width
+    if (!w) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    drag.current = { x: e.clientX, start: [...cols], width: w }
+  }
+  const up = () => { drag.current = null; try { localStorage.setItem(COLS_KEY, JSON.stringify(cols)) } catch { /* storage unavailable */ } }
+  return (
+    <Box
+      role="separator" aria-orientation="vertical" aria-label={index === 0 ? 'Resize the left column' : 'Resize the right column'} tabIndex={0}
+      onPointerDown={down} onPointerMove={onMove} onPointerUp={up} onPointerCancel={up}
+      onDoubleClick={() => { if (left === 0) restore(0); else if (right === 0) restore(1); else setCols(DEFAULT_COLS) }}
+      onKeyDown={(e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+        e.preventDefault()
+        const step = e.key === 'ArrowLeft' ? -0.03 : 0.03
+        const total = left + right
+        const a = Math.max(0, Math.min(total, left + step))
+        const next = [...cols]
+        next[index] = a < HIDE_BELOW ? 0 : total - a < HIDE_BELOW ? total : a
+        next[index + 1] = total - next[index]
+        setCols(next)
+      }}
+      sx={(t) => ({
+        position: 'relative', cursor: 'col-resize', touchAction: 'none', borderLeft: `1px solid ${t.palette.divider}`, mx: 0.25,
+        '&:hover, &:focus-visible, &:active': { borderLeftColor: t.palette.primary.main, boxShadow: `inset 1px 0 0 ${t.palette.primary.main}`, outline: 'none' },
+      })}
+    >
+      {left === 0 && <Tab_ label="Show the left column" side="left" onClick={() => restore(0)} />}
+      {right === 0 && <Tab_ label="Show the right column" side="right" onClick={() => restore(1)} />}
+    </Box>
+  )
+}
+
+/** The small tab left at the edge where a column was hidden. */
+function Tab_({ label, side, onClick }: { label: string; side: 'left' | 'right'; onClick: () => void }) {
+  return (
+    <ButtonBase
+      aria-label={label} title={label} onClick={onClick} onPointerDown={(e) => e.stopPropagation()}
+      sx={(t) => ({
+        position: 'absolute', top: 8, [side === 'left' ? 'left' : 'right']: -1, width: 18, height: 40, zIndex: 2, bgcolor: t.palette.background.paper, color: 'text.secondary',
+        border: `1px solid ${t.palette.divider}`, borderRadius: side === 'left' ? '0 5px 5px 0' : '5px 0 0 5px', '&:hover': { color: t.palette.primary.main },
+      })}
+    >
+      {side === 'left' ? <FiChevronRight size={14} /> : <FiChevronLeft size={14} />}
+    </ButtonBase>
+  )
+}
 
 const Card = ({ title, action, children, sx }: { title: string; action?: React.ReactNode; children: React.ReactNode; sx?: object }) => (
   <Box component="section" aria-label={title} sx={(t) => ({ p: 1.5, ...glass(t), ...sx })}>
@@ -165,21 +255,25 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
   const { data: lk } = useQuery({ queryKey: ['lookups'], queryFn: getLookups, staleTime: Infinity })
   const [id, setId] = useState<Id | null>(null)
   const [section, setSection] = useState<Section>('Savings')
+  const [preset, setPreset] = useState<TellerPreset | null>(null)
+  const [cols, setColsState] = useState<number[]>(storedCols)
+  const container = useRef<HTMLDivElement>(null)
+  const setCols = (c: number[]) => setColsState(c)
 
   return (
     <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
       <MemberSearchBox lk={lk} onPick={setId} width={{ xs: '100%', md: '25%' }} />
 
-      <Box sx={{ display: 'grid', gap: 1.25, alignItems: 'start', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 4fr) minmax(0, 3fr)' }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0 }}>
+      <Box ref={container} sx={{ display: 'grid', alignItems: 'start', gridTemplateColumns: `${cols[0] === 0 ? '0px' : `minmax(0, ${cols[0]}fr)`} 10px ${cols[1] === 0 ? '0px' : `minmax(0, ${cols[1]}fr)`} 10px ${cols[2] === 0 ? '0px' : `minmax(0, ${cols[2]}fr)`}` }}>
+        <Box className="col" sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, ...(cols[0] === 0 && { visibility: 'hidden', overflow: 'hidden' }) }}>
           {id ? <MemberCard id={id} onChange={() => setId(null)} lk={lk} /> : (
             <Card title="Member information"><Typography sx={{ fontSize: 13 }} color="text.secondary">Search for the member to take a deposit from or pay a withdrawal to.</Typography></Card>
           )}
-          <Card title="Quick actions">
+          <Card title="Go to account">
             <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
               {QUICK.map((q) => (
                 <ButtonBase
-                  key={q.label} disabled={!id} onClick={() => setSection(q.section)} aria-label={q.label} aria-pressed={!!id && section === q.section && q.label !== 'Withdraw'}
+                  key={q.label} disabled={!id} onClick={() => { setSection(q.section); if (q.preset) setPreset({ ...q.preset, seq: (preset?.seq ?? 0) + 1 }) }} aria-label={q.label}
                   sx={(t) => ({ flexDirection: 'column', gap: 0.25, py: 1, borderRadius: '5px', border: 1, borderColor: 'divider', '&:hover': { bgcolor: t.palette.action.hover }, '&.Mui-disabled': { opacity: 0.45 } })}
                 >
                   <Box aria-hidden sx={{ display: 'flex', fontSize: 22, color: q.color }}>{q.icon}</Box>
@@ -191,11 +285,13 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
           <TodayCard setup={setup} />
         </Box>
 
-        <Box sx={{ minWidth: 0 }}>
+        <Splitter index={0} cols={cols} setCols={setCols} container={container} />
+        <Box className="col" sx={{ minWidth: 0, ...(cols[1] === 0 && { visibility: 'hidden', overflow: 'hidden' }) }}>
           {!id ? (
             <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">Search for a member above to start a transaction.</Typography></Box>
           ) : (
             <>
+              <TellerTransaction id={id} preset={preset} />
               <Box role="tablist" aria-label="Member accounts" sx={(t) => ({ display: 'flex', gap: 0.5, p: 0.5, mb: 1, ...glass(t) })}>
                 {SECTIONS.map((x) => (
                   <Button key={x} role="tab" aria-selected={section === x} size="small" variant={section === x ? 'contained' : 'text'} onClick={() => setSection(x)} sx={{ textTransform: 'none' }}>{x}</Button>
@@ -209,7 +305,8 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
           )}
         </Box>
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0 }}>
+        <Splitter index={1} cols={cols} setCols={setCols} container={container} />
+        <Box className="col" sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, ...(cols[2] === 0 && { visibility: 'hidden', overflow: 'hidden' }) }}>
           {id && <AccountSummary id={id} />}
           <DrawerCard setup={setup} />
           <Card title="Notes and reminders">
