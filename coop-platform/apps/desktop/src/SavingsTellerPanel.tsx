@@ -99,7 +99,7 @@ function Splitter({ index, cols, setCols, container }: { index: 0 | 1; cols: num
         setCols(next)
       }}
       sx={(t) => ({
-        position: 'relative', cursor: 'col-resize', touchAction: 'none', borderLeft: `1px solid ${t.palette.divider}`, mx: 0.25,
+        position: 'relative', alignSelf: 'stretch', minHeight: 240, cursor: 'col-resize', touchAction: 'none', borderLeft: `1px solid ${t.palette.divider}`, mx: 0.25,
         '&:hover, &:focus-visible, &:active': { borderLeftColor: t.palette.primary.main, boxShadow: `inset 1px 0 0 ${t.palette.primary.main}`, outline: 'none' },
       })}
     >

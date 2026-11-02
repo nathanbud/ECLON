@@ -74,6 +74,8 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-log",
+ "webview2-com",
+ "windows",
 ]
 
 [[package]]

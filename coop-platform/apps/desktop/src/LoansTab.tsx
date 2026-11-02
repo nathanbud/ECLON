@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { DetailPanel } from './profile/fields'
 import { fmtDate } from './profile/format'
 import TransactionDialog, { txRowProps, type TxKey } from './TransactionDialog'
+import PrintInvoice from './ServiceInvoice'
 import LoanProfileDialog from './LoanProfileDialog'
 import { askFoOverride, checkLoanPayment, getLoanDetail, getLoans, postLoanPayment, type LoanItem, type LoanPaymentBreakdown, type LoanPaymentReceipt, type LoanScheduleRow } from './api'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
@@ -175,7 +176,15 @@ export function LoanPaymentDialog({ clientId, loan, initialAmount = '', initialE
         {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       </DialogContent>
       <DialogActions>
-        {receipt ? <Button onClick={onClose}>Close</Button> : (
+        {receipt ? (
+          <>
+            <PrintInvoice documentNo={receipt.documentNo} controlNo={receipt.controlNo} date={fmtDate(receipt.date) ?? receipt.date} member={receipt.clientName} cashier={receipt.cashier}
+              lines={[{ label: 'Loan', value: receipt.loan }, { label: 'Payment received', value: money(receipt.amount), bold: true },
+                ...(receipt.penalty > 0 ? [{ label: 'Penalty', value: money(receipt.penalty) }] : []), { label: 'Interest', value: money(receipt.interest) }, { label: 'Principal', value: money(receipt.principal) },
+                { label: 'Principal left', value: money(receipt.balanceAfter) }]} />
+            <Button onClick={onClose}>Close</Button>
+          </>
+        ) : (
           <>
             <Button onClick={onClose} disabled={busy}>Cancel</Button>
             {askConfirm

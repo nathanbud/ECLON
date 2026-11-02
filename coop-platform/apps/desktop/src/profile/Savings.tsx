@@ -10,6 +10,7 @@ import { CoMakerNote } from './CoMakerNote'
 import { fmtDate, peso } from './format'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from '../ChequeFields'
 import MoneyField from '../MoneyField'
+import PrintInvoice from '../ServiceInvoice'
 
 export function SavingsTab({ id, teller = false }: { id: Id; teller?: boolean }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
@@ -161,7 +162,13 @@ export function SavingsCashDialog({ id, account, mode, initialAmount = '', initi
         {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       </DialogContent>
       <DialogActions>
-        {receipt ? <Button onClick={onClose}>Close</Button> : (
+        {receipt ? (
+          <>
+            <PrintInvoice documentNo={receipt.documentNo} controlNo={receipt.controlNo} date={receipt.date} member={receipt.clientName} cashier={receipt.cashier}
+              lines={[{ label: 'Account', value: receipt.account }, { label: withdraw ? 'Withdrawal' : 'Deposit', value: peso(receipt.amount), bold: true }, { label: 'New balance', value: peso(receipt.balanceAfter) }]} />
+            <Button onClick={onClose}>Close</Button>
+          </>
+        ) : (
           <>
             <Button onClick={onClose} disabled={busy}>Cancel</Button>
             {askConfirm
