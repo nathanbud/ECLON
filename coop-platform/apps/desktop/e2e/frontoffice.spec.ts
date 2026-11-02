@@ -30,11 +30,11 @@ test.describe('front office', () => {
   test('opens from the dashboard with the expected tabs', async ({ page }) => {
     await signIn(page)
     await openFrontOffice(page)
-    for (const name of ['Summary', 'Member Accounts', 'Cash']) {
+    for (const name of ['Teller', 'Summary', 'Cash']) {
       await expect(page.getByRole('tab', { name: new RegExp('^' + name) })).toBeVisible()
     }
     await page.getByRole('tab', { name: 'Cash', exact: true }).click()
-    for (const name of ['Receipt', 'Withdrawal', 'Cash Handover', 'Bank Trans']) {
+    for (const name of ['Disburse', 'Cash Handover', 'Bank Trans']) {
       await expect(page.getByRole('tab', { name: new RegExp('^' + name) })).toBeVisible()
     }
     // The old separate Transfer From / Transfer To tabs are now one.
@@ -49,7 +49,7 @@ test.describe('front office', () => {
     expect(index).toBeGreaterThanOrEqual(0)
     await page.keyboard.press(`Control+${index + 1}`)
     await expect(page.getByRole('tab', { name: 'Cash', exact: true })).toHaveAttribute('aria-selected', 'true')
-    await page.keyboard.press('Control+1')
+    await page.keyboard.press('Control+2')
     await expect(page.getByRole('tab', { name: /Summary/ })).toHaveAttribute('aria-selected', 'true')
   })
 

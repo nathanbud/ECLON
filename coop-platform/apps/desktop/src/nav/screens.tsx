@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import {
   FiBarChart2, FiBook, FiBookOpen, FiBriefcase, FiClipboard, FiCreditCard, FiDollarSign, FiFilePlus, FiFileText, FiGitMerge, FiImage, FiInbox, FiList, FiPercent, FiRepeat,
-  FiSend, FiSettings, FiShield, FiShoppingCart, FiSliders, FiTrendingUp, FiUserCheck, FiUserPlus, FiUsers, FiLock, FiCalendar, FiHome,
+  FiSend, FiSettings, FiShield, FiShoppingCart, FiSliders, FiPieChart, FiTrendingUp, FiUserCheck, FiUserPlus, FiUsers, FiLock, FiCalendar, FiHome,
 } from 'react-icons/fi'
 import type { Me } from '../api'
 import type { View } from '../Dashboard'
@@ -92,6 +92,7 @@ export const SCREENS: Screen[] = [
   { id: 'acc-periods', label: 'Accounting periods', note: 'Open and close the books', domain: 'accounting', icon: <FiCalendar />, view: 'accounting', tab: 'Periods', who: 'accountant', keywords: 'period close month year lock' },
   { id: 'acc-banks', label: 'Banks', note: 'Bank cash and reconciliation', domain: 'accounting', icon: <FiCreditCard />, view: 'accounting', tab: 'Banks', who: 'accountant', keywords: 'bank reconcile deposit withdrawal cash' },
   { id: 'acc-waivers', label: 'Penalty waivers', note: 'Loan payments where less penalty was charged', domain: 'accounting', icon: <FiPercent />, view: 'accounting', tab: 'Penalty waivers', who: 'accountant', keywords: 'penalty waiver loan' },
+  { id: 'acc-dividends', label: 'Dividends', note: 'Yearly dividend on share capital and patronage refund', domain: 'accounting', icon: <FiPieChart />, view: 'dividends', who: 'accountant', tile: true, keywords: 'dividend patronage refund share capital year end' },
   { id: 'accounts', label: 'Chart of Accounts', note: 'Ledger accounts: add, rename, move and switch off', domain: 'accounting', icon: <FiBook />, view: 'accounts', who: 'anyone', tile: true, keywords: 'coa back office accounts ledger gl' },
   { id: 'assets', label: 'Fixed Assets', note: 'Asset register and depreciation', domain: 'accounting', icon: <FiTrendingUp />, view: 'assets', who: 'assets', tile: true, keywords: 'asset depreciation register disposal' },
 

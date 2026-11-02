@@ -1,5 +1,5 @@
 import { type FoOverride } from './frontOffice'
-import { getJson, send } from './http'
+import { getJson, http, send } from './http'
 
 // ---- share capital (read-only) -------------------------------------------------------------------------------------
 
@@ -189,15 +189,42 @@ export const postAccrual = (year: number, controlNo: number) => send<AccrualVouc
 
 // ---- annual dividend and patronage refund (module 6, type 54) -------------------------------------------------------
 export interface DividendMemberAmounts { clientId: number; mutualBenefit?: number | null; hospitalization?: number | null }
-export interface DividendReq { cutoff: string; dividendRate: number; patronageRate: number; mutualBenefit: number; hospitalization: number; overrides?: DividendMemberAmounts[] }
+export interface DividendStatutory { name: string; percent: number }
+/** Either the two rates, or (from the approved allocation) the net surplus, statutory funds, the two allocations and the resolution; the rates are then worked out. */
+export interface DividendReq {
+  cutoff: string; dividendRate?: number | null; patronageRate?: number | null; mutualBenefit: number; hospitalization: number; overrides?: DividendMemberAmounts[]
+  iscAllocation?: number | null; prAllocation?: number | null; netSurplus?: number | null; statutory?: DividendStatutory[]; approvalRef?: string
+}
 export interface DividendHeld { clientId: number; total: number; reason: string }
 export interface DividendSummary {
   cutoff: string; year: number; alreadyEncoded: boolean; members: number; dividend: number; refund: number; total: number; mutualBenefit: number; hospitalization: number
   savings: number; shareCapital: number; vouchers: number; heldCount: number; held: DividendHeld[]
+  fromAllocation: boolean; totalAverageShareMonth: number; totalQualifiedPatronage: number; dividendRate: number; patronageRate: number
+  iscAllocation: number | null; prAllocation: number | null; netSurplus: number | null; availableForDistribution: number | null; controls: string[]
 }
+export interface DividendStatement { clientId: number; name: string | null; year: number; averageShareMonth: number; dividendRate: number; dividend: number; qualifiedPatronage: number; patronageRate: number; refund: number; total: number }
 export interface DividendVoucher { year: number; controlNo: number; documentNo: string; lines: number; total: number; encodedBy: number; approvedBy: number | null; status: 'WAITING FOR APPROVAL' | 'APPROVED' | 'POSTED' }
 export const previewDividend = (b: DividendReq) => send<DividendSummary>('POST', '/api/front-office/dividends/preview', b)
 export const encodeDividend = (b: DividendReq) => send<DividendVoucher[]>('POST', '/api/front-office/dividends/encode', b)
 export const getDividendVouchers = (cutoff: string) => getJson<DividendVoucher[]>(`/api/front-office/dividends/vouchers?cutoff=${cutoff}`)
 export const approveDividend = (year: number, controlNo: number) => send<DividendVoucher>('POST', `/api/front-office/dividends/${year}/${controlNo}/approve`)
 export const postDividend = (year: number, controlNo: number) => send<DividendVoucher>('POST', `/api/front-office/dividends/${year}/${controlNo}/post`)
+export const getDividendStatement = (b: DividendReq, clientId: number) => send<DividendStatement>('POST', `/api/front-office/dividends/statement?clientId=${clientId}`, b)
+
+/** The distribution register as a CSV file, handed to the browser as a download. Resolves to the file name. */
+export async function downloadDividendRegister(b: DividendReq): Promise<string> {
+  const res = await http('/api/front-office/dividends/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`
+    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status message */ }
+    throw new Error(message)
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'distribution-register.csv'
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(url)
+  return name
+}

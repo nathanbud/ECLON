@@ -3,7 +3,7 @@ import TransactionDialog, { txRowProps, type TxKey } from '../TransactionDialog'
 import { useState } from 'react'
 import { getShareHistory, getShares, postSharePayment, postShareWithdrawal, type ShareAccount, type SharePaymentReceipt, type ShareWithdrawalOut } from '../api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField } from '@mui/material'
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, FormControlLabel, Switch } from '@mui/material'
 import { DetailPanel, EmptyState, TableCard } from './fields'
 import { FiInfo } from 'react-icons/fi'
 import { CoMakerNote } from './CoMakerNote'
@@ -15,13 +15,17 @@ export function ShareCapitalTab({ id, teller = false }: { id: Id; teller?: boole
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
   const [withdrawing, setWithdrawing] = useState<ShareAccount | null>(null)
   const [paying, setPaying] = useState<ShareAccount | null>(null)
+  const [showClosed, setShowClosed] = useState(false)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-shares', id], queryFn: () => getShares(id.branchCode, id.clientId), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
   if (isLoading) return <Skeleton variant="rounded" height={160} />
   if (!data || data.accounts.length === 0) return <EmptyState icon={<FiInfo />} title="No share capital" hint="This client has no share capital accounts." />
+  const closedCount = data.accounts.filter((a) => a.status !== 15).length
+  const shown = showClosed ? data.accounts : data.accounts.filter((a) => a.status === 15)
   return (
     <>
       <CoMakerNote id={id} />
+      {closedCount > 0 && <FormControlLabel sx={{ mb: 0.5 }} control={<Switch size="small" checked={showClosed} onChange={(_, v) => setShowClosed(v)} />} label={`Show closed and dormant accounts (${closedCount})`} />}
       <TableCard>
         <Table size="small" aria-label="Share capital accounts">
           <TableHead>
@@ -31,7 +35,7 @@ export function ShareCapitalTab({ id, teller = false }: { id: Id; teller?: boole
             </TableRow>
           </TableHead>
           <TableBody>
-            {data.accounts.map((a) => (
+            {shown.map((a) => (
               <TableRow key={`${a.typeCode}-${a.refNo}`} hover selected={open?.typeCode === a.typeCode && open.refNo === a.refNo} sx={{ cursor: 'pointer' }} onClick={() => setOpen(open?.typeCode === a.typeCode && open.refNo === a.refNo ? null : { typeCode: a.typeCode, refNo: a.refNo })}>
                 <TableCell>{a.type ?? `Type ${a.typeCode}`}</TableCell><TableCell>{a.refNoText ?? a.refNo}</TableCell>
                 <TableCell>{fmtDate(a.opened) ?? '—'}</TableCell><TableCell>{a.statusName}</TableCell><TableCell>{fmtDate(a.lastActivity) ?? '—'}</TableCell>

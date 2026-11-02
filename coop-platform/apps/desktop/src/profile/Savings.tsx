@@ -3,9 +3,9 @@ import TransactionDialog, { txRowProps, type TxKey } from '../TransactionDialog'
 import { useEffect, useState } from 'react'
 import { askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, postSavingsDeposit, postSavingsWithdrawal, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck } from '../api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField } from '@mui/material'
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, FormControlLabel, Switch, IconButton, ToggleButton, ToggleButtonGroup } from '@mui/material'
 import { DetailPanel, EmptyState, TableCard } from './fields'
-import { FiInfo } from 'react-icons/fi'
+import { FiArrowRight, FiInfo } from 'react-icons/fi'
 import { CoMakerNote } from './CoMakerNote'
 import { fmtDate, peso } from './format'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from '../ChequeFields'
@@ -13,66 +13,102 @@ import MoneyField from '../MoneyField'
 
 export function SavingsTab({ id, teller = false }: { id: Id; teller?: boolean }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
-  const [cash, setCash] = useState<{ account: SavingsAccount; mode: 'deposit' | 'withdraw' } | null>(null)
+  const [cash, setCash] = useState<{ account: SavingsAccount; mode: 'deposit' | 'withdraw'; amount: string } | null>(null)
+  const [showClosed, setShowClosed] = useState(false)
+  // Teller window: the amount typed on an account's row, and whether it is a deposit or a withdrawal
+  const [amounts, setAmounts] = useState<Record<string, string>>({})
+  const [modes, setModes] = useState<Record<string, 'deposit' | 'withdraw'>>({})
   const { data, error, isLoading } = useQuery({ queryKey: ['member-savings', id], queryFn: () => getSavings(id.branchCode, id.clientId), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
   if (isLoading) return <Skeleton variant="rounded" height={160} />
   if (!data || data.accounts.length === 0) return <EmptyState icon={<FiInfo />} title="No savings" hint="This client has no savings accounts." />
   const num = { fontVariantNumeric: 'tabular-nums' } as const
+  const closedCount = data.accounts.filter((a) => a.status !== 15).length
+  const shown = showClosed ? data.accounts : data.accounts.filter((a) => a.status === 15)
   return (
     <>
       <CoMakerNote id={id} />
+      {closedCount > 0 && <FormControlLabel sx={{ mb: 0.5 }} control={<Switch size="small" checked={showClosed} onChange={(_, v) => setShowClosed(v)} />} label={`Show closed and dormant accounts (${closedCount})`} />}
       <TableCard>
         <Table size="small" aria-label="Savings accounts">
           <TableHead>
             <TableRow>
-              <TableCell>Type</TableCell><TableCell>Account no.</TableCell><TableCell>Opened</TableCell><TableCell>Status</TableCell><TableCell>Last activity</TableCell>
-              <TableCell align="right">Rate %</TableCell><TableCell align="right">Balance</TableCell><TableCell align="right">Uncleared</TableCell><TableCell align="right">On hold</TableCell><TableCell align="right">Available</TableCell>{teller && <TableCell />}{teller && <TableCell />}
+              <TableCell>Type</TableCell>
+              {!teller && <><TableCell>Account no.</TableCell><TableCell>Opened</TableCell><TableCell>Status</TableCell><TableCell>Last activity</TableCell>
+              <TableCell align="right">Rate %</TableCell><TableCell align="right">Balance</TableCell><TableCell align="right">Uncleared</TableCell><TableCell align="right">On hold</TableCell></>}
+              <TableCell align="right">Available</TableCell>{teller && <TableCell />}
             </TableRow>
           </TableHead>
           <TableBody>
-            {data.accounts.map((a) => (
+            {shown.map((a) => (
               <TableRow key={`${a.typeCode}-${a.refNo}`} hover selected={open?.typeCode === a.typeCode && open.refNo === a.refNo} sx={{ cursor: 'pointer' }} onClick={() => setOpen(open?.typeCode === a.typeCode && open.refNo === a.refNo ? null : { typeCode: a.typeCode, refNo: a.refNo })}>
-                <TableCell>{a.type ?? `Type ${a.typeCode}`}</TableCell><TableCell>{a.refNoText ?? a.refNo}</TableCell>
-                <TableCell>{fmtDate(a.opened) ?? '—'}</TableCell><TableCell>{a.statusName}</TableCell><TableCell>{fmtDate(a.lastActivity) ?? '—'}</TableCell>
-                <TableCell align="right" sx={num}>{a.interestRate == null ? '—' : a.interestRate.toFixed(2)}</TableCell>
-                <TableCell align="right" sx={num}>{peso(a.balance)}</TableCell>
-                <TableCell align="right" sx={num}>{a.uncleared ? peso(a.uncleared) : '—'}</TableCell>
-                <TableCell align="right" sx={num}>{a.held ? peso(a.held) : '—'}</TableCell>
+                <TableCell>{a.type ?? `Type ${a.typeCode}`}</TableCell>
+                {!teller && (<>
+                  <TableCell>{a.refNoText ?? a.refNo}</TableCell>
+                  <TableCell>{fmtDate(a.opened) ?? '—'}</TableCell><TableCell>{a.statusName}</TableCell><TableCell>{fmtDate(a.lastActivity) ?? '—'}</TableCell>
+                  <TableCell align="right" sx={num}>{a.interestRate == null ? '—' : a.interestRate.toFixed(2)}</TableCell>
+                  <TableCell align="right" sx={num}>{peso(a.balance)}</TableCell>
+                  <TableCell align="right" sx={num}>{a.uncleared ? peso(a.uncleared) : '—'}</TableCell>
+                  <TableCell align="right" sx={num}>{a.held ? peso(a.held) : '—'}</TableCell>
+                </>)}
                 <TableCell align="right" sx={num}>{peso(a.available)}</TableCell>
                 {teller && (
-                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    {a.status === 15 && (
-                      <>
-                        <Button size="small" onClick={(e) => { e.stopPropagation(); setCash({ account: a, mode: 'deposit' }) }}>Deposit</Button>
-                        <Button size="small" onClick={(e) => { e.stopPropagation(); setCash({ account: a, mode: 'withdraw' }) }}>Withdraw</Button>
-                      </>
-                    )}
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                    {a.status === 15 && (() => {
+                      const key = `${a.typeCode}-${a.refNo}`
+                      const mode = modes[key] ?? 'deposit'
+                      const amount = amounts[key] ?? ''
+                      const ok = Number(amount) > 0
+                      const go = () => { if (ok) setCash({ account: a, mode, amount }) }
+                      return (
+                        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+                          <ToggleButtonGroup size="small" exclusive value={mode} aria-label={`Deposit or withdraw, ${a.type ?? 'savings'}`} onChange={(_, v) => { if (v) setModes({ ...modes, [key]: v }) }}>
+                            <ToggleButton value="deposit" sx={{ textTransform: 'none', px: 1, py: 0.25 }}>Deposit</ToggleButton>
+                            <ToggleButton value="withdraw" sx={{ textTransform: 'none', px: 1, py: 0.25 }}>Withdraw</ToggleButton>
+                          </ToggleButtonGroup>
+                          <MoneyField
+                            size="small" placeholder="0.00" value={amount} onValueChange={(v) => setAmounts({ ...amounts, [key]: v })}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); go() } }}
+                            slotProps={{ htmlInput: { 'aria-label': `Amount to ${mode === 'deposit' ? 'deposit' : 'withdraw'}, ${a.type ?? 'savings'}` } }} sx={{ width: 130 }}
+                          />
+                          <IconButton size="small" color="primary" disabled={!ok} aria-label={mode === 'deposit' ? 'Continue to deposit' : 'Continue to withdraw'} onClick={go}><FiArrowRight /></IconButton>
+                        </Box>
+                      )
+                    })()}
                   </TableCell>
                 )}
               </TableRow>
             ))}
             <TableRow>
-              <TableCell colSpan={6} sx={{ fontWeight: 700 }}>Total savings</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{peso(data.totalBalance)}</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{data.accounts.some((a) => a.uncleared) ? peso(data.accounts.reduce((n, a) => n + a.uncleared, 0)) : '—'}</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{data.totalHeld ? peso(data.totalHeld) : '—'}</TableCell>
-              <TableCell />
-              {teller && <TableCell />}
+              {teller ? (
+                <>
+                  <TableCell sx={{ fontWeight: 700 }}>Total available</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{peso(shown.reduce((n, a) => n + a.available, 0))}</TableCell>
+                  <TableCell />
+                </>
+              ) : (
+                <>
+                  <TableCell colSpan={6} sx={{ fontWeight: 700 }}>Total savings</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{peso(data.totalBalance)}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{data.accounts.some((a) => a.uncleared) ? peso(data.accounts.reduce((n, a) => n + a.uncleared, 0)) : '—'}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, ...num }}>{data.totalHeld ? peso(data.totalHeld) : '—'}</TableCell>
+                  <TableCell />
+                </>
+              )}
             </TableRow>
           </TableBody>
         </Table>
       </TableCard>
       {open && <SavingsHistory key={`${open.typeCode}-${open.refNo}`} id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}
-    {cash && <SavingsCashDialog id={id} account={cash.account} mode={cash.mode} onClose={() => setCash(null)} />}
+    {cash && <SavingsCashDialog id={id} account={cash.account} mode={cash.mode} initialAmount={cash.amount} onClose={() => { setCash(null); setAmounts({}) }} />}
     </>
   )
 }
 
-export function SavingsCashDialog({ id, account, mode, onClose }: { id: Id; account: SavingsAccount; mode: 'deposit' | 'withdraw'; onClose: () => void }) {
+export function SavingsCashDialog({ id, account, mode, initialAmount = '', onClose }: { id: Id; account: SavingsAccount; mode: 'deposit' | 'withdraw'; initialAmount?: string; onClose: () => void }) {
   const qc = useQueryClient()
   const withdraw = mode === 'withdraw'
-  const [amount, setAmount] = useState('')
+  const [amount, setAmount] = useState(initialAmount)
   const [receiptNo, setReceiptNo] = useState('')
   const [explanation, setExplanation] = useState('')
   const [receipt, setReceipt] = useState<SavingsReceipt | null>(null)

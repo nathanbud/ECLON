@@ -23,7 +23,6 @@ import { LoanApplicationsPanel } from './LoanApplicationsPanel'
 import { LoanReleasePanel } from './LoanReleasePanel'
 import { VoucherPayoutPanel } from './VoucherPayoutPanel'
 import { TimeDepositAccrualPanel } from './TimeDepositAccrualPanel'
-import { DividendPanel } from './DividendPanel'
 import { OverrideAsk, OverridesCard } from './Overrides'
 import { usePulse } from './pulse'
 import ReceiptDialog from './Receipt'
@@ -43,15 +42,16 @@ type Shown =
 
 /** The window's many tabs, grouped by what the teller is doing: one row of areas, and a second row of kinds only when an area has several. */
 const GROUPS: { key: string; label: string; tabs: string[] }[] = [
+  { key: 'members', label: 'Teller', tabs: ['accounts', 'passbook'] },
   { key: 'summary', label: 'Summary', tabs: ['summary'] },
-  { key: 'members', label: 'Member Accounts', tabs: ['accounts', 'passbook'] },
-  { key: 'cash', label: 'Cash', tabs: ['receipt', 'disburse', 'withdrawal', 'encashment', 'otc', 'handover', 'bank'] },
+  { key: 'cash', label: 'Cash', tabs: ['disburse', 'encashment', 'otc', 'handover', 'bank'] },
   { key: 'sales', label: 'Sales', tabs: ['sales', 'salesReturn'] },
   { key: 'td', label: 'Time Deposits', tabs: ['tdmaturity', 'tdaccrual'] },
-  { key: 'dividend', label: 'Dividends', tabs: ['dividend'] },
 ]
 /** Tabs that open an entry form (the others are panels with their own screens). */
-const FORM_TABS = ['receipt', 'withdrawal', 'encashment', 'otc', 'bank', 'sales', 'salesReturn']
+const FORM_TABS = ['encashment', 'otc', 'bank', 'sales', 'salesReturn']
+/** Left out of the window: member cash receipts and withdrawals are posted in the Teller area; these two tabs only ever saved drafts that were never posted. */
+const HIDDEN_TABS = ['receipt', 'withdrawal', 'dividend']
 
 const NO_EXTRAS: FoExtras = { ctl: '', time: '', cheques: [], allocations: [], cash: [] }
 const num = (s: string) => {
@@ -206,7 +206,7 @@ export default function FrontOfficePage() {
   const { data: setup, error, isLoading } = useQuery({ queryKey: ['fo-setup'], queryFn: getFoSetup, staleTime: 5 * 60_000 })
   const { data: lk } = useQuery({ queryKey: ['lookups'], queryFn: getLookups, staleTime: Infinity })
 
-  const [tab, setTab] = useState('summary')
+  const [tab, setTab] = useState('accounts')
   const [shown, setShown] = useState<Shown>({ kind: 'none' })
   const [form, setForm] = useState<FoForm | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -448,7 +448,7 @@ export default function FrontOfficePage() {
     const known = new Set(GROUPS.flatMap((g) => g.tabs))
     const have = (keys: string[]) => keys.filter((k) => setup?.tabs.some((t) => t.key === k))
     const list = GROUPS.map((g) => ({ ...g, tabs: have(g.tabs) })).filter((g) => g.tabs.length > 0)
-    const other = (setup?.tabs ?? []).map((t) => t.key).filter((k) => !known.has(k))
+    const other = (setup?.tabs ?? []).map((t) => t.key).filter((k) => !known.has(k) && !HIDDEN_TABS.includes(k))
     return other.length ? [...list, { key: 'other', label: 'Other', tabs: other }] : list
   }, [setup])
   const group = groups.find((g) => g.tabs.includes(tab))
@@ -470,6 +470,9 @@ export default function FrontOfficePage() {
       }
     })
   }
+
+  // The draft-entry buttons (Find, New, Copy, Templates, Receipt, Save, Cancel) only mean something where a transaction form is shown.
+  const entryTab = FORM_TABS.includes(tab) || shown.kind !== 'none'
 
   const runs = {
     find: hasFind ? () => setFinding(true) : undefined,
@@ -574,6 +577,7 @@ export default function FrontOfficePage() {
 
       {/* One row of actions, and who is working on what date */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', flexShrink: 0 }} role="toolbar" aria-label="Transaction actions">
+        {entryTab && (<>
         <Button size="small" startIcon={<FiSearch />} disabled={!runs.find} onClick={runs.find} title={`${MOD}F`}>Find</Button>
         <Button size="small" startIcon={<FiPlus />} disabled={!runs.new} onClick={runs.new} title={`${MOD}N`}>New</Button>
         <Button size="small" startIcon={<FiCopy />} disabled={!runs.copy} onClick={runs.copy} title={`${MOD}D`}>Copy</Button>
@@ -582,6 +586,7 @@ export default function FrontOfficePage() {
         <Button size="small" startIcon={<FiSave />} variant={editing ? 'contained' : 'text'} disabled={!runs.save} onClick={runs.save} title={`${MOD}S`}>{saving ? 'Saving…' : 'Save'}</Button>
         <Button size="small" startIcon={<FiX />} disabled={!runs.cancel} onClick={runs.cancel} title="Esc">Cancel</Button>
         {runs.del && <Button size="small" color="error" startIcon={<FiTrash2 />} onClick={runs.del} title={`${MOD}Del`}>Delete</Button>}
+        </>)}
         {shown.kind === 'txn' && navList.length > 1 && (
           <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
             <Tooltip title="Previous (PgUp)"><span><IconButton size="small" aria-label="Previous transaction" disabled={!runs.up} onClick={runs.up}><FiChevronLeft /></IconButton></span></Tooltip>
@@ -619,12 +624,10 @@ export default function FrontOfficePage() {
           ? <><LoanApplicationsPanel /><LoanReleasePanel /><VoucherPayoutPanel /></>
           : tab === 'tdaccrual'
           ? <TimeDepositAccrualPanel />
-          : tab === 'dividend'
-          ? <DividendPanel />
           : tab === 'tdmaturity'
           ? <TimeDepositNoticesPanel />
           : tab === 'accounts'
-          ? <SavingsTellerPanel />
+          ? <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}><SavingsTellerPanel setup={setup} /></Box>
           : tab === 'passbook'
           ? <Typography sx={{ p: 4, textAlign: 'center' }} color="text.secondary">Passbook printing is coming soon.</Typography>
           : txn.isLoading && shown.kind === 'txn'

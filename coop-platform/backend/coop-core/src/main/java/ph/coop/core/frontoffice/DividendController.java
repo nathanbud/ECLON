@@ -47,16 +47,29 @@ class DividendController {
 
     private static final int MODULE = 6, CODE = 54, PENDING = 2, POSTED = 1, CHUNK = 7000, CTS = 15;
 
-    record Request(String cutoff, BigDecimal dividendRate, BigDecimal patronageRate, BigDecimal mutualBenefit, BigDecimal hospitalization, List<MemberAmounts> overrides) {
+    /**
+     * What the accountant typed. Either the two rates (as the old system was run) or, following the specification, the amounts the general assembly allocated to interest on share
+     * capital and to patronage refund, with the net surplus and statutory funds they come out of; the rates are then worked out from the allocations.
+     */
+    record Request(String cutoff, BigDecimal dividendRate, BigDecimal patronageRate, BigDecimal mutualBenefit, BigDecimal hospitalization, List<MemberAmounts> overrides,
+                   BigDecimal iscAllocation, BigDecimal prAllocation, BigDecimal netSurplus, List<DividendRun.Statutory> statutory, String approvalRef) {
+        /** The rates typed in, as the old system was run. */
+        Request(String cutoff, BigDecimal dividendRate, BigDecimal patronageRate, BigDecimal mutualBenefit, BigDecimal hospitalization, List<MemberAmounts> overrides) {
+            this(cutoff, dividendRate, patronageRate, mutualBenefit, hospitalization, overrides, null, null, null, null, null);
+        }
+
         Params params() {
-            return new Params(dividendRate, patronageRate, mutualBenefit, hospitalization, overrides);
+            return new Params(dividendRate, patronageRate, mutualBenefit, hospitalization, overrides, iscAllocation, prAllocation, netSurplus, statutory, approvalRef == null ? null : approvalRef.trim());
         }
     }
 
     record HeldRow(int clientId, BigDecimal total, String reason) {}
 
+    /** The figures of a run. {@code dividendRate} and {@code patronageRate} are the rates used (typed, or worked out from the allocations); the others reconcile the run with them. */
     record Summary(String cutoff, int year, boolean alreadyEncoded, int members, BigDecimal dividend, BigDecimal refund, BigDecimal total, BigDecimal mutualBenefit, BigDecimal hospitalization,
-                   BigDecimal savings, BigDecimal shareCapital, int vouchers, int heldCount, List<HeldRow> held) {}
+                   BigDecimal savings, BigDecimal shareCapital, int vouchers, int heldCount, List<HeldRow> held,
+                   boolean fromAllocation, BigDecimal totalAverageShareMonth, BigDecimal totalQualifiedPatronage, BigDecimal dividendRate, BigDecimal patronageRate,
+                   BigDecimal iscAllocation, BigDecimal prAllocation, BigDecimal netSurplus, BigDecimal availableForDistribution, List<String> controls) {}
 
     record VoucherRow(int year, long controlNo, String documentNo, int lines, BigDecimal total, int encodedBy, Integer approvedBy, String status) {}
 
@@ -134,7 +147,24 @@ class DividendController {
             else if (c.kind().equals("SHARE_CAPITAL")) shr = shr.add(c.amount());
         }
         List<HeldRow> held = plan.held().stream().limit(50).map((h) -> new HeldRow(h.clientId(), h.total(), h.reason())).toList();
-        return new Summary(plan.cutoff().toString(), plan.year(), already, plan.members().size(), dividend, refund, total, mbf, habp, sav, shr, (plan.credits().size() + CHUNK - 1) / CHUNK, plan.held().size(), held);
+        Params pa = plan.params();
+        return new Summary(plan.cutoff().toString(), plan.year(), already, plan.members().size(), dividend, refund, total, mbf, habp, sav, shr, (plan.credits().size() + CHUNK - 1) / CHUNK, plan.held().size(), held,
+            pa.fromAllocation(), plan.totalAverageShareMonth(), plan.totalQualifiedPatronage(), plan.dividendRate(), plan.patronageRate(), pa.iscAllocation(), pa.prAllocation(), pa.netSurplus(),
+            pa.fromAllocation() ? DividendRun.available(pa.netSurplus(), pa.statutory()) : null, overAllocation(plan, dividend, refund));
+    }
+
+    /**
+     * The control that a distribution may not exceed what was approved: with allocations, the dividend may not be more than the interest on share capital allocation, nor the refund
+     * more than the patronage refund allocation, beyond what rounding each member to the centavo can add (half a centavo a member).
+     */
+    private static List<String> overAllocation(Plan plan, BigDecimal dividend, BigDecimal refund) {
+        List<String> out = new ArrayList<>();
+        Params pa = plan.params();
+        if (!pa.fromAllocation()) return out;
+        BigDecimal slack = new BigDecimal("0.005").multiply(BigDecimal.valueOf(plan.members().size())).setScale(2, java.math.RoundingMode.CEILING);
+        if (pa.iscAllocation() != null && dividend.compareTo(pa.iscAllocation().add(slack)) > 0) out.add("The interest on share capital to be credited (" + dividend.toPlainString() + ") is more than the allocation (" + pa.iscAllocation().toPlainString() + ").");
+        if (pa.prAllocation() != null && refund.compareTo(pa.prAllocation().add(slack)) > 0) out.add("The patronage refund to be credited (" + refund.toPlainString() + ") is more than the allocation (" + pa.prAllocation().toPlainString() + ").");
+        return out;
     }
 
     /** Writes the vouchers of a year that has none yet, every line waiting (tag 2), encoded by the caller. */
@@ -149,6 +179,8 @@ class DividendController {
             if (vouchersOf(p.branch(), cutoff) > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Dividend vouchers already exist for " + cutoff.getYear() + ", so it cannot be run again.");
             Plan plan = plan(p.branch(), cutoff, in.params());
             if (plan.credits().isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "No member earns a dividend or refund with these rates.");
+            Summary check = summary(plan, false);
+            if (!check.controls().isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, String.join(" ", check.controls()));
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
             int year = cutoff.getYear();
             List<VoucherRow> out = new ArrayList<>();
@@ -181,8 +213,10 @@ class DividendController {
                 out.add(new VoucherRow(year, ctl, docNo, rows.size(), sum, p.id(), null, "WAITING FOR APPROVAL"));
             }
             audit(auth, "dividend.encode", p, cutoff.toString(), out.size() + " vouchers, " + plan.members().size() + " members, " + plan.held().size() + " held back; dividend "
-                + in.dividendRate().toPlainString() + "% patronage " + in.patronageRate().toPlainString() + "% mutual benefit " + in.mutualBenefit().toPlainString()
-                + " hospitalization " + in.hospitalization().toPlainString() + ", " + (in.overrides() == null ? 0 : in.overrides().size()) + " member overrides");
+                + plan.dividendRate().toPlainString() + "% patronage " + plan.patronageRate().toPlainString() + "% mutual benefit " + (in.mutualBenefit() == null ? "0" : in.mutualBenefit().toPlainString())
+                + " hospitalization " + (in.hospitalization() == null ? "0" : in.hospitalization().toPlainString()) + ", " + (in.overrides() == null ? 0 : in.overrides().size()) + " member overrides"
+                + (plan.params().fromAllocation() ? "; from allocations: net surplus " + plan.params().netSurplus().toPlainString() + ", interest on share capital " + (plan.params().iscAllocation() == null ? "0" : plan.params().iscAllocation().toPlainString())
+                    + ", patronage refund " + (plan.params().prAllocation() == null ? "0" : plan.params().prAllocation().toPlainString()) + ", resolution " + plan.params().approvalRef() : ""));
             return out;
         });
     }
@@ -193,7 +227,53 @@ class DividendController {
         return "Dividend and Patronage Refund Transaction (Computer Generated)\nTransactions Cut-Off: " + plan.cutoff().format(f)
             + "\nInt. on Share Capital Fund GL Acct: " + DividendRun.FUND_ACCOUNT + " - " + fund
             + "\nPatronage Refund Fund GL Acct: " + DividendRun.FUND_ACCOUNT + " - " + fund
-            + "\nDividend Rate: " + plan.params().dividendRate().toPlainString() + "% Patronage Refund Rate: " + plan.params().patronageRate().toPlainString() + "%";
+            + "\nDividend Rate: " + plan.dividendRate().toPlainString() + "% Patronage Refund Rate: " + plan.patronageRate().toPlainString() + "%"
+            + (plan.params().fromAllocation() ? "\nAllocation approved by: " + plan.params().approvalRef() : "");
+    }
+
+    private Map<Integer, String> names(int branch) {
+        Map<Integer, String> out = new HashMap<>();
+        jdbc.query("SELECT ClientID, COALESCE(NULLIF(TRIM(AccountName), ''), CONCAT_WS(' ', FName, LName)) FROM client WHERE ClientIDBrCode = ?", (rs) -> { out.put(rs.getInt(1), rs.getString(2)); }, branch);
+        return out;
+    }
+
+    private static String csv(String v) {
+        return v == null ? "" : v.matches(".*[\",\n].*") ? "\"" + v.replace("\"", "\"\"") + "\"" : v;
+    }
+
+    /** The distribution register: one line per member with the working of each amount (guide-style report). Read only. */
+    @PostMapping(value = "/register", produces = "text/csv")
+    org.springframework.http.ResponseEntity<byte[]> register(@RequestBody Request in, Authentication auth) {
+        Perms perms = access.of(auth);
+        requireFind(perms);
+        LocalDate cutoff = cutoff(in.cutoff());
+        Plan plan = plan(perms.branch(), cutoff, in.params());
+        Map<Integer, String> names = names(perms.branch());
+        StringBuilder sb = new StringBuilder("Member no.,Member,Average share-month,ISC rate %,Interest on share capital,Qualified patronage,PR rate %,Patronage refund,Total distribution,To mutual benefit,To hospitalization,To savings or share capital\r\n");
+        for (DividendRun.Member m : plan.members()) {
+            sb.append(m.clientId()).append(',').append(csv(names.get(m.clientId()))).append(',').append(m.averageShareMonth().toPlainString()).append(',').append(plan.dividendRate().stripTrailingZeros().toPlainString()).append(',')
+                .append(m.dividend().toPlainString()).append(',').append(m.qualifiedPatronage().toPlainString()).append(',').append(plan.patronageRate().stripTrailingZeros().toPlainString()).append(',')
+                .append(m.refund().toPlainString()).append(',').append(m.total().toPlainString()).append(',').append(m.mutualBenefit().toPlainString()).append(',').append(m.hospitalization().toPlainString()).append(',')
+                .append(m.rest().toPlainString()).append("\r\n");
+        }
+        audit(auth, "dividend.register", poster.person(auth.getName()), cutoff.toString(), plan.members().size() + " members");
+        return org.springframework.http.ResponseEntity.ok().header("Content-Disposition", "attachment; filename=\"distribution-register-" + cutoff.getYear() + ".csv\"")
+            .contentType(org.springframework.http.MediaType.parseMediaType("text/csv")).body(sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    record Statement(int clientId, String name, int year, BigDecimal averageShareMonth, BigDecimal dividendRate, BigDecimal dividend, BigDecimal qualifiedPatronage, BigDecimal patronageRate,
+                     BigDecimal refund, BigDecimal total) {}
+
+    /** One member's combined distribution statement: average share-month, interest rate and amount, qualified patronage, refund rate and amount, and the total. Read only. */
+    @PostMapping("/statement")
+    Statement statement(@RequestBody Request in, @RequestParam int clientId, Authentication auth) {
+        Perms perms = access.of(auth);
+        requireFind(perms);
+        LocalDate cutoff = cutoff(in.cutoff());
+        Plan plan = plan(perms.branch(), cutoff, in.params());
+        DividendRun.Member m = plan.members().stream().filter((x) -> x.clientId() == clientId).findFirst()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "That member has no dividend or refund in this run."));
+        return new Statement(clientId, names(perms.branch()).get(clientId), plan.year(), m.averageShareMonth(), plan.dividendRate(), m.dividend(), m.qualifiedPatronage(), plan.patronageRate(), m.refund(), m.total());
     }
 
     @GetMapping("/vouchers")

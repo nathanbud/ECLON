@@ -25,7 +25,24 @@ public class DividendRun {
     public static final int MUTUAL_BENEFIT = 5, HOSPITALIZATION = 6, SHARE_CAPITAL_TYPE = 1, ACTIVE = 15;
 
     /** What the accountant types: the two rates in percent, the insurance amounts every member gets, and the members who get something else. */
-    public record Params(BigDecimal dividendRate, BigDecimal patronageRate, BigDecimal mutualBenefit, BigDecimal hospitalization, List<MemberAmounts> overrides) {}
+    public record Params(BigDecimal dividendRate, BigDecimal patronageRate, BigDecimal mutualBenefit, BigDecimal hospitalization, List<MemberAmounts> overrides,
+                         BigDecimal iscAllocation, BigDecimal prAllocation, BigDecimal netSurplus, List<Statutory> statutory, String approvalRef) {
+        /** The rates typed in by the accountant, as the old system was run. */
+        public Params(BigDecimal dividendRate, BigDecimal patronageRate, BigDecimal mutualBenefit, BigDecimal hospitalization, List<MemberAmounts> overrides) {
+            this(dividendRate, patronageRate, mutualBenefit, hospitalization, overrides, null, null, null, null, null);
+        }
+
+        /**
+         * Whether the rates come from the amounts the general assembly allocated (the specification's method: rate = allocation / total average share capital, and
+         * allocation / total qualified patronage) instead of being typed.
+         */
+        public boolean fromAllocation() {
+            return iscAllocation != null || prAllocation != null;
+        }
+    }
+
+    /** A statutory fund taken out of the net surplus before distribution (reserve, education and training, and so on), by name and percent. The percents are typed, not built in. */
+    public record Statutory(String name, BigDecimal percent) {}
 
     /** A member's own insurance amounts; a null amount keeps the standard one. */
     public record MemberAmounts(int clientId, BigDecimal mutualBenefit, BigDecimal hospitalization) {}
@@ -35,9 +52,11 @@ public class DividendRun {
 
     public record Held(int clientId, BigDecimal total, String reason) {}
 
-    public record Member(int clientId, BigDecimal dividend, BigDecimal refund, BigDecimal total, BigDecimal mutualBenefit, BigDecimal hospitalization, BigDecimal rest) {}
+    public record Member(int clientId, BigDecimal dividend, BigDecimal refund, BigDecimal total, BigDecimal mutualBenefit, BigDecimal hospitalization, BigDecimal rest,
+                         BigDecimal averageShareMonth, BigDecimal qualifiedPatronage) {}
 
-    public record Plan(LocalDate cutoff, int year, Params params, List<Member> members, List<Credit> credits, List<Held> held) {}
+    public record Plan(LocalDate cutoff, int year, Params params, List<Member> members, List<Credit> credits, List<Held> held,
+                       BigDecimal totalAverageShareMonth, BigDecimal totalQualifiedPatronage, BigDecimal dividendRate, BigDecimal patronageRate) {}
 
     private final JdbcTemplate jdbc;
 
@@ -84,14 +103,52 @@ public class DividendRun {
         return new BigDecimal[] {m, h, total.subtract(m).subtract(h)};
     }
 
+    /** What is left of the net surplus for distribution once the statutory funds are set aside. */
+    public static BigDecimal available(BigDecimal netSurplus, List<Statutory> statutory) {
+        BigDecimal pct = BigDecimal.ZERO;
+        if (statutory != null) for (Statutory x : statutory) pct = pct.add(x.percent() == null ? BigDecimal.ZERO : x.percent());
+        return netSurplus.subtract(netSurplus.multiply(pct).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP));
+    }
+
+    /** The rate in percent that spreads {@code allocation} over {@code base}: allocation / base, to ten decimals. Zero when there is nothing to spread it over. */
+    public static BigDecimal rateFor(BigDecimal allocation, BigDecimal base) {
+        if (allocation == null || base == null || base.signum() <= 0) return BigDecimal.ZERO;
+        return allocation.multiply(new BigDecimal("100")).divide(base, 10, RoundingMode.HALF_UP);
+    }
+
+    private static List<String> allocationProblems(Params p) {
+        List<String> out = new ArrayList<>();
+        if (p.iscAllocation() != null && p.iscAllocation().signum() < 0) out.add("The interest on share capital allocation cannot be negative.");
+        if (p.prAllocation() != null && p.prAllocation().signum() < 0) out.add("The patronage refund allocation cannot be negative.");
+        if (p.netSurplus() == null || p.netSurplus().signum() <= 0) out.add("Give the approved net surplus: nothing is distributed without one.");
+        if (p.approvalRef() == null || p.approvalRef().isBlank()) out.add("Give the general assembly resolution that approved the allocation (its number or date).");
+        BigDecimal pct = BigDecimal.ZERO;
+        if (p.statutory() != null) {
+            for (Statutory x : p.statutory()) {
+                if (x.name() == null || x.name().isBlank()) out.add("Every statutory fund needs a name.");
+                if (x.percent() == null || x.percent().signum() < 0 || x.percent().compareTo(new BigDecimal("100")) > 0) out.add("The percent of " + (x.name() == null ? "a statutory fund" : x.name()) + " must be between 0 and 100.");
+                else pct = pct.add(x.percent());
+            }
+        }
+        if (pct.compareTo(new BigDecimal("100")) > 0) out.add("The statutory funds add up to more than 100 percent of the net surplus.");
+        if (out.isEmpty()) {
+            BigDecimal allocated = (p.iscAllocation() == null ? BigDecimal.ZERO : p.iscAllocation()).add(p.prAllocation() == null ? BigDecimal.ZERO : p.prAllocation());
+            BigDecimal available = available(p.netSurplus(), p.statutory());
+            if (allocated.compareTo(available) > 0) out.add("The allocations (" + allocated.toPlainString() + ") are more than what is left of the net surplus after the statutory funds (" + available.toPlainString() + ").");
+        }
+        return out;
+    }
+
     /** The problems with what was typed, empty when it can be used. */
     public static List<String> problems(Params p) {
         List<String> out = new ArrayList<>();
         if (p == null) { out.add("Give the rates and amounts."); return out; }
-        if (p.dividendRate() == null || p.dividendRate().signum() < 0 || p.dividendRate().compareTo(new BigDecimal("100")) > 0) out.add("The dividend rate must be between 0 and 100 percent.");
-        if (p.patronageRate() == null || p.patronageRate().signum() < 0 || p.patronageRate().compareTo(new BigDecimal("100")) > 0) out.add("The patronage refund rate must be between 0 and 100 percent.");
-        if (p.mutualBenefit() == null || p.mutualBenefit().signum() < 0) out.add("The mutual benefit amount cannot be negative.");
-        if (p.hospitalization() == null || p.hospitalization().signum() < 0) out.add("The hospitalization amount cannot be negative.");
+        if (p.fromAllocation()) out.addAll(allocationProblems(p));
+        if (!p.fromAllocation() && (p.dividendRate() == null || p.dividendRate().signum() < 0 || p.dividendRate().compareTo(new BigDecimal("100")) > 0)) out.add("The dividend rate must be between 0 and 100 percent.");
+        if (!p.fromAllocation() && (p.patronageRate() == null || p.patronageRate().signum() < 0 || p.patronageRate().compareTo(new BigDecimal("100")) > 0)) out.add("The patronage refund rate must be between 0 and 100 percent.");
+        // The two insurance amounts are the second step, after the dividend and refund are known: left empty, nothing is directed to them and it all goes to savings or share capital.
+        if (p.mutualBenefit() != null && p.mutualBenefit().signum() < 0) out.add("The mutual benefit amount cannot be negative.");
+        if (p.hospitalization() != null && p.hospitalization().signum() < 0) out.add("The hospitalization amount cannot be negative.");
         if (p.overrides() != null) {
             for (MemberAmounts o : p.overrides()) {
                 if ((o.mutualBenefit() != null && o.mutualBenefit().signum() < 0) || (o.hospitalization() != null && o.hospitalization().signum() < 0)) out.add("Member " + o.clientId() + ": an insurance amount cannot be negative.");
@@ -140,17 +197,35 @@ public class DividendRun {
         ids.addAll(opening.keySet());
         ids.addAll(moves.keySet());
         ids.addAll(paid.keySet());
+
+        // Each member's twelve month-end balances added up, and what they paid in qualifying loan charges. The averages and the totals of both are what the rates are worked from.
+        Map<Integer, BigDecimal> monthEnds = new HashMap<>();
+        BigDecimal totalSums = BigDecimal.ZERO, totalPatronage = BigDecimal.ZERO;
+        for (int client : ids) {
+            BigDecimal sum = sumOfMonthEnds(opening.getOrDefault(client, BigDecimal.ZERO), moves.getOrDefault(client, List.of()), year);
+            monthEnds.put(client, sum);
+            if (sum.signum() > 0) totalSums = totalSums.add(sum);
+            BigDecimal pa = paid.getOrDefault(client, BigDecimal.ZERO);
+            if (pa.signum() > 0) totalPatronage = totalPatronage.add(pa);
+        }
+        BigDecimal totalAverage = totalSums.divide(new BigDecimal("12"), 2, RoundingMode.HALF_UP);
+        BigDecimal dividendRate = params.fromAllocation() ? rateFor(params.iscAllocation(), totalAverage) : params.dividendRate();
+        BigDecimal patronageRate = params.fromAllocation() ? rateFor(params.prAllocation(), totalPatronage) : params.patronageRate();
+        if (params.fromAllocation()) {
+            if (params.iscAllocation() != null && params.iscAllocation().signum() > 0 && totalAverage.signum() <= 0) throw new IllegalArgumentException("No member has share capital in " + year + ", so the interest on share capital allocation cannot be spread.");
+            if (params.prAllocation() != null && params.prAllocation().signum() > 0 && totalPatronage.signum() <= 0) throw new IllegalArgumentException("No member paid qualifying loan charges in " + year + ", so the patronage refund allocation cannot be spread.");
+        }
         List<Member> members = new ArrayList<>();
         List<Credit> credits = new ArrayList<>();
         List<Held> held = new ArrayList<>();
         for (int client : ids) {
-            BigDecimal div = dividend(sumOfMonthEnds(opening.getOrDefault(client, BigDecimal.ZERO), moves.getOrDefault(client, List.of()), year), params.dividendRate());
-            BigDecimal ref = refund(paid.getOrDefault(client, BigDecimal.ZERO), params.patronageRate());
+            BigDecimal div = dividend(monthEnds.get(client), dividendRate);
+            BigDecimal ref = refund(paid.getOrDefault(client, BigDecimal.ZERO), patronageRate);
             BigDecimal total = div.add(ref);
             if (total.signum() <= 0) continue;
             MemberAmounts o = over.get(client);
-            BigDecimal mbf = o != null && o.mutualBenefit() != null ? o.mutualBenefit() : params.mutualBenefit();
-            BigDecimal habp = o != null && o.hospitalization() != null ? o.hospitalization() : params.hospitalization();
+            BigDecimal mbf = o != null && o.mutualBenefit() != null ? o.mutualBenefit() : params.mutualBenefit() == null ? BigDecimal.ZERO : params.mutualBenefit();
+            BigDecimal habp = o != null && o.hospitalization() != null ? o.hospitalization() : params.hospitalization() == null ? BigDecimal.ZERO : params.hospitalization();
             BigDecimal[] s = split(total, mbf, first(mutual, client) != null, habp, first(hospital, client) != null);
             int[] home = first(savings, client) != null ? first(savings, client) : first(shares, client);
             boolean toSavings = first(savings, client) != null;
@@ -158,11 +233,11 @@ public class DividendRun {
                 held.add(new Held(client, total, "the member has no active savings or share capital account to credit"));
                 continue;
             }
-            members.add(new Member(client, div, ref, total, s[0], s[1], s[2]));
+            members.add(new Member(client, div, ref, total, s[0], s[1], s[2], monthEnds.get(client).divide(new BigDecimal("12"), 2, RoundingMode.HALF_UP), paid.getOrDefault(client, BigDecimal.ZERO)));
             if (s[0].signum() > 0) { int[] a = first(mutual, client); credits.add(new Credit(client, 29, a[0], a[1], "MUTUAL_BENEFIT", s[0])); }
             if (s[1].signum() > 0) { int[] a = first(hospital, client); credits.add(new Credit(client, 29, a[0], a[1], "HOSPITALIZATION", s[1])); }
             if (s[2].signum() > 0) credits.add(new Credit(client, toSavings ? 22 : 31, home[0], home[1], toSavings ? "SAVINGS" : "SHARE_CAPITAL", s[2]));
         }
-        return new Plan(cutoff, year, params, members, credits, held);
+        return new Plan(cutoff, year, params, members, credits, held, totalAverage, totalPatronage, dividendRate, patronageRate);
     }
 }

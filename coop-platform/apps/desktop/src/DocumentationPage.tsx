@@ -27,7 +27,7 @@ const SHORTCUTS: { area: string; rows: [string, string][] }[] = [
   {
     area: 'Front Office',
     rows: [
-      [`${MOD}1 to ${MOD}9`, 'Go to the first to ninth area of the window (Summary, Member Accounts, Cash, and so on). A tab with an entry form opens with a new entry ready.'],
+      [`${MOD}1 to ${MOD}9`, 'Go to the first to ninth area of the window (Teller, Summary, Cash, and so on). A tab with an entry form opens with a new entry ready.'],
       [`${MOD}F`, 'Find a transaction.'],
       [`${MOD}N`, 'Start a new draft.'],
       [`${MOD}D`, 'Copy the open transaction to a new draft.'],
@@ -55,7 +55,7 @@ const RULES: [string, string][] = [
 ]
 
 const WHERE: [string, string][] = [
-  ['Cash deposits and withdrawals', 'Only in the Front Office, on the Member Accounts tab: savings deposits and withdrawals, share capital payments and withdrawals, loan payments, and time deposit placement, interest withdrawal and pre-termination. A member\'s profile only shows the accounts.'],
+  ['Cash deposits and withdrawals', 'Only in the Front Office, on the Teller tab: savings deposits and withdrawals, share capital payments and withdrawals, loan payments, and time deposit placement, interest withdrawal and pre-termination. A member\'s profile only shows the accounts.'],
   ['New loan applications', 'Only from the Loan Application tile. The member\'s Loans tab shows loans and their profile.'],
   ['Members', 'Client Profile: Info (Membership, Personal, Business / Employment, Education, Contacts & IDs, Spouse Info), Accounts (Share Capital, Savings, Time Deposits, Loans, Billing, Pledges / Insurances) and Other. Register a new member with Client Profile menu > New (Ctrl+N; the form opens blank), close or reactivate one from the profile; an officer other than the requester approves under Approvals.'],
   ['Registering many members', 'Advanced mode, for administrators: on the Client Profile finder screen choose Advanced mode: import a list. Upload a CSV or Excel file (download the blank Excel list: its Guide sheet explains each column), see every row checked, and send the valid ones. A Membership Officer other than the uploader approves the whole list under Approvals, which opens the members. Photos and fingerprints are added afterwards on each member.'],
@@ -79,6 +79,7 @@ const DOCS: [string, string][] = [
   ['savings-posting-map.md, savings-interest-map.md', 'Savings deposits, withdrawals and quarterly interest.'],
   ['time-deposit-map.md, time-deposit-accrual-map.md', 'Time deposits: placement, interest, payout, renewal and pre-termination.'],
   ['dividend-map.md', 'The annual dividend and patronage refund.'],
+  ['dividend-spec.md', 'The interest on share capital and patronage refund specification, and what the Dividends screen does with it.'],
   ['debit-credit-memo-map.md', 'How the old system posted debit/credit memos, and what the new Memos screen does.'],
   ['cheque-receipt-posting-map.md, bank-cash-posting-map.md, voucher-payout-map.md', 'Cheques, bank transfers and voucher payouts.'],
   ['procurement-design.md, inventory-design.md, pos-design.md, fixed-assets-design.md', 'Purchasing, stock, point of sale and fixed assets.'],
