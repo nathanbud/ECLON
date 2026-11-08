@@ -163,7 +163,7 @@ class InventoryMasterController {
     @GetMapping("/products")
     List<Product> products(@RequestParam(required = false) String q, @RequestParam(required = false) Long categoryId, @RequestParam(defaultValue = "false") boolean activeOnly) {
         String like = q == null || q.isBlank() ? null : "%" + q.trim().toLowerCase() + "%";
-        return jdbc.query(PRODUCT + " WHERE p.branch_code = ? AND (? = 0 OR p.active = 1) AND (? IS NULL OR p.category_id = ?) AND (? IS NULL OR LOWER(p.name) LIKE ? OR LOWER(p.sku) LIKE ?) ORDER BY p.name LIMIT 500",
+        return jdbc.query(PRODUCT + " WHERE p.branch_code = ? AND (? = 0 OR p.active = 1) AND (CAST(? AS CHAR) IS NULL OR p.category_id = ?) AND (CAST(? AS CHAR) IS NULL OR LOWER(p.name) LIKE ? OR LOWER(p.sku) LIKE ?) ORDER BY p.name LIMIT 500",
             InventoryMasterController::product, InventorySupport.BRANCH, activeOnly ? 1 : 0, categoryId, categoryId, like, like, like);
     }
 
@@ -243,7 +243,7 @@ class InventoryMasterController {
         return jdbc.query("""
                 SELECT t.id, t.txn_no, t.txn_date, t.txn_type, t.product_id, p.sku, p.name, t.warehouse_id, w.name, COALESCE(b.batch_no, ''), t.quantity, t.unit_cost, t.ref_type, t.ref_no, t.remarks, t.created_by
                 FROM ecis_inventory_txn t JOIN ecis_product p ON p.id = t.product_id JOIN ecis_warehouse w ON w.id = t.warehouse_id LEFT JOIN ecis_inventory_batch b ON b.id = t.batch_id
-                WHERE t.branch_code = ? AND (? IS NULL OR t.product_id = ?) AND (? IS NULL OR t.warehouse_id = ?) ORDER BY t.id DESC LIMIT %d
+                WHERE t.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR t.product_id = ?) AND (CAST(? AS CHAR) IS NULL OR t.warehouse_id = ?) ORDER BY t.id DESC LIMIT %d
                 """.formatted(n), (rs, i) -> new LedgerRow(rs.getLong(1), rs.getString(2), rs.getDate(3).toLocalDate(), rs.getString(4), rs.getLong(5), rs.getString(6), rs.getString(7), rs.getLong(8), rs.getString(9),
             rs.getString(10), rs.getBigDecimal(11), rs.getBigDecimal(12), rs.getString(13), rs.getString(14), rs.getString(15), rs.getString(16)), InventorySupport.BRANCH, productId, productId, warehouseId, warehouseId);
     }

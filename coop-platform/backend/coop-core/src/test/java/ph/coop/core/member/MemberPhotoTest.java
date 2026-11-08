@@ -80,4 +80,32 @@ class MemberPhotoTest {
         Authentication imagesOnly = me("PERM_MEMBER_IMAGES");
         assertThrows(AccessDeniedException.class, () -> images.setPhoto(1, id, new MockMultipartFile("file", "p.jpg", "image/jpeg", JPEG), imagesOnly));
     }
+
+    @Test
+    void aSignatureIsAddedAsSigAndTheNewestIsServed() throws Exception {
+        int id = someMember();
+        int before = jdbc.queryForObject("SELECT COUNT(*) FROM image WHERE ImageBR_CODE = 1 AND ClientIDimg = ? AND ImageType = 'sig'", Integer.class, id);
+        int photosBefore = jdbc.queryForObject("SELECT COUNT(*) FROM image WHERE ImageBR_CODE = 1 AND ClientIDimg = ? AND ImageType = 'img'", Integer.class, id);
+        Authentication a = me("PERM_MEMBER_IMAGES", "PERM_MEMBER_EDIT");
+        assertEquals(HttpStatus.CREATED, images.setSignature(1, id, new MockMultipartFile("file", "s.jpg", "image/jpeg", JPEG), a).getStatusCode());
+        assertEquals(before + 1, jdbc.queryForObject("SELECT COUNT(*) FROM image WHERE ImageBR_CODE = 1 AND ClientIDimg = ? AND ImageType = 'sig'", Integer.class, id));
+        assertEquals(photosBefore, jdbc.queryForObject("SELECT COUNT(*) FROM image WHERE ImageBR_CODE = 1 AND ClientIDimg = ? AND ImageType = 'img'", Integer.class, id), "a signature is not a photo");
+        assertArrayEquals(JPEG, images.signature(1, id).getBody());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'member.signature.set' AND entity_id = ?", Integer.class, "1-" + id));
+    }
+
+    @Test
+    void aSignatureHasTheSameRulesAsAPhoto() {
+        int id = someMember();
+        Authentication a = me("PERM_MEMBER_IMAGES", "PERM_MEMBER_EDIT");
+        assertThrows(ResponseStatusException.class, () -> images.setSignature(1, id, new MockMultipartFile("file", "x.txt", "text/plain", "hello".getBytes()), a));
+        byte[] big = new byte[MemberImageController.MAX_SIGNATURE_BYTES + 1];
+        big[0] = (byte) 0xFF;
+        big[1] = (byte) 0xD8;
+        big[2] = (byte) 0xFF;
+        big[3] = (byte) 0xE0;
+        assertThrows(ResponseStatusException.class, () -> images.setSignature(1, id, new MockMultipartFile("file", "b.jpg", "image/jpeg", big), a));
+        Authentication editOnly = me("PERM_MEMBER_EDIT");
+        assertThrows(AccessDeniedException.class, () -> images.setSignature(1, id, new MockMultipartFile("file", "s.jpg", "image/jpeg", JPEG), editOnly));
+    }
 }

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { Member, Page } from './api'
-import { FindBody } from './FindClientDialog'
+import FindClientDialog, { FindBody } from './FindClientDialog'
 import { AppThemeProvider } from './theme'
 
 const member = (id: number, last: string, first: string): Member => ({
@@ -75,5 +75,20 @@ describe('Find Client', () => {
     await waitFor(() => expect(screen.getAllByRole('option').length).toBe(1))
     await user.click(screen.getByRole('switch', { name: /include inactive/i }))
     await waitFor(() => expect(screen.getAllByRole('option').length).toBe(2))
+  })
+})
+
+describe('Find Client pop-up (Ctrl+F)', () => {
+  it('puts the cursor in the search field when it opens, even if a button had focus', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const { rerender } = render(
+      <QueryClientProvider client={qc}><AppThemeProvider><button>Edit</button><FindClientDialog open={false} onClose={() => {}} onPick={() => {}} /></AppThemeProvider></QueryClientProvider>,
+    )
+    screen.getByRole('button', { name: 'Edit' }).focus()
+    rerender(
+      <QueryClientProvider client={qc}><AppThemeProvider><button>Edit</button><FindClientDialog open onClose={() => {}} onPick={() => {}} /></AppThemeProvider></QueryClientProvider>,
+    )
+    const field = await screen.findByRole('combobox', { name: /client name or member id/i })
+    await waitFor(() => expect(field).toHaveFocus())
   })
 })

@@ -1,6 +1,10 @@
 spring:
   application:
     name: coop-core
+  profiles:
+    # PostgreSQL is the default database (application-postgres.yml). To use the old MySQL one set SPRING_PROFILES_ACTIVE=mysql:
+    # naming any active profile switches this default off, and there is no mysql file, so the MySQL settings below apply.
+    default: postgres
   servlet:
     multipart:
       # documents are limited to 10 MB in DocumentRules; the multipart limit is a little above so the clear message comes from there

@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { FiChevronDown, FiEdit2, FiPlus, FiSave, FiSearch, FiTrash2, FiX } from 'react-icons/fi'
+import { FiChevronDown, FiEdit2, FiPlus, FiSave, FiSearch, FiTrash2, FiUserX, FiX } from 'react-icons/fi'
 import { Button, Divider, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip, Typography } from '@mui/material'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
@@ -18,12 +18,16 @@ export const ACTIONS: RecordAction[] = [
   { label: 'Cancel', icon: <FiX />, shortcut: 'Esc', match: (e) => e.key === 'Escape' },
 ]
 
+export const CLOSE_SHORTCUT = `${MOD}${isMac ? '⇧' : 'Shift+'}C`
+/** Close Membership: Ctrl/Cmd+Shift+C (plain Ctrl+C is Copy and must stay so). Only taken while Close Membership can run, so a browser's own use of the keys is untouched otherwise. */
+export const closeMatch = (e: KeyboardEvent) => mod(e) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'c'
+
 const Shortcut = ({ children }: { children: ReactNode }) => (
   <Typography component="span" sx={{ ml: 4, fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{children}</Typography>
 )
 
 /** The "Client Profile" menu in the title bar: find plus the record actions, each with its shortcut. */
-export function ClientMenu({ onFind, actions, editOn, pendingNote }: { onFind: () => void; actions: RecordAction[]; editOn: boolean; pendingNote: string | null }) {
+export function ClientMenu({ onFind, actions, editOn, pendingNote, onCloseMembership }: { onFind: () => void; actions: RecordAction[]; editOn: boolean; pendingNote: string | null; onCloseMembership?: () => void }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const button = useRef<HTMLButtonElement>(null)
   const close = () => setAnchor(null)
@@ -68,6 +72,12 @@ export function ClientMenu({ onFind, actions, editOn, pendingNote }: { onFind: (
         {actions.slice(0, 3).map(item)}
         <Divider />
         {actions.slice(3).map(item)}
+        <Divider />
+        <MenuItem disabled={!onCloseMembership} onClick={() => { close(); onCloseMembership?.() }} sx={{ color: 'error.main' }}>
+          <ListItemIcon sx={{ minWidth: 32, fontSize: 16, color: 'inherit' }}><FiUserX /></ListItemIcon>
+          <ListItemText slotProps={{ primary: { sx: { fontSize: 13 } } }}>Close Membership…</ListItemText>
+          <Shortcut>{CLOSE_SHORTCUT}</Shortcut>
+        </MenuItem>
         {(!editOn || pendingNote) && <Divider />}
         {(!editOn || pendingNote) && (
           <Typography sx={{ px: 2, py: 0.75, fontSize: 12, maxWidth: 270 }} color="text.secondary">

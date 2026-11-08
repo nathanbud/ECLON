@@ -20,7 +20,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     // Backend runs on 8090 because 8080 is occupied on the dev machine.
-    proxy: { '/api': 'http://localhost:8090' },
+    proxy: { '/api': process.env.API_PROXY ?? 'http://localhost:8090' }, // API_PROXY points the screens at another backend (e.g. one running on PostgreSQL)
   },
   // Unit and component tests (npm test). The browser end-to-end tests are in e2e/ and run with npm run e2e.
   test: {

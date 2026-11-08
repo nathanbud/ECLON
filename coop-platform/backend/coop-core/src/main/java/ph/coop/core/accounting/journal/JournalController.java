@@ -66,7 +66,7 @@ class JournalController {
 
     @GetMapping
     List<Summary> list(@RequestParam int branchCode, @RequestParam(required = false) String status) {
-        return jdbc.query(SUMMARY + " WHERE j.branch_code = ? AND (? IS NULL OR j.status = ?) ORDER BY j.id DESC LIMIT 200",
+        return jdbc.query(SUMMARY + " WHERE j.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR j.status = ?) ORDER BY j.id DESC LIMIT 200",
                 JournalController::summary, branchCode, status, status);
     }
 

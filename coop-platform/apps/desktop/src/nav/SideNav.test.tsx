@@ -11,11 +11,12 @@ let admin = false
 vi.mock('../session', () => ({ useMe: () => ({ username: 'u', name: 'U', roles, canEdit: false, canApprove: false, admin, mustChangePassword: false }) as Me }))
 vi.mock('../api', async (orig) => ({ ...(await orig<typeof import('../api')>()), getInboxCount: vi.fn(async () => ({ count: 3 })) }))
 
-function renderNav(view: Parameters<typeof SideNav>[0]['view'] = 'home', tab?: string) {
+function renderNav(view: Parameters<typeof SideNav>[0]['view'] = 'home', tab?: string, open = true) {
   const go = vi.fn()
+  const close = vi.fn()
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={qc}><AppThemeProvider><SideNav view={view} tab={tab} onNavigate={go} /></AppThemeProvider></QueryClientProvider>)
-  return go
+  render(<QueryClientProvider client={qc}><AppThemeProvider><SideNav view={view} tab={tab} onNavigate={go} open={open} onClose={close} /></AppThemeProvider></QueryClientProvider>)
+  return Object.assign(go, { close })
 }
 
 describe('the side menu', () => {
@@ -59,22 +60,29 @@ describe('the side menu', () => {
     expect(await screen.findByRole('link', { name: 'Waiting for you, 3 waiting' })).toBeInTheDocument()
   })
 
-  it('collapses to icons, remembers that, and can be opened again', async () => {
-    renderNav()
-    const user = userEvent.setup()
-    const nav = screen.getByRole('navigation', { name: 'Main' })
-    expect(nav).toHaveAttribute('data-collapsed', 'false')
-    await user.click(screen.getByRole('button', { name: 'Collapse the menu' }))
-    expect(nav).toHaveAttribute('data-collapsed', 'true')
-    expect(localStorage.getItem('coop.nav.collapsed')).toBe('1')
-    expect(within(nav).getByRole('link', { name: 'Client Profile' }), 'still reachable by name').toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Expand the menu' }))
-    expect(nav).toHaveAttribute('data-collapsed', 'false')
+  it('is not on the screen until it is opened', () => {
+    renderNav('home', undefined, false)
+    expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument()
+  })
+
+  it('goes to the screen chosen and closes itself', async () => {
+    roles = ['ROLE_ACCOUNTANT']
+    const go = renderNav()
+    await userEvent.setup().click(screen.getByRole('link', { name: 'Journals' }))
+    expect(go).toHaveBeenCalled()
+    expect(go.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes on Escape', async () => {
+    const go = renderNav()
+    await userEvent.setup().keyboard('{Escape}')
+    expect(go.close).toHaveBeenCalled()
   })
 
   it('opens Home from the top entry', async () => {
     const go = renderNav('members')
     await userEvent.setup().click(screen.getByRole('link', { name: 'Home' }))
     expect(go).toHaveBeenCalledWith('home')
+    expect(go.close).toHaveBeenCalled()
   })
 })

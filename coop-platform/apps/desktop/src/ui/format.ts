@@ -11,3 +11,10 @@ export const parseAmount = (s: string) => Number(s.replace(/,/g, ''))
 
 /** Style that keeps digits the same width so columns of figures line up. */
 export const tabular = { fontVariantNumeric: 'tabular-nums' } as const
+
+/** A file size for people: 6610000 -> "6.3 MB". */
+export const sizeOf = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}

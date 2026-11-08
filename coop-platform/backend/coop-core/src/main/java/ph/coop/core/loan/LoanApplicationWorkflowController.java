@@ -221,7 +221,9 @@ public class LoanApplicationWorkflowController {
     }
 
     private Prepared prepare(int branch, long id, boolean lock) {
-        List<Item> found = jdbc.query(ITEM_SQL + " WHERE a.BR_CODE = ? AND a.ID = ?" + (lock ? " FOR UPDATE" : ""), (rs, i) -> item(rs), branch, id);
+        // locked on its own: PostgreSQL does not lock through the outer joins of ITEM_SQL
+        if (lock) jdbc.queryForList("SELECT ID FROM loanapp WHERE BR_CODE = ? AND ID = ? FOR UPDATE", Long.class, branch, id);
+        List<Item> found = jdbc.query(ITEM_SQL + " WHERE a.BR_CODE = ? AND a.ID = ?", (rs, i) -> item(rs), branch, id);
         if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such loan application.");
         Item it = found.get(0);
         Map<String, Object> a = jdbc.queryForMap("SELECT ENCDBY, COALESCE(DEPT, 1) DEPT, NPREF_NO FROM loanapp WHERE BR_CODE = ? AND ID = ?", branch, id);

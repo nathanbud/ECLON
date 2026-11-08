@@ -33,7 +33,7 @@ class ChartOfAccountsTest {
     @BeforeEach
     void ready() {
         assumeTrue(!jdbc.queryForList("SELECT 1 FROM access WHERE AccessUserName = 'tester'").isEmpty(), "no tester account");
-        assumeTrue(jdbc.queryForList("SHOW GRANTS", String.class).stream().anyMatch((g) -> g.contains("`coa`") || g.contains("ON *.*") && g.contains("ALL")), "V022 has not been applied");
+        assumeTrue(new ph.coop.core.db.Db(jdbc).canInsertInto("coa"), "V022 has not been applied");
     }
 
     private Authentication me() {

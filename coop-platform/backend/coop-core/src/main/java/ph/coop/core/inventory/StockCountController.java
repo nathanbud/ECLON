@@ -67,7 +67,7 @@ class StockCountController {
 
     @GetMapping
     List<Summary> list(@RequestParam(required = false) String status) {
-        return jdbc.query(SUMMARY + " WHERE c.branch_code = ? AND (? IS NULL OR c.status = ?) ORDER BY c.id DESC LIMIT 300", StockCountController::map, InventorySupport.BRANCH, status, status);
+        return jdbc.query(SUMMARY + " WHERE c.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR c.status = ?) ORDER BY c.id DESC LIMIT 300", StockCountController::map, InventorySupport.BRANCH, status, status);
     }
 
     @GetMapping("/{id}")

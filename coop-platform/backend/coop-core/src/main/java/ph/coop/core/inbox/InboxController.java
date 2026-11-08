@@ -23,7 +23,7 @@ import ph.coop.core.workflow.WorkflowEngine;
  */
 @RestController
 @RequestMapping("/api/inbox")
-class InboxController {
+class InboxController implements ph.coop.core.connection.OnConnectionSwitch {
 
     /** {@code kind} is a short code for the sort of work; {@code view} and {@code tab} say which screen decides it. */
     record Item(String kind, String label, String summary, String by, String at, String view, String tab) {}
@@ -41,6 +41,11 @@ class InboxController {
         this.jdbc = jdbc;
         this.db = db;
         this.workflow = workflow;
+    }
+
+    @Override
+    public void connectionSwitched() {
+        known.clear();
     }
 
     @GetMapping

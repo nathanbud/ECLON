@@ -48,7 +48,7 @@ class InventoryReports implements Provider {
                     jdbc.query("""
                             SELECT p.sku, p.name, w.name, COALESCE(t.batch_no, ''), t.expiry_date, b.quantity, p.unit, p.cost
                             FROM ecis_inventory_balance b JOIN ecis_product p ON p.id = b.product_id JOIN ecis_warehouse w ON w.id = b.warehouse_id LEFT JOIN ecis_inventory_batch t ON t.id = b.batch_id
-                            WHERE p.branch_code = ? AND b.quantity <> 0 AND (? IS NULL OR b.warehouse_id = ?) ORDER BY p.name, w.name, t.expiry_date
+                            WHERE p.branch_code = ? AND b.quantity <> 0 AND (CAST(? AS CHAR) IS NULL OR b.warehouse_id = ?) ORDER BY p.name, w.name, t.expiry_date
                             """, (rs) -> {
                             BigDecimal v = rs.getBigDecimal(6).multiply(rs.getBigDecimal(8)).setScale(2, java.math.RoundingMode.HALF_UP);
                             value[0] = value[0].add(v);
@@ -65,7 +65,7 @@ class InventoryReports implements Provider {
                     jdbc.query("""
                             SELECT t.txn_no, t.txn_date, t.txn_type, p.sku, p.name, w.name, COALESCE(b.batch_no, ''), t.quantity, t.unit_cost, t.ref_no, t.created_by
                             FROM ecis_inventory_txn t JOIN ecis_product p ON p.id = t.product_id JOIN ecis_warehouse w ON w.id = t.warehouse_id LEFT JOIN ecis_inventory_batch b ON b.id = t.batch_id
-                            WHERE t.branch_code = ? AND t.txn_date >= ? AND t.txn_date <= ? AND (? IS NULL OR t.warehouse_id = ?) ORDER BY t.id LIMIT %d
+                            WHERE t.branch_code = ? AND t.txn_date >= ? AND t.txn_date <= ? AND (CAST(? AS CHAR) IS NULL OR t.warehouse_id = ?) ORDER BY t.id LIMIT %d
                             """.formatted(LIMIT + 1), (rs) -> {
                             if (rows.size() > LIMIT) return;
                             rows.add(row(rs.getString(1), Reports.isoDate(rs.getDate(2)), rs.getString(3).toLowerCase(), rs.getString(4) + " " + rs.getString(5), rs.getString(6), rs.getString(7), rs.getBigDecimal(8), rs.getBigDecimal(9), rs.getString(10), rs.getString(11)));

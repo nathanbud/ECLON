@@ -1,7 +1,8 @@
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
-import { approveMemberImport, approveMemberRequest, listMemberImports, listMemberRequests, rejectMemberImport, withdrawMemberImport, type ImportBatch, rejectMemberRequest, requestClosure, requestReactivation, withdrawMemberRequest, type MemberRequest } from './api'
+import { useRef, useState } from 'react'
+import { FiPaperclip, FiX } from 'react-icons/fi'
+import { approveMemberImport, approveMemberRequest, listMemberImports, listMemberRequests, rejectMemberImport, withdrawMemberImport, type ImportBatch, rejectMemberRequest, requestClosure, requestReactivation, withdrawMemberRequest, type MemberRequest, getDocumentSetup, uploadDocument } from './api'
 import { glass } from './glass'
 import { useMe } from './session'
 import { ReasonDialog } from './ui/dialogs'
@@ -9,36 +10,101 @@ import { Gated } from './ui/Gated'
 
 const when = (at: string) => new Date(at.replace(' ', 'T')).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
-/** Ask to close a membership. Every account must already be at zero. */
+const MAX_PROOFS = 5
+const REASONS: Record<string, string> = { '1': 'Voluntary', '2': 'Transferred', '3': 'Bad debts', '4': 'Offset', '5': 'Zero balance', '6': 'Deceased' }
+const fileSize = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`)
+
+/**
+ * Ask to close a membership. Every account must already be at zero. Proof documents (a letter, a death certificate, a transfer slip) can be attached: they are kept with the member's
+ * documents, readable by the Membership Officers who decide, and are sent once the request itself is saved.
+ */
 export function CloseDialog({ branchCode, clientId, name, onClose, onDone }: { branchCode: number; clientId: number; name: string; onClose: () => void; onDone: (msg: string) => void }) {
   const qc = useQueryClient()
+  const setup = useQuery({ queryKey: ['doc-setup'], queryFn: getDocumentSetup })
+  const input = useRef<HTMLInputElement>(null)
   const [reason, setReason] = useState('1')
   const [died, setDied] = useState('')
   const [note, setNote] = useState('')
+  const [proofs, setProofs] = useState<File[]>([])
   const [error, setError] = useState<string | null>(null)
+  const maxMb = setup.data?.maxMegabytes ?? 10
+  const extensions = setup.data?.extensions ?? []
+
+  const add = (picked: FileList | null) => {
+    if (!picked) return
+    const next = [...proofs]
+    const problems: string[] = []
+    for (const f of Array.from(picked)) {
+      const ext = f.name.includes('.') ? f.name.split('.').pop()!.toLowerCase() : ''
+      if (next.length >= MAX_PROOFS) problems.push(`Only ${MAX_PROOFS} documents can be attached.`)
+      else if (extensions.length > 0 && !extensions.includes(ext)) problems.push(`${f.name}: this kind of file cannot be kept.`)
+      else if (f.size > maxMb * 1024 * 1024) problems.push(`${f.name}: larger than ${maxMb} MB.`)
+      else if (f.size === 0) problems.push(`${f.name}: the file is empty.`)
+      else if (next.some((x) => x.name === f.name && x.size === f.size)) problems.push(`${f.name} is already in the list.`)
+      else next.push(f)
+    }
+    setProofs(next)
+    setError(problems.length > 0 ? [...new Set(problems)].join(' ') : null)
+  }
+
   const save = useMutation({
-    mutationFn: () => requestClosure({ branchCode, clientId, reason: Number(reason), dateDeceased: reason === '6' ? died || null : null, note: note || null }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['member-requests'] }); onDone('Closing sent for approval'); onClose() },
+    mutationFn: async () => {
+      await requestClosure({ branchCode, clientId, reason: Number(reason), dateDeceased: reason === '6' ? died || null : null, note: note || null })
+      // the request is saved; now its proofs. One that fails does not undo the request, so say which did not go.
+      const failed: string[] = []
+      for (const f of proofs) {
+        try {
+          await uploadDocument(f, { entityType: 'MEMBER', entityId: String(clientId), title: `Closure proof: ${f.name}`.slice(0, 120), description: `Proof for closing the membership (${REASONS[reason]})`, classification: 'INTERNAL' })
+        } catch (e) {
+          failed.push(`${f.name} (${(e as Error).message})`)
+        }
+      }
+      return failed
+    },
+    onSuccess: (failed) => {
+      void qc.invalidateQueries({ queryKey: ['member-requests'] })
+      void qc.invalidateQueries({ queryKey: ['documents'] })
+      const sent = proofs.length > 0 ? `Closing sent for approval with ${proofs.length} document${proofs.length === 1 ? '' : 's'}` : 'Closing sent for approval'
+      onDone(failed.length === 0 ? sent : `Closing sent for approval, but not attached: ${failed.join('; ')}. Attach them from the member's Documents tab.`)
+      onClose()
+    },
     onError: (e) => setError((e as Error).message),
   })
   return (
-    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
+    <Dialog open onClose={save.isPending ? undefined : onClose} maxWidth="xs" fullWidth>
       <DialogTitle>Close membership of {name}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
           <TextField select size="small" label="Reason" value={reason} onChange={(e) => setReason(e.target.value)}>
-            <MenuItem value="1">Voluntary</MenuItem><MenuItem value="2">Transferred</MenuItem><MenuItem value="3">Bad debts</MenuItem>
-            <MenuItem value="4">Offset</MenuItem><MenuItem value="5">Zero balance</MenuItem><MenuItem value="6">Deceased</MenuItem>
+            {Object.entries(REASONS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
           </TextField>
           {reason === '6' && <TextField size="small" type="date" label="Date of death" value={died} onChange={(e) => setDied(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />}
           <TextField size="small" label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <Box>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <Button size="small" variant="outlined" startIcon={<FiPaperclip />} disabled={proofs.length >= MAX_PROOFS || save.isPending} onClick={() => input.current?.click()}>Attach proof</Button>
+              <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Optional. PDF, PNG, JPEG, Word, Excel, CSV or text, up to {maxMb} MB each, at most {MAX_PROOFS}.</Typography>
+            </Stack>
+            <input ref={input} type="file" hidden multiple aria-label="Proof documents" accept={extensions.map((e) => `.${e}`).join(',')} onChange={(e) => { add(e.target.files); e.target.value = '' }} />
+            {proofs.length > 0 && (
+              <Stack component="ul" spacing={0.5} sx={{ listStyle: 'none', p: 0, mt: 1, mb: 0 }} aria-label="Documents to attach">
+                {proofs.map((f) => (
+                  <Box component="li" key={`${f.name}-${f.size}`} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography noWrap sx={{ fontSize: 13.5, flex: 1, minWidth: 0 }}>{f.name}</Typography>
+                    <Typography sx={{ fontSize: 12.5 }} color="text.secondary">{fileSize(f.size)}</Typography>
+                    <Button size="small" color="inherit" aria-label={`Remove ${f.name}`} disabled={save.isPending} sx={{ minWidth: 0, p: 0.5 }} onClick={() => setProofs(proofs.filter((x) => x !== f))}><FiX /></Button>
+                  </Box>
+                ))}
+              </Stack>
+            )}
+          </Box>
           <Typography sx={{ fontSize: 12.5 }} color="text.secondary">The member is not deleted: the record stays, marked Closed. Share capital, savings and loans must be at zero first, and a Membership Officer other than you approves.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" color="error" disabled={save.isPending} onClick={() => { setError(null); save.mutate() }}>Send for approval</Button>
+        <Button onClick={onClose} disabled={save.isPending}>Cancel</Button>
+        <Button variant="contained" color="error" disabled={save.isPending} onClick={() => { setError(null); save.mutate() }}>{save.isPending ? 'Sending…' : 'Send for approval'}</Button>
       </DialogActions>
     </Dialog>
   )

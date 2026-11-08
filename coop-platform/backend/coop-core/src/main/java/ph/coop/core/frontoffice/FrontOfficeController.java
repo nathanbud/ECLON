@@ -95,7 +95,7 @@ class FrontOfficeController {
         String text = q.trim().replace("%", "").replace("_", "");
         return jdbc.query("""
                 SELECT COAID, COADesc FROM coa
-                WHERE COABR_CODE = ? AND COALESCE(COAisdisabled, 0) = 0 AND (COAID LIKE ? OR COADesc LIKE ?)
+                WHERE COABR_CODE = ? AND COALESCE(COAisdisabled, 0) = 0 AND (COAID LIKE ? OR LOWER(COADesc) LIKE LOWER(?))
                 ORDER BY COAID LIMIT 30
                 """,
             (rs, i) -> new Account(rs.getString(1), rs.getString(2)), p.branch(), text + "%", "%" + text + "%");
@@ -123,7 +123,7 @@ class FrontOfficeController {
                 args.add(Long.parseLong(text));
                 args.add(Long.parseLong(text));
             } else {
-                sql.append(" AND (t.EXPLANATION LIKE ? OR t.CLIENTNAME LIKE ? OR c.LName LIKE ? OR c.FName LIKE ? OR t.TR_DOCNO LIKE ?)");
+                sql.append(" AND (LOWER(t.EXPLANATION) LIKE LOWER(?) OR LOWER(t.CLIENTNAME) LIKE LOWER(?) OR LOWER(c.LName) LIKE LOWER(?) OR LOWER(c.FName) LIKE LOWER(?) OR LOWER(t.TR_DOCNO) LIKE LOWER(?))");
                 for (int i = 0; i < 5; i++) args.add("%" + text + "%");
             }
         }

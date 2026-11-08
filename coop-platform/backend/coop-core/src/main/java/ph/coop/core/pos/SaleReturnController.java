@@ -71,7 +71,7 @@ class SaleReturnController {
 
     @GetMapping
     List<Summary> list(@RequestParam(required = false) String status) {
-        return jdbc.query(SUMMARY + " WHERE r.branch_code = ? AND (? IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 300", SaleReturnController::map, InventorySupport.BRANCH, status, status);
+        return jdbc.query(SUMMARY + " WHERE r.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 300", SaleReturnController::map, InventorySupport.BRANCH, status, status);
     }
 
     @GetMapping("/{id}")

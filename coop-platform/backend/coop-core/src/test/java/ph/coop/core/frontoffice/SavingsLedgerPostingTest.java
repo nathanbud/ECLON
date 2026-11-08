@@ -60,13 +60,13 @@ class SavingsLedgerPostingTest {
         tellerNumber = ((Number) t.get(0).get("AccessTellerNumber")).intValue();
         dept = ((Number) t.get(0).get("AccessDepartment")).intValue();
         List<Map<String, Object>> a = jdbc.queryForList("""
-                SELECT s.ClientIDSD AS client, s.SDSLT_CODE AS typ, s.SDREF_NO AS ref, s.SDMIN_BAL AS minb,
+                SELECT * FROM (SELECT s.ClientIDSD AS client, s.SDSLT_CODE AS typ, s.SDREF_NO AS ref, s.SDMIN_BAL AS minb,
                        (SELECT -SUM(d.AMT) FROM sldtl d WHERE d.SL_BRCODE = 1 AND d.SL_CLIENTID = s.ClientIDSD AND d.SLC_CODE = 22 AND d.SLT_CODE = s.SDSLT_CODE AND d.REF_NO = s.SDREF_NO AND d.SLE_CODE = 11) AS bal
                 FROM sd s JOIN client c ON c.ClientIDBrCode = s.SDBR_CODE AND c.ClientID = s.ClientIDSD AND c.AccountStatus = 1
                 JOIN glcontrol g ON g.GLControlBR_CODE = s.SDBR_CODE AND g.GLControlSLC_CODE = 22 AND g.GLControlSLT_CODE = s.SDSLT_CODE AND g.GLControlSLE_CODE = 11 AND g.GLControlCTS_NUM = 15
                 WHERE s.SDBR_CODE = 1 AND s.SDSLC_CODE = 22 AND s.SDSTATUS = 15 AND s.SDSLT_CODE = 1 AND s.SDMIN_BAL >= 500
-                  AND NOT EXISTS (SELECT 1 FROM hold h WHERE h.HBR_CODE = 1 AND h.ClientIDH = s.ClientIDSD AND h.HSLC_CODE = 22 AND h.HSLT_CODE = s.SDSLT_CODE AND h.HREF_NO = s.SDREF_NO)
-                HAVING bal BETWEEN 2000 AND 40000 ORDER BY s.ClientIDSD DESC LIMIT 1
+                  AND NOT EXISTS (SELECT 1 FROM hold h WHERE h.HBR_CODE = 1 AND h.ClientIDH = s.ClientIDSD AND h.HSLC_CODE = 22 AND h.HSLT_CODE = s.SDSLT_CODE AND h.HREF_NO = s.SDREF_NO)) z
+                WHERE bal BETWEEN 2000 AND 40000 ORDER BY client DESC LIMIT 1
                 """);
         assumeTrue(!a.isEmpty(), "no active savings account with a minimum balance and 2,000 to 40,000 in it");
         client = ((Number) a.get(0).get("client")).intValue();

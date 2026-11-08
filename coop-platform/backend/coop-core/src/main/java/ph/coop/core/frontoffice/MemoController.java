@@ -92,7 +92,7 @@ class MemoController {
 
     @GetMapping
     List<Summary> list(@RequestParam int branchCode, @RequestParam(required = false) String status) {
-        return jdbc.query(SUMMARY + " WHERE m.branch_code = ? AND (? IS NULL OR m.status = ?) ORDER BY m.id DESC LIMIT 200", MemoController::summary, branchCode, status, status);
+        return jdbc.query(SUMMARY + " WHERE m.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR m.status = ?) ORDER BY m.id DESC LIMIT 200", MemoController::summary, branchCode, status, status);
     }
 
     @GetMapping("/{id}")

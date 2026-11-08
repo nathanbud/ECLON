@@ -83,6 +83,10 @@ class DocumentRulesTest {
         assertTrue(DocumentRules.canUpload("LOAN", Set.of("ACCOUNTANT")));
         assertTrue(DocumentRules.canUpload("OTHER", Set.of("DOCUMENT_CLERK")));
         assertFalse(DocumentRules.canUpload("MEMBER", Set.of("PURCHASER")));
+        // a member editor may attach proofs to a member, but to nothing else, and that does not let them read other people's documents
+        assertTrue(DocumentRules.canUpload("MEMBER", Set.of("PERM_MEMBER_EDIT")));
+        assertFalse(DocumentRules.canUpload("ASSET", Set.of("PERM_MEMBER_EDIT")));
+        assertFalse(DocumentRules.canRead("INTERNAL", "MEMBER", Set.of("PERM_MEMBER_EDIT"), false, false));
         assertFalse(DocumentRules.canUpload("ASSET", Set.of("MEMBERSHIP_OFFICER")));
         assertTrue(DocumentRules.canManage(Set.of(), true));
         assertTrue(DocumentRules.canManage(Set.of("DOCUMENT_CLERK"), false));

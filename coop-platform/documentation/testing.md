@@ -9,6 +9,7 @@
 | Type-check and lint | nothing | `npx tsc -b`, `npm run lint` (errors fail, warnings do not); `npm run check` runs all three |
 | Database flow tests | the MySQL schema and the `coop_app` user | `scripts/test-all.ps1` (reads the password from `db.txt`); they post real entries and **roll back** |
 | Real-data tests | the full legacy data | tagged `realdata`; skip with `mvn test -DexcludedGroups=realdata` |
+| Database flow tests on PostgreSQL | the PostgreSQL copy set up by `scripts/setup-postgres-app.ps1` | `SPRING_PROFILES_ACTIVE=postgres` with the same variables, see `documentation/state/postgresql-later.md` |
 | Browser tests (Playwright) | backend on :8090 and `E2E_USER` / `E2E_PASSWORD` | `scripts/test-all.ps1 -E2e` |
 
 `scripts/test-all.ps1` sets `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=3`: every distinct Spring test context opens its own connection pool, and with the default size a full run exhausted the server's 151 connections ("Too many connections"). Keep the cap when running the suite by hand.

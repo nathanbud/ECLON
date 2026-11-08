@@ -93,7 +93,7 @@ class PurchaseOrderController {
 
     @GetMapping
     List<Summary> list(@RequestParam(required = false) String status) {
-        return jdbc.query(SUMMARY + " WHERE o.branch_code = ? AND (? IS NULL OR o.status = ?) ORDER BY o.id DESC LIMIT 300", PurchaseOrderController::map, ProcurementSupport.BRANCH, status, status).stream().map(this::withWorkflow).toList();
+        return jdbc.query(SUMMARY + " WHERE o.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR o.status = ?) ORDER BY o.id DESC LIMIT 300", PurchaseOrderController::map, ProcurementSupport.BRANCH, status, status).stream().map(this::withWorkflow).toList();
     }
 
     @GetMapping("/{id}")
@@ -164,7 +164,9 @@ class PurchaseOrderController {
     }
 
     private Summary locked(long id) {
-        List<Summary> found = jdbc.query(SUMMARY + " WHERE o.branch_code = ? AND o.id = ? FOR UPDATE", PurchaseOrderController::map, ProcurementSupport.BRANCH, id);
+        // the row is locked on its own: PostgreSQL does not lock through the outer join of SUMMARY
+        jdbc.queryForList("SELECT id FROM ecis_purchase_order WHERE branch_code = ? AND id = ? FOR UPDATE", Long.class, ProcurementSupport.BRANCH, id);
+        List<Summary> found = jdbc.query(SUMMARY + " WHERE o.branch_code = ? AND o.id = ?", PurchaseOrderController::map, ProcurementSupport.BRANCH, id);
         if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such purchase order.");
         return found.get(0);
     }

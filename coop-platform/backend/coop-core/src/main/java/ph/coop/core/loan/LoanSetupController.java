@@ -394,7 +394,9 @@ public class LoanSetupController {
         Map<String, Object> cols = columns(in, branch, null);
         Integer next = jdbc.queryForObject("SELECT COALESCE(MAX(SLTypeSLT_CODE), 0) + 1 FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ?", Integer.class, branch, LOAN_CLASS);
         if (next == null || next > 255) throw new ResponseStatusException(HttpStatus.CONFLICT, "There is no loan type code left.");
-        Map<String, Object> row = new LinkedHashMap<>(jdbc.queryForMap("SELECT * FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", branch, LOAN_CLASS, copyFrom));
+        // case-insensitive copy: PostgreSQL names the columns in lowercase and the code puts them back in the legacy spelling
+        Map<String, Object> row = new org.springframework.util.LinkedCaseInsensitiveMap<>();
+        row.putAll(jdbc.queryForMap("SELECT * FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", branch, LOAN_CLASS, copyFrom));
         row.putAll(cols);
         row.put("SLTypeSLT_CODE", next);
         row.put("SLTypeUPDDATETIME", Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)));
@@ -405,7 +407,8 @@ public class LoanSetupController {
             SELECT GLControlBR_CODE, GLControlSLC_CODE, ?, GLControlSLE_CODE, GLControlCTS_NUM, GLControlACCT_CODE, Remarks, BAL_TYPE, LoanPayRepClass, PriorityRemittance
             FROM glcontrol WHERE GLControlBR_CODE = ? AND GLControlSLC_CODE = ? AND GLControlSLT_CODE = ?""", next, branch, LOAN_CLASS, copyFrom);
         for (Map<String, Object> d : jdbc.queryForList("SELECT * FROM loansldeduc WHERE BR_CODE = ? AND SLC_CODE = ? AND SLT_CODE = ?", branch, LOAN_CLASS, copyFrom)) {
-            Map<String, Object> copy = new LinkedHashMap<>(d);
+            Map<String, Object> copy = new org.springframework.util.LinkedCaseInsensitiveMap<>();
+            copy.putAll(d);
             copy.remove("ID");
             copy.put("SLT_CODE", next);
             insert("loansldeduc", copy);

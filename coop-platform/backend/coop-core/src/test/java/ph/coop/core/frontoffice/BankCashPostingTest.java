@@ -67,7 +67,7 @@ class BankCashPostingTest {
     }
 
     private BigDecimal gl(String account, int code) {
-        return jdbc.queryForObject("SELECT COALESCE(SUM(GLTransDR_AMT) + SUM(GLTransCR_AMT), 0) FROM gltrans WHERE GLTransBR_CODE = 1 AND GLTransACCT_CODE = ? AND GLTransTR_CODE = ? AND GLTransTR_DATE = CURDATE()",
+        return jdbc.queryForObject("SELECT COALESCE(SUM(GLTransDR_AMT) + SUM(GLTransCR_AMT), 0) FROM gltrans WHERE GLTransBR_CODE = 1 AND GLTransACCT_CODE = ? AND GLTransTR_CODE = ? AND GLTransTR_DATE = CURRENT_DATE",
             BigDecimal.class, account, code);
     }
 

@@ -53,6 +53,7 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http, LoginAttempts attempts) throws Exception {
         http.csrf(csrf -> csrf.disable())
+            .cors(Customizer.withDefaults())
             .authorizeHttpRequests(a -> a
                 .requestMatchers("/actuator/health").permitAll()
                 // what the sign-in screen shows before anyone has signed in: the cooperative's name, tagline and logo
@@ -61,6 +62,24 @@ public class SecurityConfig {
             .httpBasic(b -> b.authenticationEntryPoint(entryPoint(attempts)))
             .addFilterAfter(new TemporaryPasswordGate(), BasicAuthenticationFilter.class);
         return http.build();
+    }
+
+    /**
+     * Lets the desktop app, which is served from its own address (tauri://localhost, http://tauri.localhost), call a server at another address that a person chose on the sign-in screen.
+     * Only the listed origins ({@code coop.cors.allowed-origins}, comma separated) may; sign-in is a header, not a cookie, so no credentials ride along by themselves.
+     */
+    @Bean
+    org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource(
+            @Value("${coop.cors.allowed-origins:tauri://localhost,http://tauri.localhost,https://tauri.localhost,http://localhost:5173}") List<String> origins) {
+        var c = new org.springframework.web.cors.CorsConfiguration();
+        c.setAllowedOrigins(origins);
+        c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        c.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        c.setExposedHeaders(List.of("X-Auth-Reason", "Retry-After", "Content-Disposition"));
+        c.setMaxAge(3600L);
+        var source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", c);
+        return source;
     }
 
     /** The usual 401, plus a reason when the password was right but the temporary one has run out, so the sign-in screen can say so. */

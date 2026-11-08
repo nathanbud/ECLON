@@ -120,6 +120,8 @@ final class DocumentRules {
 
     /** Who may upload to a kind of record: administrators, document clerks, accountants and the roles that look after that record. */
     static boolean canUpload(String entityType, Set<String> roles) {
+        // whoever may edit members (and so ask to close one) may attach proofs to a member; that gives upload only, not a wider right to read
+        if (entityType.equals("MEMBER") && roles.contains("PERM_MEMBER_EDIT")) return true;
         return any(roles, "ADMIN", "DOCUMENT_CLERK", "ACCOUNTANT") || staffOf(entityType, roles);
     }
 

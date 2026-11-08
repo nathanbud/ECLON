@@ -1,9 +1,11 @@
 import { Alert, Box, Button, CircularProgress, IconButton, InputAdornment, TextField, Typography, type Theme } from '@mui/material'
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { FiAlertTriangle, FiEye, FiEyeOff } from 'react-icons/fi'
-import { signIn, type Me } from './api'
+import { FiAlertTriangle, FiDatabase, FiEye, FiEyeOff } from 'react-icons/fi'
+import { activeServer, apiUrl, getPublicConnections, signIn, type Me } from './api'
 import { BrandBlock, Mark, SystemLine, useBranding } from './BrandBlock'
 import { brand } from './brand'
+import ConnectionDialog from './ConnectionDialog'
 import { LIGHT } from './glass'
 import { tileFill } from './theme'
 import { WindowControls } from './TopBar'
@@ -25,7 +27,7 @@ function useServerStatus(): 'checking' | 'online' | 'offline' {
     let live = true
     const check = async () => {
       try {
-        const res = await fetch('/api/me', { cache: 'no-store', signal: AbortSignal.timeout(4000) })
+        const res = await fetch(apiUrl('/api/me'), { cache: 'no-store', signal: AbortSignal.timeout(4000) })
         if (live) setStatus(res.status === 401 || res.ok ? 'online' : 'offline')
       } catch {
         if (live) setStatus('offline')
@@ -66,12 +68,21 @@ function BrandPanel() {
   )
 }
 
-/** Whether the server answers, shown at the foot of the right side where the person is looking. */
-function ServerStatus({ status }: { status: 'checking' | 'online' | 'offline' }) {
+/** Whether the server answers and which database it works on, shown at the foot of the right side where the person is looking, with the way to change the connection. */
+function ServerStatus({ status, onConnection }: { status: 'checking' | 'online' | 'offline'; onConnection: () => void }) {
+  const server = activeServer()
+  const dbs = useQuery({ queryKey: ['public-connections', server.id, server.url], queryFn: () => getPublicConnections(), retry: false, enabled: status === 'online', staleTime: 15_000 })
+  const active = dbs.data?.connections.find((c) => c.active)
   return (
-    <Box role="status" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 0.75 }}>
-      <Box aria-hidden sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: status === 'online' ? 'success.main' : status === 'offline' ? 'error.main' : 'text.disabled' }} />
-      <Typography sx={{ fontSize: 12.5 }} color="text.secondary">{status === 'online' ? 'Server online' : status === 'offline' ? 'Server not reachable' : 'Checking the server…'}</Typography>
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, pointerEvents: 'auto' }}>
+      <Box role="status" sx={{ minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Box aria-hidden sx={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, bgcolor: status === 'online' ? 'success.main' : status === 'offline' ? 'error.main' : 'text.disabled' }} />
+          <Typography sx={{ fontSize: 12.5 }} color="text.secondary" noWrap>{status === 'online' ? 'Server online' : status === 'offline' ? 'Server not reachable' : 'Checking the server…'}</Typography>
+        </Box>
+        <Typography sx={{ fontSize: 12, pl: 2 }} color="text.secondary" noWrap>{server.name}{active ? ` · Database: ${active.name}${active.branch ? ` · ${active.branch}` : ''}` : ''}</Typography>
+      </Box>
+      <Button size="small" color="inherit" startIcon={<FiDatabase />} onClick={onConnection} sx={{ flexShrink: 0, fontSize: 12.5 }}>Connection</Button>
     </Box>
   )
 }
@@ -86,6 +97,7 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
   const [capsLock, setCapsLock] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [connectionOpen, setConnectionOpen] = useState(false)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -167,9 +179,10 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
         </Box>
         {/* Left edge in line with the form, and right at the foot of the window. */}
         <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: EDGE, px: { xs: 2, md: 6 }, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-          <Box sx={{ width: '100%', maxWidth: 400 }}><ServerStatus status={status} /></Box>
+          <Box sx={{ width: '100%', maxWidth: 400 }}><ServerStatus status={status} onConnection={() => setConnectionOpen(true)} /></Box>
         </Box>
       </Box>
+      {connectionOpen && <ConnectionDialog onClose={() => setConnectionOpen(false)} />}
     </Box>
   )
 }

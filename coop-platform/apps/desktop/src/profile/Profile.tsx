@@ -10,9 +10,13 @@ import LoansTab from '../LoansTab'
 import { type Id } from '../clients'
 import { type ReactNode, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Alert, Box, Skeleton, Tab, Tabs } from '@mui/material'
-import { LIGHT, glass } from '../glass'
-import { ProfileHeader } from './ProfileHeader'
+import { Alert, Avatar, Box, Skeleton, Tab, Tabs, Typography } from '@mui/material'
+import { FiUser } from 'react-icons/fi'
+import { LIGHT, SIDE, glass } from '../glass'
+import { tabIcon } from './navIcons'
+import { ProfileHeader, Ring, SideFrame } from './ProfileHeader'
+import { ProfileStrip } from './ProfileStrip'
+import { StatTiles } from './StatTiles'
 
 function TabContent({ tab, m, lk }: { tab: number; m: Member; lk?: Lookups }) {
   const key = TAB_KEYS[tab]
@@ -27,6 +31,39 @@ function TabContent({ tab, m, lk }: { tab: number; m: Member; lk?: Lookups }) {
   if (key === 'documents') return <DocumentsPanel entityType="MEMBER" entityId={String(m.id.clientId)} />
   if (key === 'loans') return <LoansTab branchCode={m.id.branchCode} clientId={m.id.clientId} />
   return <DetailsTab id={m.id} tab={key} title={TABS[tab]} lk={lk} />
+}
+
+/**
+ * The section menu in the dark panel: every section of the profile, one row each under its group (Info, Accounts, Other), the open one lit as a light bar. Each group is its own
+ * vertical tab list so the arrow keys move within it, as the two tab strips did before.
+ */
+function SideTabs({ groups, tab, onChange }: { groups: { label: string; tabs: number[] }[]; tab: number; onChange: (tab: number) => void }) {
+  return (
+    <Box component="nav" aria-label="Profile sections" sx={{ pb: 1 }}>
+      {groups.map((g) => (
+        <Box key={g.label} sx={{ mt: 0.25 }}>
+          <Typography component="h3" sx={{ px: 2, pt: 1, pb: 0.5, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: SIDE.muted }}>{g.label}</Typography>
+          <Tabs
+            orientation="vertical" value={g.tabs.includes(tab) ? tab : false} onChange={(_, v: number) => onChange(v)} aria-label={`${g.label} sections`}
+            sx={{
+              minHeight: 0,
+              '& .MuiTabs-indicator': { display: 'none' },
+              '& .MuiTab-root': {
+                minHeight: 34, px: 2, justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none', fontSize: 13.5, fontWeight: 400, maxWidth: 'none', gap: 1.25,
+                color: SIDE.muted, borderRadius: 0, alignItems: 'center',
+                '& .MuiTab-iconWrapper': { fontSize: 17, m: 0 },
+                '&:hover': { backgroundColor: SIDE.hover, color: SIDE.text },
+                '&.Mui-focusVisible': { outline: `2px solid ${SIDE.selected}`, outlineOffset: -2 },
+              },
+              '& .MuiTab-root.Mui-selected': { backgroundColor: SIDE.selected, color: SIDE.selectedText, fontWeight: 600 },
+            }}
+          >
+            {g.tabs.map((i) => <Tab key={TABS[i]} value={i} icon={tabIcon(TAB_KEYS[i])} iconPosition="start" label={TABS[i]} disableRipple />)}
+          </Tabs>
+        </Box>
+      ))}
+    </Box>
+  )
 }
 
 export function Profile({ id, lk, canPhoto = false, onNotice, fresh = false, newHeader }: { id: Id; lk?: Lookups; canPhoto?: boolean; onNotice?: (msg: string) => void; fresh?: boolean; newHeader?: ReactNode }) {
@@ -53,49 +90,32 @@ export function Profile({ id, lk, canPhoto = false, onNotice, fresh = false, new
       </Box>
     )
   }
+  const nav = <SideTabs groups={groups} tab={tab} onChange={setTab} />
   return (
-    <>
-      {fresh ? newHeader : <ProfileHeader m={m} lk={lk} canPhoto={canPhoto} onNotice={onNotice} />}
-      {/* One folder: the tab strip and the page below share a frame, and the open tab takes the page's own fill so the two read as connected. */}
-      <Box sx={(t) => ({ mt: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', ...glass(t) })}>
-        <Tabs value={group} onChange={(_, v) => setTab(groups[v].tabs[0])} aria-label="Profile sections"
-          sx={(t) => {
-            const dark = t.palette.mode === 'dark'
-            const page = dark ? 'rgba(255,255,255,0.07)' : LIGHT.panel
-            return {
-              minHeight: 40, px: 0.5, pt: 0.5,
-              background: dark ? 'rgba(0,0,0,0.22)' : 'rgba(110,120,150,0.12)',
-              borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'}`,
-              '& .MuiTabs-indicator': { display: 'none' },
-              '& .MuiTab-root': {
-                minHeight: 38, fontSize: 14.5, px: 2.5, textTransform: 'none', color: 'text.secondary',
-                borderRadius: '8px 8px 0 0', mr: 0.25, mb: '-1px', border: '1px solid transparent', borderBottom: 'none',
-              },
-              '& .MuiTab-root.Mui-selected': {
-                color: 'text.primary', fontWeight: 700, background: page,
-                borderColor: dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-                boxShadow: `inset 0 2px 0 ${t.palette.primary.main}`,
-              },
-            }
-          }}>
-          {groups.map((g) => <Tab key={g.label} label={g.label} />)}
-        </Tabs>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" aria-label={`${groups[group].label} sections`}
-          sx={(t) => {
-            const dark = t.palette.mode === 'dark'
-            return {
-              minHeight: 36, px: 1.5,
-              background: dark ? 'rgba(255,255,255,0.07)' : LIGHT.panel,
-              borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'}`,
-              '& .MuiTab-root': { minHeight: 36, fontSize: 13.5, px: 1.5, textTransform: 'none' },
-            }
-          }}>
-          {groups[group].tabs.map((i) => <Tab key={TABS[i]} value={i} label={TABS[i]} />)}
-        </Tabs>
-        <Box sx={(t) => ({ flex: 1, overflow: 'auto', p: 1.5, background: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : LIGHT.panel })}>
+    <Box sx={{
+      flex: 1, minHeight: 0, mt: 0, display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: '272px minmax(0, 1fr)' }, gridTemplateRows: { md: 'minmax(0, 1fr)' },
+      overflowY: { xs: 'auto', md: 'visible' },
+    }}>
+      {fresh
+        ? (
+          <SideFrame label="New member">
+            <Box sx={{ px: 2, pt: 2.5, pb: 1.5, textAlign: 'center' }}>
+              <Ring color={SIDE.line}><Avatar sx={{ width: 92, height: 92, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.14)', color: SIDE.text }}><FiUser size={42} aria-hidden /></Avatar></Ring>
+              <Typography component="h2" sx={{ mt: 1.5, fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em' }}>New member</Typography>
+              <Typography sx={{ fontSize: 13, mt: 0.25, color: SIDE.muted }}>Not registered yet</Typography>
+            </Box>
+            {nav}
+          </SideFrame>
+        )
+        : <ProfileHeader m={m} lk={lk} canPhoto={canPhoto} onNotice={onNotice}>{nav}</ProfileHeader>}
+
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, minHeight: 0, minWidth: 0 }}>
+        {fresh ? newHeader : <ProfileStrip m={m} lk={lk} title={TABS[tab]} group={groups[group].label} canPhoto={canPhoto} onNotice={onNotice} />}
+        {!fresh && <StatTiles id={m.id} onOpen={setTab} />}
+        <Box role="region" aria-label={TABS[tab]} sx={(t) => ({ flex: 1, minHeight: 0, overflow: 'auto', p: 1.5, ...glass(t), background: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : LIGHT.panel })}>
           <TabContent tab={tab} m={m} lk={lk} />
         </Box>
       </Box>
-    </>
+    </Box>
   )
 }

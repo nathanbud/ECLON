@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useMe } from './session'
 import { getCapabilities, getLookups, getMember, getPendingChange, submitChange } from './api'
 import { useLeaveGuard } from './leaveGuard'
-import { ACTIONS, ClientMenu, mod } from './profile/ClientMenu'
+import { ACTIONS, ClientMenu, closeMatch, mod } from './profile/ClientMenu'
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Snackbar } from '@mui/material'
 import { appBackground, glass } from './glass'
 import { ToolbarPortal } from './toolbarSlot'
@@ -104,6 +104,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
     Cancel: editing && !saving ? cancel : undefined,
   }
   const actions = ACTIONS.map((a) => ({ ...a, run: runs[a.label] }))
+  const closeRun = caps?.edit && selected && member && (member.accountStatus ?? 1) !== 3 && !editing && !registering && !advanced ? () => setClosing(true) : undefined
 
   // Keyboard: Ctrl/Cmd+F runs Find; the other shortcuts run their action while it is possible.
   useEffect(() => {
@@ -114,6 +115,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
         return
       }
       if (finding || discarding) return
+      if (closeMatch(e) && closeRun) { e.preventDefault(); closeRun(); return }
       const action = actions.find((a) => a.match(e))
       if (action?.run) { e.preventDefault(); action.run() }
     }
@@ -124,7 +126,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
   return (
     <Box sx={(t) => ({ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 44px)', background: appBackground(t) })}>
       {/* The title-bar menu carries Find Client plus the record actions. */}
-      <ToolbarPortal><ClientMenu onFind={find} actions={actions} editOn={!!caps?.edit} pendingNote={pending ? 'A change is waiting for approval.' : null} /></ToolbarPortal>
+      <ToolbarPortal><ClientMenu onFind={find} actions={actions} editOn={!!caps?.edit} pendingNote={pending ? 'A change is waiting for approval.' : null} onCloseMembership={closeRun} /></ToolbarPortal>
       <FindClientDialog open={finding} onClose={() => setFinding(false)} lk={lk} onPick={(id) => { setFinding(false); onSelect(id) }} />
 
       <Dialog open={discarding} onClose={() => setDiscarding(false)} aria-labelledby="discard-title">
@@ -148,11 +150,6 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
           ? (
             <EditCtx.Provider value={{ editing, draft, set }}>
               {pending && <PendingBanner change={pending} id={selected} canApprove={!!caps?.approve} onDone={setNotice} />}
-              {member && (member.accountStatus ?? 1) !== 3 && !editing && (
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 0.5 }}>
-                  <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" color="error" onClick={() => setClosing(true)}>Close membership</Button></Gated>
-                </Box>
-              )}
               {member && ((member.accountStatus ?? 1) === 2 || (member.accountStatus ?? 1) === 3) && !editing && (
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 0.5 }}>
                   <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => setReactivating(true)}>Reactivate membership</Button></Gated>
@@ -170,6 +167,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
               <Box sx={(t) => ({ width: '100%', maxWidth: 580, overflow: 'hidden', ...glass(t, { elevated: true }) })}>
                 <FindBody inline lk={lk} onPick={onSelect} />
                 <Box sx={{ p: 1, textAlign: 'center' }}>
+                  <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => { setRegistering(true); setError(null) }}>New Client</Button></Gated>
                   <Gated allowed={!!caps?.edit && me.admin} reason={caps?.edit ? NEEDS_ADMIN : NEEDS_EDIT}><Button size="small" color="warning" onClick={() => setAdvanced(true)}>Advanced mode: import a list</Button></Gated>
                 </Box>
               </Box>

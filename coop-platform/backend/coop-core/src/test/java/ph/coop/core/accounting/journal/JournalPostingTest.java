@@ -128,6 +128,14 @@ class JournalPostingTest {
 
     @Test
     void aReversalPostsAsASecondJournalAndNetsToZero() {
+        // The reversal is dated today, so an open period must cover today. The database may have none (it depends on the month), so add one
+        // for this month if needed; the test is transactional, so it is rolled back.
+        LocalDate today = LocalDate.now();
+        Integer covering = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_accounting_period WHERE branch_code = ? AND start_date <= ? AND end_date >= ?",
+                Integer.class, branch, today, today);
+        if (covering == null || covering == 0) {
+            periods.create(new PeriodController.NewPeriod(branch, "ITEST this month", today.withDayOfMonth(1), today.withDayOfMonth(today.lengthOfMonth())), as(maker));
+        }
         long id = newJournal("ITEST-2", new BigDecimal("5.50"));
         journals.submit(id, as(maker));
         journals.approve(id, as(checker));

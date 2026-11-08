@@ -2,7 +2,7 @@ import { Alert, Box, Button, Snackbar, Stack, TextField, Typography, type Theme 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { FiTrash2, FiUpload } from 'react-icons/fi'
-import { getBranding, removeBrandingLogo, setBrandingText, uploadBrandingLogo } from './api'
+import { apiUrl, getBranding, removeBrandingLogo, setBrandingText, uploadBrandingLogo } from './api'
 import { BrandBlock, SystemLine } from './BrandBlock'
 import { brand } from './brand'
 import { appBackground, glass, LIGHT } from './glass'
@@ -45,7 +45,7 @@ export default function BrandingPage() {
   const upload = useMutation({ mutationFn: (f: File) => uploadBrandingLogo(f), onSuccess: done('Logo saved.'), onError: (e) => setError((e as Error).message) })
   const remove = useMutation({ mutationFn: removeBrandingLogo, onSuccess: done('Logo removed. The Coop Platform mark is shown again.'), onError: (e) => setError((e as Error).message) })
 
-  const logo = saved.data?.hasLogo ? `/api/public/branding/logo?v=${saved.data.version}` : null
+  const logo = saved.data?.hasLogo ? apiUrl(`/api/public/branding/logo?v=${saved.data.version}`) : null
   const shownName = name.trim() || brand.product
   const busy = saveText.isPending || upload.isPending || remove.isPending
   const tint = (t: Theme) => (t.palette.mode === 'dark' ? 'linear-gradient(160deg, #15233d 0%, #101827 55%, #1d1630 100%)' : `linear-gradient(160deg, ${LIGHT.washBlue} 0%, #E9EDF4 55%, ${LIGHT.washLilac} 100%)`)

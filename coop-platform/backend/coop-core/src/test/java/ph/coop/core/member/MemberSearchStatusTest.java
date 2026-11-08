@@ -20,7 +20,8 @@ class MemberSearchStatusTest {
 
     @Test
     void aNameSearchListsActiveMembersUnlessInactiveAreAskedFor() {
-        var closed = jdbc.queryForList("SELECT LName, ClientIDBrCode, ClientID FROM client WHERE AccountStatus = 3 AND LName REGEXP '^[A-Za-z]{5,}$' LIMIT 1");
+        var closed = jdbc.queryForList("SELECT LName, ClientIDBrCode, ClientID FROM client WHERE AccountStatus = 3 AND LName IS NOT NULL LIMIT 3000")
+            .stream().filter((r) -> String.valueOf(r.get("LName")).matches("[A-Za-z]{5,}")).limit(1).toList();
         assumeTrue(!closed.isEmpty(), "no closed member with a plain last name");
         String last = String.valueOf(closed.get(0).get("LName"));
         var active = controller.search(last, 0, 100, false);
@@ -32,7 +33,8 @@ class MemberSearchStatusTest {
 
     @Test
     void aFirstNameOrLastNameStartFindsTheMemberAndAFullPageSaysThereIsMore() {
-        var common = jdbc.queryForList("SELECT FName, COUNT(*) c FROM client WHERE AccountStatus = 1 AND FName REGEXP '^[A-Za-z]{4,}$' GROUP BY FName HAVING c > 30 ORDER BY c DESC LIMIT 1");
+        var common = jdbc.queryForList("SELECT FName, COUNT(*) FROM client WHERE AccountStatus = 1 GROUP BY FName HAVING COUNT(*) > 30 ORDER BY COUNT(*) DESC LIMIT 300")
+            .stream().filter((r) -> String.valueOf(r.get("FName")).matches("[A-Za-z]{4,}")).limit(1).toList();
         assumeTrue(!common.isEmpty(), "no first name shared by more than 30 active members");
         String first = String.valueOf(common.get(0).get("FName")).toLowerCase();
         var page = controller.search(first.substring(0, first.length() - 1), 0, 8, false);
@@ -50,7 +52,8 @@ class MemberSearchStatusTest {
 
     @Test
     void aWordInTheMiddleOfAnAccountNameStillFindsTheMemberThroughTheBroadSearch() {
-        var row = jdbc.queryForList("SELECT AccountName FROM client WHERE AccountStatus = 1 AND AccountName REGEXP '^[A-Za-z]+ [A-Za-z]{6,} [A-Za-z]+$' LIMIT 1");
+        var row = jdbc.queryForList("SELECT AccountName FROM client WHERE AccountStatus = 1 AND AccountName LIKE '% % %' LIMIT 5000")
+            .stream().filter((r) -> String.valueOf(r.get("AccountName")).matches("[A-Za-z]+ [A-Za-z]{6,} [A-Za-z]+")).limit(1).toList();
         assumeTrue(!row.isEmpty(), "no suitable account name");
         String middle = String.valueOf(row.get(0).get("AccountName")).split(" ")[1].toLowerCase();
         var found = controller.search(middle, 0, 25, false);

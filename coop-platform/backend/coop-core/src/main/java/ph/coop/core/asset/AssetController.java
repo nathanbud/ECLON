@@ -83,7 +83,7 @@ class AssetController {
     @GetMapping
     List<Summary> list(@RequestParam(required = false) String q, @RequestParam(required = false) String status, @RequestParam(required = false) Long categoryId) {
         String like = q == null || q.isBlank() ? null : "%" + q.trim().toLowerCase() + "%";
-        return jdbc.query(SUMMARY + " WHERE a.branch_code = ? AND (? IS NULL OR a.status = ?) AND (? IS NULL OR a.category_id = ?) AND (? IS NULL OR LOWER(a.name) LIKE ? OR LOWER(a.tag) LIKE ? OR LOWER(a.asset_no) LIKE ?) ORDER BY a.asset_no DESC LIMIT 500",
+        return jdbc.query(SUMMARY + " WHERE a.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR a.status = ?) AND (CAST(? AS CHAR) IS NULL OR a.category_id = ?) AND (CAST(? AS CHAR) IS NULL OR LOWER(a.name) LIKE ? OR LOWER(a.tag) LIKE ? OR LOWER(a.asset_no) LIKE ?) ORDER BY a.asset_no DESC LIMIT 500",
             AssetController::map, InventorySupport.BRANCH, status, status, categoryId, categoryId, like, like, like, like);
     }
 
@@ -212,7 +212,7 @@ class AssetController {
 
     @GetMapping("/transfers")
     List<TransferRow> transfers(@RequestParam(required = false) String status) {
-        return jdbc.query("SELECT id, transfer_no, from_location, to_location, reason, status, requested_by, decided_by, decision_note FROM ecis_asset_transfer WHERE branch_code = ? AND (? IS NULL OR status = ?) ORDER BY id DESC LIMIT 300",
+        return jdbc.query("SELECT id, transfer_no, from_location, to_location, reason, status, requested_by, decided_by, decision_note FROM ecis_asset_transfer WHERE branch_code = ? AND (CAST(? AS CHAR) IS NULL OR status = ?) ORDER BY id DESC LIMIT 300",
             (rs, i) -> new TransferRow(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8), rs.getString(9)), InventorySupport.BRANCH, status, status);
     }
 

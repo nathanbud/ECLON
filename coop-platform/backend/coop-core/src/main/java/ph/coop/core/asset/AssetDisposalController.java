@@ -67,7 +67,7 @@ class AssetDisposalController {
 
     @GetMapping
     List<Summary> list(@RequestParam(required = false) String status) {
-        return jdbc.query(SUMMARY + " WHERE d.branch_code = ? AND (? IS NULL OR d.status = ?) ORDER BY d.id DESC LIMIT 300", AssetDisposalController::map, InventorySupport.BRANCH, status, status);
+        return jdbc.query(SUMMARY + " WHERE d.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR d.status = ?) ORDER BY d.id DESC LIMIT 300", AssetDisposalController::map, InventorySupport.BRANCH, status, status);
     }
 
     @GetMapping("/{id}")
@@ -119,7 +119,9 @@ class AssetDisposalController {
 
     private Summary decide(long id, boolean approve, Decision in, Authentication auth) {
         assets.requireAccountant(auth);
-        List<Summary> found = jdbc.query(SUMMARY + " WHERE d.branch_code = ? AND d.id = ? FOR UPDATE", AssetDisposalController::map, InventorySupport.BRANCH, id);
+        // the row is locked on its own: PostgreSQL does not lock through the outer join of SUMMARY
+        jdbc.queryForList("SELECT id FROM ecis_asset_disposal WHERE branch_code = ? AND id = ? FOR UPDATE", Long.class, InventorySupport.BRANCH, id);
+        List<Summary> found = jdbc.query(SUMMARY + " WHERE d.branch_code = ? AND d.id = ?", AssetDisposalController::map, InventorySupport.BRANCH, id);
         if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such disposal.");
         Summary d = found.get(0);
         if (!d.status().equals("PENDING")) throw new ResponseStatusException(HttpStatus.CONFLICT, "This disposal is already " + d.status().toLowerCase() + ".");

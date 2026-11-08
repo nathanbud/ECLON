@@ -187,16 +187,20 @@ export const requestReactivation = (body: { branchCode: number; clientId: number
 export const getMembershipPolicy = () => getJson<{ returningPaysShareCapital: boolean }>('/api/membership-policy')
 export const setMembershipPolicy = (returningPaysShareCapital: boolean, reason: string) => send<{ returningPaysShareCapital: boolean }>('PUT', '/api/admin/membership-policy', { returningPaysShareCapital, reason })
 
-export async function uploadMemberPhoto(branchCode: number, clientId: number, photo: Blob): Promise<void> {
+async function uploadMemberImage(kind: 'photo' | 'signature', branchCode: number, clientId: number, picture: Blob): Promise<void> {
   const body = new FormData()
-  body.append('file', photo, 'photo.jpg')
-  const res = await http(`/api/members/${branchCode}/${clientId}/photo`, { method: 'POST', body })
+  body.append('file', picture, kind === 'photo' ? 'photo.jpg' : 'signature.jpg')
+  const res = await http(`/api/members/${branchCode}/${clientId}/${kind}`, { method: 'POST', body })
   if (!res.ok) {
     let message = `Request failed (${res.status})`
     try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status text */ }
     throw new Error(message)
   }
 }
+
+export const uploadMemberPhoto = (branchCode: number, clientId: number, photo: Blob) => uploadMemberImage('photo', branchCode, clientId, photo)
+/** Adds a new signature (a JPEG or PNG up to 1 MB); the newest one is the one shown. */
+export const uploadMemberSignature = (branchCode: number, clientId: number, signature: Blob) => uploadMemberImage('signature', branchCode, clientId, signature)
 
 // ---- fingerprints --------------------------------------------------------------------------------------------------
 

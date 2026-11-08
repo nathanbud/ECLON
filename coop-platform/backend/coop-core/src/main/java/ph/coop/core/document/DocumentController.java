@@ -132,8 +132,8 @@ class DocumentController {
         Set<String> r = roles(auth);
         String like = q == null || q.isBlank() ? null : "%" + q.trim().toLowerCase() + "%";
         List<Doc> all = jdbc.query(SELECT + """
-                 WHERE branch_code = ? AND (? = 1 OR status = 'ACTIVE') AND (? IS NULL OR entity_type = ?) AND (? IS NULL OR entity_id = ?)
-                   AND (? IS NULL OR LOWER(title) LIKE ? OR LOWER(file_name) LIKE ? OR LOWER(doc_no) LIKE ? OR LOWER(entity_id) LIKE ?) ORDER BY id DESC LIMIT %d
+                 WHERE branch_code = ? AND (? = 1 OR status = 'ACTIVE') AND (CAST(? AS CHAR) IS NULL OR entity_type = ?) AND (CAST(? AS CHAR) IS NULL OR entity_id = ?)
+                   AND (CAST(? AS CHAR) IS NULL OR LOWER(title) LIKE ? OR LOWER(file_name) LIKE ? OR LOWER(doc_no) LIKE ? OR LOWER(entity_id) LIKE ?) ORDER BY id DESC LIMIT %d
                 """.formatted(LIMIT), (rs, i) -> map(rs, i, r, auth.getName()), BRANCH, history ? 1 : 0, entityType, entityType, entityId, entityId, like, like, like, like, like);
         Set<Long> mine = new HashSet<>(jdbc.queryForList("SELECT document_id FROM ecis_document_grant WHERE username = ?", Long.class, auth.getName()));
         List<Doc> out = new ArrayList<>();

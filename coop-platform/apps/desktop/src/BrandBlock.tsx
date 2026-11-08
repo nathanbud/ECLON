@@ -1,6 +1,6 @@
 import { Box, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { getBranding, type Branding } from './api'
+import { apiUrl, getBranding, type Branding } from './api'
 import { brand } from './brand'
 import { appVersion, versionLabel } from './version'
 import { Logo } from './TopBar'
@@ -13,7 +13,7 @@ export function useBranding() {
     name: b?.coopName || brand.product,
     custom: !!b?.coopName,
     tagline: b?.tagline || null,
-    logo: b?.hasLogo ? `/api/public/branding/logo?v=${b.version}` : null,
+    logo: b?.hasLogo ? apiUrl(`/api/public/branding/logo?v=${b.version}`) : null,
   }
 }
 

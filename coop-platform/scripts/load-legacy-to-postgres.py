@@ -3,6 +3,8 @@
 Usage: MYSQL_PWD=<coop_app password> python -I load-legacy-to-postgres.py table [table ...]
 Each table is truncated in PostgreSQL, then streamed in with copy. See
 documentation/postgres-legacy-load.md.
+With LOAD_DELETE=1 the rows are deleted instead of truncating, in one session with foreign key checks off, so a table that other tables point at
+(access, loan, transsum ...) can be refreshed without dropping its keys. Use it only on tables small enough to delete from.
 """
 import sys, os, io, csv, subprocess, datetime, decimal, pymysql
 NULL = "~~NULL~~"
@@ -29,11 +31,13 @@ def load(t):
     types = dict(l.split("|") for l in pg("select column_name||'|'||data_type from information_schema.columns where table_schema='legacy' and table_name='%s'"%t.lower()).splitlines())
     byl = {c.lower(): c for c in types}  # PostgreSQL may keep case (e.g. a name starting with a digit)
     lc = [byl.get(c.lower(), c.lower()) for c in cols]
-    pg("truncate legacy.\"%s\""%t.lower())
+    delete_mode = bool(os.environ.get("LOAD_DELETE"))
+    if not delete_mode: pg("truncate legacy.\"%s\""%t.lower())
     cur = my.cursor(); cur.execute("select %s from `%s`"%(",".join("`%s`"%c for c in cols), t))
     total = 0
-    cmd = ["docker","exec","-i","eclon-postgres","psql","-U","coop_admin","-d","coop","-v","ON_ERROR_STOP=1","-c",
-           "\\copy legacy.\"%s\" (%s) from stdin with (format csv, null '%s')"%(t.lower(), ",".join('"%s"'%c for c in lc), NULL)]
+    cmd = ["docker","exec","-i","eclon-postgres","psql","-U","coop_admin","-d","coop","-v","ON_ERROR_STOP=1"]
+    if delete_mode: cmd += ["-c", "SET session_replication_role = replica", "-c", "DELETE FROM legacy.\"%s\""%t.lower()]
+    cmd += ["-c", "\\copy legacy.\"%s\" (%s) from stdin with (format csv, null '%s')"%(t.lower(), ",".join('"%s"'%c for c in lc), NULL)]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
     w = io.TextIOWrapper(p.stdin, encoding="utf-8", newline="")
     cw = csv.writer(w, lineterminator="\n")

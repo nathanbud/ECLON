@@ -24,13 +24,23 @@ import org.springframework.stereotype.Component;
  * have not been run against a real PostgreSQL yet.
  */
 @Component
-public class Db {
+public class Db implements ph.coop.core.connection.OnConnectionSwitch {
+
+    /** Databases that belong to the database server itself (MySQL and PostgreSQL), never offered as the cooperative's own. */
+    public static final List<String> SERVER_OWN_DATABASES = List.of("information_schema", "mysql", "performance_schema", "sys", "postgres", "template0", "template1");
 
     private final JdbcTemplate jdbc;
     /** Tables and columns that exist cannot stop existing, so a positive answer is kept. */
     private final Set<String> seen = ConcurrentHashMap.newKeySet();
     /** Privileges are checked often (the handover window polls), so a yes is kept for a minute. */
     private final Map<String, Long> grantsOkUntil = new ConcurrentHashMap<>();
+
+    /** A table that exists in one database may not exist in another, so what was learned is forgotten when the database is switched. */
+    @Override
+    public void connectionSwitched() {
+        seen.clear();
+        grantsOkUntil.clear();
+    }
 
     public Db(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -74,7 +84,8 @@ public class Db {
     /** Declared length of each text column of a table (column name as the database spells it, in table order). */
     public Map<String, Integer> textColumnLengths(String table) {
         return jdbc.execute((ConnectionCallback<Map<String, Integer>>) (c) -> {
-            Map<String, Integer> out = new LinkedHashMap<>();
+            // PostgreSQL spells every column in lowercase while the code asks for LName, FName ...: look up without regard to case, in table order
+            Map<String, Integer> out = new org.springframework.util.LinkedCaseInsensitiveMap<>();
             try (ResultSet rs = c.getMetaData().getColumns(c.getCatalog(), c.getSchema(), "%", "%")) {
                 while (rs.next()) {
                     if (!table.equalsIgnoreCase(rs.getString("TABLE_NAME"))) continue;
@@ -95,7 +106,7 @@ public class Db {
         boolean postgres = isPostgres();
         for (String t : tables) {
             Integer n = postgres
-                ? jdbc.queryForObject("SELECT CASE WHEN has_table_privilege(?, 'INSERT') THEN 1 ELSE 0 END", Integer.class, t)
+                ? jdbc.queryForObject("SELECT CASE WHEN to_regclass(?) IS NULL THEN 0 WHEN has_table_privilege(?, 'INSERT') THEN 1 ELSE 0 END", Integer.class, t.toLowerCase(), t.toLowerCase())
                 : jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLE_PRIVILEGES WHERE TABLE_SCHEMA = DATABASE() AND PRIVILEGE_TYPE = 'INSERT' AND TABLE_NAME = ?"
                     + " AND REPLACE(GRANTEE, '''', '') = CURRENT_USER()", Integer.class, t);
             if (n == null || n == 0) return false;
@@ -107,7 +118,7 @@ public class Db {
     /** True when the signed-in database user may UPDATE the column (a column grant or a grant on the whole table). */
     public boolean canUpdateColumn(String table, String column) {
         if (isPostgres()) {
-            Integer n = jdbc.queryForObject("SELECT CASE WHEN has_column_privilege(?, ?, 'UPDATE') THEN 1 ELSE 0 END", Integer.class, table, column);
+            Integer n = jdbc.queryForObject("SELECT CASE WHEN to_regclass(?) IS NULL THEN 0 WHEN has_column_privilege(?, ?, 'UPDATE') THEN 1 ELSE 0 END", Integer.class, table.toLowerCase(), table.toLowerCase(), column.toLowerCase());
             return n != null && n > 0;
         }
         Integer c = jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.COLUMN_PRIVILEGES WHERE TABLE_SCHEMA = DATABASE() AND PRIVILEGE_TYPE = 'UPDATE' AND TABLE_NAME = ? AND COLUMN_NAME = ?"
@@ -141,8 +152,9 @@ public class Db {
     /** Runs an INSERT and returns the generated value of {@code idColumn} (works with MySQL and PostgreSQL). */
     public long insertReturningId(String sql, String idColumn, Object... args) {
         GeneratedKeyHolder keys = new GeneratedKeyHolder();
+        String column = isPostgres() ? idColumn.toLowerCase() : idColumn; // PostgreSQL takes a quoted-as-given name literally, and its columns are lowercase
         jdbc.update((Connection c) -> {
-            PreparedStatement ps = c.prepareStatement(sql, new String[]{idColumn});
+            PreparedStatement ps = c.prepareStatement(sql, new String[]{column});
             for (int i = 0; i < args.length; i++) ps.setObject(i + 1, args[i]);
             return ps;
         }, keys);

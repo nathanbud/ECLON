@@ -1,4 +1,5 @@
 import { getJson, http, send } from './http'
+import { apiUrl } from './server'
 
 // ---- reports (guide phase 20) ---------------------------------------------------------------------------------------------
 export interface ReportParam { name: string; label: string; type: 'date' | 'number' | 'text'; defaultValue: string }
@@ -81,7 +82,7 @@ export interface Branding { coopName: string | null; tagline: string | null; has
 
 /** Read before anyone has signed in, so no sign-in is sent. */
 export async function getBranding(): Promise<Branding> {
-  const res = await fetch('/api/public/branding', { cache: 'no-store' })
+  const res = await fetch(apiUrl('/api/public/branding'), { cache: 'no-store' })
   if (!res.ok) throw new Error(`Request failed (${res.status})`)
   return res.json()
 }

@@ -28,6 +28,8 @@ export MYSQL_PWD="<coop_app password from db.txt>"
 python -I scripts/load-legacy-to-postgres.py client access sldtl > load.log
 ```
 
+With `LOAD_DELETE=1` the loader deletes the rows instead of truncating, in one session with foreign key checks off, so a table that other tables point at (`access`, `loan`, `transsum` ...) can be refreshed without dropping its keys; run `database/postgres/migrations/V014__sequences_after_load.sql` afterwards so the sequences continue after the new ids. The app's own `ecis_*` tables are copied by `scripts/setup-postgres-app.ps1`.
+
 ## Verify
 
 Row counts must match MySQL exactly, per table. `pg_stat_user_tables.n_live_tup` is not reliable right after a load; use `count(*)`. On the big tables (`sldtl` 51M, `transdt` 41M, `gltrans` 15M) a count takes tens of seconds.

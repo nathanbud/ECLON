@@ -85,7 +85,7 @@ class GoodsReceiptController {
 
     @GetMapping
     List<Summary> list(@RequestParam(required = false) Long orderId) {
-        return jdbc.query(SUMMARY + " WHERE g.branch_code = ? AND (? IS NULL OR g.order_id = ?) ORDER BY g.id DESC LIMIT 300", GoodsReceiptController::map, ProcurementSupport.BRANCH, orderId, orderId);
+        return jdbc.query(SUMMARY + " WHERE g.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR g.order_id = ?) ORDER BY g.id DESC LIMIT 300", GoodsReceiptController::map, ProcurementSupport.BRANCH, orderId, orderId);
     }
 
     @GetMapping("/{id}")
@@ -176,7 +176,7 @@ class GoodsReceiptController {
         List<Open> lines = open(g.orderId());
         List<Object[]> taken = jdbc.query("""
                 SELECT l.order_line_no, l.quantity, l.batch_id, l.stocked, p.product_id FROM ecis_goods_receipt_line l
-                JOIN ecis_purchase_order_line p ON p.order_id = ? AND p.line_no = l.order_line_no WHERE l.receipt_id = ?
+                JOIN ecis_purchase_order_line p ON p.order_id = ? AND p.line_no = l.order_line_no WHERE l.receipt_id = ? ORDER BY l.line_no
                 """, (rs, i) -> new Object[] {rs.getInt(1), rs.getBigDecimal(2), rs.getLong(3), rs.getInt(4) == 1, rs.getLong(5)}, g.orderId(), id);
         List<Long> warehouse = jdbc.queryForList("SELECT warehouse_id FROM ecis_goods_receipt WHERE id = ? AND warehouse_id IS NOT NULL", Long.class, id);
         for (Object[] t : taken) {

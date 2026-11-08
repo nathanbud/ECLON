@@ -25,6 +25,11 @@ public final class AuditLog {
     /** False once the address and device columns turn out not to exist yet (a database not migrated to V045), so the older shape is used from then on. */
     private static volatile boolean wide = true;
 
+    /** After the database is switched: the new one may have the address and device columns even if the old one did not. */
+    public static void forgetShape() {
+        wide = true;
+    }
+
     /**
      * Records one audit row.
      *

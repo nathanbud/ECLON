@@ -61,7 +61,7 @@ class TemporaryPasswordTest {
         assertTrue(Duration.between(LocalDateTime.now(), t.expiresAt()).toMinutes() > 24 * 60 - 2);
         var row = jdbc.queryForMap("SELECT password_hash, must_change, expires_at, set_by FROM ecis_user_credential WHERE username = ?", person);
         assertTrue(encoder.matches(t.password(), (String) row.get("password_hash")));
-        assertEquals(true, row.get("must_change"));
+        assertTrue(truthy(row.get("must_change")));
         assertNotNull(row.get("expires_at"));
         assertEquals("tester", row.get("set_by"));
     }
@@ -125,7 +125,7 @@ class TemporaryPasswordTest {
         users.changeOwnPassword(new UserAccountController.PasswordChange(t.password(), "A-better-one-2026"), asPerson);
         var row = jdbc.queryForMap("SELECT password_hash, must_change, expires_at, set_by FROM ecis_user_credential WHERE username = ?", person);
         assertTrue(encoder.matches("A-better-one-2026", (String) row.get("password_hash")));
-        assertEquals(false, row.get("must_change"));
+        assertFalse(truthy(row.get("must_change")));
         assertNull(row.get("expires_at"));
         assertEquals(person, row.get("set_by"));
         assertTrue(details.loadUserByUsername(person).getAuthorities().stream().noneMatch((a) -> a.getAuthority().equals(UserAccountController.PASSWORD_CHANGE_REQUIRED)));
@@ -153,5 +153,10 @@ class TemporaryPasswordTest {
         assertNull(PasswordPolicy.problem("letters2and3numbers", "ana", "x"));
         assertNull(PasswordPolicy.problem("Mabuhay2026", "ana", "x"));
         assertNull(PasswordPolicy.problem("a long phrase with 1 number", "ana", "x"));
+    }
+
+    /** A flag column comes back as a Boolean from MySQL (tinyint(1)) and as a number from PostgreSQL (smallint). */
+    private static boolean truthy(Object flag) {
+        return flag instanceof Boolean b ? b : ((Number) flag).intValue() != 0;
     }
 }

@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Serves a member's photo and signature from the legacy {@code image} table (read-only).
+ * Serves a member's photo and signature from the legacy {@code image} table, and adds new ones (insert-only).
  * Photos are stored as type {@code img}; signatures as {@code sig} (JPEG) or {@code sigWacomImg} (BMP).
  * The most recently added image of the requested kind wins.
  */
@@ -44,6 +44,7 @@ class MemberImageController {
     }
 
     static final int MAX_PHOTO_BYTES = 3 * 1024 * 1024;
+    static final int MAX_SIGNATURE_BYTES = 1024 * 1024;
 
     /**
      * Sets a member's photo. Insert-only: a new {@code img} row is added and the newest wins, so earlier photos stay. Needs both the legacy "edit client" and "edit client images" permissions.
@@ -52,16 +53,29 @@ class MemberImageController {
     @PostMapping("/photo")
     @PreAuthorize("hasAuthority('PERM_MEMBER_IMAGES') and hasAuthority('PERM_MEMBER_EDIT')")
     ResponseEntity<Void> setPhoto(@PathVariable int branchCode, @PathVariable int clientId, @RequestParam("file") MultipartFile file, Authentication auth) throws java.io.IOException {
+        return add(branchCode, clientId, file, auth, "img", "picture", MAX_PHOTO_BYTES, "member.photo.set", "Photo added");
+    }
+
+    /**
+     * Sets a member's signature, the same way: a new {@code sig} row is added, the newest wins and earlier signatures stay, with the same two permissions. JPEG or PNG, up to 1 MB.
+     */
+    @PostMapping("/signature")
+    @PreAuthorize("hasAuthority('PERM_MEMBER_IMAGES') and hasAuthority('PERM_MEMBER_EDIT')")
+    ResponseEntity<Void> setSignature(@PathVariable int branchCode, @PathVariable int clientId, @RequestParam("file") MultipartFile file, Authentication auth) throws java.io.IOException {
+        return add(branchCode, clientId, file, auth, "sig", "signature", MAX_SIGNATURE_BYTES, "member.signature.set", "Signature added");
+    }
+
+    private ResponseEntity<Void> add(int branchCode, int clientId, MultipartFile file, Authentication auth, String imageType, String noun, int maxBytes, String action, String reason) throws java.io.IOException {
         byte[] data = file.getBytes();
-        if (data.length == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The picture is empty.");
-        if (data.length > MAX_PHOTO_BYTES) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The picture is too large (at most 3 MB).");
+        if (data.length == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The " + noun + " is empty.");
+        if (data.length > maxBytes) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The " + noun + " is too large (at most " + (maxBytes / (1024 * 1024)) + " MB).");
         MediaType type = detect(data);
         if (!type.equals(MediaType.IMAGE_JPEG) && !type.equals(MediaType.IMAGE_PNG)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only JPEG and PNG pictures are accepted.");
         Integer exists = jdbc.queryForObject("SELECT COUNT(*) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", Integer.class, branchCode, clientId);
         if (exists == null || exists == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found.");
-        jdbc.update("INSERT INTO image (ImageBR_CODE, ClientIDimg, ImageType, ImageFileSize, ImageFile, ImageRemarks, ImageDateTimeAdded) VALUES (?, ?, 'img', ?, ?, ?, NOW())",
-            branchCode, clientId, data.length, data, "Set by " + auth.getName());
-        AuditLog.write(jdbc, null, auth.getName(), "member.photo.set", "client", branchCode + "-" + clientId, null, data.length + " bytes, " + type, "Photo added");
+        jdbc.update("INSERT INTO image (ImageBR_CODE, ClientIDimg, ImageType, ImageFileSize, ImageFile, ImageRemarks, ImageDateTimeAdded) VALUES (?, ?, ?, ?, ?, ?, NOW())",
+            branchCode, clientId, imageType, data.length, data, "Set by " + auth.getName());
+        AuditLog.write(jdbc, null, auth.getName(), action, "client", branchCode + "-" + clientId, null, data.length + " bytes, " + type, reason);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 

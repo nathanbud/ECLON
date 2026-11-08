@@ -16,6 +16,25 @@ export const LIGHT = {
   washLilac: '#E5E1F0',
 } as const
 
+/**
+ * The dark side panel of the member profile (a charcoal column with a light-on-dark menu), the same in both themes so it reads as the profile's anchor. `selected` is the open
+ * section's row: a light bar with dark text. Text and line colours pass WCAG AA on `bg`.
+ */
+export const SIDE = {
+  bg: '#3A3D42',
+  bgDark: '#1F2125',
+  text: '#F2F3F5',
+  muted: 'rgba(242,243,245,0.72)',
+  line: 'rgba(255,255,255,0.14)',
+  hover: 'rgba(255,255,255,0.08)',
+  selected: '#F3F4F6',
+  selectedText: '#1D1D1F',
+  // status colours for tags on the panel (light tints of the usual green, amber and red, readable on the charcoal)
+  ok: '#8FE0A6',
+  warn: '#FFCB7A',
+  bad: '#FFA3A3',
+} as const
+
 /** The soft colour wash behind glass surfaces, so the glass has something to refract. */
 export const appBackground = (t: Theme) =>
   t.palette.mode === 'dark'

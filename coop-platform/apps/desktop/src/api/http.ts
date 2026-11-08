@@ -1,3 +1,5 @@
+import { apiUrl } from './server'
+
 // HTTP Basic until Keycloak arrives. The credentials are kept for this window's session only (cleared when it closes).
 
 const SESSION_KEY = 'coop.session'
@@ -28,7 +30,7 @@ export function signOut() {
 
 /** Every request goes through here: it adds the sign-in, and signs out if the server no longer accepts it. */
 export async function http(url: string, init: RequestInit = {}): Promise<Response> {
-  const res = await fetch(url, { ...init, headers: { Authorization: authHeader(), ...init.headers } })
+  const res = await fetch(apiUrl(url), { ...init, headers: { Authorization: authHeader(), ...init.headers } })
   if (res.status === 401 && credentials) signOut()
   return res
 }

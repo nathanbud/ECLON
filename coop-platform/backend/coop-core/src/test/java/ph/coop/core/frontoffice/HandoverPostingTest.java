@@ -140,8 +140,8 @@ class HandoverPostingTest {
 
     @Test
     void theSameAttemptSentTwiceIsPostedOnce() {
-        Integer hasKey = jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ecis_cash_handover' AND column_name = 'request_key'", Integer.class);
-        assumeTrue(hasKey != null && hasKey > 0, "V007_drawer_controls.sql has not been run, so there is no request key");
+        boolean hasKey = new ph.coop.core.db.Db(jdbc).columnExists("ecis_cash_handover", "request_key");
+        assumeTrue(hasKey, "V007_drawer_controls.sql has not been run, so there is no request key");
         String key = "it-twice-" + System.nanoTime();
         BigDecimal before = cash(head);
         Handover first = handover.issue(give(50, 52, headNumber, "1000", Map.of(1, 1), key, null), as(headName));
@@ -196,8 +196,8 @@ class HandoverPostingTest {
 
     @Test
     void chequesMoveFromTheHeadCashierToTheVaultOnTheirOwnAccounts() {
-        Integer hasColumn = jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ecis_cash_handover' AND column_name = 'cheque_amount'", Integer.class);
-        assumeTrue(hasColumn != null && hasColumn > 0, "V025_cheque_handover.sql has not been run");
+        boolean hasColumn = new ph.coop.core.db.Db(jdbc).columnExists("ecis_cash_handover", "cheque_amount");
+        assumeTrue(hasColumn, "V025_cheque_handover.sql has not been run");
         BigDecimal headCheques = balances.chequesOf(branch, head);
         assumeTrue(headCheques.compareTo(new BigDecimal("100")) >= 0, "the head cashier holds no cheques in this database");
         BigDecimal vaultBefore = balances.chequesOf(branch, new Drawer(50, 99));

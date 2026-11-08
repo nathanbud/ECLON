@@ -1,6 +1,6 @@
 import { Box, ButtonBase, InputAdornment, TextField, Typography } from '@mui/material'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { FiBook, FiImage, FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMonitor, FiSearch, FiSend, FiShield, FiSliders, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
+import { FiBook, FiDatabase, FiImage, FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMonitor, FiSearch, FiSend, FiShield, FiSliders, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
 import { tint } from './theme'
@@ -61,7 +61,8 @@ const categories: Category[] = [
     items: [
       { label: 'System', note: 'Branch, dates and system preferences', icon: <FiShield />, color: tint.gray[0], who: 'admin' },
       { label: 'Sign-in screen', note: 'The cooperative\'s logo, name and tagline shown on the sign-in screen', icon: <FiImage />, color: tint.indigo[0], view: 'branding', who: 'superadmin' },
-      { label: 'Backup', note: 'Back up and restore the data', icon: <FiDownloadCloud />, color: '#5AC8FA', who: 'admin' },
+      { label: 'Database connection', note: 'Which database this server works on, the saved connections and where each one is', icon: <FiDatabase />, color: tint.teal[0], view: 'connections', who: 'superadmin' },
+      { label: 'Backup', note: 'Back up the application’s data and see past backups', icon: <FiDownloadCloud />, color: '#5AC8FA', view: 'backup', who: 'admin' },
     ],
   },
 ]

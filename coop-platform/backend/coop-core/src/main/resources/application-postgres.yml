@@ -1,0 +1,10 @@
+# Run on PostgreSQL instead of MySQL:  SPRING_PROFILES_ACTIVE=postgres  (the container eclon-postgres, port 5440, database coop).
+# The old tables and the app's own ecis_ tables are both in schema "legacy" (as they are together in MySQL), so the address sets it as the
+# search path. Names are folded to lowercase by PostgreSQL, so the mixed-case legacy names in the SQL still match.
+# Time is kept in Asia/Manila, like the MySQL address does with serverTimezone.
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5440}/${DB_NAME:coop}?currentSchema=legacy&stringtype=unspecified&options=-c%20TimeZone%3DAsia/Manila
+  jpa:
+    properties:
+      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect

@@ -67,7 +67,7 @@ class PosCatalogController {
                   (SELECT COALESCE(SUM(b.quantity), 0) FROM ecis_inventory_balance b WHERE b.product_id = p.id AND b.warehouse_id = ?),
                   (SELECT m.percent_off FROM ecis_promotion m WHERE m.product_id = p.id AND m.active = 1 AND m.start_date <= ? AND m.end_date >= ? ORDER BY m.percent_off DESC LIMIT 1),
                   (SELECT m.name FROM ecis_promotion m WHERE m.product_id = p.id AND m.active = 1 AND m.start_date <= ? AND m.end_date >= ? ORDER BY m.percent_off DESC LIMIT 1)
-                FROM ecis_product p WHERE p.branch_code = ? AND p.active = 1 AND (? IS NULL OR LOWER(p.name) LIKE ? OR LOWER(p.sku) LIKE ?) ORDER BY p.name LIMIT 300
+                FROM ecis_product p WHERE p.branch_code = ? AND p.active = 1 AND (CAST(? AS CHAR) IS NULL OR LOWER(p.name) LIKE ? OR LOWER(p.sku) LIKE ?) ORDER BY p.name LIMIT 300
                 """, (rs, i) -> new Sellable(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getBigDecimal(6), rs.getBigDecimal(7), rs.getBigDecimal(8), rs.getString(9), rs.getInt(5) == 1),
             warehouseId, today, today, today, today, InventorySupport.BRANCH, like, like, like);
     }

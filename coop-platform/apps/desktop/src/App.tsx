@@ -27,7 +27,9 @@ import DividendsPage from './DividendsPage'
 import WorkflowSettingsPage from './WorkflowSettingsPage'
 import MembershipPolicyPage from './MembershipPolicyPage'
 import DocumentationPage from './DocumentationPage'
+import BackupPage from './BackupPage'
 import BrandingPage from './BrandingPage'
+import DatabaseConnectionsPage from './DatabaseConnectionsPage'
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material'
 import { unsavedWork } from './leaveGuard'
 import { screenFor } from './nav/screens'
@@ -36,7 +38,7 @@ import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
 const titles: Record<View, string> = {
-  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Waiting for you', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports', documents: 'Documents', workflows: 'Approval workflows', membershippolicy: 'Membership policy', documentation: 'Documentation', branding: 'Sign-in screen', privacy: 'Data privacy', cic: 'CIC submission', dividends: 'Dividends',
+  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Waiting for you', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports', documents: 'Documents', workflows: 'Approval workflows', membershippolicy: 'Membership policy', documentation: 'Documentation', branding: 'Sign-in screen', connections: 'Database connection', backup: 'Backup', privacy: 'Data privacy', cic: 'CIC submission', dividends: 'Dividends',
 }
 
 /** Where the person is: a screen, and the tab inside it when the menu or the search named one. */
@@ -56,6 +58,8 @@ function Signed() {
   // Screens opened from Settings go back to Settings, not to the dashboard.
   const [cameFromSettings, setCameFromSettings] = useState(false)
   const [leaving, setLeaving] = useState<(() => void) | null>(null)
+  // The menu of screens is hidden until the logo (or M) opens it.
+  const [menuOpen, setMenuOpen] = useState(false)
   const [leavingText, setLeavingText] = useState('')
   /** Does the move, or asks first when the screen holds unsaved work. Every way of leaving a screen goes through here: the menu, the tiles, the search, Home and the H key. */
   const guarded = (move: () => void) => {
@@ -76,7 +80,19 @@ function Signed() {
   // The window title names the screen, for the task bar, the window list and screen readers.
   useEffect(() => { document.title = view === 'home' ? 'Coop Platform' : `${here} · Coop Platform` }, [view, here])
   /** Straight to the dashboard, asking first when a screen holds unsaved work. */
-  const goHome = () => guarded(() => { setCameFromSettings(false); setPlace({ view: 'home' }) })
+  const goHome = () => { setMenuOpen(false); guarded(() => { setCameFromSettings(false); setPlace({ view: 'home' }) }) }
+  // M opens and closes the menu of screens (the logo does the same). Like H, it is ignored while typing, with a modifier key held, or while a dialog is open.
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'm' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return
+      if (document.querySelector('[role="dialog"], [role="listbox"]')) return
+      setMenuOpen((o) => !o)
+    }
+    window.addEventListener('keydown', on)
+    return () => window.removeEventListener('keydown', on)
+  }, [])
   // H goes to the main dashboard from any screen. It is ignored while typing, with a modifier key held, or while a dialog is open, so it never interrupts work.
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
@@ -103,9 +119,10 @@ function Signed() {
         title={here}
         onHome={view === 'home' ? undefined : () => guarded(() => { if (cameFromSettings && view !== 'settings') { setCameFromSettings(false); setPlace({ view: 'settings' }) } else setPlace({ view: 'home' }) })}
         onNavigate={navigate} onOpenClient={openClient}
+        onMenu={() => setMenuOpen((o) => !o)} menuOpen={menuOpen}
       />
       <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-        <SideNav view={view} tab={tab} onNavigate={navigate} />
+        <SideNav view={view} tab={tab} onNavigate={navigate} open={menuOpen} onClose={() => setMenuOpen(false)} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <ErrorBoundary resetKey={`${view}/${tab ?? ''}`}>
             {(view === 'home' || view === 'loanapp') && <Dashboard onOpen={navigate} />}
@@ -133,6 +150,8 @@ function Signed() {
             {view === 'membershippolicy' && <MembershipPolicyPage />}
             {view === 'documentation' && <DocumentationPage />}
             {view === 'branding' && <BrandingPage />}
+            {view === 'connections' && <DatabaseConnectionsPage />}
+            {view === 'backup' && <BackupPage />}
           </ErrorBoundary>
         </Box>
       </Box>

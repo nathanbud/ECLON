@@ -58,6 +58,16 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
   const [inactive, setInactive] = useState(false)
   const activeRef = useRef<HTMLLIElement>(null)
 
+  // The pop-up's own focus handling (and a menu or button that had focus) can take focus back just after it opens, so autoFocus alone is not enough:
+  // put the cursor in the field again as the pop-up settles (only in the first quarter of a second, so it never fights the person).
+  useEffect(() => {
+    const timers = [0, 80, 250].map((ms) => setTimeout(() => {
+      const el = document.getElementById('find-client-input') as HTMLInputElement | null
+      if (el && document.activeElement !== el) el.focus()
+    }, ms))
+    return () => timers.forEach(clearTimeout)
+  }, [])
+
   // Debounce typing so each keystroke doesn't hit the large member table.
   useEffect(() => {
     const t = setTimeout(() => setQ(input.trim()), 200)

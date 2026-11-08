@@ -81,7 +81,7 @@ class PurchaseRequestController {
 
     @GetMapping
     List<Summary> list(@RequestParam(required = false) String status) {
-        return jdbc.query(SUMMARY + " WHERE r.branch_code = ? AND (? IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 300", PurchaseRequestController::map, ProcurementSupport.BRANCH, status, status).stream().map(this::withWorkflow).toList();
+        return jdbc.query(SUMMARY + " WHERE r.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR r.status = ?) ORDER BY r.id DESC LIMIT 300", PurchaseRequestController::map, ProcurementSupport.BRANCH, status, status).stream().map(this::withWorkflow).toList();
     }
 
     @GetMapping("/{id}")

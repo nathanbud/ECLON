@@ -1,5 +1,5 @@
 import { LIGHT } from './glass'
-import { Box, IconButton, Tooltip, Typography } from '@mui/material'
+import { Badge, Box, IconButton, Tooltip, Typography } from '@mui/material'
 import { useEffect, useState } from 'react'
 import { FiChevronRight, FiHome, FiMoon, FiMonitor, FiPower, FiSun } from 'react-icons/fi'
 import { VscChromeClose, VscChromeMaximize, VscChromeMinimize, VscChromeRestore } from 'react-icons/vsc'
@@ -7,6 +7,7 @@ import type { Id } from './clients'
 import type { View } from './Dashboard'
 import GlobalSearch from './GlobalSearch'
 import { signOut } from './api'
+import { useInboxCount } from './nav/SideNav'
 import { useMe } from './session'
 import { tileFill, useThemeMode, type ThemeMode } from './theme'
 import { ToolbarSlotTarget, useHasMenu } from './toolbarSlot'
@@ -83,12 +84,13 @@ export function WindowControls() {
   )
 }
 
-export default function TopBar({ title, onHome, onNavigate, onOpenClient }: {
-  title: string; onHome?: () => void; onNavigate: (v: View, tab?: string) => void; onOpenClient: (id: Id) => void
+export default function TopBar({ title, onHome, onNavigate, onOpenClient, onMenu, menuOpen }: {
+  title: string; onHome?: () => void; onNavigate: (v: View, tab?: string) => void; onOpenClient: (id: Id) => void; onMenu: () => void; menuOpen: boolean
 }) {
   const { mode, setMode } = useThemeMode()
   const hasMenu = useHasMenu()
   const me = useMe()
+  const waiting = useInboxCount()
   const next = order[(order.indexOf(mode) + 1) % order.length]
   return (
     <Box component="header" {...drag} sx={(t) => ({
@@ -101,7 +103,13 @@ export default function TopBar({ title, onHome, onNavigate, onOpenClient }: {
     })}>
       {/* Left: brand, then the current screen (or its menu), level with the window controls like a native title bar. */}
       <Box {...drag} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-        <Logo />
+        {/* The logo is the menu button: it opens and closes the menu of screens. */}
+        <Tooltip title="Menu (M)">
+          <IconButton aria-label={waiting ? `Menu, ${waiting} waiting for you` : 'Menu'} aria-haspopup="true" aria-expanded={menuOpen} aria-keyshortcuts="M" onClick={onMenu} size="small"
+            sx={(t) => ({ borderRadius: '5px', p: 0.5, mr: 0.25, bgcolor: menuOpen ? t.palette.action.selected : 'transparent', '&:hover': { bgcolor: t.palette.action.hover } })}>
+            <Badge color="error" variant={waiting ? 'dot' : undefined} invisible={!waiting} overlap="circular" sx={{ '& .MuiBadge-badge': { right: -1, top: -1 } }}><Logo /></Badge>
+          </IconButton>
+        </Tooltip>
         {onHome && (
           <>
             <Box aria-hidden sx={{ display: 'flex', color: 'text.disabled', fontSize: 13 }}><FiChevronRight /></Box>

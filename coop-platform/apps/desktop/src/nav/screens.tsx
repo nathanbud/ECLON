@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import {
-  FiBarChart2, FiBook, FiBookOpen, FiBriefcase, FiClipboard, FiCreditCard, FiDollarSign, FiFilePlus, FiFileText, FiGitMerge, FiImage, FiInbox, FiList, FiPercent, FiRepeat,
+  FiBarChart2, FiBook, FiBookOpen, FiBriefcase, FiClipboard, FiCreditCard, FiDatabase, FiDollarSign, FiDownloadCloud, FiFilePlus, FiFileText, FiGitMerge, FiImage, FiInbox, FiList, FiPercent, FiRepeat,
   FiSend, FiSettings, FiShield, FiShoppingCart, FiSliders, FiPieChart, FiTrendingUp, FiUserCheck, FiUserPlus, FiUsers, FiLock, FiCalendar, FiHome,
 } from 'react-icons/fi'
 import type { Me } from '../api'
@@ -118,6 +118,8 @@ export const SCREENS: Screen[] = [
   { id: 'workflows', label: 'Approval workflows', note: 'Extra approvals and the amounts they start at', domain: 'admin', icon: <FiGitMerge />, view: 'workflows', who: 'accountant', keywords: 'workflow approval limits steps' },
   { id: 'membershippolicy', label: 'Membership policy', note: 'Rules for returning members', domain: 'admin', icon: <FiUserPlus />, view: 'membershippolicy', who: 'admin', keywords: 'membership policy reactivation share capital' },
   { id: 'branding', label: 'Sign-in screen', note: 'The cooperative’s logo, name and tagline', domain: 'admin', icon: <FiImage />, view: 'branding', who: 'superadmin', keywords: 'logo brand name sign in' },
+  { id: 'connections', label: 'Database connection', note: 'Which database this server works on, and the saved connections', domain: 'admin', icon: <FiDatabase />, view: 'connections', who: 'superadmin', keywords: 'database connection server host port branch office switch' },
+  { id: 'backup', label: 'Backup', note: 'Back up the application’s data and see past backups', domain: 'admin', icon: <FiDownloadCloud />, view: 'backup', who: 'admin', keywords: 'backup restore dump copy data safe' },
   { id: 'documentation', label: 'Documentation', note: 'Shortcuts, rules, where to do things', domain: 'admin', icon: <FiLock />, view: 'documentation', who: 'anyone', keywords: 'help shortcuts rules guide manual' },
 ]
 

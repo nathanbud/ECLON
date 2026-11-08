@@ -51,7 +51,7 @@ class SupplierController {
     @GetMapping
     List<Supplier> list(@RequestParam(required = false) String q, @RequestParam(defaultValue = "false") boolean activeOnly) {
         String like = q == null || q.isBlank() ? null : "%" + q.trim().toLowerCase() + "%";
-        return jdbc.query(SELECT + " WHERE branch_code = ? AND (? = 0 OR active = 1) AND (? IS NULL OR LOWER(name) LIKE ? OR LOWER(code) LIKE ?) ORDER BY name LIMIT 500",
+        return jdbc.query(SELECT + " WHERE branch_code = ? AND (? = 0 OR active = 1) AND (CAST(? AS CHAR) IS NULL OR LOWER(name) LIKE ? OR LOWER(code) LIKE ?) ORDER BY name LIMIT 500",
             SupplierController::map, ProcurementSupport.BRANCH, activeOnly ? 1 : 0, like, like, like);
     }
 

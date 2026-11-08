@@ -21,7 +21,7 @@ import ph.coop.core.frontoffice.HandoverRules.Drawer;
  * rebuilt in the background when the app starts, and the screens fall back to the full sum until it exists.
  */
 @Component
-class DrawerBalances {
+class DrawerBalances implements ph.coop.core.connection.OnConnectionSwitch {
 
     private static final Logger log = LoggerFactory.getLogger(DrawerBalances.class);
     /** Seconds the all-drawers figures are reused. */
@@ -40,6 +40,13 @@ class DrawerBalances {
         this.jdbc = jdbc;
         this.db = db;
         this.buildOnStart = buildOnStart;
+    }
+
+    /** Another database has other drawers, so what was worked out for the old one is dropped. */
+    @Override
+    public void connectionSwitched() {
+        cachedAt = 0;
+        cached = Map.of();
     }
 
     /** Called after anything is posted, so the next read is fresh. */

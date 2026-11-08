@@ -9,6 +9,7 @@ const SHORTCUTS: { area: string; rows: [string, string][] }[] = [
   {
     area: 'Everywhere',
     rows: [
+      ['M', 'Open or close the menu of screens (the logo at the top left does the same). Esc, or choosing a screen, closes it. Like H, it does nothing while you type or have a dialog open.'],
       ['H', 'Go to the main dashboard. Does nothing while you type, hold Ctrl, Cmd, Alt or Shift, or have a dialog or menu open. Asks first if there is unsaved work.'],
       [`${MOD}K`, 'Jump to the search box in the title bar.'],
     ],
@@ -18,10 +19,11 @@ const SHORTCUTS: { area: string; rows: [string, string][] }[] = [
     rows: [
       ['Alt+C', 'Open the Client Profile menu in the title bar.'],
       [`${MOD}F`, 'Find a client.'],
-      [`${MOD}N`, 'New: register a new member (when you may edit clients and are not already editing).'],
+      [`${MOD}N`, 'New: register a new member (when you may edit clients and are not already editing). The New Client button under the finder does the same.'],
       [`${MOD}E`, 'Edit the open profile (when you may edit it and no change is waiting).'],
       [`${MOD}S`, 'Save the changes for approval.'],
       ['Esc', 'Cancel editing.'],
+      [`${MOD}${isMac ? '⇧' : 'Shift+'}C`, 'Close Membership: ask to close the open member (when you may edit clients and the member is not closed).'],
     ],
   },
   {
@@ -59,9 +61,13 @@ const WHERE: [string, string][] = [
   ['New loan applications', 'Only from the Loan Application tile. The member\'s Loans tab shows loans and their profile.'],
   ['Members', 'Client Profile: Info (Membership, Personal, Business / Employment, Education, Contacts & IDs, Spouse Info), Accounts (Share Capital, Savings, Time Deposits, Loans, Billing, Pledges / Insurances) and Other. Register a new member with Client Profile menu > New (Ctrl+N; the form opens blank), close or reactivate one from the profile; an officer other than the requester approves under Approvals.'],
   ['Registering many members', 'Advanced mode, for administrators: on the Client Profile finder screen choose Advanced mode: import a list. Upload a CSV or Excel file (download the blank Excel list: its Guide sheet explains each column), see every row checked, and send the valid ones. A Membership Officer other than the uploader approves the whole list under Approvals, which opens the members. Photos and fingerprints are added afterwards on each member.'],
+  ['Member profile layout', 'Client Profile has a dark panel on the left (photo, name, status tags and the list of sections: Info, Accounts, Other), the open section’s name with member type, department, date opened and signature across the top, four balance cards (share capital, savings, loans owed, time deposits; press one to open its section) and the section itself below. Nothing was removed from the old layout; the same fields are in the same sections.'],
   ['Member photo', 'The camera icon on the photo, shown only in edit mode, to people with both the edit-client and edit-client-images permissions. Photos are added, never overwritten.'],
+  ['Member signature', 'The pencil on the Signature box at the right of the profile header, shown only in edit mode, to people with both the edit-client and edit-client-images permissions. The member signs on the pad with a mouse, finger or pen (or a scanned signature is chosen from a file), then Save signature. Signatures are added, never overwritten; the newest is shown. On a narrow window the header wraps and the Signature box moves to its own row.'],
   ['Fingerprints', 'The Fingerprint tag under the photo. The member\'s consent comes first and can be withdrawn, which erases every fingerprint. Until a scanner is connected a simulator is used for testing only.'],
   ['Loan Setup', 'Settings > Loan Setup opens in a window of its own. Tabs: loan types, purposes, collateral, co-maker holds and amortization. Opening a loan type shows Setup and COA Links; an administrator can change, add or remove its links to the chart of accounts there (principal, interest, penalty and fees), with a reason, audited. New postings use the new account.'],
+  ['Backup', 'Settings > System > Backup (administrators): Back up now saves every table the application owns and the fingerprint key into a dated folder on the server; the list shows past backups and marks one Incomplete if the dump or the key is missing. The old system’s tables are not in it. Copy the dump and the key together to another computer. Restoring is done by hand from the dump, not from this screen.'],
+  ['Database connection', 'Sign-in screen > Connection: pick which server the app talks to (a list kept on this computer) and see which database it works on. Settings > System > Database connection (SUPERADMIN only): save connections (name, host, port, database, branch), then Use this connection to move the server to one; everyone signs in again. The database user and password stay in the server’s settings.'],
   ['Sign-in screen wording', 'Settings > System > Sign-in screen (SUPERADMIN only): the cooperative’s logo, name and tagline shown on the left of the sign-in screen, with a live preview. Everyone sees them, including people not signed in yet.'],
   ['Loan worksheet', 'Client Profile > Loans > open a loan > Worksheet as of (a date), then Worksheet PDF or Worksheet Excel: the Loan Interest and Penalty Computation Worksheet. Each download is recorded in the audit log and the export log. The penalty columns are not yet confirmed against a late loan.'],
   ['CIC submission', 'Menu > Compliance and records > CIC submission, or Settings > Credit reporting (administrators and accountants): make a batch, generate it from the books at the cut-off date, read the findings, have another person approve it, download the file and record the CIC’s reference, result and reconciliation. Approval stays off until the file mapping is confirmed by a file the CIC accepts.'],

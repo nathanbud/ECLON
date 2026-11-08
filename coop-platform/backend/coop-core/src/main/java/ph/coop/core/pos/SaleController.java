@@ -81,7 +81,7 @@ class SaleController {
 
     @GetMapping
     List<Summary> list(@RequestParam(required = false) LocalDate date, @RequestParam(required = false) String cashier) {
-        return jdbc.query(SUMMARY + " WHERE s.branch_code = ? AND (? IS NULL OR s.sale_date = ?) AND (? IS NULL OR s.cashier = ?) ORDER BY s.id DESC LIMIT 300", SaleController::map,
+        return jdbc.query(SUMMARY + " WHERE s.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR s.sale_date = ?) AND (CAST(? AS CHAR) IS NULL OR s.cashier = ?) ORDER BY s.id DESC LIMIT 300", SaleController::map,
             InventorySupport.BRANCH, date, date, cashier, cashier);
     }
 

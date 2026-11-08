@@ -80,7 +80,7 @@ class StockAdjustmentController {
 
     @GetMapping
     List<Summary> list(@RequestParam(required = false) String status) {
-        return jdbc.query(SUMMARY + " WHERE a.branch_code = ? AND (? IS NULL OR a.status = ?) ORDER BY a.id DESC LIMIT 300", StockAdjustmentController::map, InventorySupport.BRANCH, status, status).stream().map(this::withWorkflow).toList();
+        return jdbc.query(SUMMARY + " WHERE a.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR a.status = ?) ORDER BY a.id DESC LIMIT 300", StockAdjustmentController::map, InventorySupport.BRANCH, status, status).stream().map(this::withWorkflow).toList();
     }
 
     @GetMapping("/{id}")

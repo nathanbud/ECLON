@@ -35,7 +35,7 @@ import ph.coop.core.report.Reports.Table;
  * work them out. They scan the whole loan ledger, so a run takes several seconds.
  */
 @Component
-class LoanReports implements Provider {
+class LoanReports implements Provider, ph.coop.core.connection.OnConnectionSwitch {
 
     private static final int BRANCH = 1, CLASS = 12, LIST_LIMIT = 500;
     private static final Set<String> NONE = Set.of();
@@ -57,6 +57,11 @@ class LoanReports implements Provider {
     LoanReports(JdbcTemplate jdbc, Clock clock) {
         this.jdbc = jdbc;
         this.clock = clock;
+    }
+
+    @Override
+    public void connectionSwitched() {
+        cache = null;
     }
 
     /** Index of the arrears bucket for a number of days late. */

@@ -1,6 +1,9 @@
 // The server calls, by topic. Import from './api' as before; each topic lives in its own file.
 export { SIGNED_OUT, adoptCredentials, currentCredentials, signOut } from './http'
 export * from './accounting'
+export * from './backup'
+export * from './connections'
+export * from './server'
 export * from './beneficiaries'
 export * from './commerce'
 export * from './deposits'

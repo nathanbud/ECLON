@@ -55,7 +55,10 @@ class PurchaseOrderWorkflowHost implements WorkflowHost {
     @Override
     public void rejected(String entityId, String by, String note) {
         long id = Long.parseLong(entityId);
-        jdbc.update("UPDATE ecis_purchase_order SET status = 'CANCELLED', remarks = CONCAT_WS(' | ', remarks, ?) WHERE id = ? AND status = 'DRAFT'", "Turned down: " + note, id);
+        // joined here rather than with CONCAT_WS(.., ?): PostgreSQL cannot tell what type a bare parameter inside CONCAT_WS is
+        List<String> before = jdbc.queryForList("SELECT remarks FROM ecis_purchase_order WHERE id = ?", String.class, id);
+        String old = before.isEmpty() || before.get(0) == null || before.get(0).isEmpty() ? null : before.get(0);
+        jdbc.update("UPDATE ecis_purchase_order SET status = 'CANCELLED', remarks = ? WHERE id = ? AND status = 'DRAFT'", (old == null ? "" : old + " | ") + "Turned down: " + note, id);
         List<Long> requests = jdbc.query("SELECT request_id FROM ecis_purchase_order WHERE id = ?", (rs, i) -> { long v = rs.getLong(1); return rs.wasNull() ? null : v; }, id);
         Long request = requests.isEmpty() ? null : requests.get(0);
         if (request != null) {
