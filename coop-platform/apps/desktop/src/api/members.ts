@@ -38,6 +38,12 @@ export interface Member {
   provBarangay: string | null
   provCity: string | null
   provProvince: string | null
+  provZipCode: string | null
+  /** House, unit, block and lot number, and subdivision, village or building name: present and provincial. */
+  houseNo: string | null
+  subdivision: string | null
+  provHouseNo: string | null
+  provSubdivision: string | null
 }
 
 export interface Page<T> {
@@ -112,7 +118,7 @@ export const getMemberBilling = (branchCode: number, clientId: number) =>
   getJson<BillingEntry[]>(`/api/members/${branchCode}/${clientId}/billing`)
 
 /** What this person may do: edit (propose changes) and approve (decide them, Membership Officers only). */
-export const getCapabilities = () => getJson<{ edit: boolean; approve: boolean; images: boolean }>('/api/capabilities')
+export const getCapabilities = () => getJson<{ edit: boolean; approve: boolean; images: boolean; direct: boolean }>('/api/capabilities')
 
 // ---- member changes (maker-checker) --------------------------------------------------------------------------------
 

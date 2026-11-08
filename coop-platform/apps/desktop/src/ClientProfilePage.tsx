@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useMe } from './session'
 import { getCapabilities, getLookups, getMember, getPendingChange, submitChange } from './api'
 import { useLeaveGuard } from './leaveGuard'
+import { hasPendingFind, VOICE_FIND } from './voice/bus'
 import { ACTIONS, ClientMenu, closeMatch, mod } from './profile/ClientMenu'
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Snackbar } from '@mui/material'
 import { appBackground, glass } from './glass'
@@ -75,14 +76,18 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
     setSaving(true)
     setError(null)
     try {
-      await submitChange(selected.branchCode, selected.clientId, { changes: draft, expectedUpdatedAt: member.updatedAt })
+      const done = await submitChange(selected.branchCode, selected.clientId, { changes: draft, expectedUpdatedAt: member.updatedAt })
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['pending-change', selected] }),
         qc.invalidateQueries({ queryKey: ['pending-count'] }),
         qc.invalidateQueries({ queryKey: ['changes'] }),
+        // A Membership Officer's edit is applied at once, so the profile is read again.
+        qc.invalidateQueries({ queryKey: ['member'] }),
+        qc.invalidateQueries({ queryKey: ['member-details'] }),
+        qc.invalidateQueries({ queryKey: ['members'] }),
       ])
       leave()
-      setNotice('Sent for approval')
+      setNotice(done.status === 'APPROVED' ? 'Saved. The change is recorded in the audit log' : 'Sent for approval')
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -105,6 +110,14 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
   }
   const actions = ACTIONS.map((a) => ({ ...a, run: runs[a.label] }))
   const closeRun = caps?.edit && selected && member && (member.accountStatus ?? 1) !== 3 && !editing && !registering && !advanced ? () => setClosing(true) : undefined
+
+  // With a member open, "find client X" by voice opens the finder pop-up (the finder screen is already there when none is open).
+  useEffect(() => {
+    if (selected && hasPendingFind()) setFinding(true)
+    const on = () => { if (selected && !advanced && !registering) setFinding(true) }
+    window.addEventListener(VOICE_FIND, on)
+    return () => window.removeEventListener(VOICE_FIND, on)
+  }, [selected, advanced, registering])
 
   // Keyboard: Ctrl/Cmd+F runs Find; the other shortcuts run their action while it is possible.
   useEffect(() => {
@@ -157,7 +170,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
               )}
               {reactivating && member && <ReactivateDialog branchCode={selected.branchCode} clientId={selected.clientId} name={displayName(member)} onClose={() => setReactivating(false)} onDone={setNotice} />}
               {closing && member && <CloseDialog branchCode={selected.branchCode} clientId={selected.clientId} name={displayName(member)} onClose={() => setClosing(false)} onDone={setNotice} />}
-              {editing && <EditBar changes={changes} saving={saving} error={error} onSave={save} onCancel={cancel} />}
+              {editing && <EditBar changes={changes} saving={saving} error={error} direct={!!caps?.direct} onSave={save} onCancel={cancel} />}
               <Profile key={key} id={selected} lk={lk} canPhoto={!!caps?.images} onNotice={setNotice} />
             </EditCtx.Provider>
           )

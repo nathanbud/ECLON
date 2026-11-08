@@ -92,19 +92,20 @@ export function PendingBanner({ change, id, canApprove, onDone }: { change: Chan
 }
 
 /** Shown while a profile is being edited: what is pending, and the way to save or leave. */
-export function EditBar({ changes, saving, error, onSave, onCancel }: {
-  changes: number; saving: boolean; error: string | null; onSave: () => void; onCancel: () => void
+/** `direct`: this person is a Membership Officer, so saving applies the changes at once (and logs them) instead of sending them for approval. */
+export function EditBar({ changes, saving, error, direct = false, onSave, onCancel }: {
+  changes: number; saving: boolean; error: string | null; direct?: boolean; onSave: () => void; onCancel: () => void
 }) {
   return (
     <Box sx={{ mb: 1.5 }}>
       <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1, ...glass(t) })}>
         <FiEdit2 aria-hidden />
         <Typography sx={{ flex: 1, fontSize: 13.5 }} role="status">
-          Editing. {changes === 0 ? 'No changes yet.' : `${changes} change${changes === 1 ? '' : 's'} ready.`} Saving sends them to a Membership Officer for approval.
+          Editing. {changes === 0 ? 'No changes yet.' : `${changes} change${changes === 1 ? '' : 's'} ready.`} {direct ? 'Saving applies them at once and records them in the audit log.' : 'Saving sends them to a Membership Officer for approval.'}
         </Typography>
         <Button size="small" onClick={onCancel} disabled={saving}>Cancel</Button>
         <Button size="small" variant="contained" startIcon={<FiSave />} onClick={onSave} disabled={saving || changes === 0}>
-          {saving ? 'Sending…' : 'Send for approval'}
+          {direct ? (saving ? 'Saving…' : 'Save changes') : (saving ? 'Sending…' : 'Send for approval')}
         </Button>
       </Box>
       {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}

@@ -58,16 +58,23 @@ class MemberChangeService {
     private final ObjectMapper json;
     private final TransactionTemplate tx;
     private final boolean enabled;
+    private final boolean officerDirect;
     private volatile Map<String, Integer> lengths;
 
     MemberChangeService(JdbcTemplate jdbc, Db db, LookupController lookups, ObjectMapper json, PlatformTransactionManager txManager,
-                        @Value("${coop.edit.enabled:false}") boolean enabled) {
+                        @Value("${coop.edit.enabled:false}") boolean enabled, @Value("${coop.edit.officer-direct:true}") boolean officerDirect) {
         this.jdbc = jdbc;
         this.db = db;
         this.lookups = lookups;
         this.json = json;
         this.tx = new TransactionTemplate(txManager);
         this.enabled = enabled;
+        this.officerDirect = officerDirect;
+    }
+
+    /** Does a Membership Officer's own edit go straight through on this server? */
+    boolean officerDirect() {
+        return officerDirect;
     }
 
     boolean editAvailable() {
@@ -100,7 +107,16 @@ class MemberChangeService {
     // ---- steps --------------------------------------------------------------------------------------------------
 
     Change submit(int branchCode, int clientId, SubmitRequest req, String user) {
+        return submit(branchCode, clientId, req, user, false);
+    }
+
+    /**
+     * Records a change. For a Membership Officer ({@code isOfficer}) on a server that allows it, the change is applied at once: it is stored as APPROVED, made and decided by the same
+     * person, with the note that no second approval was needed, and the client row and the audit log are written in the same transaction. Otherwise it is stored as PENDING.
+     */
+    Change submit(int branchCode, int clientId, SubmitRequest req, String user, boolean isOfficer) {
         requireAvailable();
+        boolean direct = ChangeRules.appliesDirectly(isOfficer, officerDirect);
         if (req.changes() == null || req.changes().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "There is nothing to save.");
         Map<String, String> clean = validate(req.changes());
 
@@ -120,6 +136,15 @@ class MemberChangeService {
             if (items.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nothing was changed.");
             if (pendingFor(branchCode, clientId) != null) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This client already has a change waiting for approval. Withdraw it, or wait for a decision.");
+            }
+            if (direct) {
+                long id = db.insertReturningId("INSERT INTO ecis_member_change (branch_code, client_id, requested_by, requested_at, base_updated_at, status, changes, reason, decided_by, decided_at, decision_note) VALUES (?, ?, ?, NOW(), ?, 'APPROVED', ?, ?, ?, NOW(), ?)", "id",
+                    branchCode, clientId, user, EditRules.stamp(req.expectedUpdatedAt()), write(items), blankToNull(req.reason()), user, DIRECT_NOTE);
+                updateClient(branchCode, clientId, items);
+                String why = "Change #" + id + " made directly by " + user + " (Membership Officer, no second approval)" + (blankToNull(req.reason()) == null ? "" : ". " + req.reason().trim());
+                for (ChangeItem item : items) audit(user, "UPDATE:" + item.column(), branchCode + "-" + clientId, item.from(), item.to(), why);
+                audit(user, "CHANGE_APPLIED_DIRECTLY", branchCode + "-" + clientId, null, items.size() + " field(s)", "Change #" + id + " by a Membership Officer, no second approval");
+                return load(id);
             }
             long id = db.insertReturningId("INSERT INTO ecis_member_change (branch_code, client_id, requested_by, requested_at, base_updated_at, status, changes, reason) VALUES (?, ?, ?, NOW(), ?, 'PENDING', ?, ?)", "id",
                 branchCode, clientId, user, EditRules.stamp(req.expectedUpdatedAt()), write(items), blankToNull(req.reason()));
@@ -141,16 +166,7 @@ class MemberChangeService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "The client was changed after this request was made. Reject it, and ask for it to be submitted again.");
             }
 
-            // Re-check every column against the whitelist; the stored request is data, not trusted instructions.
-            for (ChangeItem item : ch.items()) {
-                if (!ClientDetailController.EDITABLE.containsKey(item.column())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The field '" + item.column() + "' cannot be edited.");
-            }
-            String sets = String.join(", ", ch.items().stream().map((i) -> i.column() + " = ?").toList());
-            List<Object> args = new ArrayList<>(ch.items().stream().map(ChangeItem::to).toList());
-            args.add(ch.branchCode());
-            args.add(ch.clientId());
-            // UpdDateTime is bumped so the legacy system and any sync job see the record as modified.
-            jdbc.update("UPDATE client SET " + sets + ", UpdDateTime = NOW() WHERE ClientIDBrCode = ? AND ClientID = ?", args.toArray());
+            updateClient(ch.branchCode(), ch.clientId(), ch.items());
 
             String reason = "Change #" + id + " requested by " + ch.requestedBy() + ", approved by " + approver + (blankToNull(note) == null ? "" : ". " + note.trim());
             for (ChangeItem item : ch.items()) {
@@ -185,6 +201,21 @@ class MemberChangeService {
     }
 
     // ---- helpers ------------------------------------------------------------------------------------------------
+
+    private static final String DIRECT_NOTE = "Applied directly by a Membership Officer (no second approval)";
+
+    /** Writes the changed columns to the client row. Every column is re-checked against the whitelist; a stored request is data, not trusted instructions. */
+    private void updateClient(int branchCode, int clientId, List<ChangeItem> items) {
+        for (ChangeItem item : items) {
+            if (!ClientDetailController.EDITABLE.containsKey(item.column())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The field '" + item.column() + "' cannot be edited.");
+        }
+        String sets = String.join(", ", items.stream().map((i) -> i.column() + " = ?").toList());
+        List<Object> args = new ArrayList<>(items.stream().map(ChangeItem::to).toList());
+        args.add(branchCode);
+        args.add(clientId);
+        // UpdDateTime is bumped so the legacy system and any sync job see the record as modified.
+        jdbc.update("UPDATE client SET " + sets + ", UpdDateTime = NOW() WHERE ClientIDBrCode = ? AND ClientID = ?", args.toArray());
+    }
 
     private void requireAvailable() {
         if (!editAvailable()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Editing is not enabled on this server.");

@@ -58,6 +58,12 @@ public class Member {
     @Column(name = "ProvAddBarangay") private String provBarangay;
     @Column(name = "ProvAddCity") private String provCity;
     @Column(name = "ProvAddProvince") private String provProvince;
+    @Column(name = "ProvAddZipCode") private String provZipCode;
+    // House, unit, block and lot number, and subdivision, village or building name (added to the old table, V054 / V017).
+    @Column(name = "ResAddHouseNo") private String houseNo;
+    @Column(name = "ResAddSubdivision") private String subdivision;
+    @Column(name = "ProvAddHouseNo") private String provHouseNo;
+    @Column(name = "ProvAddSubdivision") private String provSubdivision;
 
     protected Member() {}
 
@@ -97,5 +103,10 @@ public class Member {
     public String getProvBarangay() { return provBarangay; }
     public String getProvCity() { return provCity; }
     public String getProvProvince() { return provProvince; }
+    public String getProvZipCode() { return provZipCode; }
+    public String getHouseNo() { return houseNo; }
+    public String getSubdivision() { return subdivision; }
+    public String getProvHouseNo() { return provHouseNo; }
+    public String getProvSubdivision() { return provSubdivision; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

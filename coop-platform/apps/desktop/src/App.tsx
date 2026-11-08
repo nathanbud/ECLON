@@ -32,7 +32,11 @@ import BrandingPage from './BrandingPage'
 import DatabaseConnectionsPage from './DatabaseConnectionsPage'
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material'
 import { unsavedWork } from './leaveGuard'
-import { screenFor } from './nav/screens'
+import { screenFor, visibleScreens } from './nav/screens'
+import { useMe } from './session'
+import { parseCommand } from './voice/commands'
+import { requestFind, requestSection } from './voice/bus'
+import type { Handled } from './voice/VoiceControl'
 import SideNav from './nav/SideNav'
 import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
@@ -77,6 +81,25 @@ function Signed() {
   }
   const openClient = (id: Id) => guarded(() => { setClient(id); setCameFromSettings(false); setPlace({ view: 'members' }) })
   const here = screenFor(view, tab)?.label ?? titles[view]
+  const me = useMe()
+  /** Carries out a spoken sentence. Voice only moves around and searches: it never saves, approves or posts, and it reaches only the screens this person's menu shows. */
+  const handleVoice = (heard: string): Handled => {
+    const cmd = parseCommand(heard, { screens: visibleScreens(me).map((s) => ({ id: s.id, label: s.label, view: s.view, tab: s.tab })), inProfile: view === 'members' && !!client })
+    switch (cmd.kind) {
+      case 'home': goHome(); return { message: 'Going home', done: true }
+      case 'menu': setMenuOpen((o) => !o); return { message: 'Menu', done: true }
+      case 'find':
+        if (view !== 'members') navigate('members')
+        requestFind(cmd.text)
+        return { message: cmd.text ? `Finding “${cmd.text}”` : 'Find a client', done: true }
+      case 'open': navigate(cmd.screen.view, cmd.screen.tab); return { message: `Opening ${cmd.screen.label}`, done: true }
+      case 'section': requestSection({ tab: cmd.tab }); return { message: `Opening ${cmd.label}`, done: true }
+      case 'group': requestSection({ group: cmd.group }); return { message: `Opening ${cmd.label}`, done: true }
+      case 'ambiguous': return { message: `Which one? ${cmd.options.map((o) => o.label).join(' or ')}`, done: false }
+      case 'unknown': return { message: `Didn’t catch “${cmd.heard}”`, done: false }
+      default: return { message: '', done: false }
+    }
+  }
   // The window title names the screen, for the task bar, the window list and screen readers.
   useEffect(() => { document.title = view === 'home' ? 'Coop Platform' : `${here} · Coop Platform` }, [view, here])
   /** Straight to the dashboard, asking first when a screen holds unsaved work. */
@@ -119,7 +142,7 @@ function Signed() {
         title={here}
         onHome={view === 'home' ? undefined : () => guarded(() => { if (cameFromSettings && view !== 'settings') { setCameFromSettings(false); setPlace({ view: 'settings' }) } else setPlace({ view: 'home' }) })}
         onNavigate={navigate} onOpenClient={openClient}
-        onMenu={() => setMenuOpen((o) => !o)} menuOpen={menuOpen}
+        onMenu={() => setMenuOpen((o) => !o)} menuOpen={menuOpen} onVoice={handleVoice}
       />
       <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
         <SideNav view={view} tab={tab} onNavigate={navigate} open={menuOpen} onClose={() => setMenuOpen(false)} />

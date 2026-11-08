@@ -1,7 +1,7 @@
 import { fieldSx, type Bind, type Value, useBound } from './editing'
 import { Box, Button, MenuItem, TextField, Typography } from '@mui/material'
 import { type ReactNode, useEffect, useId, useRef } from 'react'
-import { glass } from '../glass'
+import { LIGHT, glass } from '../glass'
 import { type Lookups } from '../api'
 
 export function Field({ label, value, col, raw, kind = 'text' }: { label: string; value?: Value } & Bind) {
@@ -38,16 +38,23 @@ export function InlineField({ label, value }: { label: string; value?: Value }) 
   )
 }
 
+/**
+ * A labelled card whose title sits on its top border, like the legend of a form group: a real fieldset and legend, so the card is announced by its title. The legend spans the whole top
+ * edge: the title at the left, an action (such as the Present / Provincial switch) at the far right, and a line between them drawn in the border's own colour, so the edge reads as one.
+ */
 export function Section({ title, children, action, columns }: { title: string; children: ReactNode; action?: ReactNode; columns?: number }) {
   return (
-    <Box sx={(t) => ({ p: 1.25, mb: 1, breakInside: 'avoid', ...glass(t) })}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75, minHeight: 22 }}>
-        <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">
-          {title}
-        </Typography>
-        {action}
+    <Box component="fieldset" sx={(t) => ({ m: 0, mb: 1, px: 1.25, pt: 'calc(10px + 2pt)', pb: 1, minInlineSize: 0, breakInside: 'avoid', ...glass(t) })}>
+      <Box component="legend" sx={{ float: 'none', width: '100%', p: 0, lineHeight: 1.2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Typography component="span" sx={{ px: 0.75, fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }} color="text.secondary">
+            {title}
+          </Typography>
+          <Box aria-hidden sx={(t) => ({ flex: 1, height: 0, borderTop: `1px solid ${t.palette.mode === 'dark' ? 'rgba(255,255,255,0.16)' : LIGHT.hairline}` })} />
+          {action && <Box sx={{ pl: 0.75 }}>{action}</Box>}
+        </Box>
       </Box>
-      <Box sx={{ display: 'grid', gap: '8px 12px', gridTemplateColumns: columns ? `repeat(${columns}, minmax(0, 1fr))` : 'repeat(auto-fill, minmax(132px, 1fr))' }}>{children}</Box>
+      <Box sx={{ display: 'grid', gap: '6px 12px', gridTemplateColumns: columns ? `repeat(${columns}, minmax(0, 1fr))` : 'repeat(auto-fill, minmax(200px, 1fr))' }}>{children}</Box>
     </Box>
   )
 }

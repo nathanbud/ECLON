@@ -15,7 +15,7 @@
         "title": "Coop Platform",
         "width": 1100,
         "minWidth": 900,
-        "height": 700,
+        "height": 720,
         "minHeight": 600,
         "resizable": true,
         "decorations": false,

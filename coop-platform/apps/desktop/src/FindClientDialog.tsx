@@ -6,6 +6,7 @@ import { searchMembers, type Lookups } from './api'
 import { displayName, initials, memberNo, statusOf, type Id } from './clients'
 import { LIGHT } from './glass'
 import { tileFill } from './theme'
+import { takePendingFind, VOICE_FIND } from './voice/bus'
 
 const MAX_RESULTS = 8
 
@@ -66,6 +67,20 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
       if (el && document.activeElement !== el) el.focus()
     }, ms))
     return () => timers.forEach(clearTimeout)
+  }, [])
+
+  // "find client Santos" by voice types the name in; the person still presses Enter to open a member.
+  useEffect(() => {
+    const take = () => {
+      const text = takePendingFind()
+      if (text === null) return
+      setInput(text)
+      setQ(text.trim())
+      setActive(0)
+    }
+    take()
+    window.addEventListener(VOICE_FIND, take)
+    return () => window.removeEventListener(VOICE_FIND, take)
   }, [])
 
   // Debounce typing so each keystroke doesn't hit the large member table.

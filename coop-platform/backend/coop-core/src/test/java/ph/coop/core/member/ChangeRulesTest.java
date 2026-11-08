@@ -1,7 +1,9 @@
 package ph.coop.core.member;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -25,5 +27,11 @@ class ChangeRulesTest {
         assertNotNull(ChangeRules.rejectionProblem(true, "  "));
         assertNotNull(ChangeRules.rejectionProblem(true, null));
         assertNotNull(ChangeRules.rejectionProblem(false, "Wrong birth date"));
+    }
+
+    @Test void aMembershipOfficersOwnEditGoesStraightThroughWhenTheServerAllowsIt() {
+        assertTrue(ChangeRules.appliesDirectly(true, true));
+        assertFalse(ChangeRules.appliesDirectly(true, false), "switched off on the server");
+        assertFalse(ChangeRules.appliesDirectly(false, true), "anyone else still waits for an officer");
     }
 }

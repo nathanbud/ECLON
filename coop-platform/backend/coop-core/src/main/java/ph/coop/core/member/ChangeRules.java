@@ -12,6 +12,14 @@ final class ChangeRules {
         return null;
     }
 
+    /**
+     * A Membership Officer's own edit goes straight through, with no second person to approve it, when the server is set that way ({@code coop.edit.officer-direct}, on by default).
+     * It is still recorded as a change, with who made it and a line per field in the audit log. Anyone else's edit still waits for an officer.
+     */
+    static boolean appliesDirectly(boolean isOfficer, boolean officerDirect) {
+        return isOfficer && officerDirect;
+    }
+
     /** Rejecting needs the same role, and a reason so the person who asked knows why. */
     static String rejectionProblem(boolean isOfficer, String note) {
         if (!isOfficer) return "Only a Membership Officer can approve or reject changes.";

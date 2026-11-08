@@ -22,7 +22,13 @@ function blank(canvas: HTMLCanvasElement) {
  * Captures a member's signature: they sign on the pad with a mouse, finger or pen, or a scanned signature is chosen from a file and placed on the pad. Save adds it as the member's
  * newest signature (earlier ones are kept). Offered only to people granted the "edit client images" permission; the server checks it again.
  */
-export default function SignatureDialog({ id, name, onClose, onDone }: { id: Id; name: string; onClose: () => void; onDone: (msg: string) => void }) {
+export default function SignatureDialog({ id, name, onClose, onDone, current = null, canCapture = true }: {
+  id: Id; name: string; onClose: () => void; onDone: (msg: string) => void
+  /** The signature on file, as a picture address, or null when there is none. */
+  current?: string | null
+  /** May this person capture a new one? Without it the dialog only shows what is on file. */
+  canCapture?: boolean
+}) {
   const qc = useQueryClient()
   const pad = useRef<HTMLCanvasElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -30,8 +36,10 @@ export default function SignatureDialog({ id, name, onClose, onDone }: { id: Id;
   const [inked, setInked] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // Opens on the pad when there is nothing on file to look at; otherwise shows the signature first, with a button to replace it.
+  const [mode, setMode] = useState<'view' | 'pad'>(canCapture && !current ? 'pad' : 'view')
 
-  useEffect(() => { if (pad.current) blank(pad.current) }, [])
+  useEffect(() => { if (mode === 'pad' && pad.current) blank(pad.current) }, [mode])
 
   const at = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
@@ -105,6 +113,23 @@ export default function SignatureDialog({ id, name, onClose, onDone }: { id: Id;
   return (
     <Dialog open onClose={saving ? undefined : onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Signature of {name}</DialogTitle>
+      {mode === 'view' ? (
+        <>
+          <DialogContent>
+            {/* Signatures are dark ink on a light background, so they always sit on a white surface, in both themes. */}
+            <Box sx={{ bgcolor: '#fff', borderRadius: 1, border: 1, borderColor: 'divider', minHeight: 140, display: 'grid', placeItems: 'center', p: 1 }}>
+              {current
+                ? <Box component="img" src={current} alt={`Signature of ${name}`} sx={{ maxWidth: '100%', maxHeight: 260, objectFit: 'contain' }} />
+                : <Typography sx={{ fontSize: 13, color: '#6b6b6b' }}>No signature on file</Typography>}
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={onClose}>Close</Button>
+            {canCapture && <Button variant="contained" onClick={() => setMode('pad')}>{current ? 'Replace signature' : 'Capture signature'}</Button>}
+          </DialogActions>
+        </>
+      ) : (
+      <>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 0.5 }}>
           {error && <Alert severity="error">{error}</Alert>}
@@ -129,6 +154,8 @@ export default function SignatureDialog({ id, name, onClose, onDone }: { id: Id;
         <Button onClick={onClose} disabled={saving}>Cancel</Button>
         <Button variant="contained" disabled={!inked || saving} onClick={() => void save()}>Save signature</Button>
       </DialogActions>
+      </>
+      )}
     </Dialog>
   )
 }

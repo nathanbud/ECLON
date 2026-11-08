@@ -8,6 +8,7 @@ import type { View } from './Dashboard'
 import GlobalSearch from './GlobalSearch'
 import { signOut } from './api'
 import { useInboxCount } from './nav/SideNav'
+import { VoiceControl, type Handled } from './voice/VoiceControl'
 import { useMe } from './session'
 import { tileFill, useThemeMode, type ThemeMode } from './theme'
 import { ToolbarSlotTarget, useHasMenu } from './toolbarSlot'
@@ -84,8 +85,10 @@ export function WindowControls() {
   )
 }
 
-export default function TopBar({ title, onHome, onNavigate, onOpenClient, onMenu, menuOpen }: {
+export default function TopBar({ title, onHome, onNavigate, onOpenClient, onMenu, menuOpen, onVoice }: {
   title: string; onHome?: () => void; onNavigate: (v: View, tab?: string) => void; onOpenClient: (id: Id) => void; onMenu: () => void; menuOpen: boolean
+  /** Carries out a spoken sentence; without it there is no microphone button. */
+  onVoice?: (heard: string) => Handled
 }) {
   const { mode, setMode } = useThemeMode()
   const hasMenu = useHasMenu()
@@ -126,6 +129,7 @@ export default function TopBar({ title, onHome, onNavigate, onOpenClient, onMenu
       {/* Right: clock, theme, session and window controls. */}
       <Box {...drag} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5, minWidth: 0 }}>
         <Clock />
+        {onVoice && <VoiceControl handle={onVoice} />}
         <Tooltip title={`Theme: ${mode} (switch to ${next})`}>
           <IconButton aria-label={`Theme ${mode}, switch to ${next}`} onClick={() => setMode(next)} size="small" sx={flatIcon}>{icons[mode]}</IconButton>
         </Tooltip>

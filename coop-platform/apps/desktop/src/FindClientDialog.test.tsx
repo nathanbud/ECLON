@@ -10,7 +10,7 @@ const member = (id: number, last: string, first: string): Member => ({
   id: { branchCode: 1, clientId: id }, firstName: first, lastName: last, accountName: null, dateOpened: null, accountStatus: 1, cellNumber: null, city: 'Baguio', closedDate: null,
   updatedAt: null, middleName: null, suffix: null, clientType: 1, dateOfBirth: null, gender: null, civilStatus: null, email: null, street: null, barangay: null, province: null,
   referenceId: null, accountType: null, alertLevel: null, department: null, profession: null, religion: null, mailingAddress: null, dosriTag: null, includeHealthCare: null,
-  monthlyIncome: null, zipCode: null, residenceSince: null, residenceType: null, provStreet: null, provBarangay: null, provCity: null, provProvince: null,
+  monthlyIncome: null, zipCode: null, residenceSince: null, residenceType: null, provStreet: null, provBarangay: null, provCity: null, provProvince: null, provZipCode: null, houseNo: null, subdivision: null, provHouseNo: null, provSubdivision: null,
 })
 
 vi.mock('./api', async (orig) => ({

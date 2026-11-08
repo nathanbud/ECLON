@@ -8,11 +8,19 @@ import { useEdit } from './editing'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { FiInfo } from 'react-icons/fi'
 
+/**
+ * The address, laid out as it is written on an envelope, one line each: house, unit, block and lot number beside the street name; subdivision, village or building; barangay;
+ * city or municipality beside the postal code; province. The same lines serve the present and the provincial address. Living-here-since, residence type and mailing address
+ * belong to the present address and follow below.
+ */
 function AddressSection({ m, lk }: { m: Member; lk?: Lookups }) {
   const [which, setWhich] = useState<'present' | 'provincial'>('present')
-  const a = which === 'present'
-    ? { street: m.street, barangay: m.barangay, city: m.city, province: m.province }
-    : { street: m.provStreet, barangay: m.provBarangay, city: m.provCity, province: m.provProvince }
+  const present = which === 'present'
+  const a = present
+    ? { house: m.houseNo, street: m.street, subdivision: m.subdivision, barangay: m.barangay, city: m.city, zip: m.zipCode, province: m.province }
+    : { house: m.provHouseNo, street: m.provStreet, subdivision: m.provSubdivision, barangay: m.provBarangay, city: m.provCity, zip: m.provZipCode, province: m.provProvince }
+  const col = (res: string, prov: string) => (present ? res : prov)
+  const span = (n: number) => ({ gridColumn: `span ${n}`, minWidth: 0 })
   return (
     <Section
       title="Address"
@@ -24,13 +32,17 @@ function AddressSection({ m, lk }: { m: Member; lk?: Lookups }) {
         </ToggleButtonGroup>
       }
     >
-      <Field label="Street" value={a.street} col={which === 'present' ? 'ResAddStreet' : 'ProvAddStreet'} />
-      <Field label="Barangay" value={a.barangay} col={which === 'present' ? 'ResAddBarangay' : 'ProvAddBarangay'} />
-      <Field label="City / Municipality" value={a.city} col={which === 'present' ? 'ResAddCity' : 'ProvAddCity'} />
-      <Field label="Province" value={a.province} col={which === 'present' ? 'ResAddProvince' : 'ProvAddProvince'} />
-      {which === 'present' && (
+      <Box sx={{ gridColumn: '1 / -1', display: 'grid', gap: '6px 12px', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
+        <Box sx={span(2)}><Field label="House / Unit / Block & Lot Number" value={a.house} col={col('ResAddHouseNo', 'ProvAddHouseNo')} /></Box>
+        <Box sx={span(4)}><Field label="Street Name" value={a.street} col={col('ResAddStreet', 'ProvAddStreet')} /></Box>
+        <Box sx={span(6)}><Field label="Subdivision / Village / Building Name" value={a.subdivision} col={col('ResAddSubdivision', 'ProvAddSubdivision')} /></Box>
+        <Box sx={span(6)}><Field label="Barangay" value={a.barangay} col={col('ResAddBarangay', 'ProvAddBarangay')} /></Box>
+        <Box sx={span(4)}><Field label="City or Municipality" value={a.city} col={col('ResAddCity', 'ProvAddCity')} /></Box>
+        <Box sx={span(2)}><Field label="Postal Code" value={a.zip} col={col('ResAddZipCode', 'ProvAddZipCode')} /></Box>
+        <Box sx={span(6)}><Field label="Province" value={a.province} col={col('ResAddProvince', 'ProvAddProvince')} /></Box>
+      </Box>
+      {present && (
         <>
-          <Field label="Zip code" value={m.zipCode} col="ResAddZipCode" />
           <Field label="Living here since" value={m.residenceSince} col="ResSince" kind="year" />
           <SelectField label="Residence type" lookup="residenceType" code={m.residenceType} lk={lk} col="ResType" />
           <SelectField label="Mailing address" lookup="mailingAddress" code={m.mailingAddress} lk={lk} col="MailingAddress" />
@@ -43,15 +55,15 @@ function AddressSection({ m, lk }: { m: Member; lk?: Lookups }) {
 export function MembershipTab({ m, lk }: { m: Member; lk?: Lookups }) {
   const st = statusOf(m, lk)
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', alignItems: 'start' }}>
-      <Section title="Membership" columns={2}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '12px', alignItems: 'start' }}>
+      <Section title="Membership">
         <Field label="Member no." value={m.id.clientId === 0 ? 'Given on approval' : memberNo(m.id)} />
         <Field label="Status" value={m.id.clientId === 0 ? 'New' : st.label} />
         <Field label="Date opened" value={fmtDate(m.dateOpened)} />
         <Field label="Date closed" value={fmtDate(m.closedDate)} />
         <SelectField label="Membership type" lookup="clientType" code={m.clientType} lk={lk} col="ClientType" />
       </Section>
-      <Section title="Classification" columns={2}>
+      <Section title="Classification">
         <SelectField label="Branch" lookup="department" code={m.department} lk={lk} col="ClientDEPT" />
       </Section>
     </Box>
@@ -61,12 +73,15 @@ export function MembershipTab({ m, lk }: { m: Member; lk?: Lookups }) {
 export function PersonalTab({ m, lk }: { m: Member; lk?: Lookups }) {
   const age = yearsSince(m.dateOfBirth)
   return (
-    <Box sx={{ columns: 2, columnGap: '12px' }}>
+    <Box>
       <Section title="Identity">
-        <Field label="Last name" value={m.lastName} col="LName" />
-        <Field label="First name" value={m.firstName} col="FName" />
-        <Field label="Middle name" value={m.middleName} col="MName" />
-        <Field label="Suffix" value={m.suffix} col="SName" />
+        {/* The four name fields always share one line (Suffix is the short one); the rest of the section flows under them. */}
+        <Box sx={{ gridColumn: '1 / -1', display: 'grid', gap: '6px 12px', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr)' }}>
+          <Field label="Last name" value={m.lastName} col="LName" />
+          <Field label="First name" value={m.firstName} col="FName" />
+          <Field label="Middle name" value={m.middleName} col="MName" />
+          <Field label="Suffix" value={m.suffix} col="SName" />
+        </Box>
         <Field label="Date of birth" value={m.dateOfBirth ? `${fmtDate(m.dateOfBirth)}${age != null ? ` · ${age} yrs` : ''}` : null} col="DateOfBirth" raw={m.dateOfBirth} kind="date" />
         <SelectField label="Gender" lookup="gender" code={m.gender} lk={lk} col="Gender" />
         <SelectField label="Civil status" lookup="civilStatus" code={m.civilStatus} lk={lk} col="CivilStatus" />
@@ -112,21 +127,17 @@ export function DetailsTab({ id, tab, title, lk }: { id: Id; tab: string; title:
       })}
     </Section>
   )
-  // Business / Employment keeps two fixed columns: the job and its address on the left, Work & income and Income on the right.
+  // Every section is a full-width card, one under the other. Business / Employment keeps its order: the job and its address first, then Work & income and Income.
   if (tab === 'business') {
     const right = new Set(['Work & income', 'Income'])
     return (
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', alignItems: 'start' }}>
-        <Box>{sections.filter((s) => !right.has(s.title)).map(card)}</Box>
-        <Box>{sections.filter((s) => right.has(s.title)).map(card)}</Box>
+      <Box>
+        {sections.filter((s) => !right.has(s.title)).map(card)}
+        {sections.filter((s) => right.has(s.title)).map(card)}
       </Box>
     )
   }
-  return (
-    <Box sx={{ columns: '340px', columnGap: '12px', width: tab === 'groups' ? '50%' : undefined, minWidth: tab === 'groups' ? 340 : undefined }}>
-      {sections.map(card)}
-    </Box>
-  )
+  return <Box>{sections.map(card)}</Box>
 }
 
 /** Who did what to this client, newest first, loaded a page at a time. */

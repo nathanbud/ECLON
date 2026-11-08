@@ -32,3 +32,6 @@ backups/
 # Real CIC submission files hold members personal data; never commit them
 pics/CIC/**/*_CSDF_*
 pics/CIC/**/*.txt
+
+# the speech model for voice commands (large; fetched by scripts/fetch-voice-model.ps1)
+coop-platform/apps/desktop/public/voice/model.tar.gz

@@ -19,13 +19,26 @@ export const BLANK_MEMBER = {
   id: FRESH_ID, firstName: null, lastName: null, accountName: null, dateOpened: null, accountStatus: null, cellNumber: null, city: null, closedDate: null, updatedAt: null,
   middleName: null, suffix: null, clientType: null, dateOfBirth: null, gender: null, civilStatus: null, email: null, street: null, barangay: null, province: null, referenceId: null,
   accountType: null, alertLevel: null, department: null, profession: null, religion: null, mailingAddress: null, dosriTag: null, includeHealthCare: null, monthlyIncome: null,
-  zipCode: null, residenceSince: null, residenceType: null, provStreet: null, provBarangay: null, provCity: null, provProvince: null,
+  zipCode: null, residenceSince: null, residenceType: null, provStreet: null, provBarangay: null, provCity: null, provProvince: null, provZipCode: null, houseNo: null, subdivision: null, provHouseNo: null, provSubdivision: null,
 } as Member
 export const GROUPS: { label: string; tabs: number[] }[] = [
   { label: 'Info', tabs: INFO_TABS.map((n) => TABS.indexOf(n)) },
   { label: 'Accounts', tabs: ACCOUNT_TABS.map((n) => TABS.indexOf(n)) },
   { label: 'Other', tabs: TABS.map((_, i) => i).filter((i) => ![...INFO_TABS, ...ACCOUNT_TABS].includes(TABS[i])) },
 ]
+
+/** The key that opens each group of the section menu (I for Member info, A for Accounts, O for Other), by the group's name. */
+export const GROUP_KEYS: Record<string, string> = { Info: 'I', Accounts: 'A', Other: 'O' }
+
+/**
+ * Which group a key press asks for: the index in {@code groups}, or -1 when it is not one of the group keys or a modifier is held (so Ctrl+A and the like are left alone).
+ * Whether the person is typing or a dialog is open is for the caller, which can see the page.
+ */
+export function groupForKey(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean; repeat: boolean }, groups: { label: string }[]): number {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat) return -1
+  const key = e.key.toUpperCase()
+  return groups.findIndex((g) => GROUP_KEYS[g.label] === key)
+}
 
 // ---- the other tabs -----------------------------------------------------------------------------------------------
 
