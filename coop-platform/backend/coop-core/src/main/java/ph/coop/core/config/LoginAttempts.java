@@ -18,7 +18,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class LoginAttempts {
 
-    public static final int MAX_FAILURES = 5;
+    public static final int MAX_FAILURES = 10;
+    /** The sign-in screen counts the tries left only once this many are left (the fifth wrong password of ten); before that it just says the password is wrong. */
+    public static final int SHOW_COUNT_FROM = 5;
     public static final Duration WINDOW = Duration.ofMinutes(15);
     public static final Duration LOCK = Duration.ofMinutes(15);
 
@@ -50,6 +52,17 @@ public class LoginAttempts {
             }
         }
         return false;
+    }
+
+    /** Wrong passwords left before the lock, counting those in the window; the full allowance for a name with none. */
+    public int remaining(String username) {
+        Deque<Instant> q = failures.get(key(username));
+        if (q == null) return MAX_FAILURES;
+        Instant cutoff = clock.instant().minus(WINDOW);
+        synchronized (q) {
+            long recent = q.stream().filter((t) -> !t.isBefore(cutoff)).count();
+            return (int) Math.max(0, MAX_FAILURES - recent);
+        }
     }
 
     /** A right password: forget the wrong ones. Does not lift a lock that is already on (that needs the lock to run out or an administrator). */

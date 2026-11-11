@@ -59,12 +59,14 @@ class LoginLockTest {
     }
 
     @Test
-    void fiveWrongPasswordsInTheWindowLockAndTheLockRunsOut() {
+    void tenWrongPasswordsInTheWindowLockAndTheLockRunsOut() {
         Hand clock = new Hand();
         LoginAttempts a = new LoginAttempts(clock);
-        for (int i = 0; i < 4; i++) assertFalse(a.failed("Maria"), "not yet");
+        assertEquals(10, a.remaining("Maria"));
+        for (int i = 0; i < 9; i++) assertFalse(a.failed("Maria"), "not yet");
+        assertEquals(1, a.remaining("maria"));
         assertFalse(a.isLocked("maria"));
-        assertTrue(a.failed("MARIA"), "the fifth locks, whatever case was typed");
+        assertTrue(a.failed("MARIA"), "the tenth locks, whatever case was typed");
         assertTrue(a.isLocked("maria"));
         assertEquals(15 * 60, a.secondsLeft("maria"));
         clock.now = clock.now.plusSeconds(14 * 60);
@@ -78,12 +80,12 @@ class LoginLockTest {
     void failuresOutsideTheWindowOrAfterARightPasswordDoNotAdd() {
         Hand clock = new Hand();
         LoginAttempts a = new LoginAttempts(clock);
-        for (int i = 0; i < 4; i++) a.failed("jose");
+        for (int i = 0; i < 9; i++) a.failed("jose");
         clock.now = clock.now.plusSeconds(16 * 60);
         assertFalse(a.failed("jose"), "the old ones fell out of the window");
-        for (int i = 0; i < 3; i++) a.failed("jose");
+        for (int i = 0; i < 8; i++) a.failed("jose");
         a.succeeded("jose");
-        for (int i = 0; i < 4; i++) assertFalse(a.failed("jose"), "a right password cleared the count");
+        for (int i = 0; i < 9; i++) assertFalse(a.failed("jose"), "a right password cleared the count");
         assertTrue(a.failed("jose"));
         assertTrue(a.unlock("jose"));
         assertFalse(a.isLocked("jose"));
@@ -105,8 +107,15 @@ class LoginLockTest {
         attempts.unlock(person);
 
         mvc.perform(get("/api/me").with(httpBasic(person, PASSWORD))).andExpect(status().isOk());
-        for (int i = 0; i < LoginAttempts.MAX_FAILURES; i++)
-            mvc.perform(get("/api/me").with(httpBasic(person, "wrong-" + i))).andExpect(status().isUnauthorized()).andExpect(header().doesNotExist("X-Auth-Reason"));
+        // the first wrong passwords say nothing about the count; from the fifth on each says how many tries are left, and the last says the sign-in is now locked
+        for (int i = 0; i < LoginAttempts.MAX_FAILURES - 1; i++) {
+            int left = LoginAttempts.MAX_FAILURES - 1 - i;
+            var call = mvc.perform(get("/api/me").with(httpBasic(person, "wrong-" + i))).andExpect(status().isUnauthorized()).andExpect(header().doesNotExist("X-Auth-Reason"));
+            if (left <= LoginAttempts.SHOW_COUNT_FROM) call.andExpect(header().string("X-Auth-Attempts-Left", String.valueOf(left)));
+            else call.andExpect(header().doesNotExist("X-Auth-Attempts-Left"));
+        }
+        mvc.perform(get("/api/me").with(httpBasic(person, "wrong-last"))).andExpect(status().isUnauthorized())
+            .andExpect(header().string("X-Auth-Attempts-Left", "0")).andExpect(header().string("X-Auth-Reason", "ACCOUNT_LOCKED"));
         mvc.perform(get("/api/me").with(httpBasic(person, PASSWORD))).andExpect(status().isUnauthorized())
             .andExpect(header().string("X-Auth-Reason", "ACCOUNT_LOCKED")).andExpect(header().exists("Retry-After"));
         assertTrue(attempts.locked().containsKey(person.toLowerCase()));

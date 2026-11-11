@@ -63,8 +63,6 @@ class ClientDetailController {
         business.put("Business address", List.of(
             t("Street", "BusAddStreet"), t("Barangay", "BusAddBarangay"), t("City / Municipality", "BusAddCity"),
             t("Province", "BusAddProvince"), t("Zip code", "BusAddZipCode"), t("Business phone", "EmpBusTelNum")));
-        business.put("DepEd", List.of(
-            t("Region code", "DepEdRegionCode"), t("Division code", "DepEdDivisionCode"), t("Station code", "DepEdStationCode")));
         tabs.put("business", business);
 
         var education = new LinkedHashMap<String, List<Spec>>();

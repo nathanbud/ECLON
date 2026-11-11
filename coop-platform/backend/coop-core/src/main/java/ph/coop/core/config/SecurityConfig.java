@@ -42,7 +42,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *       "can edit client" flag, and any role granted in {@code ecis_user_role} (such as MEMBERSHIP_OFFICER).</li>
  *   <li>A password an administrator issued is temporary: it stops working after its expiry (the sign-in answer carries {@code X-Auth-Reason: TEMPORARY_PASSWORD_EXPIRED}),
  *       and until the person replaces it they can reach only their own sign-in details and the password change.</li>
- *   <li>Five wrong passwords for a name within 15 minutes lock it for 15 minutes ({@link LoginAttempts}); an administrator can lift the lock.</li>
+ *   <li>Ten wrong passwords for a name within 15 minutes lock it for 15 minutes ({@link LoginAttempts}); an administrator can lift the lock.</li>
  *   <li>The env-configured dev user remains as a bootstrap administrator, used to set up the first passwords.</li>
  * </ul>
  */
@@ -75,7 +75,7 @@ public class SecurityConfig {
         c.setAllowedOrigins(origins);
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         c.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-        c.setExposedHeaders(List.of("X-Auth-Reason", "Retry-After", "Content-Disposition"));
+        c.setExposedHeaders(List.of("X-Auth-Reason", "X-Auth-Attempts-Left", "Retry-After", "Content-Disposition"));
         c.setMaxAge(3600L);
         var source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", c);
@@ -92,6 +92,15 @@ public class SecurityConfig {
                     response.setHeader("X-Auth-Reason", "ACCOUNT_LOCKED");
                     String typed = ex.getAuthenticationRequest() == null ? null : ex.getAuthenticationRequest().getName();
                     response.setHeader("Retry-After", String.valueOf(Math.max(1, attempts.secondsLeft(typed))));
+                }
+                if (ex instanceof org.springframework.security.authentication.BadCredentialsException) {
+                    String typed = ex.getAuthenticationRequest() == null ? null : ex.getAuthenticationRequest().getName();
+                    int left = attempts.isLocked(typed) ? 0 : attempts.remaining(typed);
+                    if (left <= LoginAttempts.SHOW_COUNT_FROM) response.setHeader("X-Auth-Attempts-Left", String.valueOf(left));
+                    if (attempts.isLocked(typed)) {
+                        response.setHeader("X-Auth-Reason", "ACCOUNT_LOCKED");
+                        response.setHeader("Retry-After", String.valueOf(Math.max(1, attempts.secondsLeft(typed))));
+                    }
                 }
                 super.commence(request, response, ex);
             }

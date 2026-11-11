@@ -24,9 +24,13 @@ public class BiometricStaging {
     public record StagedFinger(int finger, String template, String format, int quality, String device) {}
 
     /** What the registration form carries along: a photo (base64 JPEG or PNG), whether the member consented to fingerprints, and the scans. All optional. */
-    public record StagedItems(String photo, boolean consent, List<StagedFinger> fingerprints) {
+    public record StagedItems(String photo, boolean consent, List<StagedFinger> fingerprints, String signature) {
+        public StagedItems(String photo, boolean consent, List<StagedFinger> fingerprints) {
+            this(photo, consent, fingerprints, null);
+        }
+
         public boolean isEmpty() {
-            return (photo == null || photo.isBlank()) && (fingerprints == null || fingerprints.isEmpty());
+            return (photo == null || photo.isBlank()) && (signature == null || signature.isBlank()) && (fingerprints == null || fingerprints.isEmpty());
         }
 
         public List<StagedFinger> prints() {
@@ -35,6 +39,7 @@ public class BiometricStaging {
     }
 
     private static final int MAX_PHOTO_BYTES = 3 * 1024 * 1024;
+    private static final int MAX_SIGNATURE_BYTES = 1024 * 1024;
 
     private final JdbcTemplate jdbc;
     private final BiometricVault vault;
@@ -107,6 +112,13 @@ public class BiometricStaging {
             boolean png = p.length > 3 && (p[0] & 0xFF) == 0x89 && p[1] == 'P';
             if (!jpeg && !png) throw bad(HttpStatus.BAD_REQUEST, "Only JPEG and PNG photos are accepted.");
         }
+        if (items.signature() != null && !items.signature().isBlank()) {
+            byte[] p = decode(items.signature());
+            if (p.length == 0 || p.length > MAX_SIGNATURE_BYTES) throw bad(HttpStatus.BAD_REQUEST, "The signature is empty or too large (at most 1 MB).");
+            boolean jpeg = p.length > 3 && (p[0] & 0xFF) == 0xFF && (p[1] & 0xFF) == 0xD8;
+            boolean png = p.length > 3 && (p[0] & 0xFF) == 0x89 && p[1] == 'P';
+            if (!jpeg && !png) throw bad(HttpStatus.BAD_REQUEST, "Only JPEG and PNG signatures are accepted.");
+        }
         if (!items.prints().isEmpty()) {
             if (!items.consent()) throw bad(HttpStatus.CONFLICT, "Record the member's consent before fingerprints are kept.");
             Set<Integer> seen = new HashSet<>();
@@ -129,6 +141,9 @@ public class BiometricStaging {
         if (items.photo() != null && !items.photo().isBlank()) {
             jdbc.update("INSERT INTO ecis_member_request_item (request_id, kind, data, status, created_at) VALUES (?, 'PHOTO', ?, 'HELD', ?)", requestId, decode(items.photo()), now);
         }
+        if (items.signature() != null && !items.signature().isBlank()) {
+            jdbc.update("INSERT INTO ecis_member_request_item (request_id, kind, data, status, created_at) VALUES (?, 'SIGN', ?, 'HELD', ?)", requestId, decode(items.signature()), now);
+        }
         if (!items.prints().isEmpty()) {
             jdbc.update("INSERT INTO ecis_member_request_item (request_id, kind, status, created_at) VALUES (?, 'CONSENT', 'HELD', ?)", requestId, now);
             for (StagedFinger f : items.prints()) {
@@ -143,6 +158,7 @@ public class BiometricStaging {
         if (items == null || items.isEmpty()) return "";
         List<String> parts = new ArrayList<>();
         if (items.photo() != null && !items.photo().isBlank()) parts.add("photo");
+        if (items.signature() != null && !items.signature().isBlank()) parts.add("signature");
         if (!items.prints().isEmpty()) parts.add(items.prints().size() + (items.prints().size() == 1 ? " fingerprint" : " fingerprints"));
         return " + " + String.join(", ", parts);
     }
@@ -161,6 +177,10 @@ public class BiometricStaging {
                 jdbc.update("INSERT INTO image (ImageBR_CODE, ClientIDimg, ImageType, ImageFileSize, ImageFile, ImageRemarks, ImageDateTimeAdded) VALUES (?, ?, 'img', ?, ?, ?, NOW())",
                     branch, clientId, data.length, data, "Taken at registration by " + requester);
                 audit(approver, "member.photo.set", branch, clientId, data.length + " bytes", "Photo taken at registration by " + requester);
+            } else if (kind.equals("SIGN") && data != null) {
+                jdbc.update("INSERT INTO image (ImageBR_CODE, ClientIDimg, ImageType, ImageFileSize, ImageFile, ImageRemarks, ImageDateTimeAdded) VALUES (?, ?, 'sig', ?, ?, ?, NOW())",
+                    branch, clientId, data.length, data, "Signed at registration by " + requester);
+                audit(approver, "member.signature.set", branch, clientId, data.length + " bytes", "Signature taken at registration by " + requester);
             } else if (kind.equals("CONSENT")) {
                 jdbc.update("INSERT INTO ecis_biometric_consent (branch_code, client_id, consent_version, given_at, recorded_by) VALUES (?, ?, ?, ?, ?)",
                     branch, clientId, BiometricRules.CONSENT_VERSION, it[7], requester);

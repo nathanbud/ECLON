@@ -89,6 +89,17 @@ class RegistrationBiometricsTest {
     }
 
     @Test
+    void approvalStoresTheSignatureTakenAtRegistration() {
+        var items = new StagedItems(null, false, List.of(), Base64.getEncoder().encodeToString(JPEG));
+        var req = ctl.register(reg("Zzsign", items), maker());
+        assertTrue(req.summary().contains("signature"));
+        int id = ctl.approve(req.id(), null, officer()).clientId();
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM image WHERE ImageBR_CODE = 1 AND ClientIDimg = ? AND ImageType = 'sig'", Integer.class, id));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_member_request_item WHERE request_id = ? AND data IS NOT NULL", Integer.class, req.id()));
+        assertThrows(ResponseStatusException.class, () -> ctl.register(reg("Zzbad", new StagedItems(null, false, List.of(), Base64.getEncoder().encodeToString(new byte[] {1, 2, 3, 4, 5}))), maker()));
+    }
+
+    @Test
     void aRejectedRegistrationKeepsNothing() {
         var req = ctl.register(reg("Zzbio", new StagedItems(Base64.getEncoder().encodeToString(JPEG), true, List.of(finger(1, 511)))), maker());
         ctl.reject(req.id(), new MemberLifecycleController.Decision("Not eligible"), officer());
