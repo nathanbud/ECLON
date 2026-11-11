@@ -7,7 +7,7 @@ export default function DividendsPage() {
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
-        <Typography component="h1" variant="h5" sx={{ fontWeight: 700, mb: 1.5 }}>Dividends and patronage refund</Typography>
+        <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 1.5 }}>Dividends and patronage refund</Typography>
         <DividendPanel />
       </Box>
     </Box>

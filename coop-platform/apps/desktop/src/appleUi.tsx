@@ -15,7 +15,7 @@ const fill = (t: Theme) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)'
 export function PageTitle({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <Box sx={{ mb: 2.5, px: 0.5 }}>
-      <Typography component="h1" sx={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.2 }}>{title}</Typography>
+      <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.25 }}>{title}</Typography>
       {children && <Typography color="text.secondary" sx={{ fontSize: 13, mt: 0.5, maxWidth: 720 }}>{children}</Typography>}
     </Box>
   )

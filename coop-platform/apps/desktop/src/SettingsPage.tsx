@@ -197,7 +197,7 @@ export default function SettingsPage({ onOpen }: { onOpen: (v: View) => void }) 
           animation: `settingsIn 260ms ${EASE} both`, '@keyframes settingsIn': { from: { opacity: 0, transform: 'translateY(6px)' }, to: { opacity: 1, transform: 'none' } },
           '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         }}>
-          <Typography component="h1" sx={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em', mb: 2, px: 0.5 }}>{query ? 'Search' : category.label}</Typography>
+          <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 2, px: 0.5 }}>{query ? 'Search' : category.label}</Typography>
           {query ? (
             hits.length > 0 ? (
               <Group>{hits.map((i) => <Row key={i.label} item={i} allowed={allowed(i)} onOpen={onOpen} />)}</Group>

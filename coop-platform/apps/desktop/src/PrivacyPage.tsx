@@ -269,8 +269,8 @@ function ReviewTab() {
 export default function PrivacyPage() {
   const [tab, setTab] = useState('requests')
   return (
-    <Box sx={(t) => ({ minHeight: '100%', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>Data privacy</Typography>
+    <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
+      <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Data privacy</Typography>
       <Alert severity="info" sx={{ mb: 1.5 }}>The starting retention rules and classifications are a draft, not legal advice. Review them against the Data Privacy Act before production.</Alert>
       <Tabs value={tab} onChange={(_, v: string) => setTab(v)} variant="scrollable" scrollButtons="auto" sx={{ mb: 1.5 }}>
         <Tab value="requests" label="Requests" />

@@ -156,8 +156,16 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
             root: {
               minHeight: CONTROL_H, padding: '4px 12px', fontSize: TYPE.body, fontWeight: 500, lineHeight: '20px', borderRadius: RADIUS, letterSpacing: 0,
               transition: `background-color ${quick}, border-color ${quick}, box-shadow ${quick}, filter ${quick}`,
-              '&.Mui-disabled': { opacity: 0.55 },
+              // A disabled button keeps its own colours and fades, as on macOS, so it still reads as the button it will become. (MUI greys it out instead; with a fade on
+              // top it all but disappeared.)
+              '&.Mui-disabled': { opacity: 0.42 },
               variants: [
+                ...([['primary', accent], ['error', danger], ['success', dark ? '#30D158' : '#34C759'], ['warning', dark ? '#FF9F0A' : '#FF9500']] as const).flatMap(([color, c]) => [
+                  { props: { variant: 'contained' as const, color }, style: { '&.Mui-disabled': { color: '#fff', backgroundColor: c } } },
+                  { props: { variant: 'text' as const, color }, style: { '&.Mui-disabled': { color: c } } },
+                  { props: { variant: 'outlined' as const, color }, style: { '&.Mui-disabled': { color: color === 'primary' ? ink : c, borderColor: color === 'primary' ? edge : alpha(c, 0.5) } } },
+                ]),
+                { props: { color: 'inherit' as const }, style: { '&.Mui-disabled': { color: 'inherit' } } },
                 {
                   props: { variant: 'contained' },
                   style: {

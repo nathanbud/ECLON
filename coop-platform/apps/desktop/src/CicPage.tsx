@@ -59,7 +59,7 @@ export default function CicPage() {
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
-        <Typography component="h1" variant="h5" sx={{ fontWeight: 700, mb: 1 }}>CIC submission</Typography>
+        <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 1 }}>CIC submission</Typography>
         {error && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError('')}>{error}</Alert>}
         {info && <Alert severity="success" sx={{ mb: 1.5 }} onClose={() => setInfo('')}>{info}</Alert>}
 

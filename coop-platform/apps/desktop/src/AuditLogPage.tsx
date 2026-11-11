@@ -86,7 +86,7 @@ export default function AuditLogPage() {
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-        <Typography variant="h5" component="h1" sx={{ mb: 0.5 }}>Audit log</Typography>
+        <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Audit log</Typography>
         <Typography color="text.secondary" sx={{ fontSize: 13, mb: 2 }}>Every change the app records, newest first. It can be read here but never changed.</Typography>
         {!me.admin ? <Alert severity="info">Only administrators can read the audit log.</Alert> : (
           <>
