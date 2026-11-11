@@ -37,8 +37,17 @@ export async function http(url: string, init: RequestInit = {}): Promise<Respons
 
 export async function getJson<T>(url: string): Promise<T> {
   const res = await http(url)
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await reason(res))
   return res.json()
+}
+
+/** The server's own explanation of a refusal when it gave one (for example "This account is not a staff account."), otherwise the status. */
+async function reason(res: Response): Promise<string> {
+  try {
+    const j = await res.json()
+    if (j && typeof j.message === 'string' && j.message) return j.message
+  } catch { /* no readable body */ }
+  return `Request failed (${res.status})`
 }
 
 export async function send<T>(method: string, url: string, body?: unknown): Promise<T> {
