@@ -29,7 +29,7 @@ export function useBound({ col, raw, kind = 'text' }: Bind) {
 }
 
 export const fieldSx = (live: boolean) => ({
-  '& .MuiOutlinedInput-root': { fontSize: 14, backgroundColor: live ? 'background.paper' : 'transparent' },
+  '& .MuiOutlinedInput-root': { fontSize: 13, backgroundColor: live ? 'background.paper' : 'transparent' },
   '& .MuiOutlinedInput-notchedOutline': { borderColor: live ? 'text.disabled' : 'divider' },
   '& .MuiInputLabel-root': { fontSize: 13 },
   ...(live ? {} : { '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' } }),

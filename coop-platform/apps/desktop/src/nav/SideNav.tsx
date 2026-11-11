@@ -100,7 +100,7 @@ export default function SideNav({ view, tab, onNavigate, open, onClose }: { view
                 onClick={() => fold(g.id)} aria-expanded={expanded} aria-label={`${g.label} section`}
                 sx={(t) => ({ width: '100%', justifyContent: 'flex-start', gap: 0.5, px: 0.75, py: 0.5, '&:hover': { bgcolor: t.palette.action.hover } })}
               >
-                <Box aria-hidden sx={{ display: 'flex', fontSize: 14, color: 'text.secondary' }}>{expanded ? <FiChevronDown /> : <FiChevronRight />}</Box>
+                <Box aria-hidden sx={{ display: 'flex', fontSize: 13, color: 'text.secondary' }}>{expanded ? <FiChevronDown /> : <FiChevronRight />}</Box>
                 <Typography component="h2" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">{g.label}</Typography>
               </ButtonBase>
               {expanded && (

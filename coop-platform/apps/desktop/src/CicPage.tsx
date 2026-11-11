@@ -191,7 +191,7 @@ export default function CicPage() {
               </Box>
             </>)}
             {tab === 'log' && (
-              <Box role="log" aria-label="Status log" tabIndex={0} sx={{ bgcolor: 'common.black', color: 'common.white', fontFamily: 'Consolas, "Courier New", monospace', fontSize: 12.5, p: 1, height: 220, overflow: 'auto', borderRadius: '3px', whiteSpace: 'pre-wrap' }}>
+              <Box role="log" aria-label="Status log" tabIndex={0} sx={{ bgcolor: 'common.black', color: 'common.white', fontFamily: 'Consolas, "Courier New", monospace', fontSize: 12, p: 1, height: 220, overflow: 'auto', borderRadius: '3px', whiteSpace: 'pre-wrap' }}>
                 {[...b.logs.MEMBERS, ...b.logs.LOANS, ...b.logs.FILES].map((l, i) => <div key={i}>{l}</div>)}
               </Box>
             )}

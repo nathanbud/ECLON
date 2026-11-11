@@ -226,13 +226,13 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
                 helperText={own && (own.cheques ?? 0) > 0 ? `Cheques held ${money(own.cheques ?? 0)}. They move as an amount, together with the cash.` : 'Cheques move as an amount, together with the cash.'} />
             )}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1.25, flexWrap: 'wrap' }}>
-              <Typography sx={{ fontSize: 13.5 }}>Total <b style={{ fontSize: 17, fontVariantNumeric: 'tabular-nums' }}>{money(amount)}</b>{chequeTotal > 0 && <> + cheques <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(chequeTotal)}</b></>}</Typography>
-              {free !== null && from !== VAULT && <Typography sx={{ fontSize: 12.5 }} color="text.secondary">free to give {money(free)}</Typography>}
+              <Typography sx={{ fontSize: 13 }}>Total <b style={{ fontSize: 17, fontVariantNumeric: 'tabular-nums' }}>{money(amount)}</b>{chequeTotal > 0 && <> + cheques <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(chequeTotal)}</b></>}</Typography>
+              {free !== null && from !== VAULT && <Typography sx={{ fontSize: 12 }} color="text.secondary">free to give {money(free)}</Typography>}
               <Box sx={{ flex: 1 }} />
               <TextField size="small" label="Remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} sx={{ width: 200 }} slotProps={{ htmlInput: { maxLength: 150 } }} />
               <Button variant="contained" disabled={!!problem || give.isPending} onClick={submit}>{give.isPending ? 'Sending…' : atOnce ? 'Post' : 'Send'}</Button>
             </Box>
-            {problem && (amount > 0 || chequeTotal > 0) && <Typography sx={{ fontSize: 12.5, mt: 0.5 }} color="error">{problem}</Typography>}
+            {problem && (amount > 0 || chequeTotal > 0) && <Typography sx={{ fontSize: 12, mt: 0.5 }} color="error">{problem}</Typography>}
             <Typography sx={{ fontSize: 12, mt: 0.75 }} color="text.secondary">
               {atOnce ? 'Moves to or from the vault are posted to the ledger straight away.' : 'The receiver counts it first. It is posted to the ledger when their count agrees.'}
             </Typography>
@@ -273,7 +273,7 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
                         )}
                       </TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{(d.pendingIn ?? 0) + (d.pendingOut ?? 0) > 0 ? money((d.pendingIn ?? 0) + (d.pendingOut ?? 0)) : ''}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap', fontSize: 12.5 }}>
+                      <TableCell sx={{ whiteSpace: 'nowrap', fontSize: 12 }}>
                         {d.closedAt == null ? (d.event === VAULT ? '' : '—')
                           : <span style={{ color: d.variance ? 'inherit' : undefined }}>{d.closedAt}{d.variance ? ` · ${d.variance < 0 ? 'short' : 'over'} ${money(Math.abs(d.variance))}` : ' ✓'}</span>}
                       </TableCell>
@@ -293,11 +293,11 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
         {/* Waiting for me */}
         <Box sx={(t) => ({ p: 1.5, ...glass(t) })}>
           {label('Waiting for you to count')}
-          {(mine.data?.incoming ?? []).length === 0 && <Typography sx={{ fontSize: 13.5 }} color="text.secondary">Nothing to receive.</Typography>}
+          {(mine.data?.incoming ?? []).length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing to receive.</Typography>}
           {(mine.data?.incoming ?? []).map((h) => (
             <Box key={h.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75, borderTop: '1px solid', borderColor: 'divider' }}>
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ fontSize: 14 }}>{h.from} · <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.amount)}</b>{h.cheques > 0 && <> + cheques <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.cheques)}</b></>}</Typography>
+                <Typography sx={{ fontSize: 13 }}>{h.from} · <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.amount)}</b>{h.cheques > 0 && <> + cheques <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.cheques)}</b></>}</Typography>
                 <Typography sx={{ fontSize: 12 }} color="text.secondary">{h.issuedAt} by {h.issuedBy}{h.remarks ? ` · ${h.remarks}` : ''}</Typography>
               </Box>
               <Button size="small" variant="contained" onClick={() => { setAccepting(h); setAccCounts({}) }}>Count</Button>
@@ -313,7 +313,7 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
             {(mine.data?.outgoing ?? []).map((h) => (
               <Box key={h.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75, borderTop: '1px solid', borderColor: 'divider' }}>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 14 }}>{h.to} · <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.amount)}</b>{h.cheques > 0 && <> + cheques <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.cheques)}</b></>}</Typography>
+                  <Typography sx={{ fontSize: 13 }}>{h.to} · <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.amount)}</b>{h.cheques > 0 && <> + cheques <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.cheques)}</b></>}</Typography>
                   <Typography sx={{ fontSize: 12 }} color={h.status === 'DISPUTED' ? 'error' : 'text.secondary'}>{h.status === 'DISPUTED' ? h.note : `Sent ${h.issuedAt}`}</Typography>
                 </Box>
                 <Chip size="small" color={statusColor(h.status)} variant="outlined" label={h.status === 'DISPUTED' ? 'Count differs' : 'Waiting'} />
@@ -332,7 +332,7 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
               {(mine.data?.today ?? []).map((h) => (
                 <TableRow key={h.id}>
                   <TableCell sx={{ fontVariantNumeric: 'tabular-nums' }}>{h.issuedAt}</TableCell><TableCell>{h.from}</TableCell><TableCell>{h.to}</TableCell>
-                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.amount)}{h.cheques > 0 && <Typography component="div" sx={{ fontSize: 11.5 }} color="text.secondary">+ cheques {money(h.cheques)}</Typography>}</TableCell>
+                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.amount)}{h.cheques > 0 && <Typography component="div" sx={{ fontSize: 11 }} color="text.secondary">+ cheques {money(h.cheques)}</Typography>}</TableCell>
                   <TableCell><Chip size="small" variant="outlined" color={statusColor(h.status)} label={h.status === 'POSTED' ? `Posted ${h.ctlNo ?? ''}` : h.status.charAt(0) + h.status.slice(1).toLowerCase()} /></TableCell>
                   <TableCell align="right"><Button size="small" aria-label={`Slip for ${h.from} to ${h.to}`} onClick={() => setSlipId(h.id)}>Slip</Button></TableCell>
                 </TableRow>

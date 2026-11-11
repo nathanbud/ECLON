@@ -127,7 +127,7 @@ function Tab_({ label, side, onClick }: { label: string; side: 'left' | 'right';
 const Card = ({ title, action, children, sx }: { title: string; action?: React.ReactNode; children: React.ReactNode; sx?: object }) => (
   <Box component="section" aria-label={title} sx={(t) => ({ p: 1.5, ...glass(t), ...sx })}>
     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-      <Typography component="h2" sx={{ flex: 1, fontSize: 14.5, fontWeight: 700 }}>{title}</Typography>
+      <Typography component="h2" sx={{ flex: 1, fontSize: 15, fontWeight: 700 }}>{title}</Typography>
       {action}
     </Box>
     {children}
@@ -137,7 +137,7 @@ const Card = ({ title, action, children, sx }: { title: string; action?: React.R
 function Balance({ label, value, color }: { label: string; value: number | null; color: string }) {
   return (
     <Box sx={{ flex: 1, minWidth: 0, p: 1, borderRadius: '5px', bgcolor: `${color}22`, boxShadow: `inset 0 0 0 1px ${color}44` }}>
-      <Typography sx={{ fontSize: 11.5 }} color="text.secondary" noWrap>{label}</Typography>
+      <Typography sx={{ fontSize: 11 }} color="text.secondary" noWrap>{label}</Typography>
       <Typography sx={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} noWrap>{value === null ? '…' : money(value)}</Typography>
     </Box>
   )
@@ -158,10 +158,10 @@ function MemberCard({ id, onChange, lk }: { id: Id; onChange: () => void; lk: Re
       <Box sx={{ display: 'flex', gap: 1.5, mb: 1.25 }}>
         <Avatar variant="rounded" src={photo ?? undefined} alt={m ? `Photo of ${displayName(m)}` : ''} sx={{ width: 72, height: 72, borderRadius: '5px' }}><FiUser size={32} aria-hidden /></Avatar>
         <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 16 }} noWrap>{m ? displayName(m) : '…'}</Typography>
-          <Typography sx={{ fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">Member no. {memberNo(id)}</Typography>
-          {type && <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Type: {type}</Typography>}
-          {m?.dateOpened && <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Member since {fmtDate(m.dateOpened)}</Typography>}
+          <Typography sx={{ fontWeight: 700, fontSize: 15 }} noWrap>{m ? displayName(m) : '…'}</Typography>
+          <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">Member no. {memberNo(id)}</Typography>
+          {type && <Typography sx={{ fontSize: 12 }} color="text.secondary">Type: {type}</Typography>}
+          {m?.dateOpened && <Typography sx={{ fontSize: 12 }} color="text.secondary">Member since {fmtDate(m.dateOpened)}</Typography>}
           {status && <Chip size="small" label={status.label} color={status.kind === 'default' ? 'default' : status.kind} sx={{ mt: 0.5, height: 20 }} />}
         </Box>
       </Box>
@@ -212,7 +212,7 @@ function DrawerCard({ setup }: { setup: FoSetup }) {
           {rows.map(([k, v]) => (
             <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, py: 0.15 }}><span>{k}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(v ?? 0)}</span></Box>
           ))}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, borderTop: 1, borderColor: 'divider', mt: 0.5, pt: 0.5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, borderTop: 1, borderColor: 'divider', mt: 0.5, pt: 0.5 }}>
             <span>Total cash</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(c?.ending ?? 0)}</span>
           </Box>
         </>
@@ -228,7 +228,7 @@ function TodayCard({ setup }: { setup: FoSetup }) {
   const rows = (data ?? []).slice(0, 8)
   return (
     <Card title="Today’s transactions" action={<Chip size="small" color={isFetching ? 'default' : 'success'} variant="outlined" label="Live" sx={{ height: 20 }} />}>
-      <Table size="small" aria-label="Today’s transactions" sx={{ '& td, & th': { py: 0.4, px: 0.75, fontSize: 12.5 } }}>
+      <Table size="small" aria-label="Today’s transactions" sx={{ '& td, & th': { py: 0.4, px: 0.75, fontSize: 12 } }}>
         <TableHead><TableRow><TableCell>Time</TableCell><TableCell>Type</TableCell><TableCell>Member</TableCell><TableCell align="right">Amount</TableCell></TableRow></TableHead>
         <TableBody>
           {rows.map((r) => (
@@ -238,7 +238,7 @@ function TodayCard({ setup }: { setup: FoSetup }) {
               <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(r.total)}</TableCell>
             </TableRow>
           ))}
-          {data && rows.length === 0 && <TableRow><TableCell colSpan={4}><Typography sx={{ p: 1, textAlign: 'center', fontSize: 12.5 }} color="text.secondary">Nothing yet today.</Typography></TableCell></TableRow>}
+          {data && rows.length === 0 && <TableRow><TableCell colSpan={4}><Typography sx={{ p: 1, textAlign: 'center', fontSize: 12 }} color="text.secondary">Nothing yet today.</Typography></TableCell></TableRow>}
         </TableBody>
       </Table>
     </Card>
@@ -277,7 +277,7 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
                   sx={(t) => ({ flexDirection: 'column', gap: 0.25, py: 1, borderRadius: '5px', border: 1, borderColor: 'divider', '&:hover': { bgcolor: t.palette.action.hover }, '&.Mui-disabled': { opacity: 0.45 } })}
                 >
                   <Box aria-hidden sx={{ display: 'flex', fontSize: 22, color: q.color }}>{q.icon}</Box>
-                  <Typography sx={{ fontSize: 12.5, fontWeight: 600 }}>{q.label}</Typography>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{q.label}</Typography>
                 </ButtonBase>
               ))}
             </Box>
@@ -310,7 +310,7 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
           {id && <AccountSummary id={id} />}
           <DrawerCard setup={setup} />
           <Card title="Notes and reminders">
-            <Box component="ul" sx={{ m: 0, pl: 2, fontSize: 12.5, display: 'grid', gap: 0.5 }}>{REMINDERS.map((r) => <li key={r}>{r}</li>)}</Box>
+            <Box component="ul" sx={{ m: 0, pl: 2, fontSize: 12, display: 'grid', gap: 0.5 }}>{REMINDERS.map((r) => <li key={r}>{r}</li>)}</Box>
           </Card>
         </Box>
       </Box>

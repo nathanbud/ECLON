@@ -136,7 +136,7 @@ function Register() {
               </TextField>
               <TextField size="small" label="Customer (optional)" value={customer} onChange={(e) => setCustomer(e.target.value)} sx={{ flex: 1 }} />
             </Stack>
-            <Typography sx={{ fontSize: 14 }}>Subtotal {money(subtotal)}{off > 0 && <> · discount −{money(off)}</>}</Typography>
+            <Typography sx={{ fontSize: 13 }}>Subtotal {money(subtotal)}{off > 0 && <> · discount −{money(off)}</>}</Typography>
             <Typography sx={{ fontSize: 22, fontWeight: 700 }}>Total {money(total)}</Typography>
             <Stack direction="row" spacing={1.5}>
               <TextField select size="small" label="Pay by" value={method} onChange={(e) => setMethod(e.target.value)} sx={{ width: 120 }}>
@@ -187,7 +187,7 @@ function ReturnDialog({ sale, onClose }: { sale: PosSale; onClose: () => void })
             </TableBody>
           </Table>
           <TextField size="small" label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
-          <Typography sx={{ fontSize: 12.5 }} color="text.secondary">A POS supervisor approves the return; the goods go back into stock and the refund is paid then.</Typography>
+          <Typography sx={{ fontSize: 12 }} color="text.secondary">A POS supervisor approves the return; the goods go back into stock and the refund is paid then.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending || !reason.trim()} onClick={() => save.mutate()}>Ask for the return</Button></DialogActions>

@@ -29,7 +29,7 @@ export function TimeDepositNoticesPanel() {
       </Box>
       {error && <Alert severity="error">{(error as Error).message}</Alert>}
       {isLoading && <Typography color="text.secondary">Loading…</Typography>}
-      {data && data.notices.length === 0 && <Typography sx={{ fontSize: 13.5 }} color="text.secondary">No certificate is maturing in these days, and none is waiting after maturity.</Typography>}
+      {data && data.notices.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">No certificate is maturing in these days, and none is waiting after maturity.</Typography>}
       {data && data.notices.length > 0 && (
         <Table size="small" stickyHeader aria-label="Time deposit maturities">
           <TableHead>

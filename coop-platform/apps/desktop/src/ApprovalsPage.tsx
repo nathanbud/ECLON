@@ -27,7 +27,7 @@ function Everything({ onOpen }: { onOpen: (v: View, tab?: string) => void }) {
       {list.isLoading && <Skeleton variant="rounded" height={120} />}
       {list.data && items.length === 0 && (
         <Box sx={(t) => ({ p: 4, textAlign: 'center', ...glass(t) })}>
-          <Box sx={{ fontSize: 32, color: 'success.main', display: 'flex', justifyContent: 'center', mb: 1 }}><FiCheckCircle /></Box>
+          <Box sx={{ fontSize: 28, color: 'success.main', display: 'flex', justifyContent: 'center', mb: 1 }}><FiCheckCircle /></Box>
           <Typography sx={{ fontWeight: 600 }}>Nothing is waiting for you</Typography>
           <Typography sx={{ fontSize: 13 }} color="text.secondary">Journals, memos, purchases, stock adjustments and member requests that need you appear here.</Typography>
         </Box>
@@ -45,7 +45,7 @@ function Everything({ onOpen }: { onOpen: (v: View, tab?: string) => void }) {
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{i.at ? when(i.at) : ''}</TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                     {DECIDED_HERE.has(i.kind)
-                      ? <Typography component="span" sx={{ fontSize: 12.5 }} color="text.secondary">Decide below</Typography>
+                      ? <Typography component="span" sx={{ fontSize: 12 }} color="text.secondary">Decide below</Typography>
                       : <Button size="small" onClick={() => onOpen(i.view as View, i.tab ?? undefined)}>Open</Button>}
                   </TableCell>
                 </TableRow>
@@ -71,7 +71,7 @@ export default function ApprovalsPage({ onOpenClient, onOpen }: { onOpenClient: 
           Everything that needs your approval or action, from every part of the system. Open an item to decide it where it belongs.
         </Typography>
         <Everything onOpen={onOpen} />
-        <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 0.5 }}>Client profile changes</Typography>
+        <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, mb: 0.5 }}>Client profile changes</Typography>
         <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
           {me.canApprove ? 'Changes to client profiles waiting for a Membership Officer.' : 'Your changes that are waiting for a Membership Officer.'}
         </Typography>
@@ -79,7 +79,7 @@ export default function ApprovalsPage({ onOpenClient, onOpen }: { onOpenClient: 
         {isLoading && <Skeleton variant="rounded" height={160} />}
         {data && data.length === 0 && (
           <Box sx={(t) => ({ p: 4, textAlign: 'center', ...glass(t) })}>
-            <Box sx={{ fontSize: 32, color: 'success.main', display: 'flex', justifyContent: 'center', mb: 1 }}><FiCheckCircle /></Box>
+            <Box sx={{ fontSize: 28, color: 'success.main', display: 'flex', justifyContent: 'center', mb: 1 }}><FiCheckCircle /></Box>
             <Typography sx={{ fontWeight: 600 }}>Nothing is waiting</Typography>
             <Typography sx={{ fontSize: 13 }} color="text.secondary">New requests appear here.</Typography>
           </Box>

@@ -86,7 +86,7 @@ function Body({ setup, typeIds, onPickTransaction, onPickDraft }: {
       <Box sx={(t) => ({ borderTop: `1px solid ${dark(t) ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`, minHeight: 140, maxHeight: 380, overflow: 'auto' })}>
         {error && <Alert severity="error" sx={{ m: 1.5 }}>{error.message}</Alert>}
         {!error && !loading && rows.length === 0 && (
-          <Typography sx={{ p: 2.5, fontSize: 13.5 }} color="text.secondary">
+          <Typography sx={{ p: 2.5, fontSize: 13 }} color="text.secondary">
             {what === 'txn' ? 'No transactions found for this date.' : 'You have no saved drafts.'}
           </Typography>
         )}
@@ -101,16 +101,16 @@ function Body({ setup, typeIds, onPickTransaction, onPickDraft }: {
               })}
             >
               <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Typography noWrap sx={{ fontSize: 14, fontWeight: 600 }}>{r.title}</Typography>
-                <Typography noWrap sx={{ fontSize: 12.5 }} color="text.secondary">{r.sub}</Typography>
+                <Typography noWrap sx={{ fontSize: 13, fontWeight: 600 }}>{r.title}</Typography>
+                <Typography noWrap sx={{ fontSize: 12 }} color="text.secondary">{r.sub}</Typography>
               </Box>
               {r.kind === 'draft' && <Chip size="small" variant="outlined" color={r.balanced ? 'success' : 'warning'} label={r.balanced ? 'Balanced' : 'Out of balance'} sx={{ height: 20, fontSize: 11 }} />}
-              <Typography sx={{ fontSize: 13.5, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{money(r.total)}</Typography>
+              <Typography sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{money(r.total)}</Typography>
             </Box>
           ))}
         </Box>
         {what === 'txn' && rows.length >= 200 && (
-          <Typography sx={{ px: 2.5, pb: 1.5, fontSize: 12.5 }} color="text.secondary">Showing the latest 200. Type a control number, client or words to narrow the list.</Typography>
+          <Typography sx={{ px: 2.5, pb: 1.5, fontSize: 12 }} color="text.secondary">Showing the latest 200. Type a control number, client or words to narrow the list.</Typography>
         )}
       </Box>
     </Box>

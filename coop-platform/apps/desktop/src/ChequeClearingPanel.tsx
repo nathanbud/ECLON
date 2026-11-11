@@ -41,7 +41,7 @@ export function ChequeClearingPanel() {
       {note && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setNote(null)}>{note}</Alert>}
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       {rows.length === 0 ? (
-        <Typography sx={{ fontSize: 13.5 }} color="text.secondary">No cheques are waiting to clear.</Typography>
+        <Typography sx={{ fontSize: 13 }} color="text.secondary">No cheques are waiting to clear.</Typography>
       ) : (
         <>
           <Box sx={{ maxHeight: 320, overflow: 'auto' }}>
@@ -69,7 +69,7 @@ export function ChequeClearingPanel() {
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1.25, flexWrap: 'wrap' }}>
             <Button size="small" onClick={() => setPicked(new Set(rows.filter((r) => r.due).map(key)))}>Choose all due</Button>
-            <Typography sx={{ fontSize: 13.5 }}>{chosen.length} chosen · <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(total)}</b></Typography>
+            <Typography sx={{ fontSize: 13 }}>{chosen.length} chosen · <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(total)}</b></Typography>
             <Box sx={{ flex: 1 }} />
             <TextField size="small" type="date" label="Cleared on" value={clearedOn} onChange={(e) => setClearedOn(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today } }} />
             <TextField size="small" label="Bank reference (optional)" value={bankReference} onChange={(e) => setBankReference(e.target.value)} slotProps={{ htmlInput: { maxLength: 40 } }} />

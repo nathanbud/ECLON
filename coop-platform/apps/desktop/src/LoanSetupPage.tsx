@@ -198,7 +198,7 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
         <DialogContent sx={{ pt: 0.5, pb: 1, overflow: 'visible' }}>
           <Box sx={{ display: pane === 'coa' ? 'none' : undefined }}>
           {used && (
-            <Typography color="text.secondary" sx={{ fontSize: 12.5, mb: 1.5 }}>
+            <Typography color="text.secondary" sx={{ fontSize: 12, mb: 1.5 }}>
               {editing!.loans.toLocaleString()} loans and {editing!.applications.toLocaleString()} applications use this type. Changes apply to new applications only.
             </Typography>
           )}
@@ -242,8 +242,8 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
                 <TextField type="number" size="small" label="Minimum co-makers" value={form.minCoMakers ?? ''} onChange={(e) => set('minCoMakers', numberOrNull(e.target.value))} slotProps={{ htmlInput: { min: 0, max: 20 } }} />
                 <TextField type="number" size="small" label="Order in lists" value={form.priority ?? ''} onChange={(e) => set('priority', numberOrNull(e.target.value))} slotProps={{ htmlInput: { min: 0, max: 999 } }} />
                 <Box sx={{ gridColumn: 'span 2', display: 'flex', flexWrap: 'wrap', columnGap: 3 }}>
-                  <FormControlLabel control={<Switch size="small" checked={form.requireCollateral} onChange={(e) => set('requireCollateral', e.target.checked)} />} label={<Typography sx={{ fontSize: 13.5 }}>Collateral required</Typography>} />
-                  {editing && <FormControlLabel control={<Switch size="small" checked={!form.disabled} onChange={(e) => set('disabled', !e.target.checked)} />} label={<Typography sx={{ fontSize: 13.5 }}>Available for new applications</Typography>} />}
+                  <FormControlLabel control={<Switch size="small" checked={form.requireCollateral} onChange={(e) => set('requireCollateral', e.target.checked)} />} label={<Typography sx={{ fontSize: 13 }}>Collateral required</Typography>} />
+                  {editing && <FormControlLabel control={<Switch size="small" checked={!form.disabled} onChange={(e) => set('disabled', !e.target.checked)} />} label={<Typography sx={{ fontSize: 13 }}>Available for new applications</Typography>} />}
                 </Box>
               </FormSection>
             </Box>
@@ -290,7 +290,7 @@ function TypesTab({ lists, onNotice }: { lists: LoanSetupLists | undefined; onNo
     <>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
         <SearchField value={q} onChange={setQ} placeholder="Search loan types" />
-        <FormControlLabel control={<Switch size="small" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} />} label={<Typography sx={{ fontSize: 13.5 }}>Show disabled</Typography>} />
+        <FormControlLabel control={<Switch size="small" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} />} label={<Typography sx={{ fontSize: 13 }}>Show disabled</Typography>} />
         <Box sx={{ flex: 1 }} />
         <Button variant="contained" startIcon={<FiPlus />} onClick={() => setCreating(true)}>New loan type</Button>
       </Box>
@@ -308,7 +308,7 @@ function TypesTab({ lists, onNotice }: { lists: LoanSetupLists | undefined; onNo
                 <TableRow key={t.code} hover tabIndex={0} onClick={() => setEditing(t)} onKeyDown={(e) => onKey(e, t)} aria-label={`Edit ${t.name}`}
                   sx={{ cursor: 'pointer', opacity: t.disabled ? 0.55 : 1, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}>
                   <TableCell>
-                    <Typography sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3 }}>{t.name}</Typography>
+                    <Typography sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{t.name}</Typography>
                     {t.fullName && t.fullName !== t.name && <Typography color="text.secondary" sx={{ fontSize: 12 }}>{t.fullName}</Typography>}
                   </TableCell>
                   <TableCell sx={num}>{t.terms == null ? '—' : `${t.terms} ${unit(t.termUnit).toLowerCase()}`}</TableCell>
@@ -330,7 +330,7 @@ function TypesTab({ lists, onNotice }: { lists: LoanSetupLists | undefined; onNo
           </Table>
         </Box>
       </Surface>
-      <Typography color="text.secondary" sx={{ fontSize: 12.5, mt: 1.25, px: 0.5 }}>
+      <Typography color="text.secondary" sx={{ fontSize: 12, mt: 1.25, px: 0.5 }}>
         {counts.active} active · {counts.pending} not yet in the application screen · {counts.off} disabled. A change applies to new applications; loans already made keep the setup they were made with.
       </Typography>
       <TypeDialog editing={editing} creating={creating} types={data ?? []} lists={lists} onClose={close}
@@ -391,7 +391,7 @@ function NamedTab({ kind, noun, lists, onNotice }: { kind: 'purposes' | 'collate
           </Table>
         </Box>
       </Surface>
-      <Typography color="text.secondary" sx={{ fontSize: 12.5, mt: 1.25, px: 0.5 }}>Entries that loans use can be renamed but not deleted.</Typography>
+      <Typography color="text.secondary" sx={{ fontSize: 12, mt: 1.25, px: 0.5 }}>Entries that loans use can be renamed but not deleted.</Typography>
       <ReasonDialog
         open={row != null} title={row === 'new' ? `Add ${noun}` : `Rename ${noun}`} confirm="Save" busy={busy} error={fail} canSubmit={name.trim() !== ''}
         onCancel={() => setRow(null)}
@@ -448,7 +448,7 @@ function HoldsTab({ onNotice }: { onNotice: (m: string) => void }) {
   }, [data])
   return (
     <>
-      <Typography color="text.secondary" sx={{ fontSize: 13.5, mb: 2, px: 0.5, maxWidth: 720 }}>
+      <Typography color="text.secondary" sx={{ fontSize: 13, mb: 2, px: 0.5, maxWidth: 720 }}>
         When a co-maker agrees to cover an amount, it is held on one of their accounts and cannot be withdrawn. Choose the deposit types that can take such a hold, and the one suggested first.
         Holds already placed on a type stay when it is switched off.
       </Typography>
@@ -462,10 +462,10 @@ function HoldsTab({ onNotice }: { onNotice: (m: string) => void }) {
               <Box key={`${r.slc}-${r.slt}`} sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 2, px: 2, py: 1.25, borderTop: i ? `0.5px solid ${t.palette.divider}` : 0 })}>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Typography sx={{ fontSize: 15, fontWeight: 500 }}>{r.name}</Typography>
-                  <Typography color="text.secondary" sx={{ fontSize: 12.5 }}>{r.holds.toLocaleString()} {r.holds === 1 ? 'hold' : 'holds'} now</Typography>
+                  <Typography color="text.secondary" sx={{ fontSize: 12 }}>{r.holds.toLocaleString()} {r.holds === 1 ? 'hold' : 'holds'} now</Typography>
                 </Box>
                 {r.isDefault ? (
-                  <Box sx={(t) => ({ px: 1.25, py: 0.4, borderRadius: '999px', fontSize: 12.5, fontWeight: 600, color: t.palette.primary.main, bgcolor: t.palette.mode === 'dark' ? 'rgba(10,132,255,0.22)' : 'rgba(0,122,255,0.12)' })}>Suggested first</Box>
+                  <Box sx={(t) => ({ px: 1.25, py: 0.4, borderRadius: '999px', fontSize: 12, fontWeight: 600, color: t.palette.primary.main, bgcolor: t.palette.mode === 'dark' ? 'rgba(10,132,255,0.22)' : 'rgba(0,122,255,0.12)' })}>Suggested first</Box>
                 ) : (
                   <Button size="small" disabled={!r.holdable} onClick={() => open(r, 'default')}>Suggest first</Button>
                 )}

@@ -20,7 +20,7 @@ const icons = { light: <FiSun />, dark: <FiMoon />, system: <FiMonitor /> }
 const drag = { 'data-tauri-drag-region': '' }
 
 // Toolbar icons are flat and square-cornered, like a code editor's title bar.
-const flatIcon = { borderRadius: '5px', p: 0.5, fontSize: 16, color: 'inherit', opacity: 0.8, '&:hover': { opacity: 1 }, '&.Mui-disabled': { opacity: 0.4, color: 'inherit' } } as const
+const flatIcon = { flexShrink: 0, borderRadius: '5px', p: 0.5, fontSize: 15, color: 'inherit', opacity: 0.8, '&:hover': { opacity: 1 }, '&.Mui-disabled': { opacity: 0.4, color: 'inherit' } } as const
 
 const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
@@ -42,9 +42,8 @@ function Clock() {
   }, [])
   return (
     <Typography component="time" dateTime={now.toISOString()} {...drag}
-      sx={{ fontSize: 12, fontWeight: 400, opacity: 0.65, fontVariantNumeric: 'tabular-nums', mr: 1, whiteSpace: 'nowrap' }}>
-      {now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-      {' · '}
+      sx={{ fontSize: 12, fontWeight: 400, opacity: 0.65, fontVariantNumeric: 'tabular-nums', mr: 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
+      <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>{now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}{' · '}</Box>
       {now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
     </Typography>
   )

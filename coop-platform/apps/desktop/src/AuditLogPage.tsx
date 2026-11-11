@@ -32,11 +32,11 @@ function Integrity() {
   return (
     <Box sx={(t) => ({ p: 1.5, mb: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', ...glass(t) })}>
       <Box sx={{ flex: 1, minWidth: 260 }}>
-        <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>
+        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
           {!s.installed ? 'Tamper protection is not installed on this server.' : s.seals === 0 ? 'The audit log has not been sealed yet.' : `Sealed through entry #${s.lastSealedId}${when ? `, ${when}` : ''}.`}
         </Typography>
         {s.installed && (
-          <Typography sx={{ fontSize: 12.5 }} color="text.secondary">
+          <Typography sx={{ fontSize: 12 }} color="text.secondary">
             {s.unsealedRows} newer entr{s.unsealedRows === 1 ? 'y is' : 'ies are'} not sealed yet. {s.nightly ? 'The log is sealed every night.' : 'The nightly seal is switched off.'} Each seal is chained to the one before, so a changed or removed entry can be found.
           </Typography>
         )}
@@ -129,7 +129,7 @@ export default function AuditLogPage() {
                               {([['Before', e.previous], ['After', e.current]] as const).map(([label, v]) => (
                                 <Box key={label}>
                                   <Typography sx={{ fontSize: 12 }} color="text.secondary">{label}</Typography>
-                                  <Box component="pre" sx={{ m: 0, fontSize: 12.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'ui-monospace, Consolas, monospace' }}>{pretty(v)}</Box>
+                                  <Box component="pre" sx={{ m: 0, fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'ui-monospace, Consolas, monospace' }}>{pretty(v)}</Box>
                                 </Box>
                               ))}
                               {e.clientInfo && <Box sx={{ gridColumn: '1 / -1' }}><Typography sx={{ fontSize: 12 }} color="text.secondary">Device</Typography><Typography sx={{ fontSize: 13 }}>{e.clientInfo}</Typography></Box>}

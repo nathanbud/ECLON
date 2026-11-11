@@ -10,7 +10,7 @@ const MIN = 8
 function Rule({ ok, children }: { ok: boolean; children: string }) {
   return (
     <Box component="li" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 13, color: ok ? 'success.main' : 'text.secondary', transition: 'color 200ms' }}>
-      <Box aria-hidden sx={{ width: 16, height: 16, display: 'grid', placeItems: 'center', borderRadius: '50%', border: '1.5px solid currentColor', fontSize: 10, opacity: ok ? 1 : 0.5 }}>{ok && <FiCheck />}</Box>
+      <Box aria-hidden sx={{ width: 16, height: 16, display: 'grid', placeItems: 'center', borderRadius: '50%', border: '1.5px solid currentColor', fontSize: 11, opacity: ok ? 1 : 0.5 }}>{ok && <FiCheck />}</Box>
       {children}
     </Box>
   )
@@ -60,7 +60,7 @@ export default function ChangePasswordScreen({ me, onDone }: { me: Me; onDone: (
             <Box sx={{ display: 'flex', '& svg': { width: 28, height: 28 } }}><Logo /></Box>
             <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>Choose your password</Typography>
           </Box>
-          <Typography sx={{ fontSize: 13.5, mb: 2.5 }} color="text.secondary">
+          <Typography sx={{ fontSize: 13, mb: 2.5 }} color="text.secondary">
             Welcome, {me.name}. You signed in with a temporary password. Choose one only you know to continue.
           </Typography>
           <TextField

@@ -88,22 +88,22 @@ export default function ConnectionDialog({ onClose }: { onClose: () => void }) {
 
           <Box>
             <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Database this server works on</Typography>
-            {databases.isPending && <Typography color="text.secondary" sx={{ fontSize: 14 }}>Asking the server…</Typography>}
+            {databases.isPending && <Typography color="text.secondary" sx={{ fontSize: 13 }}>Asking the server…</Typography>}
             {databases.isError && <Alert severity="warning">This server does not answer. Check the address, or that the server is running.</Alert>}
             {databases.data && (
               <Stack spacing={0.75} component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }} aria-label="Saved database connections">
                 {databases.data.connections.map((c) => (
                   <Box component="li" key={c.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: '5px', border: 1, borderColor: c.active ? 'primary.main' : 'divider' }}>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Typography sx={{ fontSize: 14, fontWeight: 600 }} noWrap>{c.name}</Typography>
-                      <Typography sx={{ fontSize: 12.5 }} color="text.secondary" noWrap>{c.dbName}{c.branch ? ` · ${c.branch}` : ''}</Typography>
+                      <Typography sx={{ fontSize: 13, fontWeight: 600 }} noWrap>{c.name}</Typography>
+                      <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{c.dbName}{c.branch ? ` · ${c.branch}` : ''}</Typography>
                     </Box>
                     {c.active && <Chip size="small" color="primary" label="In use" />}
                   </Box>
                 ))}
               </Stack>
             )}
-            <Typography sx={{ fontSize: 12.5, mt: 1 }} color="text.secondary">
+            <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
               A server works on one database at a time. A SUPERADMIN can move it to another saved connection in Settings, after signing in.
             </Typography>
           </Box>

@@ -1,10 +1,11 @@
 import { HISTORY_PAGE, getMemberBilling, getMemberDetails, getMemberHistory, getMemberTemplate, type Lookups, type Member } from '../api'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { EmptyState, Field, Section, SelectField, TableCard } from './fields'
 import { Alert, Box, Button, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 import { memberNo, statusOf, type Id } from '../clients'
 import { fmtDate, formatField, when, yearsSince } from './format'
 import { useEdit } from './editing'
+import { PhAddressFields, StreetField } from './PhAddress'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { FiInfo } from 'react-icons/fi'
 
@@ -15,12 +16,37 @@ import { FiInfo } from 'react-icons/fi'
  */
 function AddressSection({ m, lk }: { m: Member; lk?: Lookups }) {
   const [which, setWhich] = useState<'present' | 'provincial'>('present')
+  const { editing, draft } = useEdit()
   const present = which === 'present'
   const a = present
     ? { house: m.houseNo, street: m.street, subdivision: m.subdivision, barangay: m.barangay, city: m.city, zip: m.zipCode, province: m.province }
     : { house: m.provHouseNo, street: m.provStreet, subdivision: m.provSubdivision, barangay: m.provBarangay, city: m.provCity, zip: m.provZipCode, province: m.provProvince }
   const col = (res: string, prov: string) => (present ? res : prov)
-  const span = (n: number) => ({ gridColumn: `span ${n}`, minWidth: 0 })
+  const placeCols = { province: col('ResAddProvince', 'ProvAddProvince'), city: col('ResAddCity', 'ProvAddCity'), barangay: col('ResAddBarangay', 'ProvAddBarangay') }
+  // The fields on a row start out the same width. A field changes size only when what is written in it no longer fits its own box: then it takes a larger share of the
+  // room the row has left, and the others give way a little, never below their minimum. Short text changes nothing, however it is typed. A field wraps onto a new line
+  // only when even the minimums do not fit.
+  const rowRef = useRef<HTMLDivElement>(null)
+  const [rowWidth, setRowWidth] = useState(0)
+  useEffect(() => {
+    const el = rowRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(() => setRowWidth(el.clientWidth))
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [])
+  const GAP = 16
+  const POSTAL = 110
+  const MIN = 160
+  /** How many characters fit in one of the three equal boxes of a row (about 7.3px a character at 14px, less the box's padding); 28 until the row is measured. */
+  const fits = (others: number) => (rowWidth > 0 ? Math.max(8, Math.floor(((rowWidth - others - 2 * GAP) / 3 - 32) / 7.3)) : 28)
+  const text = (col: string | undefined, stored: string | null | undefined) => (col && draft[col] !== undefined ? draft[col] : stored ?? '')
+  const cell = (value: string, others = 0) => ({ flex: `${1 + Math.max(0, value.length - fits(others)) / 2} 1 ${MIN}px`, minWidth: MIN })
+  const rowSx = { gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: '12px 16px' } as const
+  const c = {
+    house: col('ResAddHouseNo', 'ProvAddHouseNo'), street: col('ResAddStreet', 'ProvAddStreet'), sub: col('ResAddSubdivision', 'ProvAddSubdivision'),
+    zip: col('ResAddZipCode', 'ProvAddZipCode'),
+  }
   return (
     <Section
       title="Address"
@@ -32,14 +58,34 @@ function AddressSection({ m, lk }: { m: Member; lk?: Lookups }) {
         </ToggleButtonGroup>
       }
     >
-      <Box sx={{ gridColumn: '1 / -1', display: 'grid', gap: '6px 12px', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))' }}>
-        <Box sx={span(2)}><Field label="House / Unit / Block & Lot Number" value={a.house} col={col('ResAddHouseNo', 'ProvAddHouseNo')} /></Box>
-        <Box sx={span(4)}><Field label="Street Name" value={a.street} col={col('ResAddStreet', 'ProvAddStreet')} /></Box>
-        <Box sx={span(6)}><Field label="Subdivision / Village / Building Name" value={a.subdivision} col={col('ResAddSubdivision', 'ProvAddSubdivision')} /></Box>
-        <Box sx={span(6)}><Field label="Barangay" value={a.barangay} col={col('ResAddBarangay', 'ProvAddBarangay')} /></Box>
-        <Box sx={span(4)}><Field label="City or Municipality" value={a.city} col={col('ResAddCity', 'ProvAddCity')} /></Box>
-        <Box sx={span(2)}><Field label="Postal Code" value={a.zip} col={col('ResAddZipCode', 'ProvAddZipCode')} /></Box>
-        <Box sx={span(6)}><Field label="Province" value={a.province} col={col('ResAddProvince', 'ProvAddProvince')} /></Box>
+      <Box sx={rowSx} ref={rowRef}>
+        <Box sx={cell(text(c.house, a.house))}><Field label="House / Unit / Block & Lot Number" value={a.house} col={c.house} /></Box>
+        <Box sx={cell(text(c.street, a.street))}>
+          {editing
+            ? <StreetField label="Street Name" col={c.street} stored={a.street} place={{ cols: placeCols, stored: { province: a.province, city: a.city, barangay: a.barangay } }} />
+            : <Field label="Street Name" value={a.street} col={c.street} />}
+        </Box>
+        <Box sx={cell(text(c.sub, a.subdivision))}><Field label="Subdivision / Village / Building Name" value={a.subdivision} col={c.sub} /></Box>
+      </Box>
+      <Box sx={rowSx}>
+        {editing ? (
+          <PhAddressFields cols={placeCols} stored={{ province: a.province, city: a.city, barangay: a.barangay }}>
+            {({ province, city, barangay }) => (
+              <>
+                <Box sx={cell(text(placeCols.barangay, a.barangay), POSTAL + GAP)}>{barangay}</Box>
+                <Box sx={cell(text(placeCols.city, a.city), POSTAL + GAP)}>{city}</Box>
+                <Box sx={cell(text(placeCols.province, a.province), POSTAL + GAP)}>{province}</Box>
+              </>
+            )}
+          </PhAddressFields>
+        ) : (
+          <>
+            <Box sx={cell(text(placeCols.barangay, a.barangay), POSTAL + GAP)}><Field label="Barangay" value={a.barangay} col={placeCols.barangay} /></Box>
+            <Box sx={cell(text(placeCols.city, a.city), POSTAL + GAP)}><Field label="City or Municipality" value={a.city} col={placeCols.city} /></Box>
+            <Box sx={cell(text(placeCols.province, a.province), POSTAL + GAP)}><Field label="Province" value={a.province} col={placeCols.province} /></Box>
+          </>
+        )}
+        <Box sx={{ flex: `0 0 ${POSTAL}px`, minWidth: POSTAL }}><Field label="Postal Code" value={a.zip} col={c.zip} /></Box>
       </Box>
       {present && (
         <>
@@ -76,7 +122,7 @@ export function PersonalTab({ m, lk }: { m: Member; lk?: Lookups }) {
     <Box>
       <Section title="Identity">
         {/* The four name fields always share one line (Suffix is the short one); the rest of the section flows under them. */}
-        <Box sx={{ gridColumn: '1 / -1', display: 'grid', gap: '6px 12px', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr)' }}>
+        <Box sx={{ gridColumn: '1 / -1', display: 'grid', gap: '12px 16px', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr)' }}>
           <Field label="Last name" value={m.lastName} col="LName" />
           <Field label="First name" value={m.firstName} col="FName" />
           <Field label="Middle name" value={m.middleName} col="MName" />

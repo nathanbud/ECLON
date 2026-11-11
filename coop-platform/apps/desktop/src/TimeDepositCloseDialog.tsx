@@ -74,7 +74,7 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
       <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
         <DialogTitle>Voucher encoded</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'grid', gap: 0.5, fontSize: 14 }}>
+          <Box sx={{ display: 'grid', gap: 0.5, fontSize: 13 }}>
             <div>{done.clientName}: {done.mode === 'RENEW' ? 'renewal' : 'payout'} of <b>{peso(done.due)}</b></div>
             {done.newCertificate != null && <div>New certificate <b>{done.newCertificate}</b> for {peso(done.newPrincipal ?? 0)}</div>}
             {done.paidToPayable > 0 && <div>{peso(done.paidToPayable)} goes to the member vouchers payable</div>}
@@ -97,7 +97,7 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
             <ToggleButton value="RENEW">Renew</ToggleButton>
           </ToggleButtonGroup>
           {quote && (
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25, fontSize: 14 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25, fontSize: 13 }}>
               <span>Certificate</span><b>{quote.type} {quote.certificate ?? quote.refNo}</b>
               <span>{quote.preterm ? 'Matures' : 'Matured'}</span><b>{quote.maturity}</b>
               {quote.preterm && <><span>Held</span><b>{quote.daysHeld} days: a pre-termination</b></>}
@@ -142,12 +142,12 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
               </Box>
               {!isLockIn && !quote?.preterm && <FormControlLabel control={<Checkbox checked={fee} onChange={(_, v) => setFee(v)} />} label="Renewal certificate fee 10.00 (taken from the new certificate)" />}
               {quote?.newPrincipal != null && (
-                <Typography sx={{ fontSize: 13.5 }}>The new certificate is <b>{peso(quote.newPrincipal)}</b>, maturing <b>{quote.newMaturity}</b>.
+                <Typography sx={{ fontSize: 13 }}>The new certificate is <b>{peso(quote.newPrincipal)}</b>, maturing <b>{quote.newMaturity}</b>.
                   {quote.withdraw != null && quote.withdraw > 0 && <> {peso(quote.withdraw)} goes to the member vouchers payable.</>}</Typography>
               )}
             </>
           )}
-          {!renew && quote && <Typography sx={{ fontSize: 13.5 }}>{quote.preterm ? 'This ends the certificate early. ' : ''}All of it, <b>{peso(quote.due)}</b>, goes to the member vouchers payable account to be paid out.</Typography>}
+          {!renew && quote && <Typography sx={{ fontSize: 13 }}>{quote.preterm ? 'This ends the certificate early. ' : ''}All of it, <b>{peso(quote.due)}</b>, goes to the member vouchers payable account to be paid out.</Typography>}
           <TextField size="small" label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder={quote?.preterm ? 'PRE-TERMINATION OF TD' : renew ? 'RENEWAL OF MATURED TD' : 'MATURED TD WITHDRAWAL'} />
           {quote?.problems.map((p) => <Alert key={p} severity="warning">{p}</Alert>)}
         </Box>

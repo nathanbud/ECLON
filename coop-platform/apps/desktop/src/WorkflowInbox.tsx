@@ -24,10 +24,10 @@ export default function WorkflowInbox() {
   const items = list.data ?? []
   return (
     <Box sx={{ mt: 3 }}>
-      <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 0.5 }}>Other approvals waiting for you</Typography>
+      <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, mb: 0.5 }}>Other approvals waiting for you</Typography>
       <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">Purchases and stock adjustments that need one more approval from your role because of their amount.</Typography>
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
-      {items.length === 0 ? <Typography sx={{ fontSize: 14 }} color="text.secondary">Nothing is waiting for you.</Typography> : (
+      {items.length === 0 ? <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing is waiting for you.</Typography> : (
         <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
           <Table size="small" aria-label="Extra approvals waiting for you">
             <TableHead><TableRow><TableCell>Kind</TableCell><TableCell>Item</TableCell><TableCell align="right">Amount</TableCell><TableCell>Made by</TableCell><TableCell>Your step</TableCell><TableCell /></TableRow></TableHead>

@@ -54,7 +54,7 @@ export default function BrandingPage() {
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
         <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Sign-in screen</Typography>
-        <Typography sx={{ fontSize: 13.5, mb: 2 }} color="text.secondary">
+        <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
           The logo, name and tagline on the left of the sign-in screen. Everyone sees them, including people who have not signed in yet.
         </Typography>
         {!superadmin && <Alert severity="info" sx={{ mb: 2 }}>Only a SUPERADMIN can change this. You can see how it looks.</Alert>}

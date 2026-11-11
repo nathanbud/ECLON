@@ -60,7 +60,7 @@ function RegisterDialog({ onClose }: { onClose: () => void }) {
             <TextField size="small" label={`Life, months${cat ? ` (default ${cat.lifeMonths})` : ''}`} value={f.life} onChange={set('life')} sx={{ flex: 1 }} />
           </Stack>
           <TextField size="small" label="Reference (purchase order, invoice or deed)" value={f.reference} onChange={set('reference')} />
-          <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Depreciation starts the month after it goes into service. Cost, dates and life cannot be changed afterwards.</Typography>
+          <Typography sx={{ fontSize: 12 }} color="text.secondary">Depreciation starts the month after it goes into service. Cost, dates and life cannot be changed afterwards.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending || !f.categoryId || !f.tag || !f.name || !f.cost} onClick={() => save.mutate()}>Register</Button></DialogActions>
@@ -84,7 +84,7 @@ function DisposeDialog({ asset, onClose }: { asset: AssetSummary; onClose: () =>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
-          <Typography sx={{ fontSize: 14 }}>Net book value now <b>{money(asset.netBookValue)}</b>. Depreciation must be up to date to the month before the disposal date.</Typography>
+          <Typography sx={{ fontSize: 13 }}>Net book value now <b>{money(asset.netBookValue)}</b>. Depreciation must be up to date to the month before the disposal date.</Typography>
           <Stack direction="row" spacing={1.5}>
             <TextField size="small" type="date" label="Disposal date" value={f.date} onChange={set('date')} slotProps={{ inputLabel: { shrink: true } }} sx={{ flex: 1 }} />
             <TextField select size="small" label="Kind" value={f.kind} onChange={set('kind')} sx={{ flex: 1 }}>
@@ -99,7 +99,7 @@ function DisposeDialog({ asset, onClose }: { asset: AssetSummary; onClose: () =>
             </Stack>
           )}
           <TextField size="small" label="Reason" value={f.reason} onChange={set('reason')} />
-          <Typography sx={{ fontSize: 12.5 }} color="text.secondary">A different accountant approves it; that leaves a draft journal (a loss goes to 6004108) for the usual review and posting.</Typography>
+          <Typography sx={{ fontSize: 12 }} color="text.secondary">A different accountant approves it; that leaves a draft journal (a loss goes to 6004108) for the usual review and posting.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending || !f.reason.trim()} onClick={() => save.mutate()}>Ask for approval</Button></DialogActions>
@@ -131,7 +131,7 @@ function DetailDialog({ id, custodian, onClose }: { id: number; custodian: boole
         {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
         {a && d.data && (
           <Stack spacing={2}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, auto)', gap: 0.5, columnGap: 3, fontSize: 14 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, auto)', gap: 0.5, columnGap: 3, fontSize: 13 }}>
               <span>Tag</span><b>{a.tag}</b><span>Category</span><b>{a.category}</b>
               <span>Where</span><b>{a.location}</b><span>Serial</span><b>{d.data.serialNo ?? ''}</b>
               <span>Acquired</span><b>{a.acquisitionDate}</b><span>In service</span><b>{a.inServiceDate}</b>

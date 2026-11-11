@@ -142,7 +142,7 @@ export default function UsersPage() {
                         aria-label={`Open ${u.username}'s account setup`}
                       >
                         <TableCell>
-                          <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{u.username}</Typography>
+                          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{u.username}</Typography>
                           <Typography sx={{ fontSize: 12 }} color="text.secondary">{u.name || '—'}{u.enabled ? '' : ' · disabled'}</Typography>
                         </TableCell>
                         <TableCell>{u.level ?? '—'}</TableCell>

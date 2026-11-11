@@ -49,7 +49,7 @@ function display(f: UserField): string | null {
 }
 
 const inputSx = (live: boolean) => ({
-  '& .MuiOutlinedInput-root': { fontSize: 14, backgroundColor: live ? 'background.paper' : 'transparent' },
+  '& .MuiOutlinedInput-root': { fontSize: 13, backgroundColor: live ? 'background.paper' : 'transparent' },
   '& .MuiOutlinedInput-notchedOutline': { borderColor: live ? 'text.disabled' : 'divider' },
   '& .MuiInputLabel-root': { fontSize: 13 },
   ...(live ? {} : { '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' } }),
@@ -67,7 +67,7 @@ function FieldInput({ f }: { f: UserField }) {
     if (!live) return <Allowed on={on} label={f.label} />
     return (
       <FormControlLabel
-        label={<Typography sx={{ fontSize: 13.5 }}>{f.label}</Typography>}
+        label={<Typography sx={{ fontSize: 13 }}>{f.label}</Typography>}
         control={<Checkbox size="small" checked={on} onChange={(e) => set(f.key, from, e.target.checked ? '1' : '0')} />}
       />
     )
@@ -83,7 +83,7 @@ function FieldInput({ f }: { f: UserField }) {
           <Typography sx={{ fontSize: 12, fontWeight: 500, mb: 0.5 }} color="text.secondary">{f.label}</Typography>
           {chosen.length
             ? <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>{chosen.map((v) => <Chip key={v} size="small" variant="outlined" label={label(v)} />)}</Box>
-            : <Typography sx={{ fontSize: 14 }} color="text.disabled">—</Typography>}
+            : <Typography sx={{ fontSize: 13 }} color="text.disabled">—</Typography>}
         </Box>
       )
     }
@@ -129,8 +129,8 @@ function FieldInput({ f }: { f: UserField }) {
 function Allowed({ on, label }: { on: boolean; label: string }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, opacity: on ? 1 : 0.55 }}>
-      <Box aria-hidden sx={{ display: 'flex', color: on ? 'success.main' : 'text.disabled', fontSize: 16 }}>{on ? <FiCheck /> : <FiMinus />}</Box>
-      <Typography sx={{ fontSize: 13.5 }}>{label}</Typography>
+      <Box aria-hidden sx={{ display: 'flex', color: on ? 'success.main' : 'text.disabled', fontSize: 15 }}>{on ? <FiCheck /> : <FiMinus />}</Box>
+      <Typography sx={{ fontSize: 13 }}>{label}</Typography>
       <span style={visuallyHidden}>{on ? 'allowed' : 'not allowed'}</span>
     </Box>
   )
@@ -187,7 +187,7 @@ function TransactionTypesTab({ username }: { username: string }) {
             <TableCell sx={{ minWidth: 200 }}>Transaction type</TableCell>
             {data.columns.map((c) => (
               <TableCell key={c} align="center" sx={{ p: 0.5, height: 120, verticalAlign: 'bottom' }}>
-                <Box component="span" sx={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', fontSize: 11.5, display: 'inline-block' }}>{c}</Box>
+                <Box component="span" sx={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', fontSize: 11, display: 'inline-block' }}>{c}</Box>
               </TableCell>
             ))}
           </TableRow>
@@ -206,7 +206,7 @@ function TransactionTypesTab({ username }: { username: string }) {
                       ? <Checkbox size="small" checked={on} onChange={(e) => setTrans(r.code, column, was, e.target.checked)} sx={{ p: 0.25 }} slotProps={{ input: { 'aria-label': `${r.name}: ${data.columns[i]}` } }} />
                       : (
                         <>
-                          <Box aria-hidden sx={{ display: 'flex', justifyContent: 'center', color: on ? 'success.main' : 'text.disabled', fontSize: 14, opacity: on ? 1 : 0.4 }}>{on ? <FiCheck /> : <FiMinus />}</Box>
+                          <Box aria-hidden sx={{ display: 'flex', justifyContent: 'center', color: on ? 'success.main' : 'text.disabled', fontSize: 13, opacity: on ? 1 : 0.4 }}>{on ? <FiCheck /> : <FiMinus />}</Box>
                           <span style={visuallyHidden}>{`${data.columns[i]}: ${on ? 'allowed' : 'not allowed'}`}</span>
                         </>
                       )}
@@ -310,7 +310,7 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
             {(profile?.name ?? username).split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography id="user-profile-title" component="h2" noWrap sx={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{profile?.name ?? username} <Typography component="span" sx={{ fontSize: 13, fontWeight: 400 }} color="text.secondary">{username}</Typography></Typography>
+            <Typography id="user-profile-title" component="h2" noWrap sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{profile?.name ?? username} <Typography component="span" sx={{ fontSize: 13, fontWeight: 400 }} color="text.secondary">{username}</Typography></Typography>
           </Box>
           {/* Toolbar, as in the old window */}
           <Box role="toolbar" aria-label="Account actions" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -325,7 +325,7 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
             <Button size="small" startIcon={<FiX />} disabled={!editing || saving} onClick={cancel}>Cancel</Button>
           </Box>
           {(editing || editReason) && (
-            <Typography sx={{ fontSize: 12.5, maxWidth: 260 }} color="text.secondary" role="status">
+            <Typography sx={{ fontSize: 12, maxWidth: 260 }} color="text.secondary" role="status">
               {editing ? (changes === 0 ? 'No changes yet.' : `${changes} change${changes === 1 ? '' : 's'} not saved.`) : editReason}
             </Typography>
           )}
@@ -340,7 +340,7 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
         </Box>
 
         <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" aria-label="Account setup sections"
-          sx={{ px: 2, borderTop: 1, borderBottom: 1, borderColor: 'divider', minHeight: 40, '& .MuiTab-root': { minHeight: 40, fontSize: 13.5 } }}>
+          sx={{ px: 2, borderTop: 1, borderBottom: 1, borderColor: 'divider', minHeight: 40, '& .MuiTab-root': { minHeight: 40, fontSize: 13 } }}>
           {TABS.map((t) => <Tab key={t.key} label={t.label} />)}
         </Tabs>
 
@@ -353,8 +353,8 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
               {key === 'general' && (
                 <Box sx={(t) => ({ mb: 1.5, p: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', ...glass(t) })}>
                   <Box sx={{ flex: 1, minWidth: 220 }}>
-                    <Typography sx={{ fontWeight: 600, fontSize: 14 }}>Sign-in for this app</Typography>
-                    <Typography sx={{ fontSize: 12.5 }} color="text.secondary">
+                    <Typography sx={{ fontWeight: 600, fontSize: 13 }}>Sign-in for this app</Typography>
+                    <Typography sx={{ fontSize: 12 }} color="text.secondary">
                       They choose their own password. You can only issue a temporary one, which they replace the first time they sign in.
                     </Typography>
                   </Box>
@@ -363,13 +363,13 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
                     {user.passwordState === 'NONE' ? 'Issue temporary password' : 'Reissue temporary password'}
                   </Button>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography id="officer-label" sx={{ fontSize: 13.5 }}>Membership Officer</Typography>
+                    <Typography id="officer-label" sx={{ fontSize: 13 }}>Membership Officer</Typography>
                     <Switch checked={officer} disabled={!profile.enabled || busy} onChange={(_, on) => onToggleOfficer(user, on)} slotProps={{ input: { 'aria-labelledby': 'officer-label' } }} />
                   </Box>
                 </Box>
               )}
               {key === 'transaction-types' ? <TransactionTypesTab username={username} /> : <Sections sections={profile.tabs[key] ?? []} />}
-              <Typography sx={{ mt: 2, fontSize: 12.5 }} color="text.secondary">
+              <Typography sx={{ mt: 2, fontSize: 12 }} color="text.secondary">
                 Settings come from iAccs. Changes saved here are written to it and recorded in the audit log.
               </Typography>
             </>

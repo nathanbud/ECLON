@@ -46,7 +46,7 @@ export function ClientMenu({ onFind, actions, editOn, pendingNote, onCloseMember
 
   const item = (a: RecordAction) => (
     <MenuItem key={a.label} disabled={!a.run} onClick={() => { close(); a.run?.() }}>
-      <ListItemIcon sx={{ minWidth: 32, fontSize: 16 }}>{a.icon}</ListItemIcon>
+      <ListItemIcon sx={{ minWidth: 32, fontSize: 15 }}>{a.icon}</ListItemIcon>
       <ListItemText slotProps={{ primary: { sx: { fontSize: 13 } } }}>{a.label}</ListItemText>
       <Shortcut>{a.shortcut}</Shortcut>
     </MenuItem>
@@ -64,7 +64,7 @@ export function ClientMenu({ onFind, actions, editOn, pendingNote, onCloseMember
       </Tooltip>
       <Menu anchorEl={anchor} open={!!anchor} onClose={close} slotProps={{ paper: { sx: { borderRadius: '5px', minWidth: 270, mt: 0.5 } } }}>
         <MenuItem onClick={() => { close(); onFind() }}>
-          <ListItemIcon sx={{ minWidth: 32, fontSize: 16 }}><FiSearch /></ListItemIcon>
+          <ListItemIcon sx={{ minWidth: 32, fontSize: 15 }}><FiSearch /></ListItemIcon>
           <ListItemText slotProps={{ primary: { sx: { fontSize: 13 } } }}>Find Client</ListItemText>
           <Shortcut>{SHORTCUT_FIND}</Shortcut>
         </MenuItem>
@@ -74,7 +74,7 @@ export function ClientMenu({ onFind, actions, editOn, pendingNote, onCloseMember
         {actions.slice(3).map(item)}
         <Divider />
         <MenuItem disabled={!onCloseMembership} onClick={() => { close(); onCloseMembership?.() }} sx={{ color: 'error.main' }}>
-          <ListItemIcon sx={{ minWidth: 32, fontSize: 16, color: 'inherit' }}><FiUserX /></ListItemIcon>
+          <ListItemIcon sx={{ minWidth: 32, fontSize: 15, color: 'inherit' }}><FiUserX /></ListItemIcon>
           <ListItemText slotProps={{ primary: { sx: { fontSize: 13 } } }}>Close Membership…</ListItemText>
           <Shortcut>{CLOSE_SHORTCUT}</Shortcut>
         </MenuItem>

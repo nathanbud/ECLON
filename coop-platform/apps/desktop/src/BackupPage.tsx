@@ -37,7 +37,7 @@ export default function BackupPage() {
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
         <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Backup</Typography>
-        <Typography sx={{ fontSize: 13.5, mb: 2 }} color="text.secondary">
+        <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
           Saves everything this application owns, and the fingerprint key, into a dated folder on the server. The old system’s own tables are not included; they are backed up as the database.
         </Typography>
         {!admin && <Alert severity="info" sx={{ mb: 2 }}>Only an administrator can take or see backups.</Alert>}
@@ -52,7 +52,7 @@ export default function BackupPage() {
               <Typography sx={{ fontSize: 15, fontWeight: 600 }}>
                 {latest ? `Last backup: ${when(latest.takenAt)}` : 'No backup has been taken yet'}
               </Typography>
-              <Typography sx={{ fontSize: 12.5 }} color="text.secondary">
+              <Typography sx={{ fontSize: 12 }} color="text.secondary">
                 {data ? `From the ${data.engine === 'postgres' ? 'PostgreSQL' : 'MySQL'} database. Kept in ${data.folder}` : 'Reading…'}
               </Typography>
             </Box>
@@ -60,7 +60,7 @@ export default function BackupPage() {
               {busy ? 'Backing up…' : 'Back up now'}
             </Button>
           </Stack>
-          <Typography sx={{ fontSize: 12.5, mt: 1.5 }} color="text.secondary">
+          <Typography sx={{ fontSize: 12, mt: 1.5 }} color="text.secondary">
             Keep the dump and the key together and copy them to another computer: without the key, stored fingerprints cannot be read, and a backup that stays on this machine is lost with it.
           </Typography>
         </Box>

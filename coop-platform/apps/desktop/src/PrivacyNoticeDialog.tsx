@@ -21,7 +21,7 @@ export default function PrivacyNoticeDialog({ branchCode, clientId, name, canRec
           {s?.active && (
             <>
               <Typography sx={{ fontWeight: 600 }}>{s.active.title} (version {s.active.version})</Typography>
-              <Typography sx={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{s.active.body}</Typography>
+              <Typography sx={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{s.active.body}</Typography>
               {s.upToDate
                 ? <Alert severity="success">Given to this member{s.latest ? ` (${s.latest.how.toLowerCase()}, recorded by ${s.latest.by})` : ''}.</Alert>
                 : <Alert severity="warning">{s.latest ? `This member was given version ${s.latest.version}; the current version has not been given.` : 'This member has not been given the notice.'}</Alert>}

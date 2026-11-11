@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import {
-  FiBriefcase, FiClipboard, FiClock, FiCreditCard, FiDollarSign, FiFileText, FiHeart, FiHome, FiLayers, FiList, FiPhone, FiShield, FiTrendingUp, FiUser, FiUsers, FiBook, FiDatabase,
+  FiBriefcase, FiClipboard, FiClock, FiCreditCard, FiDollarSign, FiFileText, FiHeart, FiHome, FiLayers, FiList, FiPhone, FiShield, FiTrendingUp, FiUserCheck, FiUser, FiUsers, FiBook, FiDatabase,
 } from 'react-icons/fi'
 
 /** One icon per profile section, by the section's key in `TAB_KEYS`, for the profile's side menu. A key without one falls back to a plain list icon. */
@@ -22,6 +22,7 @@ const ICONS: Record<string, ReactElement> = {
   timedeposits: <FiTrendingUp />,
   loans: <FiCreditCard />,
   documents: <FiFileText />,
+  kyc: <FiUserCheck />,
 }
 
 export const tabIcon = (key: string): ReactElement => ICONS[key] ?? <FiList />

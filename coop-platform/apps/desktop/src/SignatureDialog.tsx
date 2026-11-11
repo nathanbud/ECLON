@@ -22,8 +22,10 @@ function blank(canvas: HTMLCanvasElement) {
  * Captures a member's signature: they sign on the pad with a mouse, finger or pen, or a scanned signature is chosen from a file and placed on the pad. Save adds it as the member's
  * newest signature (earlier ones are kept). Offered only to people granted the "edit client images" permission; the server checks it again.
  */
-export default function SignatureDialog({ id, name, onClose, onDone, current = null, canCapture = true }: {
+export default function SignatureDialog({ id, name, onClose, onDone, onPick, current = null, canCapture = true }: {
   id: Id; name: string; onClose: () => void; onDone: (msg: string) => void
+  /** When given (registering a new member, who has no number yet), the signature is handed here instead of being uploaded. */
+  onPick?: (signature: Blob) => void
   /** The signature on file, as a picture address, or null when there is none. */
   current?: string | null
   /** May this person capture a new one? Without it the dialog only shows what is on file. */
@@ -100,6 +102,7 @@ export default function SignatureDialog({ id, name, onClose, onDone, current = n
     setSaving(true)
     try {
       const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('The signature could not be prepared.'))), 'image/jpeg', 0.92))
+      if (onPick) { onPick(blob); onDone('Signature kept with the registration'); onClose(); return }
       await uploadMemberSignature(id.branchCode, id.clientId, blob)
       await qc.invalidateQueries({ queryKey: ['member-image', 'signature'] })
       onDone('Signature saved')

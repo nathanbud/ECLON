@@ -120,13 +120,13 @@ export default function FingerprintDialog({ id, name, canManage, onClose, onDone
           )}
           {s?.consent && (
             <>
-              <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Consent recorded {s.consent.givenAt?.slice(0, 16)} by {s.consent.recordedBy}. {s.fingers.length} of 10 fingers enrolled{s.fingers.length < s.recommended ? ` (enrol at least ${s.recommended} in case one is injured)` : ''}.</Typography>
+              <Typography sx={{ fontSize: 12 }} color="text.secondary">Consent recorded {s.consent.givenAt?.slice(0, 16)} by {s.consent.recordedBy}. {s.fingers.length} of 10 fingers enrolled{s.fingers.length < s.recommended ? ` (enrol at least ${s.recommended} in case one is injured)` : ''}.</Typography>
               <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 1.5 }}>
                 <Fingers title="Right hand" ids={RIGHT} s={s} selected={finger} onPick={setFinger} />
                 <Fingers title="Left hand" ids={LEFT} s={s} selected={finger} onPick={setFinger} />
               </Stack>
               {busy && <Box><LinearProgress /><Typography sx={{ fontSize: 13, mt: 0.5 }}>{busy}</Typography></Box>}
-              {last && !busy && <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Last scan quality: {last.quality} (needs {s.minQuality})</Typography>}
+              {last && !busy && <Typography sx={{ fontSize: 12 }} color="text.secondary">Last scan quality: {last.quality} (needs {s.minQuality})</Typography>}
               <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
                 {canManage && <Button variant="contained" size="small" disabled={finger == null || !!busy || !scanner.data} onClick={enrol}>{enrolled ? 'Scan again' : 'Scan and enrol'}</Button>}
                 <Button size="small" disabled={s.fingers.length === 0 || !!busy || !scanner.data} onClick={check}>Check a finger</Button>

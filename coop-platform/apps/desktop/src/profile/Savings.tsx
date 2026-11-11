@@ -151,7 +151,7 @@ export function SavingsCashDialog({ id, account, mode, initialAmount = '', initi
           </Box>
         )}
         {receipt && (
-          <Box sx={{ display: 'grid', gap: 0.5, pt: 1, fontSize: 14 }}>
+          <Box sx={{ display: 'grid', gap: 0.5, pt: 1, fontSize: 13 }}>
             <Box>Receipt <strong>{receipt.documentNo}</strong> (control {receipt.controlNo}) dated {receipt.date}</Box>
             <Box>{receipt.clientName}</Box>
             <Box>{receipt.account}</Box>

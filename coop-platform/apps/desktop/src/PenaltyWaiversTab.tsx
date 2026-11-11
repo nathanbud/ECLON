@@ -69,7 +69,7 @@ export default function PenaltyWaiversTab() {
           <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Waivers waiting for your approval</Typography>
           {(pending.data ?? []).map((p) => (
             <Box key={p.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.5 }}>
-              <Typography sx={{ fontSize: 13.5, flex: 1 }}>{p.requested_by}: {p.description} · <b>{money(p.amount)}</b></Typography>
+              <Typography sx={{ fontSize: 13, flex: 1 }}>{p.requested_by}: {p.description} · <b>{money(p.amount)}</b></Typography>
               <Button size="small" variant="contained" disabled={decide.isPending} onClick={() => decide.mutate({ id: p.id, approve: true })}>Approve</Button>
               <Button size="small" disabled={decide.isPending} onClick={() => decide.mutate({ id: p.id, approve: false })}>Reject</Button>
             </Box>
@@ -82,10 +82,10 @@ export default function PenaltyWaiversTab() {
         <Box sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField size="small" type="date" label="From" value={from} onChange={(e) => setFrom(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
           <TextField size="small" type="date" label="To" value={to} onChange={(e) => setTo(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-          {report.data && <Typography sx={{ fontSize: 13.5 }}>{rows.length} payment{rows.length === 1 ? '' : 's'} · waived <b>{money(report.data.total)}</b></Typography>}
+          {report.data && <Typography sx={{ fontSize: 13 }}>{rows.length} payment{rows.length === 1 ? '' : 's'} · waived <b>{money(report.data.total)}</b></Typography>}
         </Box>
         {report.isError && <Alert severity="error">{(report.error as Error).message}</Alert>}
-        {report.isSuccess && rows.length === 0 && <Typography sx={{ fontSize: 13.5 }} color="text.secondary">No payment in these dates charged less than the suggested penalty.</Typography>}
+        {report.isSuccess && rows.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">No payment in these dates charged less than the suggested penalty.</Typography>}
         {rows.length > 0 && (
           <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
             <Table size="small" stickyHeader aria-label="Penalties waived">
@@ -111,7 +111,7 @@ export default function PenaltyWaiversTab() {
 
       <Box sx={(t) => ({ p: 1.5, ...glass(t) })}>
         <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Record a waiver in the books</Typography>
-        <Typography sx={{ fontSize: 12.5, mb: 1 }} color="text.secondary">
+        <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">
           This is the accountant&apos;s journal for a penalty that was waived. It does not change what the member owes; a different accountant or administrator has to approve it.
         </Typography>
         <Box sx={{ display: 'grid', gap: 1, maxWidth: 560 }}>

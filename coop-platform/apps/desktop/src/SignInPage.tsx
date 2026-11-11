@@ -78,11 +78,11 @@ function ServerStatus({ status, onConnection }: { status: 'checking' | 'online' 
       <Box role="status" sx={{ minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
           <Box aria-hidden sx={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, bgcolor: status === 'online' ? 'success.main' : status === 'offline' ? 'error.main' : 'text.disabled' }} />
-          <Typography sx={{ fontSize: 12.5 }} color="text.secondary" noWrap>{status === 'online' ? 'Server online' : status === 'offline' ? 'Server not reachable' : 'Checking the server…'}</Typography>
+          <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{status === 'online' ? 'Server online' : status === 'offline' ? 'Server not reachable' : 'Checking the server…'}</Typography>
         </Box>
         <Typography sx={{ fontSize: 12, pl: 2 }} color="text.secondary" noWrap>{server.name}{active ? ` · Database: ${active.name}${active.branch ? ` · ${active.branch}` : ''}` : ''}</Typography>
       </Box>
-      <Button size="small" color="inherit" startIcon={<FiDatabase />} onClick={onConnection} sx={{ flexShrink: 0, fontSize: 12.5 }}>Connection</Button>
+      <Button size="small" color="inherit" startIcon={<FiDatabase />} onClick={onConnection} sx={{ flexShrink: 0, fontSize: 12 }}>Connection</Button>
     </Box>
   )
 }
@@ -133,11 +133,11 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
             <Mark size={32} logo={b.logo} alt={b.name} />
             <Box>
               <Typography component="p" sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{b.name}</Typography>
-              {!b.custom && <Typography sx={{ fontSize: 11.5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }} color="text.secondary">{brand.coop}</Typography>}
+              {!b.custom && <Typography sx={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }} color="text.secondary">{brand.coop}</Typography>}
             </Box>
           </Box>
 
-          <Typography component="h2" sx={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.15, mb: 0.75 }}>Welcome back</Typography>
+          <Typography component="h2" sx={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.15, mb: 0.75 }}>Welcome back</Typography>
           <Typography sx={{ fontSize: 15, mb: 3.5 }} color="text.secondary">Sign in to {brand.product} with your own account.</Typography>
 
           {status === 'offline' && (
@@ -146,7 +146,7 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
 
           <TextField
             label="Username" size="small" value={username} onChange={(e) => setUsername(e.target.value)} fullWidth autoFocus={!username}
-            autoComplete="username" sx={{ mb: 2, '& .MuiOutlinedInput-root': { fontSize: 16 }, '& .MuiInputLabel-root': { fontSize: 15 } }}
+            autoComplete="username" sx={{ mb: 2, '& .MuiOutlinedInput-root': { fontSize: 15 }, '& .MuiInputLabel-root': { fontSize: 15 } }}
           />
           <TextField
             label="Password" size="small" type={reveal ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} onKeyUp={watchCaps} onKeyDown={watchCaps}
@@ -164,16 +164,16 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
               },
               formHelperText: { sx: { color: 'warning.main', fontWeight: 600 } },
             }}
-            sx={{ mb: 2.5, '& .MuiOutlinedInput-root': { fontSize: 16 }, '& .MuiInputLabel-root': { fontSize: 15 } }}
+            sx={{ mb: 2.5, '& .MuiOutlinedInput-root': { fontSize: 15 }, '& .MuiInputLabel-root': { fontSize: 15 } }}
           />
 
           {error && <Alert severity="error" sx={{ mb: 2 }} role="alert">{error}</Alert>}
 
-          <Button type="submit" variant="contained" fullWidth size="large" disabled={busy || !username.trim() || !password} sx={{ py: 1.4, fontSize: 16, mb: 2.5 }}>
+          <Button type="submit" variant="contained" fullWidth size="large" disabled={busy || !username.trim() || !password} sx={{ py: 1.4, fontSize: 15, mb: 2.5 }}>
             {busy ? <CircularProgress size={22} color="inherit" aria-label="Signing in" /> : 'Sign in'}
           </Button>
 
-          <Typography sx={{ fontSize: 12.5, lineHeight: 1.5 }} color="text.secondary">
+          <Typography sx={{ fontSize: 12, lineHeight: 1.5 }} color="text.secondary">
             No password yet, or yours expired? Ask an administrator for a temporary one. Everything you do here is recorded under your name.
           </Typography>
         </Box>

@@ -110,7 +110,7 @@ export default function DatabaseConnectionsPage() {
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
         <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Database connection</Typography>
-        <Typography sx={{ fontSize: 13.5, mb: 2 }} color="text.secondary">
+        <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
           The database this server works on, and the others it can be moved to. The database user and password are the server&apos;s own settings; none is saved here.
         </Typography>
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)} role="alert">{error}</Alert>}
@@ -125,8 +125,8 @@ export default function DatabaseConnectionsPage() {
                     component="button" type="button" onClick={() => !changed && open(r)} aria-current={r.id === sel ? 'true' : undefined}
                     sx={(t) => ({ width: '100%', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit', p: 1, borderRadius: '5px', border: 1, borderColor: r.id === sel ? 'primary.main' : 'transparent', bgcolor: r.id === sel ? t.palette.action.selected : 'transparent', '&:hover': { bgcolor: t.palette.action.hover } })}
                   >
-                    <Typography sx={{ fontSize: 14, fontWeight: 600 }} noWrap>{r.name}</Typography>
-                    <Typography sx={{ fontSize: 12.5 }} color="text.secondary" noWrap>{r.host}:{r.port} · {r.dbName}</Typography>
+                    <Typography sx={{ fontSize: 13, fontWeight: 600 }} noWrap>{r.name}</Typography>
+                    <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{r.host}:{r.port} · {r.dbName}</Typography>
                     <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
                       {r.active && <Chip size="small" color="primary" label="In use" />}
                       {r.isDefault && <Chip size="small" variant="outlined" label="Default" />}
@@ -134,7 +134,7 @@ export default function DatabaseConnectionsPage() {
                   </Box>
                 </Box>
               ))}
-              {sel === 'new' && <Box component="li" sx={{ p: 1, fontSize: 14, fontStyle: 'italic' }}>New connection</Box>}
+              {sel === 'new' && <Box component="li" sx={{ p: 1, fontSize: 13, fontStyle: 'italic' }}>New connection</Box>}
             </Stack>
           </Box>
 
@@ -186,7 +186,7 @@ export default function DatabaseConnectionsPage() {
                     {row?.active ? 'In use now' : 'Use this connection'}
                   </Button>
                 </Stack>
-                {startup && <Typography sx={{ fontSize: 12.5 }} color="text.secondary">This is the setting the server was started with. Save a connection of your own to keep one you can edit.</Typography>}
+                {startup && <Typography sx={{ fontSize: 12 }} color="text.secondary">This is the setting the server was started with. Save a connection of your own to keep one you can edit.</Typography>}
               </Stack>
             )}
           </Box>

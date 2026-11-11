@@ -101,7 +101,7 @@ export default function ReportsPage({ onOpen }: { onOpen: (v: View) => void }) {
           {picked && (
             <>
               <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>{picked.title}</Typography>
-              <Typography sx={{ fontSize: 13.5, mb: 1.5 }} color="text.secondary">{picked.description}</Typography>
+              <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">{picked.description}</Typography>
               <Stack direction="row" spacing={1.5} sx={{ mb: 1.5, flexWrap: 'wrap', rowGap: 1.5, alignItems: 'flex-start' }} className="no-print">
                 {picked.params.map((p) => (
                   <TextField key={p.name} size="small" label={p.label} type={p.type === 'date' ? 'date' : 'text'} value={values[p.name] ?? ''} onChange={(e) => setValues({ ...values, [p.name]: e.target.value })}
@@ -112,7 +112,7 @@ export default function ReportsPage({ onOpen }: { onOpen: (v: View) => void }) {
                 {run.data && <Button sx={{ mt: 0.25 }} onClick={() => window.print()}>Print</Button>}
               </Stack>
               {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
-              {run.isPending && <><Skeleton variant="rounded" height={120} /><Typography sx={{ fontSize: 12.5, mt: 1 }} color="text.secondary">Loan reports read the whole loan ledger and can take 10 to 30 seconds.</Typography></>}
+              {run.isPending && <><Skeleton variant="rounded" height={120} /><Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">Loan reports read the whole loan ledger and can take 10 to 30 seconds.</Typography></>}
               {run.data && <ResultTable r={run.data} />}
             </>
           )}

@@ -44,7 +44,7 @@ function BeneficiaryDialog({ id, lk, existing, onClose, onSent }: { id: Id; lk?:
           <TextField select label="Type" value={type} onChange={(e) => setType(e.target.value)}>
             {TYPES.map(([code, label]) => <MenuItem key={code} value={String(code)}>{label}</MenuItem>)}
           </TextField>
-          <Typography sx={{ fontSize: 12.5 }} color="text.secondary">The change takes effect only when a Membership Officer other than you approves it.</Typography>
+          <Typography sx={{ fontSize: 12 }} color="text.secondary">The change takes effect only when a Membership Officer other than you approves it.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions>
@@ -94,7 +94,7 @@ export function BeneficiariesTab({ id, lk }: { id: Id; lk?: Lookups }) {
                   {me.canEdit && (
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                       {pendingFor(b)
-                        ? <Typography component="span" sx={{ fontSize: 12.5 }} color="text.secondary">Change waiting</Typography>
+                        ? <Typography component="span" sx={{ fontSize: 12 }} color="text.secondary">Change waiting</Typography>
                         : <><Button size="small" onClick={() => setForm({ existing: b })}>Change</Button><Button size="small" color="error" onClick={() => setRemoving(b)}>Remove</Button></>}
                     </TableCell>
                   )}
@@ -109,8 +109,8 @@ export function BeneficiariesTab({ id, lk }: { id: Id; lk?: Lookups }) {
           <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.5 }} color="text.secondary">Waiting for approval</Typography>
           <Stack spacing={0.5}>
             {mine.map((r) => (
-              <Box key={r.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 13.5 }}>
-                <Box sx={{ flex: 1 }}>{r.summary} <Typography component="span" sx={{ fontSize: 12.5 }} color="text.secondary">· asked by {r.requestedBy}</Typography></Box>
+              <Box key={r.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 13 }}>
+                <Box sx={{ flex: 1 }}>{r.summary} <Typography component="span" sx={{ fontSize: 12 }} color="text.secondary">· asked by {r.requestedBy}</Typography></Box>
                 {r.requestedBy.toLowerCase() === me.username.toLowerCase() && <Button size="small" onClick={() => void withdraw(r)}>Withdraw</Button>}
               </Box>
             ))}

@@ -63,12 +63,12 @@ export default function TellerTransaction({ id, preset }: { id: Id; preset: Tell
 
   return (
     <Box component="section" aria-label="Transaction" sx={(t) => ({ p: 1.5, mb: 1.25, ...glass(t) })}>
-      <Typography component="h2" sx={{ fontSize: 14.5, fontWeight: 700, mb: 1 }}>Transaction</Typography>
+      <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, mb: 1 }}>Transaction</Typography>
       {!loading && options.length === 0 && <Alert severity="info">This member has no active account to post to.</Alert>}
       {options.length > 0 && (
         <Box sx={{ display: 'grid', gap: 1.25 }}>
           <TextField select size="small" label="Account" value={option?.key ?? ''} onChange={(e) => setOptKey(e.target.value)}>
-            {options.map((o) => <MenuItem key={o.key} value={o.key}><Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2 }}><span>{o.label}</span><Box component="span" sx={{ color: 'text.secondary', fontSize: 12.5 }}>{o.sub}</Box></Box></MenuItem>)}
+            {options.map((o) => <MenuItem key={o.key} value={o.key}><Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2 }}><span>{o.label}</span><Box component="span" sx={{ color: 'text.secondary', fontSize: 12 }}>{o.sub}</Box></Box></MenuItem>)}
           </TextField>
           <ToggleButtonGroup exclusive fullWidth size="small" value={activeMode} aria-label="What to do" onChange={(_, v) => { if (v) setMode(v) }}>
             {modes.map((m) => <ToggleButton key={m.value} value={m.value} sx={{ textTransform: 'none' }}>{m.label}</ToggleButton>)}

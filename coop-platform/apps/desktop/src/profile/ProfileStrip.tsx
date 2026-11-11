@@ -17,7 +17,7 @@ export function ProfileStrip({ m, lk, title, group }: { m: Member; lk?: Lookups;
   return (
     <Box sx={(t) => ({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, px: 2, py: 1, ...glass(t) })}>
       <Box sx={{ flex: '1 1 160px', minWidth: 0 }}>
-        <Typography sx={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }} color="text.secondary">{group}</Typography>
+        <Typography sx={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }} color="text.secondary">{group}</Typography>
         <Typography component="h1" noWrap sx={{ fontSize: 22, fontWeight: 400, letterSpacing: '-0.01em', lineHeight: 1.2 }}>{title}</Typography>
       </Box>
       {/* Classification and, beside it on the same rows, the account status and alert. Their tops line up with Member type. */}
@@ -28,11 +28,11 @@ export function ProfileStrip({ m, lk, title, group }: { m: Member; lk?: Lookups;
         <InlineField label="Date opened" value={m.dateOpened ? `${fmtDate(m.dateOpened)}${yearsSince(m.dateOpened) != null ? ` · ${yearsSince(m.dateOpened)} yrs` : ''}` : null} />
       </Box>
       <Box role="group" aria-label="Account status" sx={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: '2px 10px', alignItems: 'center', gridAutoRows: 32, minWidth: 170 }}>
-        <Typography sx={{ fontSize: 11.5, fontWeight: 500 }} color="text.secondary">Status</Typography>
+        <Typography sx={{ fontSize: 11, fontWeight: 500 }} color="text.secondary">Status</Typography>
         <Box><Chip size="small" variant="outlined" color={st.kind === 'default' ? undefined : st.kind} label={st.label} icon={st.kind === 'default' ? <FiSlash /> : <FiCheckCircle />} sx={quietChip} /></Box>
         {alertLabel && (
           <>
-            <Typography sx={{ fontSize: 11.5, fontWeight: 500 }} color="text.secondary">Alert</Typography>
+            <Typography sx={{ fontSize: 11, fontWeight: 500 }} color="text.secondary">Alert</Typography>
             <Box>
               <Chip size="small" variant="outlined" color={alertOk ? 'success' : (m.alertLevel ?? 0) >= 6 ? 'error' : 'warning'} label={alertLabel} icon={alertOk ? <FiCheckCircle /> : <FiAlertTriangle />} sx={quietChip} />
             </Box>

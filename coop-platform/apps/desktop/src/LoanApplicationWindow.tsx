@@ -39,13 +39,13 @@ function Summary({ d }: { d: LoanApplicationDetail }) {
   const a = d.item
   return (
     <Box sx={{ mb: 1.5 }}>
-      <Typography sx={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em' }}>{a.clientName ?? `Client ${a.clientId}`} · {money(a.amount)}</Typography>
+      <Typography sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em' }}>{a.clientName ?? `Client ${a.clientId}`} · {money(a.amount)}</Typography>
       <Typography sx={{ fontSize: 13 }} color="text.secondary">
         {a.documentNo} · {a.typeName} · {a.terms} months · loan ref {a.refNo} · encoded by {a.encodedByName ?? '—'} on {a.date}
       </Typography>
       {d.coMakerHolds.length > 0 && (
         <Box sx={{ mt: 1 }}>
-          <Typography sx={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }} color="text.secondary">Co-maker holds</Typography>
+          <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }} color="text.secondary">Co-maker holds</Typography>
           {d.coMakerHolds.map((h) => (
             <Typography key={h.clientId} sx={{ fontSize: 13, ...cell }}>
               {h.name ?? `Client ${h.clientId}`} · {money(h.amount)} on {h.accountType ?? h.slt} {h.refNo} · {h.placed ? 'held' : 'held when the release is posted'}

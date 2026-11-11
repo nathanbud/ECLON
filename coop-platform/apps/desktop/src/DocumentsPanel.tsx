@@ -35,7 +35,7 @@ function UploadDialog({ entityType, entityId, onClose }: { entityType?: string; 
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
             <Button variant="outlined" onClick={() => input.current?.click()}>Choose file</Button>
             <input ref={input} type="file" hidden accept={(setup.data?.extensions ?? []).map((e) => `.${e}`).join(',')} onChange={(e) => { const x = e.target.files?.[0] ?? null; setFile(x); if (x && !f.title) setF({ ...f, title: x.name.replace(/\.[^.]+$/, '') }) }} />
-            <Typography sx={{ fontSize: 14 }} color={file ? 'text.primary' : 'text.secondary'}>{file ? `${file.name} · ${size(file.size)}` : `PDF, PNG, JPEG, Word, Excel, CSV or text, up to ${setup.data?.maxMegabytes ?? 10} MB`}</Typography>
+            <Typography sx={{ fontSize: 13 }} color={file ? 'text.primary' : 'text.secondary'}>{file ? `${file.name} · ${size(file.size)}` : `PDF, PNG, JPEG, Word, Excel, CSV or text, up to ${setup.data?.maxMegabytes ?? 10} MB`}</Typography>
           </Stack>
           {!fixed && (
             <Stack direction="row" spacing={1.5}>
@@ -88,14 +88,14 @@ function DetailDialog({ id, onClose }: { id: number; onClose: () => void }) {
         {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
         {doc && d.data && (
           <Stack spacing={2}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, auto)', gap: 0.5, columnGap: 3, fontSize: 14 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, auto)', gap: 0.5, columnGap: 3, fontSize: 13 }}>
               <span>Belongs to</span><b>{doc.entityType.replace('_', ' ').toLowerCase()} {doc.entityId}</b><span>File</span><b>{doc.fileName}</b>
               <span>Uploaded by</span><b>{doc.createdBy}</b><span>On</span><b>{doc.createdAt.replace('T', ' ').slice(0, 16)}</b>
               <span>Kept until</span><b>{doc.retentionDate}</b><span>Size</span><b>{size(doc.sizeBytes)}</b>
               <span>Status</span><b>{doc.status.toLowerCase()}</b><span>Version</span><b>{doc.version}</b>
             </Box>
             <Typography sx={{ fontSize: 12, wordBreak: 'break-all' }} color="text.secondary">SHA-256 {doc.sha256}</Typography>
-            {doc.description && <Typography sx={{ fontSize: 14 }}>{doc.description}</Typography>}
+            {doc.description && <Typography sx={{ fontSize: 13 }}>{doc.description}</Typography>}
             <Stack direction="row" spacing={1}>
               <Button variant="contained" onClick={() => void get(doc)}>Download</Button>
               {manage && doc.status === 'ACTIVE' && <Button variant="outlined" onClick={() => input.current?.click()} disabled={version.isPending}>Upload a new version</Button>}

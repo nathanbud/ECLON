@@ -1,8 +1,8 @@
-import { Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, InputAdornment, MenuItem, Select, Skeleton, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, InputAdornment, MenuItem, Select, Skeleton, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { createLoanApplication, getLoanAppTemplate, getLoanTypes, searchMembers, type LoanAppCreated, type Member } from './api'
-import { displayName, memberNo, statusOf } from './clients'
+import { createLoanApplication, getLoanAppTemplate, getLoanTypes, type LoanAppCreated, type Member } from './api'
+import { FindBody, type FindWording } from './FindClientDialog'
 import LoanApplicantCard from './LoanApplicantCard'
 import LoanRelatedTabs, { CoMakerPicker, CoMakerRows, type CoMakerHoldInput } from './LoanRelatedTabs'
 import { appear } from './motion'
@@ -21,6 +21,9 @@ import { money } from './ui/format'
 /** The type chosen first when the clerk has not chosen one: the most used, which is Back to back. */
 const DEFAULT_TYPE = 48
 
+/** The member finder's layout, worded for starting a loan application. */
+const LOAN_FIND: FindWording = { title: 'New loan application', lead: 'Who is applying for a loan?', hint: 'Find the member by name or member ID, then choose the loan type.', enter: 'start application', queryTag: 'loan-start' }
+
 export default function LoanApplicationDialog({ branchCode: givenBranch, clientId: givenClient, typeCode: givenType, onClose, embedded, onSaved, part, onNext, onBack, onApplicant }: {
   branchCode?: number; clientId?: number; typeCode?: number; onClose: () => void; embedded?: boolean; onSaved?: (r: LoanAppCreated) => void
   /** In the step-by-step window the form is shown in two parts: the loan itself (profile) and what comes out of the proceeds (deduction). Left out, it shows everything. */
@@ -34,13 +37,6 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
   const searching = givenClient == null
   const [picked, setPicked] = useState<Member | null>(null)
   const [pickType, setPickType] = useState(DEFAULT_TYPE)
-  const [text, setText] = useState('')
-  const [q, setQ] = useState('')
-  useEffect(() => {
-    const h = setTimeout(() => setQ(text.trim()), 300)
-    return () => clearTimeout(h)
-  }, [text])
-  const found = useQuery({ queryKey: ['loan-start-search', q], queryFn: () => searchMembers(q, 0, 8), enabled: searching && !picked && q.length >= 2 })
   const branchCode = givenBranch ?? picked?.id.branchCode ?? 0
   const clientId = givenClient ?? picked?.id.clientId ?? 0
   const ready = clientId > 0
@@ -83,7 +79,7 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
     onSuccess: (r) => { setDone(r); qc.invalidateQueries({ queryKey: ['member-loans', branchCode, clientId] }); if (embedded) announceLoanApplicationSaved(); onSaved?.(r) },
   })
   const clear = () => { setAmount(''); setTerms(''); setUnit(''); setPurpose(''); setCollType(''); setCollAmount(''); setCollDesc(''); setRemarks(''); setCoMakers(''); setCoHolds({}); setDed({}); setDone(null); setCls('1'); setPaid({}); save.reset() }
-  const pick = (m: Member | null) => { clear(); setPicked(m); if (m == null) { setText(''); setQ('') } }
+  const pick = (m: Member | null) => { clear(); setPicked(m); }
   const paidTotal = Object.values(paid).reduce((s, v) => s + (Number(v.principal) || 0) + (Number(v.interest) || 0) + (Number(v.penalty) || 0), 0)
   const total = Object.values(ded).reduce((s, v) => s + (Number(v) || 0), 0) + paidTotal
   const net = (Number(amount) || 0) - total
@@ -111,24 +107,8 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
   return shell(
       <>
         {showProfile && searching && !picked && (
-          <Box sx={{ ...(embedded ? appear : {}), mb: 1.5, pt: embedded ? 3 : 0.5, mx: 'auto', width: '100%', maxWidth: embedded ? 480 : undefined }}>
-            <Typography sx={{ fontSize: 13, mb: 1, textAlign: embedded ? 'center' : undefined }} color="text.secondary">Find the member who wants to apply. Search by name or member number.</Typography>
-            <TextField autoFocus fullWidth size="small" label="Search member" value={text} onChange={(e) => setText(e.target.value)} />
-            {found.error && <Alert severity="error" sx={{ mt: 1 }}>{(found.error as Error).message}</Alert>}
-            {q.length >= 2 && found.data && found.data.content.length === 0 && <Typography sx={{ py: 1.5 }} color="text.secondary">No member found.</Typography>}
-            {found.data?.content.map((m) => {
-              const st = statusOf(m)
-              return (
-                <Box key={`${m.id.branchCode}-${m.id.clientId}`} role="button" tabIndex={0} onClick={() => pick(m)} onKeyDown={(e) => { if (e.key === 'Enter') pick(m) }}
-                  sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: 14 }}>{displayName(m)}</Typography>
-                    <Typography sx={{ fontSize: 12 }} color="text.secondary">{memberNo(m.id)}{m.city ? ` · ${m.city}` : ''}</Typography>
-                  </Box>
-                  <Chip size="small" variant="outlined" color={st.kind} label={st.label} />
-                </Box>
-              )
-            })}
+          <Box sx={{ ...(embedded ? appear : {}), mb: 1.5, mx: 'auto', width: '100%', maxWidth: embedded ? 520 : undefined, borderRadius: '5px', overflow: 'hidden', border: 1, borderColor: 'divider' }}>
+            <FindBody wording={LOAN_FIND} inline onPick={() => {}} onPickMember={pick} />
           </Box>
         )}
         {ready && !embedded && <LoanApplicantCard id={{ branchCode, clientId }} member={picked} onChange={showProfile && searching && !done ? () => pick(null) : undefined} />}
@@ -146,14 +126,14 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
           <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
             {showProfile && <>
             <Box component="section" aria-label="Loan setup" sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', p: 1.5 }}>
-              <Typography sx={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Loan setup · {t.typeName}</Typography>
+              <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Loan setup · {t.typeName}</Typography>
               <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 1.25 }}>
                 {([
                   ['Based on', t.setup.basedOn], ['Diminishing', t.setup.diminish], ['Term', `${t.terms} ${t.setup.termUnit?.toLowerCase() ?? ''}`.trim()], ['Interest rate', `${t.interestRate.toFixed(2)}% p.a.`],
                   ['Principal payment', t.setup.principalPayment], ['Interest payment', t.setup.interestPayment], ['Penalty rate', t.setup.penaltyRate == null ? null : `${t.setup.penaltyRate}%`],
                   ['Days in a year', t.setup.yearDays == null ? null : String(t.setup.yearDays)], ['Collateral', t.setup.collateralRequired ? 'Required' : 'Not required'],
                 ] as [string, string | null][]).map(([k, v]) => (
-                  <Box key={k}><Typography component="dt" sx={{ fontSize: 11.5 }} color="text.secondary">{k}</Typography><Typography component="dd" sx={{ m: 0, fontSize: 13.5, fontWeight: 500 }}>{v ?? '—'}</Typography></Box>
+                  <Box key={k}><Typography component="dt" sx={{ fontSize: 11 }} color="text.secondary">{k}</Typography><Typography component="dd" sx={{ m: 0, fontSize: 13, fontWeight: 500 }}>{v ?? '—'}</Typography></Box>
                 ))}
               </Box>
               {t.setup.unsupported && <Alert severity="warning" sx={{ mt: 1.25 }}>{t.setup.unsupported}</Alert>}
@@ -173,7 +153,7 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
                     slotProps={{ input: { endAdornment: (
                       <InputAdornment position="end">
                         <Select variant="standard" disableUnderline value={String(unitOf(t))} onChange={(e) => setUnit(String(e.target.value))} inputProps={{ 'aria-label': 'Term unit' }}
-                          sx={{ fontSize: 14, color: 'text.secondary', '& .MuiSelect-select': { py: 0, pr: '20px !important' } }}>
+                          sx={{ fontSize: 13, color: 'text.secondary', '& .MuiSelect-select': { py: 0, pr: '20px !important' } }}>
                           <MenuItem value="4">Months</MenuItem><MenuItem value="7">Years</MenuItem>
                         </Select>
                       </InputAdornment>

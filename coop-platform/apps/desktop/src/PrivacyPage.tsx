@@ -210,9 +210,9 @@ function RequestsTab() {
                 {late && <Chip size="small" color="error" label="Overdue" />}
                 {open && r.identity_verified === 1 && <Chip size="small" variant="outlined" label="Identity checked" />}
                 <Box sx={{ flex: 1 }} />
-                <Typography color="text.secondary" sx={{ fontSize: 12.5 }}>Due {String(r.due_on)}</Typography>
+                <Typography color="text.secondary" sx={{ fontSize: 12 }}>Due {String(r.due_on)}</Typography>
               </Stack>
-              <Typography sx={{ fontSize: 13.5, mt: 0.5 }}>{String(r.requester_name)}{r.client_id != null ? ` · member ${r.branch_code}-${r.client_id}` : ''} — {String(r.summary)}</Typography>
+              <Typography sx={{ fontSize: 13, mt: 0.5 }}>{String(r.requester_name)}{r.client_id != null ? ` · member ${r.branch_code}-${r.client_id}` : ''} — {String(r.summary)}</Typography>
               {r.outcome != null && <Typography color="text.secondary" sx={{ fontSize: 13 }}>Outcome: {String(r.outcome)}</Typography>}
               {open && (
                 <Stack direction="row" spacing={0.5} useFlexGap sx={{ mt: 1, flexWrap: 'wrap' }}>

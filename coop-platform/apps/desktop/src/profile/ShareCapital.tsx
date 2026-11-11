@@ -99,7 +99,7 @@ export function SharePaymentDialog({ id, account, initialAmount = '', initialExp
           </Box>
         )}
         {receipt && (
-          <Box sx={{ display: 'grid', gap: 0.5, pt: 1, fontSize: 14 }}>
+          <Box sx={{ display: 'grid', gap: 0.5, pt: 1, fontSize: 13 }}>
             <Box>Receipt <strong>{receipt.documentNo}</strong> (control {receipt.controlNo}) dated {receipt.date}</Box>
             <Box>{receipt.clientName}</Box>
             <Box>{receipt.account}</Box>
@@ -164,7 +164,7 @@ export function ShareWithdrawalDialog({ id, account, initialAmount = '', initial
           </Box>
         )}
         {done && (
-          <Box sx={{ display: 'grid', gap: 0.5, pt: 1, fontSize: 14 }}>
+          <Box sx={{ display: 'grid', gap: 0.5, pt: 1, fontSize: 13 }}>
             <Box>Voucher <strong>{done.documentNo}</strong> (control {done.controlNo}) for {done.clientName}</Box>
             <Box>Withdrawal <strong>{peso(done.amount)}</strong>; capital left after it posts <strong>{peso(done.availableAfter)}</strong></Box>
             <Box>It now waits for approval and posting on the Disburse tab.</Box>

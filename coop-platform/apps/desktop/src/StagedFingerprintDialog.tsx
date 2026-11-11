@@ -68,7 +68,7 @@ export default function StagedFingerprintDialog({ memberKey, name, consent, prin
             </Box>
           ) : (
             <>
-              <Typography sx={{ fontSize: 12.5 }} color="text.secondary">
+              <Typography sx={{ fontSize: 12 }} color="text.secondary">
                 Kept with the registration until a Membership Officer approves it. {prints.length} of 10 fingers scanned{prints.length < 2 ? ' (scan at least 2 in case one is injured)' : ''}.
               </Typography>
               <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 1.5 }}>

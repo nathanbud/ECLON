@@ -78,7 +78,7 @@ export default function TimeDepositPlaceDialog({ clientId, onClose }: { clientId
       <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
         <DialogTitle>Time deposit placed</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'grid', gap: 0.5, fontSize: 14 }}>
+          <Box sx={{ display: 'grid', gap: 0.5, fontSize: 13 }}>
             <div>{receipt.clientName}</div>
             <div>{receipt.type} certificate <b>{receipt.certificate}</b>: {peso(receipt.amount)} for {receipt.termDays} days at {receipt.ratePercent}%</div>
             <div>Matures {receipt.maturity}</div>
@@ -120,7 +120,7 @@ export default function TimeDepositPlaceDialog({ clientId, onClose }: { clientId
           {check && check.problems.map((p) => <Alert key={p} severity="warning">{p}</Alert>)}
           {chequesOver && <Alert severity="warning">The cheques add up to more than the payment.</Alert>}
           {check && check.problems.length === 0 && (
-            <Typography sx={{ fontSize: 13.5 }}>
+            <Typography sx={{ fontSize: 13 }}>
               Matures <b>{check.maturity}</b>
               {check.estimatedInterest != null && <> · interest at maturity about <b>{peso(check.estimatedInterest)}</b></>}
               {' '}· the member pays <b>{peso(check.total)}</b>

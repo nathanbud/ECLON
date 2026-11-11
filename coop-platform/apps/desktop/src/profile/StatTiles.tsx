@@ -45,7 +45,7 @@ function Tile({ label, icon, value, loading, foot, lead = false, openLabel, onOp
       {loading
         ? <Skeleton width="70%" height={36} sx={lead ? { bgcolor: 'rgba(255,255,255,0.3)' } : undefined} />
         : <Typography sx={{ fontSize: 26, fontWeight: 300, lineHeight: 1.25, letterSpacing: '-0.01em', ...tabular }}>{value == null ? '—' : money(value)}</Typography>}
-      <Typography sx={{ fontSize: 12.5, mt: 0.75, color: lead ? 'rgba(255,255,255,0.85)' : 'text.secondary' }}>{loading ? ' ' : foot}</Typography>
+      <Typography sx={{ fontSize: 12, mt: 0.75, color: lead ? 'rgba(255,255,255,0.85)' : 'text.secondary' }}>{loading ? ' ' : foot}</Typography>
     </ButtonBase>
   )
 }
@@ -64,7 +64,7 @@ export function StatTiles({ id, onOpen }: { id: Id; onOpen: (tab: number) => voi
   const at = (name: string) => TABS.indexOf(name)
 
   return (
-    <Box role="group" aria-label="Balances" sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' } }}>
+    <Box role="group" aria-label="Balances" sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
       <Tile lead label="Share capital" icon={<FiDatabase />} openLabel="Share Capital" onOpen={() => onOpen(at('Share Capital'))}
         value={shares.data?.totalBalance ?? null} loading={shares.isLoading} foot={shares.data ? plural(shares.data.accounts.length, 'account', 'accounts') : 'Not available'} />
       <Tile label="Savings" icon={<FiDollarSign />} openLabel="Savings" onOpen={() => onOpen(at('Savings'))}

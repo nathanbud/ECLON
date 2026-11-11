@@ -19,7 +19,7 @@ function KindRow({ k, first }: { k: AmortKind; first: boolean }) {
         <Typography sx={{ fontSize: 15, fontWeight: 600, flex: 1 }}>{k.name}</Typography>
         {k.supported ? <Dot color="success">Mapped</Dot> : <Dot color="grey">Not mapped</Dot>}
       </Box>
-      <Typography color="text.secondary" sx={{ fontSize: 12.5, lineHeight: 1.45 }}>{k.formula}</Typography>
+      <Typography color="text.secondary" sx={{ fontSize: 12, lineHeight: 1.45 }}>{k.formula}</Typography>
       <Typography color="text.secondary" sx={{ fontSize: 12, mt: 0.75 }}>
         {k.loans.toLocaleString()} {k.loans === 1 ? 'loan' : 'loans'}
         {k.types.length > 0 ? ` · loan types: ${k.types.join(', ')}` : ' · no loan type uses it'}
@@ -31,7 +31,7 @@ function KindRow({ k, first }: { k: AmortKind; first: boolean }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <Box sx={(t) => ({ p: 1.25, borderRadius: '10px', bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)' })}>
-      <Typography color="text.secondary" sx={{ fontSize: 11.5 }}>{label}</Typography>
+      <Typography color="text.secondary" sx={{ fontSize: 11 }}>{label}</Typography>
       <Typography sx={{ fontSize: 17, fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>{value}</Typography>
     </Box>
   )
@@ -74,7 +74,7 @@ export default function AmortizationTab({ lists }: { lists: LoanSetupLists | und
           {kinds.isLoading && <Skeleton variant="rounded" height={240} />}
           {kinds.data?.map((k, i) => <KindRow key={k.id} k={k} first={i === 0} />)}
         </Surface>
-        <Typography color="text.secondary" sx={{ fontSize: 12.5, mt: 1.25, px: 0.5 }}>
+        <Typography color="text.secondary" sx={{ fontSize: 12, mt: 1.25, px: 0.5 }}>
           The formulas are part of the program and are checked against thousands of real schedules, so they cannot be edited here. Pick the kind for a loan type in its Term section.
         </Typography>
       </Box>
@@ -111,7 +111,7 @@ export default function AmortizationTab({ lists }: { lists: LoanSetupLists | und
                   <Stat label="Total interest" value={money(preview.data.totalInterest)} />
                   <Stat label="Total paid" value={money(preview.data.totalPaid)} />
                 </Box>
-                <Box sx={(t) => ({ ...listTable(t), maxHeight: all ? 260 : 'none', overflow: 'auto', '& table': { width: '100%', borderCollapse: 'collapse' }, '& td, & th': { px: 1, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: 12.5 }, '& th': { py: 0.6, fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.palette.text.secondary, borderBottom: `0.5px solid ${t.palette.divider}` }, '& td': { py: 0.4 } })}>
+                <Box sx={(t) => ({ ...listTable(t), maxHeight: all ? 260 : 'none', overflow: 'auto', '& table': { width: '100%', borderCollapse: 'collapse' }, '& td, & th': { px: 1, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: 12 }, '& th': { py: 0.6, fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.palette.text.secondary, borderBottom: `0.5px solid ${t.palette.divider}` }, '& td': { py: 0.4 } })}>
                   <table>
                     <thead><tr><Box component="th" sx={{ textAlign: 'left !important' }}>Due</Box><th>Principal</th><th>Interest</th><th>Balance</th></tr></thead>
                     <tbody>
@@ -130,7 +130,7 @@ export default function AmortizationTab({ lists }: { lists: LoanSetupLists | und
             {!valid && <Typography color="text.secondary" sx={{ fontSize: 13, mt: 2 }}>Fill in the amount, term, how it is paid and the rate to see the schedule.</Typography>}
           </Box>
         </Surface>
-        <Typography color="text.secondary" sx={{ fontSize: 12.5, mt: 1.25, px: 0.5 }}>This is the schedule the loan application would build. Nothing is saved.</Typography>
+        <Typography color="text.secondary" sx={{ fontSize: 12, mt: 1.25, px: 0.5 }}>This is the schedule the loan application would build. Nothing is saved.</Typography>
       </Box>
     </Box>
   )

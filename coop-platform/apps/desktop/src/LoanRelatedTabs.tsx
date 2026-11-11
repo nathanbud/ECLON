@@ -89,7 +89,7 @@ export function CoMakerRows({ branchCode, applicant, ids, holds, onChange, onRem
         return (
           <Box key={id} sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', p: 1.25 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography sx={{ flex: 1, fontSize: 14, fontWeight: 600 }}>
+              <Typography sx={{ flex: 1, fontSize: 13, fontWeight: 600 }}>
                 {members[i]?.isLoading ? `${id} …` : m ? `${displayName(m)} · ${id}` : `${id} · not a member`}
               </Typography>
               {st?.kind === 'default' && <Chip size="small" color="warning" variant="outlined" label="Not active" />}
@@ -131,7 +131,7 @@ export function CoMakerPicker({ applicant, ids, onAdd }: { applicant: number; id
       onChange={(_, m) => { if (m) { onAdd(m.id.clientId); setText(''); setQ('') } }}
       renderOption={({ key, ...props }, m) => (
         <li key={key} {...props}>
-          <Box><Typography sx={{ fontSize: 14 }}>{displayName(m)}</Typography>
+          <Box><Typography sx={{ fontSize: 13 }}>{displayName(m)}</Typography>
             <Typography sx={{ fontSize: 12 }} color="text.secondary">{memberNo(m.id)}{m.city ? ` · ${m.city}` : ''}</Typography></Box>
         </li>
       )}

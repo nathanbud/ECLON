@@ -79,7 +79,7 @@ export default function MemberSearchBox({ onPick, lk, width = '100%' }: { onPick
                   sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.25, py: 0.75, borderRadius: '5px', cursor: 'pointer', bgcolor: i === active ? t.palette.action.selected : 'transparent' })}
                 >
                   <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography noWrap sx={{ fontSize: 14, fontWeight: 500 }}>{displayName(m)}</Typography>
+                    <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{displayName(m)}</Typography>
                     <Typography noWrap sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{memberNo(m.id)}{m.city ? ` · ${m.city}` : ''}</Typography>
                   </Box>
                   <Typography sx={{ fontSize: 12, flexShrink: 0 }} color="text.secondary">{statusOf(m, lk).label}</Typography>

@@ -64,6 +64,14 @@ export async function searchMembers(q: string, page: number, size: number, inclu
   return res.json()
 }
 
+/** Street names already used on member records in a barangay (most used first), for the street box of an address. There is no official list of streets. */
+export async function streetSuggestions(barangay: string, city: string, province: string): Promise<string[]> {
+  const params = new URLSearchParams({ barangay, city, province })
+  const res = await http(`/api/members/address-streets?${params}`)
+  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  return res.json()
+}
+
 export async function getMember(branchCode: number, clientId: number): Promise<Member> {
   const res = await http(`/api/members/${branchCode}/${clientId}`)
   if (!res.ok) throw new Error(`Request failed (${res.status})`)
@@ -181,9 +189,18 @@ export interface MemberRequest {
 }
 export const listMemberRequests = (status = 'PENDING') => getJson<MemberRequest[]>(`/api/member-requests?status=${status}`)
 export interface StagedFinger { finger: number; template: string; format: string; quality: number; device: string }
-export interface StagedItems { photo: string | null; consent: boolean; fingerprints: StagedFinger[] }
+export interface StagedItems { photo: string | null; consent: boolean; fingerprints: StagedFinger[]; signature?: string | null }
 export const checkFingerprintDuplicate = (body: { template: string; format: string; staged: StagedFinger[] }) =>
   send<{ duplicate: boolean; message: string | null }>('POST', '/api/member-requests/biometric-check', body)
+/** A new-member registration saved as a draft: the typed fields only, private to the person who saved it. */
+export interface MemberDraftSummary { id: number; title: string; clientType: number; updatedAt: string }
+export interface MemberDraft extends MemberDraftSummary { branchCode: number; fields: Record<string, string> }
+export const listMemberDrafts = () => getJson<MemberDraftSummary[]>('/api/member-drafts')
+export const getMemberDraft = (id: number) => getJson<MemberDraft>(`/api/member-drafts/${id}`)
+/** Saves a new draft (no id) or changes an existing one. */
+export const saveMemberDraft = (id: number | null, body: { branchCode: number; clientType: number; fields: Record<string, string> }) =>
+  id == null ? send<MemberDraftSummary>('POST', '/api/member-drafts', body) : send<MemberDraftSummary>('PUT', `/api/member-drafts/${id}`, body)
+export const deleteMemberDraft = (id: number) => send<void>('DELETE', `/api/member-drafts/${id}`)
 export const registerMember = (body: { branchCode: number; clientType: number; fields: Record<string, string>; staged?: StagedItems }) => send<MemberRequest>('POST', '/api/member-requests/registrations', body)
 export const requestClosure = (body: { branchCode: number; clientId: number; reason: number; dateDeceased: string | null; note: string | null }) => send<MemberRequest>('POST', '/api/member-requests/closures', body)
 export const approveMemberRequest = (id: number) => send<MemberRequest>('POST', `/api/member-requests/${id}/approve`, {})
@@ -231,6 +248,35 @@ export interface ImportPreview { fileName: string; total: number; ok: number; er
 export interface ImportBatch {
   id: number; branchCode: number; fileName: string; totalRows: number; okRows: number; uploadedBy: string; uploadedAt: string; status: string
   decidedBy: string | null; decidedAt: string | null; decisionNote: string | null; openedCount: number | null; failedCount: number | null
+}
+
+// ---- Know Your Customer ---------------------------------------------------------------------------------------------
+
+export type KycStatus = 'NONE' | 'INCOMPLETE' | 'EXPIRED' | 'REVIEW_DUE' | 'COMPLETE'
+export interface Kyc {
+  idType: string | null; idNumber: string | null; idIssuer: string | null; idExpiry: string | null; sourceOfFunds: string | null; pep: boolean; pepNote: string | null
+  risk: 'LOW' | 'MEDIUM' | 'HIGH' | null; nextReview: string | null; remarks: string | null; hasScan: boolean; updatedBy: string | null; updatedAt: string | null
+  status: KycStatus; idTypes: string[]
+}
+export type KycInput = Pick<Kyc, 'idType' | 'idNumber' | 'idIssuer' | 'idExpiry' | 'sourceOfFunds' | 'pep' | 'pepNote' | 'risk' | 'nextReview' | 'remarks'>
+const kycUrl = (b: number, c: number) => `/api/members/${b}/${c}/kyc`
+export const getKyc = (b: number, c: number) => getJson<Kyc>(kycUrl(b, c))
+export const saveKyc = (b: number, c: number, body: KycInput) => send<Kyc>('PUT', kycUrl(b, c), body)
+export async function getKycScan(b: number, c: number): Promise<string | null> {
+  const res = await http(`${kycUrl(b, c)}/id-scan`)
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  return URL.createObjectURL(await res.blob())
+}
+export async function uploadKycScan(b: number, c: number, file: Blob): Promise<void> {
+  const body = new FormData()
+  body.append('file', file, 'id-scan.jpg')
+  const res = await http(`${kycUrl(b, c)}/id-scan`, { method: 'POST', body })
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`
+    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status text */ }
+    throw new Error(message)
+  }
 }
 
 async function sendFile<T>(url: string, file: File): Promise<T> {

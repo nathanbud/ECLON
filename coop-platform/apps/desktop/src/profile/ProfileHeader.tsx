@@ -1,4 +1,4 @@
-import { getFingerprints, getMemberPrivacy, type Lookups, type Member } from '../api'
+import { getFingerprints, getKyc, getMemberPrivacy, type Lookups, type Member } from '../api'
 import { useEdit } from './editing'
 import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -6,7 +6,7 @@ import { displayName, memberNo, statusOf } from '../clients'
 import { useMemberImage } from '../memberImage'
 import { Avatar, Box, Chip, IconButton, Tooltip, Typography } from '@mui/material'
 import { SIDE } from '../glass'
-import { FiCamera, FiEdit2, FiEdit3, FiShield, FiUser } from 'react-icons/fi'
+import { FiCamera, FiEdit2, FiEdit3, FiShield, FiUser, FiUserCheck } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
 import FingerprintDialog from '../FingerprintDialog'
 import PrivacyNoticeDialog from '../PrivacyNoticeDialog'
@@ -14,17 +14,19 @@ import { useMe } from '../session'
 import MemberPhotoDialog from '../MemberPhotoDialog'
 import SignatureDialog from '../SignatureDialog'
 
-/** Side of the round photo in pixels. */
-const PHOTO = 92
+const KYC_LABEL = { NONE: 'not started', INCOMPLETE: 'incomplete', EXPIRED: 'ID expired', REVIEW_DUE: 'review due', COMPLETE: 'complete' } as const
+
+/** Side of the square photo in pixels: one and three-quarter inches (96 CSS pixels to the inch). */
+export const PHOTO = 168
 
 type Kind = 'success' | 'warning' | 'error' | 'info' | 'default'
 
 /** A small outlined tag for the dark panel: light text, with the outline tinted by what it says. */
-const tag = (kind: Kind) => {
+export const tag = (kind: Kind) => {
   const edge = kind === 'success' ? SIDE.ok : kind === 'warning' ? SIDE.warn : kind === 'error' ? SIDE.bad : SIDE.line
   const ink = kind === 'success' ? SIDE.ok : kind === 'warning' ? SIDE.warn : kind === 'error' ? SIDE.bad : SIDE.text
   return {
-    height: 22, fontSize: 11.5, fontWeight: 500, color: ink, borderColor: edge, bgcolor: 'transparent',
+    height: 22, fontSize: 11, fontWeight: 500, color: ink, borderColor: edge, bgcolor: 'transparent',
     '& .MuiChip-icon': { fontSize: 13, ml: 0.75, mr: -0.25, color: 'inherit' },
     '& .MuiChip-label': { px: 0.9 },
     '&.MuiChip-clickable:hover': { bgcolor: SIDE.hover },
@@ -46,10 +48,22 @@ export function SideFrame({ children, label }: { children?: ReactNode; label: st
   )
 }
 
-/** The round picture with a coloured ring, as at the top of a user dashboard. */
+/**
+ * The part of the dark column that scrolls on its own: the section menu. The photo, name and tags above it stay where they are. If the window is so short that even the
+ * identity block does not fit, the whole column scrolls as before.
+ */
+export function SideScroll({ children }: { children: ReactNode }) {
+  return (
+    <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'thin', scrollbarColor: `${SIDE.line} transparent` }}>
+      {children}
+    </Box>
+  )
+}
+
+/** The square picture with a coloured frame. */
 export function Ring({ color, children }: { color: string; children: ReactNode }) {
   return (
-    <Box sx={{ width: PHOTO + 16, height: PHOTO + 16, borderRadius: '50%', border: `3px solid ${color}`, p: '5px', boxSizing: 'border-box', position: 'relative', mx: 'auto' }}>
+    <Box sx={{ width: PHOTO + 16, height: PHOTO + 16, borderRadius: '5px', border: `1px solid ${color}`, p: '5px', boxSizing: 'border-box', position: 'relative', mx: 'auto' }}>
       {children}
     </Box>
   )
@@ -68,6 +82,7 @@ export function ProfileHeader({ m, lk, canPhoto = false, onNotice, children }: {
   const canEdit = useMe().canEdit
   const privacy = useQuery({ queryKey: ['member-privacy', m.id.branchCode, m.id.clientId], queryFn: () => getMemberPrivacy(m.id.branchCode, m.id.clientId), staleTime: 60_000, retry: false })
   const prints = useQuery({ queryKey: ['fingerprints', m.id], queryFn: () => getFingerprints(m.id.branchCode, m.id.clientId), staleTime: 60_000, retry: false })
+  const kyc = useQuery({ queryKey: ['kyc', m.id.branchCode, m.id.clientId], queryFn: () => getKyc(m.id.branchCode, m.id.clientId), staleTime: 60_000, retry: false })
   const st = statusOf(m, lk)
   const photo = useMemberImage('photo', m.id)
   const signature = useMemberImage('signature', m.id)
@@ -81,7 +96,7 @@ export function ProfileHeader({ m, lk, canPhoto = false, onNotice, children }: {
 
       <Box sx={{ px: 2, pt: 2.5, pb: 1.5, textAlign: 'center', '&:hover .photo-edit, &:focus-within .photo-edit': { opacity: 1 } }}>
         <Ring color={ring}>
-          <Avatar src={photo ?? undefined} alt={`Photo of ${displayName(m)}`} sx={{ width: PHOTO, height: PHOTO, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.14)', color: SIDE.text }}><FiUser size={42} aria-hidden /></Avatar>
+          <Avatar variant="square" src={photo ?? undefined} alt={`Photo of ${displayName(m)}`} sx={{ width: PHOTO, height: PHOTO, borderRadius: '2px', bgcolor: 'rgba(255,255,255,0.14)', color: SIDE.text }}><FiUser size={72} aria-hidden /></Avatar>
           {canPhoto && editing && (
             <Tooltip title="Take or upload a photo">
               <IconButton className="photo-edit" size="small" aria-label="Take or upload a photo" onClick={() => setPhotoOpen(true)}
@@ -102,11 +117,15 @@ export function ProfileHeader({ m, lk, canPhoto = false, onNotice, children }: {
             label={prints.data?.fingers.length ? `Fingerprint · ${prints.data.fingers.length}/10` : 'Fingerprint'} />
           <Chip size="small" variant="outlined" clickable icon={<FiEdit3 />} onClick={() => setSignatureOpen(true)} aria-label="Signature" sx={tag(signature ? 'success' : 'default')}
             label={signature ? 'Signature · on file' : 'Signature'} />
+          {kyc.data && (
+            <Chip size="small" variant="outlined" icon={<FiUserCheck />} aria-label={`KYC: ${KYC_LABEL[kyc.data.status]}`} sx={tag(kyc.data.status === 'COMPLETE' ? 'success' : kyc.data.status === 'NONE' ? 'default' : 'warning')}
+              label={kyc.data.status === 'COMPLETE' ? 'KYC complete' : `KYC · ${KYC_LABEL[kyc.data.status]}`} />
+          )}
           <Chip size="small" variant="outlined" clickable icon={<FiShield />} onClick={() => setNoticeOpen(true)} aria-label="Privacy notice" sx={tag(privacy.data?.upToDate ? 'success' : 'default')}
             label={privacy.data?.upToDate ? 'Privacy notice given' : 'Privacy notice'} />
         </Box>
       </Box>
-      {children}
+      <SideScroll>{children}</SideScroll>
     </SideFrame>
   )
 }

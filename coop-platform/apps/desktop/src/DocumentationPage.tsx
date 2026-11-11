@@ -50,6 +50,7 @@ const RULES: [string, string][] = [
   ['Debit/credit memos', 'Menu > Accounting > Debit/credit memos, or the Memos tab of Accounting (accountants and administrators): an adjustment or transfer that changes members’ savings or share capital accounts and ledger accounts in one balanced entry, for example from a deceased member to a beneficiary. A debit takes money out of a member’s account, a credit puts it in. It must give the reason and who authorised it, and it can never take a member’s account below zero. The person who makes it, the person who approves it and the person who posts it must be three different people. A posted memo is reversed by a new memo, never edited. Loans are not included yet.'],
   ['Where an entry came from', 'In the details of a Savings, Share Capital, Time Deposit or Loan account, click a ledger row (or press Enter on it) to see the transaction behind it: the header, the general ledger and subsidiary ledger lines it wrote (with their totals), the cheques it carried, the source reference and the description. It only opens transactions that are in that member’s own ledger, and nothing in it can be changed.'],
   ['Voice commands', 'Press V or the microphone in the title bar (the first time you are told what it is for), then say what you want: “open audit log”, “go home”, “menu”, “find client Santos” (the name is typed into the finder; press Enter to open the member), and, with a member open, “open savings”, “share capital”, “loans”, “member info”, “accounts”. The microphone turns itself off after a command, after a few quiet seconds, or on Esc. Voice only opens screens and searches: it never saves, approves or posts anything, and it can only open screens your menu shows. Speech is turned into words on this computer by a small model that comes with the app; nothing is sent over the network and no audio is kept. It recognizes English; a misheard word is ignored rather than guessed, so say it again. If the microphone button is grey, the model is not installed (run scripts/fetch-voice-model.ps1 and restart the app).'],
+  ['Know Your Customer (KYC)', 'Open a member, then Member info > KYC. Record the valid ID the member showed (kind, number, who issued it, expiry date, and a scan if you may handle images), where their money comes from, whether they hold or held a public position (politically exposed), a risk rating (low, medium or high) and the date the record is next reviewed; left blank, the review date is set from the risk (a year for high, two for medium, three for low). The status shows at the top of the section and as a tag in the side panel: Not started, Incomplete (something needed is missing), ID expired, Review due, or Complete. Saving needs permission to edit members, applies at once (it does not wait for a second person) and is written to the audit log with the ID number hidden except its last four characters; opening an ID scan is logged too.'],
   ['Editing a profile', 'A person with edit permission changes a client in edit mode and saves; the change is sent to a Membership Officer, who is not the sender, to approve or reject. A person who is a Membership Officer does not need a second person: their changes are applied at once when they save. Either way every changed field is written to the audit log (Settings > Audit Log) with who made it, the old and new value and, for an officer’s own edit, a note that no second approval was needed.'],
   ['Beneficiaries', 'Client Profile > Info > Beneficiaries (right of Spouse Info). A person with edit permission adds, changes or removes a beneficiary by sending a request; a Membership Officer other than the sender approves or rejects it on the Approvals tile, and only then does the list change. A removal needs a reason, and the removed details are kept in the Audit Log.'],
   ['Finding a client', 'A search by name lists active clients only, so it is quicker. Turn on Include inactive in Find Client to see dormant and closed ones. A member ID or reference number finds the client whatever the status. The title-bar search and the pickers in Front Office, Loan Application and co-makers list active clients only. A word that starts a last or first name is found at once; a word from the middle of a name or account name takes a moment longer. When more than a page matches, the list says so instead of counting them.'],
@@ -129,12 +130,12 @@ export default function DocumentationPage() {
         <Card title="Keyboard shortcuts">
           {SHORTCUTS.map((g) => (
             <Box key={g.area} sx={{ mb: 1.5 }}>
-              <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 0.5 }}>{g.area}</Typography>
+              <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 0.5 }}>{g.area}</Typography>
               <Table size="small" aria-label={`${g.area} shortcuts`}>
                 <TableBody>
                   {g.rows.map(([key, what]) => (
                     <TableRow key={key}>
-                      <TableCell sx={{ width: '26%', whiteSpace: 'nowrap' }}><Box component="kbd" sx={{ fontFamily: 'inherit', fontSize: 12.5, px: 0.75, py: 0.25, border: 1, borderColor: 'divider', borderRadius: '5px' }}>{key}</Box></TableCell>
+                      <TableCell sx={{ width: '26%', whiteSpace: 'nowrap' }}><Box component="kbd" sx={{ fontFamily: 'inherit', fontSize: 12, px: 0.75, py: 0.25, border: 1, borderColor: 'divider', borderRadius: '5px' }}>{key}</Box></TableCell>
                       <TableCell>{what}</TableCell>
                     </TableRow>
                   ))}
@@ -142,7 +143,7 @@ export default function DocumentationPage() {
               </Table>
             </Box>
           ))}
-          <Typography sx={{ fontSize: 12.5 }} color="text.secondary">On a Mac, Ctrl is the Command key (⌘).</Typography>
+          <Typography sx={{ fontSize: 12 }} color="text.secondary">On a Mac, Ctrl is the Command key (⌘).</Typography>
         </Card>
 
         <Card title="Rules the system follows"><Pairs rows={RULES} head={['Rule', 'What it means']} /></Card>

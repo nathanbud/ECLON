@@ -11,6 +11,8 @@ import { appBackground, glass } from './glass'
 import { ToolbarPortal } from './toolbarSlot'
 import FindClientDialog, { FindBody } from './FindClientDialog'
 import AdvancedRegistration from './AdvancedRegistration'
+import { DraftsList } from './profile/DraftsList'
+import type { MemberDraft } from './api'
 import { Gated, NEEDS_ADMIN, NEEDS_EDIT } from './ui/Gated'
 import { NewMemberScreen } from './profile/NewMember'
 import { EditCtx } from './profile/editing'
@@ -30,6 +32,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
   const [discarding, setDiscarding] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [registering, setRegistering] = useState(false)
+  const [resumed, setResumed] = useState<MemberDraft | null>(null)
   const [advanced, setAdvanced] = useState(false)
   const me = useMe()
   const [closing, setClosing] = useState(false)
@@ -158,7 +161,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
         {advanced
           ? <AdvancedRegistration onClose={() => setAdvanced(false)} onDone={setNotice} />
           : registering
-          ? <NewMemberScreen lk={lk} canImages={!!caps?.images} onClose={() => setRegistering(false)} onDone={setNotice} />
+          ? <NewMemberScreen key={resumed?.id ?? 'new'} lk={lk} canImages={!!caps?.images} initial={resumed ?? undefined} onClose={() => { setRegistering(false); setResumed(null) }} onDone={setNotice} />
           : selected
           ? (
             <EditCtx.Provider value={{ editing, draft, set }}>
@@ -183,6 +186,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
                   <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => { setRegistering(true); setError(null) }}>New Client</Button></Gated>
                   <Gated allowed={!!caps?.edit && me.admin} reason={caps?.edit ? NEEDS_ADMIN : NEEDS_EDIT}><Button size="small" color="warning" onClick={() => setAdvanced(true)}>Advanced mode: import a list</Button></Gated>
                 </Box>
+                {caps?.edit && <DraftsList onResume={(d) => { setResumed(d); setRegistering(true); setError(null) }} />}
               </Box>
             </Box>
           )}

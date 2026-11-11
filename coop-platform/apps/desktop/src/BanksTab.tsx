@@ -182,7 +182,7 @@ function ReconcileDialog({ branchCode, bank, onClose }: { branchCode: number; ba
         )}
         {history.data && history.data.length > 0 && (
           <Box sx={{ mt: 2 }}>
-            <Typography sx={{ fontWeight: 600, fontSize: 14, mb: 0.5 }}>Earlier reconciliations</Typography>
+            <Typography sx={{ fontWeight: 600, fontSize: 13, mb: 0.5 }}>Earlier reconciliations</Typography>
             <Table size="small" aria-label="Earlier reconciliations">
               <TableBody>
                 {history.data.map((r) => (

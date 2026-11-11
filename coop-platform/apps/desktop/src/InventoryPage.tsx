@@ -71,7 +71,7 @@ function ProductDialog({ product, onClose }: { product?: InvProduct; onClose: ()
             <FormControlLabel control={<Checkbox checked={f.trackExpiry} disabled={!f.trackBatch} onChange={(_, v) => setF({ ...f, trackExpiry: v })} />} label="Has an expiry date" />
             {product && <FormControlLabel control={<Checkbox checked={f.active} onChange={(_, v) => setF({ ...f, active: v })} />} label="Active" />}
           </Stack>
-          {product && <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Once there is stock history the unit and batch tracking cannot change.</Typography>}
+          {product && <Typography sx={{ fontSize: 12 }} color="text.secondary">Once there is stock history the unit and batch tracking cannot change.</Typography>}
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending} onClick={() => save.mutate()}>Save</Button></DialogActions>
@@ -277,7 +277,7 @@ function NewAdjustmentDialog({ onClose }: { onClose: () => void }) {
           </Stack>
           <TextField size="small" label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
           <LineRows rows={rows} onChange={setRows} products={products} label={type === 'ADJUSTMENT' ? 'Change (+/−)' : 'Quantity lost'} />
-          <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Nothing changes in stock until a different stock approver approves it.</Typography>
+          <Typography sx={{ fontSize: 12 }} color="text.secondary">Nothing changes in stock until a different stock approver approves it.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending || !wh} onClick={() => save.mutate()}>Submit</Button></DialogActions>
@@ -338,7 +338,7 @@ function NewCountDialog({ onClose }: { onClose: () => void }) {
           {error && <Alert severity="error">{error}</Alert>}
           <TextField select size="small" label="Warehouse" value={wh} onChange={(e) => setWh(e.target.value)} sx={{ width: 320 }}>{warehouses.map((w) => <MenuItem key={w.id} value={String(w.id)}>{w.name}</MenuItem>)}</TextField>
           <LineRows rows={rows} onChange={setRows} products={products} label="Counted" />
-          <Typography sx={{ fontSize: 12.5 }} color="text.secondary">The books are read when you submit. A different stock approver approves the count, and only the differences are posted.</Typography>
+          <Typography sx={{ fontSize: 12 }} color="text.secondary">The books are read when you submit. A different stock approver approves the count, and only the differences are posted.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending || !wh} onClick={() => save.mutate()}>Submit count</Button></DialogActions>

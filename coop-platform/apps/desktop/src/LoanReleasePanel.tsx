@@ -33,7 +33,7 @@ export function LoanReleasePanel() {
           onKeyDown={(e) => { if (e.key === 'Enter') { setOpen(r); setError(null) } }}
           sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 14 }}>{r.clientName ?? `Client ${r.clientId}`} · {money(r.loanAmount)}</Typography>
+            <Typography sx={{ fontSize: 13 }}>{r.clientName ?? `Client ${r.clientId}`} · {money(r.loanAmount)}</Typography>
             <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{r.documentNo} · {r.date} · {r.explanation}</Typography>
           </Box>
           <Chip size="small" variant="outlined" color={statusColor(r.status)} label={r.status === 'WAITING FOR APPROVAL' ? 'Waiting for approval' : r.status === 'APPROVED' ? 'Approved' : 'Posted'} />

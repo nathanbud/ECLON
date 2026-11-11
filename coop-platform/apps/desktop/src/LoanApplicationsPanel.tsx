@@ -64,7 +64,7 @@ export function LoanApplicationsPanel() {
         <Box key={r.id} onClick={() => { setOpen(r); setError(null); setCancelling(false); setDisapproving(false) }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') { setOpen(r); setError(null) } }}
           sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 14 }}>{r.clientName ?? `Client ${r.clientId}`} · {money(r.amount)}</Typography>
+            <Typography sx={{ fontSize: 13 }}>{r.clientName ?? `Client ${r.clientId}`} · {money(r.amount)}</Typography>
             <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{r.documentNo} · {r.typeName} · {r.terms} months · {r.date} · encoded by {r.encodedByName ?? '—'}</Typography>
           </Box>
           <Chip size="small" variant="outlined" color={r.status === 2 ? 'info' : 'warning'} label={r.statusName} />

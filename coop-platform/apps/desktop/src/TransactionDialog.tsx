@@ -38,7 +38,7 @@ function Fact({ label, value }: { label: string; value: string | null | undefine
   return (
     <Box sx={{ display: 'flex', gap: 1, minWidth: 0, py: 0.25 }}>
       <Typography component="span" color="text.secondary" sx={{ fontSize: 13, width: 96, flexShrink: 0 }}>{label}</Typography>
-      <Typography component="span" sx={{ fontSize: 13.5, minWidth: 0, overflowWrap: 'anywhere' }}>{value || '—'}</Typography>
+      <Typography component="span" sx={{ fontSize: 13, minWidth: 0, overflowWrap: 'anywhere' }}>{value || '—'}</Typography>
     </Box>
   )
 }
@@ -55,9 +55,9 @@ export default function TransactionDialog({ id, tx, onClose }: { id: Id; tx: TxK
     <Dialog open onClose={onClose} maxWidth="lg" fullWidth aria-labelledby="tx-title">
       <DialogTitle id="tx-title" sx={{ display: 'flex', alignItems: 'baseline', gap: 2, flexWrap: 'wrap' }}>
         <Box component="span" sx={{ flex: 1, minWidth: 0, fontSize: 17 }}>
-          Transaction{h?.clientNo ? ` : ${h.clientNo}` : ''}{h?.client ? ` - ${h.client}` : ''} <Typography component="span" color="text.secondary" sx={{ fontSize: 14 }}>Control no. {String(tx.ctlNo).padStart(8, '0')}</Typography>
+          Transaction{h?.clientNo ? ` : ${h.clientNo}` : ''}{h?.client ? ` - ${h.client}` : ''} <Typography component="span" color="text.secondary" sx={{ fontSize: 13 }}>Control no. {String(tx.ctlNo).padStart(8, '0')}</Typography>
         </Box>
-        {h && <Box component="span" sx={{ fontSize: 22, fontWeight: 800, letterSpacing: '0.04em', color: h.status === 'APPROVED' ? 'success.main' : 'warning.main' }}>{h.status}</Box>}
+        {h && <Box component="span" sx={{ fontSize: 22, fontWeight: 700, letterSpacing: '0.04em', color: h.status === 'APPROVED' ? 'success.main' : 'warning.main' }}>{h.status}</Box>}
       </DialogTitle>
       <DialogContent>
         {error && <Alert severity="error">{(error as Error).message}</Alert>}
@@ -106,7 +106,7 @@ export default function TransactionDialog({ id, tx, onClose }: { id: Id; tx: TxK
               )}
               {tab === 1 && (
                 data.cheques.length === 0
-                  ? <Typography color="text.secondary" sx={{ p: 2, fontSize: 13.5 }}>No cheques came with this transaction.</Typography>
+                  ? <Typography color="text.secondary" sx={{ p: 2, fontSize: 13 }}>No cheques came with this transaction.</Typography>
                   : (
                     <Table size="small" stickyHeader aria-label="Cheques">
                       <TableHead>
@@ -126,7 +126,7 @@ export default function TransactionDialog({ id, tx, onClose }: { id: Id; tx: TxK
               )}
             </Box>
 
-            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'flex-end', my: 1, fontSize: 14, ...num }}>
+            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'flex-end', my: 1, fontSize: 13, ...num }}>
               <Box component="span">Difference: <b>{money(data.difference)}</b></Box>
               <Box component="span">Debit: <b>{money(data.debit)}</b></Box>
               <Box component="span">Credit: <b>{money(data.credit)}</b></Box>
@@ -134,7 +134,7 @@ export default function TransactionDialog({ id, tx, onClose }: { id: Id; tx: TxK
 
             <Fact label="Source reference" value={h.sourceReference} />
             <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mt: 1, mb: 0.25 }} color="text.secondary">Description</Typography>
-            <Typography sx={{ fontSize: 13.5, whiteSpace: 'pre-wrap', minHeight: 40, p: 1, border: 1, borderColor: 'divider', borderRadius: '5px' }}>{h.explanation ?? ''}</Typography>
+            <Typography sx={{ fontSize: 13, whiteSpace: 'pre-wrap', minHeight: 40, p: 1, border: 1, borderColor: 'divider', borderRadius: '5px' }}>{h.explanation ?? ''}</Typography>
           </>
         )}
       </DialogContent>

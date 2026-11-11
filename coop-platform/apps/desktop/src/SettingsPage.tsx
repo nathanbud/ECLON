@@ -99,7 +99,7 @@ function Row({ item, allowed, onOpen }: { item: Item; allowed: boolean; onOpen: 
       <Badge color={item.color} size={32}>{item.icon}</Badge>
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography sx={{ fontSize: 15, fontWeight: 500, lineHeight: 1.3 }}>{item.label}</Typography>
-        <Typography color="text.secondary" sx={{ fontSize: 12.5, lineHeight: 1.35 }}>{item.note}</Typography>
+        <Typography color="text.secondary" sx={{ fontSize: 12, lineHeight: 1.35 }}>{item.note}</Typography>
       </Box>
       {enabled ? (
         <Box aria-hidden sx={{ color: 'text.disabled', display: 'flex' }}><FiChevronRight /></Box>
@@ -155,7 +155,7 @@ export default function SettingsPage({ onOpen }: { onOpen: (v: View) => void }) 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 0.5, mb: 2 }}>
             <Box aria-hidden sx={{ width: 40, height: 40, borderRadius: '50%', display: 'grid', placeItems: 'center', fontWeight: 600, fontSize: 15, color: '#fff', backgroundImage: 'linear-gradient(160deg, #8E8E93, #636366)' }}>{initials}</Box>
             <Box sx={{ minWidth: 0 }}>
-              <Typography noWrap sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.25 }}>{me.name}</Typography>
+              <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.25 }}>{me.name}</Typography>
               <Typography noWrap color="text.secondary" sx={{ fontSize: 12 }}>{me.admin ? 'Administrator' : 'Accountant'}</Typography>
             </Box>
           </Box>
@@ -177,7 +177,7 @@ export default function SettingsPage({ onOpen }: { onOpen: (v: View) => void }) 
                   key={c.id} role="listitem" aria-current={on ? 'page' : undefined} onClick={() => { setQ(''); choose(c.id) }} onKeyDown={(e) => onKey(e, i)} focusRipple={false}
                   sx={(t) => ({
                     display: 'flex', alignItems: 'center', gap: 1.25, px: 1, py: 0.75, borderRadius: '10px', textAlign: 'left', justifyContent: 'flex-start',
-                    width: { md: '100%' }, fontSize: 14, fontWeight: on ? 600 : 500,
+                    width: { md: '100%' }, fontSize: 13, fontWeight: on ? 600 : 500,
                     bgcolor: on ? (t.palette.mode === 'dark' ? 'rgba(10,132,255,0.28)' : 'rgba(0,122,255,0.14)') : 'transparent',
                     transition: `background-color 160ms ${EASE}`,
                     '&:hover': { bgcolor: on ? undefined : t.palette.action.hover },

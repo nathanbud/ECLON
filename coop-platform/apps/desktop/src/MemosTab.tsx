@@ -117,7 +117,7 @@ function NewMemo({ branchCode, onClose, onDone }: { branchCode: number; onClose:
           <TextField size="small" type="date" label="Date" value={date} onChange={(e) => setDate(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today() } }} />
           <TextField size="small" label="Reason and who authorised it" value={description} onChange={(e) => setDescription(e.target.value)} slotProps={{ htmlInput: { maxLength: 200 } }} sx={{ flex: 1 }} />
         </Stack>
-        <Typography sx={{ fontSize: 12.5, mb: 1 }} color="text.secondary">A debit takes money out of a member&rsquo;s account; a credit puts money in. Debits and credits must be equal.</Typography>
+        <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">A debit takes money out of a member&rsquo;s account; a credit puts money in. Debits and credits must be equal.</Typography>
         {lines.map((l, i) => (
           <Stack key={i} direction="row" spacing={1} sx={{ mb: 1, alignItems: 'flex-start' }}>
             <TextField select size="small" label="Applies to" value={l.kind} onChange={(e) => set(i, { kind: e.target.value as MemoKind, account: '' })} sx={{ width: 190 }}>
@@ -167,7 +167,7 @@ function MemoView({ id, user, admin, onClose, onChanged }: { id: number; user: s
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
         {s?.reference ?? 'Memo'} {s && <Chip size="small" sx={{ ml: 1 }} label={statusLabel(s.status)} color={statusColor[s.status]} />}
-        {s?.documentNo && <Typography component="span" color="text.secondary" sx={{ ml: 1.5, fontSize: 14 }}>Document {s.documentNo}</Typography>}
+        {s?.documentNo && <Typography component="span" color="text.secondary" sx={{ ml: 1.5, fontSize: 13 }}>Document {s.documentNo}</Typography>}
       </DialogTitle>
       <DialogContent>
         {s && (

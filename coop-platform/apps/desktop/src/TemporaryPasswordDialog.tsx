@@ -66,7 +66,7 @@ export default function TemporaryPasswordDialog({ user, onClose, onIssued }: { u
       {!issued && user && (
         <form onSubmit={(e) => { e.preventDefault(); void issue() }}>
           <DialogContent>
-            <Typography sx={{ fontSize: 13.5, mb: 2.5 }} color="text.secondary">
+            <Typography sx={{ fontSize: 13, mb: 2.5 }} color="text.secondary">
               For <strong>{user.username}</strong>{user.name ? ` (${user.name})` : ''}. {note(user)}
             </Typography>
             <Typography id="validity-label" sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Valid for</Typography>
@@ -74,7 +74,7 @@ export default function TemporaryPasswordDialog({ user, onClose, onIssued }: { u
               sx={{ mb: 1, '& .MuiToggleButton-root': { textTransform: 'none', py: 0.9, fontWeight: 500 } }}>
               {CHOICES.map((c) => <ToggleButton key={c.hours} value={c.hours}>{c.label}</ToggleButton>)}
             </ToggleButtonGroup>
-            <Typography sx={{ fontSize: 12.5 }} color="text.secondary">
+            <Typography sx={{ fontSize: 12 }} color="text.secondary">
               Stops working {when(endsAt)} if it has not been used. They must choose their own password at first sign-in.
             </Typography>
             {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
@@ -88,7 +88,7 @@ export default function TemporaryPasswordDialog({ user, onClose, onIssued }: { u
       {issued && user && (
         <>
           <DialogContent>
-            <Typography sx={{ fontSize: 13.5, mb: 2 }} color="text.secondary">
+            <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
               Give this to <strong>{issued.username}</strong> in person or by phone. It is shown once and cannot be looked up again.
             </Typography>
             <Box

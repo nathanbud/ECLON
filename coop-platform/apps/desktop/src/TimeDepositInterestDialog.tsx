@@ -48,7 +48,7 @@ export default function TimeDepositInterestDialog({ clientId, typeCode, refNo, l
       <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
         <DialogTitle>Voucher encoded</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'grid', gap: 0.5, fontSize: 14 }}>
+          <Box sx={{ display: 'grid', gap: 0.5, fontSize: 13 }}>
             <div>{done.clientName}: interest of <b>{peso(done.due)}</b> goes to the member vouchers payable</div>
             <div>Voucher no. <b>{done.documentNo}</b> now waits on the Disburse tab: another person approves it and a third posts it.</div>
           </Box>
@@ -64,7 +64,7 @@ export default function TimeDepositInterestDialog({ clientId, typeCode, refNo, l
         <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
           {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
           {quote && (
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25, fontSize: 14 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25, fontSize: 13 }}>
               <span>Certificate</span><b>{quote.type} {quote.certificate ?? quote.refNo}</b>
               <span>Balance at {quote.ratePercent}%</span><b>{peso(quote.balance)}</b>
               <span>Anniversaries passed</span><b>{quote.completedYears}</b>
@@ -76,7 +76,7 @@ export default function TimeDepositInterestDialog({ clientId, typeCode, refNo, l
           )}
           <MoneyField size="small" label="Interest to pay (blank = a year, or what is due if less)" value={amount} onValueChange={(v) => setAmount(v)} />
           {quote && quote.amount > 0 && (
-            <Typography sx={{ fontSize: 13.5 }}><b>{peso(quote.amount)}</b> goes to the member vouchers payable: {peso(quote.fromAccrual)} from the accrued interest
+            <Typography sx={{ fontSize: 13 }}><b>{peso(quote.amount)}</b> goes to the member vouchers payable: {peso(quote.fromAccrual)} from the accrued interest
               {quote.expense > 0 && <> and {peso(quote.expense)} charged to interest expense</>}. The certificate keeps its principal.</Typography>
           )}
           <TextField size="small" label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="LOCK IN INTEREST WITHDRAWAL" />

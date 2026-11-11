@@ -45,7 +45,7 @@ export function PendingBanner({ change, id, canApprove, onDone }: { change: Chan
     <Box sx={(t) => ({ mb: 1.5, p: 2, ...glass(t), borderColor: 'warning.main' })} role="region" aria-label="Change waiting for approval">
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
         <FiClock aria-hidden />
-        <Typography sx={{ fontWeight: 600, fontSize: 14 }}>Waiting for approval</Typography>
+        <Typography sx={{ fontWeight: 600, fontSize: 13 }}>Waiting for approval</Typography>
       </Box>
       <Typography sx={{ fontSize: 13, mb: 1.25 }} color="text.secondary">
         {mine ? 'You' : change.requestedByName} asked for {change.items.length} change{change.items.length === 1 ? '' : 's'} on {when(change.requestedAt)}.
@@ -100,7 +100,7 @@ export function EditBar({ changes, saving, error, direct = false, onSave, onCanc
     <Box sx={{ mb: 1.5 }}>
       <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1, ...glass(t) })}>
         <FiEdit2 aria-hidden />
-        <Typography sx={{ flex: 1, fontSize: 13.5 }} role="status">
+        <Typography sx={{ flex: 1, fontSize: 13 }} role="status">
           Editing. {changes === 0 ? 'No changes yet.' : `${changes} change${changes === 1 ? '' : 's'} ready.`} {direct ? 'Saving applies them at once and records them in the audit log.' : 'Saving sends them to a Membership Officer for approval.'}
         </Typography>
         <Button size="small" onClick={onCancel} disabled={saving}>Cancel</Button>

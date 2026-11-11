@@ -43,7 +43,7 @@ function LinesEditor({ rows, onChange, priceLabel, products }: { rows: Row[]; on
       ))}
       <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Button size="small" startIcon={<FiPlus />} onClick={() => onChange([...rows, blank()])}>Add line</Button>
-        <Typography sx={{ flex: 1, textAlign: 'right', fontSize: 14 }}>Total <b>{money(total)}</b></Typography>
+        <Typography sx={{ flex: 1, textAlign: 'right', fontSize: 13 }}>Total <b>{money(total)}</b></Typography>
       </Stack>
     </Box>
   )

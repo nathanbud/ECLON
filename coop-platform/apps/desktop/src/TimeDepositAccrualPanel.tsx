@@ -65,7 +65,7 @@ export function TimeDepositAccrualPanel() {
       {preview.error && <Alert severity="warning" sx={{ mb: 1 }}>{(preview.error as Error).message}</Alert>}
       {p && (
         <Box sx={{ mb: 2 }}>
-          <Typography sx={{ fontSize: 14, mb: 0.5 }}>{p.accrualType}: {p.from} to {p.to} · {p.certificates} certificates · <b>{money(p.total)}</b></Typography>
+          <Typography sx={{ fontSize: 13, mb: 0.5 }}>{p.accrualType}: {p.from} to {p.to} · {p.certificates} certificates · <b>{money(p.total)}</b></Typography>
           {p.withoutDepartment > 0 && <Alert severity="warning" sx={{ mb: 1 }}>{p.withoutDepartment} certificate owner(s) have no department and are left out until it is set.</Alert>}
           {p.types.length === 0 && <Typography color="text.secondary">No certificate earns interest for this period.</Typography>}
           {p.types.map((t) => (
@@ -84,7 +84,7 @@ export function TimeDepositAccrualPanel() {
           {vouchers.data!.map((v) => (
             <Box key={`${v.year}-${v.controlNo}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider' }}>
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ fontSize: 14 }}>{v.documentNo} · {names.get(v.typeCode) ?? `Type ${v.typeCode}`} · {money(v.total)}</Typography>
+                <Typography sx={{ fontSize: 13 }}>{v.documentNo} · {names.get(v.typeCode) ?? `Type ${v.typeCode}`} · {money(v.total)}</Typography>
                 <Typography sx={{ fontSize: 12 }} color="text.secondary">{v.lines} lines</Typography>
               </Box>
               <Chip size="small" variant="outlined" color={statusColor(v.status)} label={v.status === 'WAITING FOR APPROVAL' ? 'Waiting for approval' : v.status === 'APPROVED' ? 'Approved' : 'Posted'} />

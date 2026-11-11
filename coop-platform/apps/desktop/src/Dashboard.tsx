@@ -1,121 +1,162 @@
 import { Box, Button, ButtonBase, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
-import { FiInbox } from 'react-icons/fi'
+import { useEffect, useState } from 'react'
 import { getInbox, getTdMaturityCount } from './api'
-import { glass } from './glass'
+import { appBackground, glass } from './glass'
 import { byDomain, type Screen } from './nav/screens'
 import { useMe } from './session'
-import { tileFill, useThemeMode, type Tint } from './theme'
+import { SURFACE_RADIUS, tileFill, type Tint } from './theme'
 
 export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'amortization' | 'settings' | 'frontoffice' | 'loanapp' | 'procurement' | 'inventory' | 'pos' | 'assets' | 'reports' | 'documents' | 'workflows' | 'membershippolicy' | 'documentation' | 'branding' | 'connections' | 'backup' | 'privacy' | 'cic' | 'dividends'
 
-// One shared motion rhythm: 220ms ease-out, items staggered 35ms apart.
+// One shared motion rhythm: ease-out, items staggered 30ms apart.
 const EASE = 'cubic-bezier(.2,.8,.2,1)'
 const enter = (i: number) => ({
-  animation: `tileIn 360ms ${EASE} both`,
-  animationDelay: `${Math.min(i, 14) * 35}ms`,
-  '@keyframes tileIn': { from: { opacity: 0, transform: 'translateY(8px) scale(0.97)' }, to: { opacity: 1, transform: 'none' } },
+  animation: `tileIn 380ms ${EASE} both`,
+  animationDelay: `${Math.min(i, 16) * 30}ms`,
+  '@keyframes tileIn': { from: { opacity: 0, transform: 'translateY(8px)' }, to: { opacity: 1, transform: 'none' } },
   '@media (prefers-reduced-motion: reduce)': { animation: 'none', transition: 'none' },
 })
 
+/**
+ * The board (arrangement after `pics/dashboard.png`): the time and date at the top left, the greeting at the top right, then the areas of work side by side. Each area is a light
+ * label over square tiles in its colour, filled top to bottom, at most two to a column, so an area with one screen is one tile wide and a larger one grows sideways.
+ */
+const TILE = 112
+const GAP = 6
+const ROWS = 2
+const tileRadius = `${SURFACE_RADIUS}px`
+const focusRing = { outline: '3px solid rgba(10,108,220,0.55)', outlineOffset: '2px' }
+
+/** One screen: a square in the area's colour, its icon in the middle, its name at the bottom left and a count, when there is one, at the top right. */
 function Tile({ screen, color, index, onOpen, badge }: { screen: Screen; color: Tint; index: number; onOpen: () => void; badge?: number }) {
-  const { resolved } = useThemeMode()
-  const dark = resolved === 'dark'
   const c = tileFill[color]
   return (
     <ButtonBase
       onClick={onOpen} aria-label={badge ? `${screen.label}, ${badge} waiting` : screen.label} title={screen.note}
       sx={{
-        minWidth: 0, aspectRatio: '1 / 1', borderRadius: '5px', overflow: 'hidden', color: '#fff', textAlign: 'center', position: 'relative', p: 0.75,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0.75,
-        background: `linear-gradient(160deg, ${c}F2 0%, ${c} 100%)`,
-        boxShadow: `inset 0 0 0 1px rgba(255,255,255,${dark ? 0.12 : 0.18}), 0 1px 2px rgba(0,0,0,0.12)`,
-        transition: `transform 220ms ${EASE}, box-shadow 220ms ${EASE}`,
-        '&:hover': { transform: 'translateY(-1px)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.22), 0 4px 10px rgba(0,0,0,0.16)' },
+        position: 'relative', width: TILE, height: TILE, borderRadius: tileRadius, color: '#fff', overflow: 'hidden',
+        display: 'grid', placeItems: 'center',
+        background: `linear-gradient(160deg, color-mix(in srgb, ${c} 86%, white) 0%, ${c} 100%)`,
+        boxShadow: `0 1px 2px ${c}40`,
+        transition: `transform 200ms ${EASE}, box-shadow 200ms ${EASE}, filter 200ms ${EASE}`,
+        '&:hover': { filter: 'brightness(1.08)', transform: 'translateY(-2px)', boxShadow: `0 8px 18px ${c}55` },
         '&:active': { transform: 'scale(0.97)', transitionDuration: '90ms' },
-        '&.Mui-focusVisible': { outline: '3px solid #fff', outlineOffset: '-4px' },
+        '&.Mui-focusVisible': focusRing,
         ...enter(index),
       }}
     >
-      <Box aria-hidden sx={{ fontSize: 26, lineHeight: 0, display: 'flex', opacity: 0.95, flexShrink: 0 }}>{screen.icon}</Box>
-      <Typography sx={{ fontWeight: 600, fontSize: 11.5, lineHeight: 1.2, width: '100%', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{screen.label}</Typography>
+      <Box aria-hidden sx={{ fontSize: 34, lineHeight: 0, mb: 2, opacity: 0.96 }}>{screen.icon}</Box>
       {!!badge && (
-        <Box aria-hidden sx={{ position: 'absolute', top: 4, right: 4, minWidth: 18, height: 18, px: 0.5, borderRadius: '5px', bgcolor: '#fff', color: '#1d1d1f', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{badge}</Box>
+        <Box aria-hidden sx={{ position: 'absolute', top: 0, right: 0, minWidth: 22, height: 20, px: 0.75, borderBottomLeftRadius: '6px', bgcolor: 'rgba(0,0,0,0.3)', fontSize: 11, fontWeight: 600, display: 'grid', placeItems: 'center' }}>{badge}</Box>
       )}
+      <Typography sx={{
+        position: 'absolute', left: 8, right: 8, bottom: 6, textAlign: 'left', fontWeight: 500, fontSize: 13, lineHeight: 1.2,
+        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word',
+      }}>{screen.label}</Typography>
     </ButtonBase>
   )
 }
 
-const when = (at: string | null) => (at ? new Date(at.replace(' ', 'T')).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: 'numeric' }) : '')
+/** The label above an area. */
+function AreaLabel({ children }: { children: string }) {
+  return <Typography component="h2" color="text.secondary" sx={{ fontSize: 17, fontWeight: 400, lineHeight: 1.3, mb: 0.75, whiteSpace: 'nowrap' }}>{children}</Typography>
+}
 
-/** What is waiting on this person, newest work last: the first few items, each one a link to the screen that decides it. */
-function WaitingCard({ onOpen }: { onOpen: (v: View, tab?: string) => void }) {
+const when = (at: string | null) => (at ? new Date(at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '')
+
+/** What is waiting on this person: the first few items as wide tiles, each one a link to the screen that decides it. */
+function WaitingArea({ onOpen }: { onOpen: (v: View, tab?: string) => void }) {
   const { data } = useQuery({ queryKey: ['inbox'], queryFn: getInbox, refetchInterval: 30_000, retry: false })
   if (!data) return null
-  const items = data.items.slice(0, 3)
+  const items = data.items.slice(0, ROWS)
+  const wide = 2 * TILE + GAP
   return (
-    <Box component="section" aria-label="Waiting for you" sx={(t) => ({ p: 1.25, mb: 1.5, ...glass(t) })}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: items.length ? 1 : 0 }}>
-        <Box aria-hidden sx={{ display: 'flex', color: 'text.secondary' }}><FiInbox /></Box>
-        <Typography component="h2" sx={{ flex: 1, fontSize: 14.5, fontWeight: 700 }}>Waiting for you{data.total ? ` (${data.total})` : ''}</Typography>
-        {data.total > 0 && <Button size="small" onClick={() => onOpen('approvals')}>See all</Button>}
+    <Box component="section" aria-label="Waiting for you" sx={{ width: wide, maxWidth: '100%' }}>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}><AreaLabel>{`Waiting for you${data.total ? ` (${data.total})` : ''}`}</AreaLabel></Box>
+        {data.total > 0 && <Button size="small" onClick={() => onOpen('approvals')} sx={{ minHeight: 22, py: 0, px: 0.75, mr: -0.75 }}>See all</Button>}
       </Box>
-      {items.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing is waiting for you.</Typography>}
-      {items.map((i, n) => (
-        <ButtonBase
-          key={`${i.kind}-${n}`} onClick={() => onOpen(i.view as View, i.tab ?? undefined)}
-          sx={(t) => ({ display: 'flex', width: '100%', alignItems: 'center', gap: 1.5, textAlign: 'left', py: 0.6, px: 0.5, borderRadius: '5px', '&:hover': { bgcolor: t.palette.action.hover } })}
-        >
-          <Typography component="span" sx={{ fontSize: 12.5, fontWeight: 600, width: 150, flexShrink: 0 }} noWrap>{i.label}</Typography>
-          <Typography component="span" sx={{ fontSize: 13, flex: 1, minWidth: 0 }} noWrap>{i.summary}</Typography>
-          <Typography component="span" sx={{ fontSize: 12, flexShrink: 0 }} color="text.secondary">{i.by ? `${i.by} · ` : ''}{when(i.at)}</Typography>
-        </ButtonBase>
-      ))}
+      {items.length === 0 && (
+        <Box sx={(t) => ({ ...glass(t), borderRadius: tileRadius, height: TILE, px: 1.5, display: 'grid', alignItems: 'end', pb: 1 })}>
+          <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing is waiting for you.</Typography>
+        </Box>
+      )}
+      <Box sx={{ display: 'grid', gap: `${GAP}px` }}>
+        {items.map((i, n) => (
+          <ButtonBase
+            key={`${i.kind}-${n}`} onClick={() => onOpen(i.view as View, i.tab ?? undefined)}
+            sx={{
+              display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start', width: '100%', height: TILE, textAlign: 'left', px: 1.25, py: 1, borderRadius: tileRadius, color: '#fff', overflow: 'hidden',
+              background: `linear-gradient(160deg, color-mix(in srgb, ${tileFill.orange} 86%, white) 0%, ${tileFill.orange} 100%)`,
+              transition: `transform 200ms ${EASE}, filter 200ms ${EASE}`,
+              '&:hover': { filter: 'brightness(1.08)', transform: 'translateY(-2px)' },
+              '&.Mui-focusVisible': focusRing,
+              ...enter(n),
+            }}
+          >
+            <Typography component="span" sx={{ display: 'block', fontSize: 13, fontWeight: 600 }} noWrap>{i.label}</Typography>
+            <Typography component="span" sx={{ fontSize: 13, lineHeight: 1.3, mt: 0.25, display: '-webkit-box', WebkitLineClamp: 3, flex: '0 1 auto', WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{i.summary}</Typography>
+            <Typography component="span" sx={{ position: 'absolute', left: 10, right: 10, bottom: 6, fontSize: 11, opacity: 0.9 }} noWrap>{i.by ? `${i.by} · ` : ''}{when(i.at)}</Typography>
+          </ButtonBase>
+        ))}
+      </Box>
     </Box>
   )
 }
 
-/** The start page: what is waiting on you, then a tile for each area of work you may open, grouped by what you are doing. */
 export default function Dashboard({ onOpen }: { onOpen: (v: View, tab?: string) => void }) {
-  const { resolved } = useThemeMode()
-  const dark = resolved === 'dark'
-  const [hour] = useState(() => new Date().getHours())
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const tick = setInterval(() => setNow(new Date()), 20_000)
+    return () => clearInterval(tick)
+  }, [])
+  const hour = now.getHours()
   const me = useMe()
   const { data: tdCount } = useQuery({ queryKey: ['td-maturity-count'], queryFn: getTdMaturityCount, refetchInterval: 60_000, retry: false })
-  // "My work" is the card above the tiles, so its own tile is not repeated
+  const { data: inbox } = useQuery({ queryKey: ['inbox'], queryFn: getInbox, refetchInterval: 30_000, retry: false })
+  // What waits is its own area at the start of the board, so its tile is not repeated
   const groups = byDomain(me, (s) => !!s.tile).map((g) => ({ ...g, screens: g.screens.filter((s) => s.id !== 'waiting') })).filter((g) => g.screens.length > 0)
+  const [clock, half] = now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }).split(/\s+/)
   let index = 0
 
   return (
-    <Box component="main" sx={{
-      height: 'calc(100dvh - 44px)', overflow: 'auto', p: { xs: 1.5, md: 2 },
-      background: dark
-        ? 'radial-gradient(1200px 600px at 15% 0%, #1b3a6b 0%, transparent 60%), radial-gradient(900px 600px at 100% 100%, #3b1f5e 0%, transparent 55%), #0b0b0f'
-        : 'radial-gradient(1200px 600px at 15% 0%, #DCE6F2 0%, transparent 60%), radial-gradient(900px 600px at 100% 100%, #E5E1F0 0%, transparent 55%), #F3F4F6',
-    }}>
-      <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
-        <Typography component="h1" variant="h5" sx={{ mb: 0, fontWeight: 700, letterSpacing: '-0.02em', fontSize: 20 }}>
-          Good {hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}, {me.name}
-        </Typography>
-        <Typography color="text.secondary" sx={{ mb: 1, fontSize: 12.5 }}>Choose where to work. The menu on the left is always there.</Typography>
-
-        <WaitingCard onOpen={onOpen} />
-
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', columnGap: 3, rowGap: 1.5 }}>
-        {groups.map((g) => (
-          <Box key={g.id} component="section" aria-label={g.label}>
-            <Typography component="h2" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.5 }} color="text.secondary">{g.label}</Typography>
-            <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: 'repeat(3, 92px)' }}>
-              {g.screens.map((s) => (
-                <Tile
-                  key={s.id} screen={s} color={g.color} index={index++} onOpen={() => onOpen(s.view, s.tab)}
-                  badge={s.view === 'frontoffice' ? tdCount?.[0] : undefined}
-                />
-              ))}
-            </Box>
+    <Box component="main" sx={(t) => ({ height: 'calc(100dvh - 44px)', overflowY: 'auto', overflowX: 'hidden', px: { xs: 2, md: 5 }, py: { xs: 2.5, md: 3 }, background: appBackground(t) })}>
+      <Box sx={{ maxWidth: 1240, mx: 'auto' }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 4, rowGap: 1, mb: 2.5 }}>
+          <Box>
+            <Typography sx={{ fontSize: 34, fontWeight: 300, lineHeight: 1.1, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>
+              {clock}{half && <Box component="span" sx={{ fontSize: 17, fontWeight: 400, ml: 0.75, letterSpacing: 0 }}>{half}</Box>}
+            </Typography>
+            <Typography sx={{ fontSize: 20, fontWeight: 400, lineHeight: 1.3 }}>
+              {now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+            </Typography>
           </Box>
-        ))}
+          <Box sx={{ textAlign: { xs: 'left', sm: 'right' }, minWidth: 0, pt: 0.5 }}>
+            <Typography component="h1" sx={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.3, overflowWrap: 'anywhere' }}>
+              Good {hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}, {me.name}
+            </Typography>
+            <Typography color="text.secondary" sx={{ fontSize: 15, lineHeight: 1.35 }}>
+              {inbox?.total ? `${inbox.total} waiting for you` : 'All caught up'}
+            </Typography>
+          </Box>
+        </Box>
+
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', columnGap: 4, rowGap: 3 }}>
+          <WaitingArea onOpen={onOpen} />
+          {groups.map((g) => (
+            <Box key={g.id} component="section" aria-label={g.label} sx={{ maxWidth: '100%' }}>
+              <AreaLabel>{g.label}</AreaLabel>
+              <Box sx={{ display: 'grid', gap: `${GAP}px`, gridAutoFlow: 'column', gridAutoColumns: `${TILE}px`, gridTemplateRows: `repeat(${Math.min(g.screens.length, ROWS)}, ${TILE}px)` }}>
+                {g.screens.map((s) => (
+                  <Tile
+                    key={s.id} screen={s} color={g.color} index={index++} onOpen={() => onOpen(s.view, s.tab)}
+                    badge={s.view === 'frontoffice' ? tdCount?.[0] : undefined}
+                  />
+                ))}
+              </Box>
+            </Box>
+          ))}
         </Box>
       </Box>
     </Box>

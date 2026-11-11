@@ -84,22 +84,22 @@ export function CloseDialog({ branchCode, clientId, name, onClose, onDone }: { b
           <Box>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <Button size="small" variant="outlined" startIcon={<FiPaperclip />} disabled={proofs.length >= MAX_PROOFS || save.isPending} onClick={() => input.current?.click()}>Attach proof</Button>
-              <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Optional. PDF, PNG, JPEG, Word, Excel, CSV or text, up to {maxMb} MB each, at most {MAX_PROOFS}.</Typography>
+              <Typography sx={{ fontSize: 12 }} color="text.secondary">Optional. PDF, PNG, JPEG, Word, Excel, CSV or text, up to {maxMb} MB each, at most {MAX_PROOFS}.</Typography>
             </Stack>
             <input ref={input} type="file" hidden multiple aria-label="Proof documents" accept={extensions.map((e) => `.${e}`).join(',')} onChange={(e) => { add(e.target.files); e.target.value = '' }} />
             {proofs.length > 0 && (
               <Stack component="ul" spacing={0.5} sx={{ listStyle: 'none', p: 0, mt: 1, mb: 0 }} aria-label="Documents to attach">
                 {proofs.map((f) => (
                   <Box component="li" key={`${f.name}-${f.size}`} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography noWrap sx={{ fontSize: 13.5, flex: 1, minWidth: 0 }}>{f.name}</Typography>
-                    <Typography sx={{ fontSize: 12.5 }} color="text.secondary">{fileSize(f.size)}</Typography>
+                    <Typography noWrap sx={{ fontSize: 13, flex: 1, minWidth: 0 }}>{f.name}</Typography>
+                    <Typography sx={{ fontSize: 12 }} color="text.secondary">{fileSize(f.size)}</Typography>
                     <Button size="small" color="inherit" aria-label={`Remove ${f.name}`} disabled={save.isPending} sx={{ minWidth: 0, p: 0.5 }} onClick={() => setProofs(proofs.filter((x) => x !== f))}><FiX /></Button>
                   </Box>
                 ))}
               </Stack>
             )}
           </Box>
-          <Typography sx={{ fontSize: 12.5 }} color="text.secondary">The member is not deleted: the record stays, marked Closed. Share capital, savings and loans must be at zero first, and a Membership Officer other than you approves.</Typography>
+          <Typography sx={{ fontSize: 12 }} color="text.secondary">The member is not deleted: the record stays, marked Closed. Share capital, savings and loans must be at zero first, and a Membership Officer other than you approves.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions>
@@ -131,7 +131,7 @@ export function ReactivateDialog({ branchCode, clientId, name, onClose, onDone }
             <MenuItem value="1">Regular Individual</MenuItem><MenuItem value="2">Associate</MenuItem>
           </TextField>
           <TextField size="small" label="Reason" value={note} onChange={(e) => setNote(e.target.value)} />
-          <Typography sx={{ fontSize: 12.5 }} color="text.secondary">The same member record comes back, with its history. A Membership Officer other than you approves; a member who left owing money (bad debts or offset) also needs an administrator. A deceased member cannot be reactivated. Check the cooperative's rule on paying share capital again before approving.</Typography>
+          <Typography sx={{ fontSize: 12 }} color="text.secondary">The same member record comes back, with its history. A Membership Officer other than you approves; a member who left owing money (bad debts or offset) also needs an administrator. A deceased member cannot be reactivated. Check the cooperative's rule on paying share capital again before approving.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions>
@@ -164,7 +164,7 @@ function ImportBatches() {
   if (items.length === 0 && !result && !list.error) return null
   return (
     <Box sx={{ mt: 3 }}>
-      <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 0.5 }}>Member lists (Advanced mode)</Typography>
+      <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, mb: 0.5 }}>Member lists (Advanced mode)</Typography>
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       {result && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setResult(null)}>{result}</Alert>}
       {items.length > 0 && (
@@ -217,7 +217,7 @@ export default function MemberRequestsPanel() {
   return (
     <>
     <Box sx={{ mt: 3 }}>
-      <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 0.5 }}>New members and closings</Typography>
+      <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, mb: 0.5 }}>New members and closings</Typography>
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
         <Table size="small" aria-label="Member requests waiting for approval">

@@ -63,7 +63,7 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
       </Box>
 
       <Box sx={(t) => ({ p: 2, mb: 1.5, ...glass(t) })}>
-        <Typography sx={{ fontSize: 13.5, mb: 1 }}>
+        <Typography sx={{ fontSize: 13, mb: 1 }}>
           Upload a CSV or Excel (.xlsx) file with one member per row and the column names in the first row. Required for each member: <strong>LName, FName, DateOfBirth, Gender, CivilStatus</strong>.
           Gender and CivilStatus may be written as their names (for example Female, Single) or codes; MemberType is Regular or Associate (Regular if left out); dates are written 2026-04-24 or are Excel dates.
           Any other column named like a profile field (CellNum, EmailAddress, ResAddCity, Profession and so on) is filled in too; columns it does not know are ignored.
@@ -109,7 +109,7 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
           </Box>
           {rows.length > shown && (
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mt: 0.5 }}>
-              <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Showing {shown} of {rows.length} rows.</Typography>
+              <Typography sx={{ fontSize: 12 }} color="text.secondary">Showing {shown} of {rows.length} rows.</Typography>
               <Button size="small" onClick={() => setShown((n) => n + STEP)}>Show {Math.min(STEP, rows.length - shown)} more</Button>
               <Button size="small" color="inherit" onClick={() => setShown(rows.length)}>Show all</Button>
             </Stack>

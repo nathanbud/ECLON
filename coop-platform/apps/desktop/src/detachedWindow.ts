@@ -11,7 +11,7 @@ export const LOAN_APP_ROUTE = '#/loan-application'
 export const LOAN_SETUP_ROUTE = '#/loan-setup'
 export const SETUP_SIZE = { w: 1180, h: 800 }
 
-export const SEARCH_SIZE = { w: 560, h: 520 }
+export const SEARCH_SIZE = { w: 560, h: 640 }
 export const FORM_SIZE = { w: 1120, h: 780 }
 
 interface Start { branchCode?: number; clientId?: number; typeCode?: number; applicationId?: number }

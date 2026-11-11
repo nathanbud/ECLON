@@ -2,6 +2,7 @@ import { getMember, type Lookups, type Member } from '../api'
 import { BLANK_MEMBER, FRESH_GROUPS, GROUPS, GROUP_KEYS, TABS, TAB_KEYS, groupForKey } from './constants'
 import { BillingTab, DetailsTab, HistoryTab, MembershipTab, PersonalTab } from './InfoTabs'
 import { BeneficiariesTab } from './Beneficiaries'
+import { KycTab } from './Kyc'
 import { ShareCapitalTab } from './ShareCapital'
 import { SavingsTab } from './Savings'
 import { TimeDepositsTab } from './TimeDeposits'
@@ -10,21 +11,22 @@ import LoansTab from '../LoansTab'
 import { type Id } from '../clients'
 import { type ReactElement, type ReactNode, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Alert, Avatar, Box, ButtonBase, Skeleton, Tab, Tabs, Typography } from '@mui/material'
+import { Alert, Box, ButtonBase, Skeleton, Tab, Tabs } from '@mui/material'
 import { FiChevronDown, FiChevronRight, FiDatabase, FiList, FiUser } from 'react-icons/fi'
 import { LIGHT, SIDE, glass } from '../glass'
 import { tabIcon } from './navIcons'
-import { ProfileHeader, Ring, SideFrame } from './ProfileHeader'
+import { ProfileHeader, SideFrame, SideScroll } from './ProfileHeader'
 import { ProfileStrip } from './ProfileStrip'
 import { StatTiles } from './StatTiles'
 import { VOICE_SECTION, type SectionRequest } from '../voice/bus'
 
-function TabContent({ tab, m, lk }: { tab: number; m: Member; lk?: Lookups }) {
+function TabContent({ tab, m, lk, canImages }: { tab: number; m: Member; lk?: Lookups; canImages: boolean }) {
   const key = TAB_KEYS[tab]
   if (key === 'membership') return <MembershipTab m={m} lk={lk} />
   if (key === 'personal') return <PersonalTab m={m} lk={lk} />
   if (key === 'history') return <HistoryTab id={m.id} />
   if (key === 'beneficiaries') return <BeneficiariesTab id={m.id} lk={lk} />
+  if (key === 'kyc') return <KycTab id={m.id} canImages={canImages} />
   if (key === 'billing') return <BillingTab id={m.id} />
   if (key === 'shares') return <ShareCapitalTab id={m.id} />
   if (key === 'savings') return <SavingsTab id={m.id} />
@@ -54,7 +56,7 @@ function SideTabs({ groups, tab, onChange }: { groups: { label: string; tabs: nu
   if (followed !== current) { setFollowed(current); setShown(current) }
 
   const row = (active: boolean) => ({
-    width: '100%', display: 'flex', alignItems: 'center', gap: 1.25, minHeight: 38, px: 2, justifyContent: 'flex-start', textAlign: 'left', borderRadius: 0, fontSize: 14,
+    width: '100%', display: 'flex', alignItems: 'center', gap: 1.25, minHeight: 38, px: 2, justifyContent: 'flex-start', textAlign: 'left', borderRadius: 0, fontSize: 13,
     fontWeight: active ? 600 : 500, color: active ? SIDE.selectedText : SIDE.text, backgroundColor: active ? SIDE.selected : 'transparent',
     '&:hover': { backgroundColor: active ? SIDE.selected : SIDE.hover },
     '&.Mui-focusVisible': { outline: `2px solid ${SIDE.selected}`, outlineOffset: -2 },
@@ -81,7 +83,7 @@ function SideTabs({ groups, tab, onChange }: { groups: { label: string; tabs: nu
               <Box aria-hidden sx={{ display: 'flex', fontSize: 17, flexShrink: 0, width: 20, justifyContent: 'center' }}>{main.icon}</Box>
               <Box component="span" sx={{ flex: 1, minWidth: 0 }}>{main.label}</Box>
               {GROUP_KEYS[g.label] && (
-                <Box component="kbd" aria-hidden sx={{ fontFamily: 'inherit', fontSize: 10.5, fontWeight: 600, lineHeight: 1, px: 0.6, py: 0.35, borderRadius: '4px', border: `1px solid ${mainActive ? 'rgba(0,0,0,0.25)' : SIDE.line}`, opacity: 0.8 }}>{GROUP_KEYS[g.label]}</Box>
+                <Box component="kbd" aria-hidden sx={{ fontFamily: 'inherit', fontSize: 11, fontWeight: 600, lineHeight: 1, px: 0.6, py: 0.35, borderRadius: '4px', border: `1px solid ${mainActive ? 'rgba(0,0,0,0.25)' : SIDE.line}`, opacity: 0.8 }}>{GROUP_KEYS[g.label]}</Box>
               )}
               {subs.length > 0 && <Box aria-hidden sx={{ display: 'flex', fontSize: 15, opacity: 0.8 }}>{open ? <FiChevronDown /> : <FiChevronRight />}</Box>}
             </ButtonBase>
@@ -92,7 +94,7 @@ function SideTabs({ groups, tab, onChange }: { groups: { label: string; tabs: nu
                   minHeight: 0, backgroundColor: 'rgba(0,0,0,0.16)',
                   '& .MuiTabs-indicator': { display: 'none' },
                   '& .MuiTab-root': {
-                    minHeight: 34, pl: 5.5, pr: 2, justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none', fontSize: 13.5, fontWeight: 400, maxWidth: 'none', gap: 1.25,
+                    minHeight: 34, pl: 5.5, pr: 2, justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none', fontSize: 13, fontWeight: 400, maxWidth: 'none', gap: 1.25,
                     color: SIDE.muted, borderRadius: 0, alignItems: 'center',
                     '& .MuiTab-iconWrapper': { fontSize: 15, m: 0 },
                     '&:hover': { backgroundColor: SIDE.hover, color: SIDE.text },
@@ -111,7 +113,7 @@ function SideTabs({ groups, tab, onChange }: { groups: { label: string; tabs: nu
   )
 }
 
-export function Profile({ id, lk, canPhoto = false, onNotice, fresh = false, newHeader }: { id: Id; lk?: Lookups; canPhoto?: boolean; onNotice?: (msg: string) => void; fresh?: boolean; newHeader?: ReactNode }) {
+export function Profile({ id, lk, canPhoto = false, onNotice, fresh = false, newHeader, newIdentity }: { id: Id; lk?: Lookups; canPhoto?: boolean; onNotice?: (msg: string) => void; fresh?: boolean; newHeader?: ReactNode; newIdentity?: ReactNode }) {
   const groups = fresh ? FRESH_GROUPS : GROUPS
   const [tab, setTab] = useState(groups[0].tabs[0])
   const group = Math.max(0, groups.findIndex((g) => g.tabs.includes(tab)))
@@ -170,12 +172,8 @@ export function Profile({ id, lk, canPhoto = false, onNotice, fresh = false, new
       {fresh
         ? (
           <SideFrame label="New member">
-            <Box sx={{ px: 2, pt: 2.5, pb: 1.5, textAlign: 'center' }}>
-              <Ring color={SIDE.line}><Avatar sx={{ width: 92, height: 92, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.14)', color: SIDE.text }}><FiUser size={42} aria-hidden /></Avatar></Ring>
-              <Typography component="h2" sx={{ mt: 1.5, fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em' }}>New member</Typography>
-              <Typography sx={{ fontSize: 13, mt: 0.25, color: SIDE.muted }}>Not registered yet</Typography>
-            </Box>
-            {nav}
+            {newIdentity}
+            <SideScroll>{nav}</SideScroll>
           </SideFrame>
         )
         : <ProfileHeader m={m} lk={lk} canPhoto={canPhoto} onNotice={onNotice}>{nav}</ProfileHeader>}
@@ -185,7 +183,7 @@ export function Profile({ id, lk, canPhoto = false, onNotice, fresh = false, new
         {/* The balance cards belong to Accounts: they are shown there only, not on every section. */}
         {!fresh && groups[group].label === 'Accounts' && <StatTiles id={m.id} onOpen={setTab} />}
         <Box role="region" aria-label={TABS[tab]} sx={(t) => ({ flex: 1, minHeight: 0, overflow: 'auto', p: 1.5, ...glass(t), background: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : LIGHT.panel })}>
-          <TabContent tab={tab} m={m} lk={lk} />
+          <TabContent tab={tab} m={m} lk={lk} canImages={canPhoto} />
         </Box>
       </Box>
     </Box>

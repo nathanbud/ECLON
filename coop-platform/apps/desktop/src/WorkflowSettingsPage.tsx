@@ -28,14 +28,14 @@ function Editor({ def, roles, max, canEdit }: { def: WorkflowDefinition; roles: 
   return (
     <Box sx={(t) => ({ p: 2, mb: 2, ...glass(t) })}>
       <Stack direction="row" sx={{ alignItems: 'center', mb: 0.5 }}>
-        <Typography sx={{ fontSize: 16, fontWeight: 700, flex: 1 }}>{def.label}</Typography>
+        <Typography sx={{ fontSize: 15, fontWeight: 700, flex: 1 }}>{def.label}</Typography>
         <FormControlLabel control={<Checkbox checked={active} disabled={!canEdit} onChange={(_, v) => { setActive(v); setSaved(false) }} />} label="Extra approvals on" />
       </Stack>
       <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
         The usual approver approves first, as always. Then each step below that applies to the amount also has to approve, in this order, by a different person each time.
       </Typography>
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
-      {rows.length === 0 && <Typography sx={{ fontSize: 13.5, mb: 1 }} color="text.secondary">No extra steps: the usual approver is enough at any amount.</Typography>}
+      {rows.length === 0 && <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">No extra steps: the usual approver is enough at any amount.</Typography>}
       {rows.map((r, i) => (
         <Stack key={i} direction="row" spacing={1.5} sx={{ mb: 1, alignItems: 'center' }}>
           <Typography sx={{ width: 22, color: 'text.secondary' }}>{i + 1}.</Typography>
@@ -67,13 +67,13 @@ export default function WorkflowSettingsPage() {
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 900, mx: 'auto' }}>
         <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Approval workflows</Typography>
-        <Typography sx={{ fontSize: 13.5, mb: 2 }} color="text.secondary">
+        <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
           Set extra approvals and the amounts they start at. A purchase order of 100,000 or more can, for example, also need the accountant, and one of 1,000,000 or more the manager as well.
           {!me.admin && ' Only an administrator can change these.'}
         </Typography>
         {defs.isError && <Alert severity="error">{(defs.error as Error).message}</Alert>}
         {defs.data && opts.data && defs.data.map((d) => <Editor key={d.entityType + JSON.stringify(d)} def={d} roles={opts.data.roles} max={opts.data.maxSteps} canEdit={me.admin} />)}
-        <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Loans, journals, membership changes, cash adjustments and CIC submissions keep their own approvals for now.</Typography>
+        <Typography sx={{ fontSize: 12 }} color="text.secondary">Loans, journals, membership changes, cash adjustments and CIC submissions keep their own approvals for now.</Typography>
       </Box>
     </Box>
   )

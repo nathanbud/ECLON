@@ -105,10 +105,10 @@ function TellerTotalsCard({ date, onDate, totals }: { date: string; onDate: (d: 
   return (
     <Box sx={(t) => ({ p: 2, flexShrink: 0, ...glass(t) })}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 1.5 }}>
-        <Typography sx={{ fontSize: 14, fontWeight: 600, maxWidth: 240 }}>{totals.person ?? ''}</Typography>
+        <Typography sx={{ fontSize: 13, fontWeight: 600, maxWidth: 240 }}>{totals.person ?? ''}</Typography>
         <Box sx={{ textAlign: 'right' }}>
           <TextField label="Date" type="date" size="small" value={date} onChange={(e) => onDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 170 }} />
-          <Typography sx={{ fontSize: 12.5, mt: 0.5, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">
+          <Typography sx={{ fontSize: 12, mt: 0.5, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">
             {longDate(date)} · {now.toLocaleTimeString()}
           </Typography>
         </Box>
@@ -118,15 +118,15 @@ function TellerTotalsCard({ date, onDate, totals }: { date: string; onDate: (d: 
         <TableHead>
           <TableRow>
             <TableCell />
-            {['CASH', 'COCI', 'TOTAL'].map((h) => <TableCell key={h} align="right" sx={{ fontSize: 14, fontWeight: 700, letterSpacing: '0.06em' }}>{h}</TableCell>)}
+            {['CASH', 'COCI', 'TOTAL'].map((h) => <TableCell key={h} align="right" sx={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em' }}>{h}</TableCell>)}
           </TableRow>
         </TableHead>
         <TableBody>
           {rows.map((r, i) => (
             <TableRow key={`${r.label}-${i}`} sx={r.bold ? { '& td': { borderTop: '1px solid', borderColor: 'divider', fontWeight: 700 } } : undefined}>
-              <TableCell sx={{ pl: r.indent ? 4 : 2, fontSize: 14, fontWeight: r.bold || r.heading ? 700 : 400 }}>{r.label}{r.heading ? ':' : ''}</TableCell>
+              <TableCell sx={{ pl: r.indent ? 4 : 2, fontSize: 13, fontWeight: r.bold || r.heading ? 700 : 400 }}>{r.label}{r.heading ? ':' : ''}</TableCell>
               {[totals.cash, totals.coci, totals.total].map((c, k) => (
-                <TableCell key={k} align="right" sx={{ fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{r.heading ? '' : money(r.pick(c))}</TableCell>
+                <TableCell key={k} align="right" sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{r.heading ? '' : money(r.pick(c))}</TableCell>
               ))}
             </TableRow>
           ))}
@@ -189,7 +189,7 @@ function SummaryPanel({ setup, onOpen }: { setup: FoSetup; onOpen: (t: FoSummary
               {!isFetching && rows.length === 0 && <TableRow><TableCell colSpan={5}><Typography sx={{ p: 2, textAlign: 'center' }} color="text.secondary">No transactions on this date.</Typography></TableCell></TableRow>}
             </TableBody>
           </Table>
-          {rows.length >= 200 && <Typography sx={{ p: 1.5, fontSize: 12.5 }} color="text.secondary">Showing the latest 200 of the day.</Typography>}
+          {rows.length >= 200 && <Typography sx={{ p: 1.5, fontSize: 12 }} color="text.secondary">Showing the latest 200 of the day.</Typography>}
         </Box>
       </Box>
     </Box>
@@ -550,7 +550,7 @@ export default function FrontOfficePage() {
       <Box sx={(t) => ({ flexShrink: 0, ...glass(t) })}>
         <Tabs
           value={group?.key ?? false} onChange={(_, v: string) => goTo(groups.find((g) => g.key === v)?.tabs[0])} variant="scrollable" scrollButtons="auto" aria-label="Transaction kinds"
-          sx={{ minHeight: 40, px: 1, '& .MuiTab-root': { minHeight: 40, fontSize: 13.5, px: 1.5 } }}
+          sx={{ minHeight: 40, px: 1, '& .MuiTab-root': { minHeight: 40, fontSize: 13, px: 1.5 } }}
         >
           {groups.map((g, i) => {
             const waiting = g.tabs.reduce((n, k) => n + waitingOf(k), 0)
@@ -565,7 +565,7 @@ export default function FrontOfficePage() {
         {group && group.tabs.length > 1 && (
           <Tabs
             value={tab} onChange={(_, v: string) => goTo(v)} variant="scrollable" scrollButtons="auto" aria-label="Transaction type"
-            sx={(t) => ({ minHeight: 34, px: 1, borderTop: `1px solid ${t.palette.divider}`, '& .MuiTab-root': { minHeight: 34, fontSize: 12.5, px: 1.25, textTransform: 'none' }, '& .MuiTabs-indicator': { height: 2 } })}
+            sx={(t) => ({ minHeight: 34, px: 1, borderTop: `1px solid ${t.palette.divider}`, '& .MuiTab-root': { minHeight: 34, fontSize: 12, px: 1.25, textTransform: 'none' }, '& .MuiTabs-indicator': { height: 2 } })}
           >
             {group.tabs.map((k) => {
               const waiting = waitingOf(k)
@@ -592,7 +592,7 @@ export default function FrontOfficePage() {
         {shown.kind === 'txn' && navList.length > 1 && (
           <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
             <Tooltip title="Previous (PgUp)"><span><IconButton size="small" aria-label="Previous transaction" disabled={!runs.up} onClick={runs.up}><FiChevronLeft /></IconButton></span></Tooltip>
-            <Typography sx={{ fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{pos + 1} of {navList.length}</Typography>
+            <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{pos + 1} of {navList.length}</Typography>
             <Tooltip title="Next (PgDn)"><span><IconButton size="small" aria-label="Next transaction" disabled={!runs.down} onClick={runs.down}><FiChevronRight /></IconButton></span></Tooltip>
           </Box>
         )}
@@ -602,7 +602,7 @@ export default function FrontOfficePage() {
       {editing && (
         <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 0.75, flexShrink: 0, ...glass(t) })} role="status">
           <FiEdit2 aria-hidden />
-          <Typography sx={{ flex: 1, fontSize: 13.5 }}>
+          <Typography sx={{ flex: 1, fontSize: 13 }}>
             Draft. Nothing is posted to the ledger, and posting is not available yet.
             {dirty ? ' Changes not saved.' : ''}
             {overLimit && <b style={{ marginLeft: 8, color: 'inherit' }}>Over your limit of {money(limit ?? 0)}.</b>}
@@ -611,7 +611,7 @@ export default function FrontOfficePage() {
             label={Math.abs(totals.difference) < 0.005 && totals.debit > 0 ? 'Balanced' : 'Out of balance'} />
           {overLimit && (shown.kind === 'draft' && shown.id
             ? <OverrideAsk draftId={shown.id} amount={totals.debit} limit={limit ?? 0} summary={`${form?.clientName || 'Draft'}: ${money(totals.debit)} over a limit of ${money(limit ?? 0)}`} />
-            : <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Save the draft to ask a supervisor.</Typography>)}
+            : <Typography sx={{ fontSize: 12 }} color="text.secondary">Save the draft to ask a supervisor.</Typography>)}
         </Box>
       )}
       {problem && <Alert severity="error" sx={{ flexShrink: 0 }}>{problem}</Alert>}
@@ -643,7 +643,7 @@ export default function FrontOfficePage() {
                 />
               )}
       {!summary && tab !== 'passbook' && tab !== 'accounts' && tab !== 'handover' && tab !== 'tdmaturity' && tab !== 'tdaccrual' && tab !== 'dividend' && shown.kind === 'none' && (
-        <Typography sx={{ fontSize: 12.5, textAlign: 'center', flexShrink: 0 }} color="text.secondary">
+        <Typography sx={{ fontSize: 12, textAlign: 'center', flexShrink: 0 }} color="text.secondary">
           {hasFind ? `Press ${MOD}F to find a transaction` : ''}{hasFind && canNewHere ? ' or ' : ''}{canNewHere ? `${MOD}N to start a draft.` : ''}
         </Typography>
       )}

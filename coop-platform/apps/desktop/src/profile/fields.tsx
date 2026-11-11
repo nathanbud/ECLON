@@ -28,7 +28,7 @@ export function InlineField({ label, value }: { label: string; value?: Value }) 
   const id = useId()
   return (
     <>
-      <Typography component="label" htmlFor={id} sx={{ fontSize: 11.5, fontWeight: 500 }} color="text.secondary">{label}</Typography>
+      <Typography component="label" htmlFor={id} sx={{ fontSize: 11, fontWeight: 500 }} color="text.secondary">{label}</Typography>
       <TextField
         id={id} hiddenLabel size="small" value={value == null ? '' : String(value)} placeholder="—" fullWidth
         slotProps={{ input: { readOnly: true }, htmlInput: { title: value == null ? undefined : String(value) } }}
@@ -54,7 +54,7 @@ export function Section({ title, children, action, columns }: { title: string; c
           {action && <Box sx={{ pl: 0.75 }}>{action}</Box>}
         </Box>
       </Box>
-      <Box sx={{ display: 'grid', gap: '6px 12px', gridTemplateColumns: columns ? `repeat(${columns}, minmax(0, 1fr))` : 'repeat(auto-fill, minmax(200px, 1fr))' }}>{children}</Box>
+      <Box sx={{ display: 'grid', gap: '12px 16px', gridTemplateColumns: columns ? `repeat(${columns}, minmax(0, 1fr))` : 'repeat(auto-fill, minmax(200px, 1fr))' }}>{children}</Box>
     </Box>
   )
 }
@@ -63,7 +63,7 @@ export function EmptyState({ icon, title, hint, action }: { icon: ReactNode; tit
   return (
     <Box sx={{ height: '100%', minHeight: 260, display: 'grid', placeItems: 'center', textAlign: 'center', p: 4 }}>
       <Box>
-        <Box sx={{ fontSize: 36, color: 'text.disabled', display: 'flex', justifyContent: 'center', mb: 1 }}>{icon}</Box>
+        <Box sx={{ fontSize: 34, color: 'text.disabled', display: 'flex', justifyContent: 'center', mb: 1 }}>{icon}</Box>
         <Typography sx={{ fontWeight: 600 }}>{title}</Typography>
         <Typography sx={{ fontSize: 13 }} color="text.secondary">{hint}</Typography>
         {action && <Box sx={{ mt: 2 }}>{action}</Box>}
@@ -104,7 +104,7 @@ export function SelectField({ label, lookup, code, lk, inline = false, col }: {
   if (!inline) return field
   return (
     <>
-      <Typography component="label" htmlFor={id} sx={{ fontSize: 11.5, fontWeight: 500 }} color="text.secondary">{label}</Typography>
+      <Typography component="label" htmlFor={id} sx={{ fontSize: 11, fontWeight: 500 }} color="text.secondary">{label}</Typography>
       {field}
     </>
   )
@@ -112,7 +112,7 @@ export function SelectField({ label, lookup, code, lk, inline = false, col }: {
 
 /** Small, low-contrast tag: short, thin outline, regular weight. */
 export const quietChip = {
-  height: 20, fontSize: 11.5, fontWeight: 400, opacity: 0.9,
+  height: 20, fontSize: 11, fontWeight: 400, opacity: 0.9,
   '& .MuiChip-icon': { fontSize: 12, ml: 0.75, mr: -0.25 },
   '& .MuiChip-label': { px: 0.9 },
 } as const

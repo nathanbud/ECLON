@@ -16,7 +16,7 @@ export function PageTitle({ title, children }: { title: string; children?: React
   return (
     <Box sx={{ mb: 2.5, px: 0.5 }}>
       <Typography component="h1" sx={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.2 }}>{title}</Typography>
-      {children && <Typography color="text.secondary" sx={{ fontSize: 13.5, mt: 0.5, maxWidth: 720 }}>{children}</Typography>}
+      {children && <Typography color="text.secondary" sx={{ fontSize: 13, mt: 0.5, maxWidth: 720 }}>{children}</Typography>}
     </Box>
   )
 }
@@ -51,8 +51,8 @@ export function Segmented<T extends string | number>({ value, onChange, options,
     <ToggleButtonGroup
       exclusive value={value} onChange={(_, v) => v != null && onChange(v as T)} aria-label={label} size="small"
       sx={(t) => ({
-        bgcolor: fill(t), borderRadius: '10px', p: '2px', gap: '2px', flexWrap: 'wrap',
-        '& .MuiToggleButtonGroup-grouped': { border: 0, borderRadius: '8px !important', px: 1.75, py: 0.6, textTransform: 'none', fontSize: 13.5, fontWeight: 500, color: t.palette.text.secondary, transition: `background-color 180ms ${EASE}, color 180ms` },
+        bgcolor: fill(t), borderRadius: '7px', p: '2px', gap: '2px', flexWrap: 'wrap',
+        '& .MuiToggleButtonGroup-grouped': { border: 0, borderRadius: '5px !important', minHeight: 24, px: 1.75, py: 0, textTransform: 'none', fontSize: 13, fontWeight: 500, color: t.palette.text.secondary, transition: `background-color 180ms ${EASE}, color 180ms` },
         '& .Mui-selected': {
           bgcolor: `${t.palette.mode === 'dark' ? 'rgba(255,255,255,0.16)' : '#FBFBFC'} !important`, color: `${t.palette.text.primary} !important`,
           boxShadow: t.palette.mode === 'dark' ? '0 1px 2px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(0,0,0,0.04)',
@@ -77,7 +77,7 @@ export function Dot({ color, children }: { color: 'success' | 'warning' | 'error
 /** A hairline table style: no heavy header, thin dividers, rows that react to the pointer. */
 export const listTable = (t: Theme) => ({
   '& .MuiTableCell-root': { borderBottom: `0.5px solid ${t.palette.divider}`, py: 1.1 },
-  '& .MuiTableHead-root .MuiTableCell-root': { fontSize: 11.5, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.palette.text.secondary, py: 0.9, bgcolor: 'transparent' },
+  '& .MuiTableHead-root .MuiTableCell-root': { fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.palette.text.secondary, py: 0.9, bgcolor: 'transparent' },
   '& .MuiTableBody-root .MuiTableRow-root:last-of-type .MuiTableCell-root': { borderBottom: 0 },
   '& .MuiTableBody-root .MuiTableRow-root': { transition: `background-color 160ms ${EASE}` },
 })
@@ -97,7 +97,7 @@ export function ReasonDialog({ open, title, intro, confirm, danger, busy, error,
       <DialogTitle id="reason-title" sx={{ pb: 0.5 }}>{title}</DialogTitle>
       <form onSubmit={(e) => { e.preventDefault(); if (ready) onConfirm(reason.trim()) }}>
         <DialogContent sx={{ display: 'grid', gap: 1.75, pt: 1 }}>
-          {intro && <Typography color="text.secondary" sx={{ fontSize: 13.5 }}>{intro}</Typography>}
+          {intro && <Typography color="text.secondary" sx={{ fontSize: 13 }}>{intro}</Typography>}
           {error && <Alert severity="error">{error}</Alert>}
           {children}
           <TextField required autoFocus={!children} label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} helperText="Kept in the audit log" />

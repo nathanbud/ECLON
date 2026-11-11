@@ -21,6 +21,12 @@ export async function signIn(username: string, password: string): Promise<Me> {
       const minutes = Math.max(1, Math.ceil(Number(res.headers.get('Retry-After') ?? '900') / 60))
       throw new Error(`Too many wrong passwords. This sign-in is locked for about ${minutes} minute${minutes === 1 ? '' : 's'}, or until an administrator unlocks it.`)
     }
+    const left = res.headers.get('X-Auth-Attempts-Left')
+    if (left !== null && Number(left) === 0) throw new Error('Too many wrong passwords. This sign-in is now locked for about 15 minutes, or until an administrator unlocks it.')
+    if (left !== null && Number.isFinite(Number(left))) {
+      const n = Number(left)
+      throw new Error(`The username or password is wrong. ${n} attempt${n === 1 ? '' : 's'} left before this sign-in is locked.`)
+    }
     throw new Error('The username or password is wrong.')
   }
   if (!res.ok) throw new Error(`Sign-in failed (${res.status}).`)

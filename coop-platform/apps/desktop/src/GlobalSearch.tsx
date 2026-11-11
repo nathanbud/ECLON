@@ -98,7 +98,7 @@ export default function GlobalSearch({ onNavigate, onOpenClient }: { onNavigate:
       renderInput={(params) => (
         <TextField
           {...params} inputRef={ref} placeholder={`Search screens, modules and clients  (${GLOBAL_SEARCH_SHORTCUT})`}
-          sx={{ '& .MuiInputBase-root': { color: 'inherit' }, '& input::placeholder': { opacity: 0.75 }, '& .MuiOutlinedInput-root': { borderRadius: '5px', fontSize: 12.5, fontWeight: 400, height: 26, py: '0 !important', bgcolor: 'transparent' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'text.disabled' } }}
+          sx={{ '& .MuiInputBase-root': { color: 'inherit' }, '& input::placeholder': { opacity: 0.75 }, '& .MuiOutlinedInput-root': { borderRadius: '5px', fontSize: 12, fontWeight: 400, height: 26, py: '0 !important', bgcolor: 'transparent' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'text.disabled' } }}
           slotProps={{
             ...params.slotProps,
             htmlInput: { ...params.slotProps.htmlInput, 'aria-label': 'Search the whole app' },
@@ -117,7 +117,7 @@ export default function GlobalSearch({ onNavigate, onOpenClient }: { onNavigate:
             {o.kind === 'client' && (
               <Avatar sx={{ width: 28, height: 28, fontSize: 11, fontWeight: 600, bgcolor: 'action.hover', color: 'text.secondary' }}><FiUser size={16} aria-hidden /></Avatar>
             )}
-            <Typography noWrap sx={{ fontSize: 14, fontWeight: 500, flex: 1, minWidth: 0 }}>{o.label}</Typography>
+            <Typography noWrap sx={{ fontSize: 13, fontWeight: 500, flex: 1, minWidth: 0 }}>{o.label}</Typography>
             <Typography noWrap sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{o.hint}</Typography>
           </Box>
         )

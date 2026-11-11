@@ -55,7 +55,7 @@ export function BankCashPanel({ setup }: { setup: FoSetup }) {
       </Box>
       <CountGrid setup={setup} counts={counts} onChange={setCounts} />
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1.5 }}>
-        <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Total {money(total)}</Typography>
+        <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Total {money(total)}</Typography>
         <Box sx={{ flex: 1 }} />
         <Button variant="outlined" disabled={!ready} onClick={() => run.mutate('withdraw')}>Withdraw from bank to vault</Button>
         <Button variant="contained" disabled={!ready} onClick={() => run.mutate('deposit')}>Deposit vault cash to bank</Button>

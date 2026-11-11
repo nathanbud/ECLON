@@ -39,8 +39,8 @@ function StatementDialog({ s, onClose }: { s: DividendStatement | null; onClose:
       )}
       <DialogContent>
         {s && (
-          <Box id="dividend-statement" sx={{ fontSize: 14 }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 16, mb: 0.25 }}>Combined member distribution statement</Typography>
+          <Box id="dividend-statement" sx={{ fontSize: 13 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 15, mb: 0.25 }}>Combined member distribution statement</Typography>
             <Typography sx={{ mb: 1.5 }} color="text.secondary">Financial year {s.year}</Typography>
             {row('Member', `${s.name ?? ''} (${s.clientId})`, true)}
             <Box sx={{ borderTop: '1px solid', borderColor: 'divider', my: 1 }} />
@@ -164,7 +164,7 @@ export function DividendPanel() {
           {method === 'allocation' && (
             <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '5px', p: 1.5, mb: 1.5 }}>
               {label('Net surplus and allocation')}
-              <Typography sx={{ fontSize: 12.5, mb: 1 }} color="text.secondary">
+              <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">
                 Enter the approved net surplus, the statutory funds set aside from it (name and percent as the Cooperative Code, the CDA rules and your bylaws require; none are built in),
                 and the amounts the general assembly allocated. Interest on share capital and patronage refund are then spread over the members.
               </Typography>
@@ -180,7 +180,7 @@ export function DividendPanel() {
                 </Box>
               ))}
               <Button size="small" startIcon={<FiPlus />} onClick={() => { setFunds([...funds, { name: '', percent: '' }]); setAsked(null) }} sx={{ mb: 1 }}>Add statutory fund</Button>
-              <Typography sx={{ fontSize: 13.5, mb: 1 }}>Available for distribution: <b>{availableNow === null ? '—' : money(availableNow)}</b></Typography>
+              <Typography sx={{ fontSize: 13, mb: 1 }}>Available for distribution: <b>{availableNow === null ? '—' : money(availableNow)}</b></Typography>
               <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                 <TextField size="small" label="Allocated to interest on share capital" value={iscAllocation} onChange={num(setIscAllocation)} sx={{ width: 270 }} />
                 <TextField size="small" label="Allocated to patronage refund" value={prAllocation} onChange={num(setPrAllocation)} sx={{ width: 250 }} />
@@ -200,8 +200,8 @@ export function DividendPanel() {
           {preview.error && <Alert severity="warning" sx={{ mb: 1 }}>{(preview.error as Error).message}</Alert>}
           {p && (
             <>
-              <Typography sx={{ fontSize: 14, mb: 0.5 }}>Cut-off {p.cutoff}, shares and loans of {p.year} · {p.members.toLocaleString()} members · <b>{money(p.dividend + p.refund)}</b> to distribute</Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25, fontSize: 14, mb: 1 }}>
+              <Typography sx={{ fontSize: 13, mb: 0.5 }}>Cut-off {p.cutoff}, shares and loans of {p.year} · {p.members.toLocaleString()} members · <b>{money(p.dividend + p.refund)}</b> to distribute</Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25, fontSize: 13, mb: 1 }}>
                 <span>Total average share-month</span><span>{money(p.totalAverageShareMonth)}</span>
                 <span>Interest on share capital rate</span><span>{pct(p.dividendRate)}</span>
                 <span>Interest on share capital</span><span>{money(p.dividend)}</span>
@@ -210,7 +210,7 @@ export function DividendPanel() {
                 <span>Patronage refund</span><span>{money(p.refund)}</span>
               </Box>
               {p.fromAllocation && (
-                <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '5px', p: 1, mb: 1, fontSize: 13.5 }}>
+                <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '5px', p: 1, mb: 1, fontSize: 13 }}>
                   <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 0.5 }}>Reconciliation with the approved allocation</Typography>
                   <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25 }}>
                     <span /><b>Allocated</b><b>Distributed</b><b>Difference</b>
@@ -247,7 +247,7 @@ export function DividendPanel() {
       {step === 2 && p && (
         <>
           {label('Step 3: allocation')}
-          <Typography sx={{ fontSize: 12.5, mb: 1 }} color="text.secondary">
+          <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">
             With the dividend and refund known, direct part of each member&apos;s share to the mutual benefit fund and to hospitalization assistance. What is left goes to the member&apos;s savings,
             or to share capital when there is no savings account. Leave both empty to send it all there.
           </Typography>
@@ -258,7 +258,7 @@ export function DividendPanel() {
           <TextField size="small" multiline minRows={2} maxRows={6} fullWidth sx={{ mb: 1 }} label="Different insurance amounts for some members (optional)" value={overrides} onChange={(e) => { setOverrides(e.target.value); setSplitEdited(true) }}
             placeholder={'one member per line: member no., mutual benefit, hospitalization (blank or - keeps the standard)\n12345, 402.17, 697.83'} />
           <Button variant="outlined" size="small" disabled={!splitEdited || preview.isFetching} onClick={() => { setError(null); const r = build(); if (r) { setAsked(r); setSplitEdited(false) } }} sx={{ mb: 1.5 }}>Apply to the allocation</Button>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25, fontSize: 14, mb: 1.5 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25, fontSize: 13, mb: 1.5 }}>
             <span>Dividend and patronage refund</span><span>{money(p.dividend + p.refund)}</span>
             <span>To mutual benefit</span><span>{money(p.mutualBenefit)}</span>
             <span>To hospitalization</span><span>{money(p.hospitalization)}</span>
@@ -268,7 +268,7 @@ export function DividendPanel() {
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2 }}>
             <Button onClick={() => setStep(1)}>Back</Button>
             {!p.alreadyEncoded && <Button variant="contained" disabled={encode.isPending || p.controls.length > 0 || splitEdited} onClick={() => encode.mutate()}>Encode {p.vouchers} vouchers</Button>}
-            {splitEdited && <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Apply the allocation first.</Typography>}
+            {splitEdited && <Typography sx={{ fontSize: 12 }} color="text.secondary">Apply the allocation first.</Typography>}
           </Box>
           {p.alreadyEncoded && <Alert severity="info" sx={{ mb: 1 }}>{p.year + 1} already has dividend vouchers, so it cannot be encoded again.</Alert>}
         </>
@@ -280,7 +280,7 @@ export function DividendPanel() {
           {vouchers.data!.map((v) => (
             <Box key={`${v.year}-${v.controlNo}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider' }}>
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ fontSize: 14 }}>{v.documentNo} · {money(v.total)}</Typography>
+                <Typography sx={{ fontSize: 13 }}>{v.documentNo} · {money(v.total)}</Typography>
                 <Typography sx={{ fontSize: 12 }} color="text.secondary">{v.lines.toLocaleString()} lines</Typography>
               </Box>
               <Chip size="small" variant="outlined" color={statusColor(v.status)} label={v.status === 'WAITING FOR APPROVAL' ? 'Waiting for approval' : v.status === 'APPROVED' ? 'Approved' : 'Posted'} />

@@ -66,7 +66,7 @@ export function ChequeReturnPanel() {
           onKeyDown={(e) => { if (e.key === 'Enter' && number) { setPicked(null); setSearched(number) } }} sx={{ width: 220 }} />
         <Button variant="outlined" disabled={!number} onClick={() => { setPicked(null); setSearched(number) }}>Find</Button>
       </Box>
-      {searched !== '' && found.isSuccess && rows.length === 0 && <Typography sx={{ fontSize: 13.5, mt: 1 }} color="text.secondary">No received cheque has that number.</Typography>}
+      {searched !== '' && found.isSuccess && rows.length === 0 && <Typography sx={{ fontSize: 13, mt: 1 }} color="text.secondary">No received cheque has that number.</Typography>}
       {rows.length > 0 && (
         <Table size="small" sx={{ mt: 1 }} aria-label="Cheques found">
           <TableHead><TableRow><TableCell>Received</TableCell><TableCell>Receipt</TableCell><TableCell>Member</TableCell><TableCell>Bank</TableCell><TableCell align="right">Amount</TableCell><TableCell /></TableRow></TableHead>
@@ -76,8 +76,8 @@ export function ChequeReturnPanel() {
                 <TableCell>{c.receiptDate}</TableCell><TableCell>{c.documentNo}</TableCell><TableCell>{c.client}</TableCell><TableCell>{c.bank ?? ''}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(c.amount)}</TableCell>
                 <TableCell align="right">
-                  {c.returned ? <Typography sx={{ fontSize: 12.5 }} color="text.secondary">Already returned</Typography>
-                    : c.problem ? <Typography sx={{ fontSize: 12.5 }} color="error">{c.problem}</Typography>
+                  {c.returned ? <Typography sx={{ fontSize: 12 }} color="text.secondary">Already returned</Typography>
+                    : c.problem ? <Typography sx={{ fontSize: 12 }} color="error">{c.problem}</Typography>
                     : <Button size="small" onClick={() => { setPicked(c); setError(null) }}>Choose</Button>}
                 </TableCell>
               </TableRow>
@@ -92,7 +92,7 @@ export function ChequeReturnPanel() {
             {(drawers.data ?? []).filter((d) => d.event !== 50).map((d) => <MenuItem key={`${d.event}:${d.number}`} value={`D:${d.event}:${d.number}`}>With {d.label} · {d.who}</MenuItem>)}
             {(banks.data ?? []).map((b) => <MenuItem key={b.bankId} value={`B:${b.bankId}`}>Deposited in the bank · {b.name}</MenuItem>)}
           </TextField>
-          <Typography sx={{ fontSize: 13.5 }}>
+          <Typography sx={{ fontSize: 13 }}>
             Takes <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(picked.amount)}</b> back from the savings account of {picked.client}.
           </Typography>
           {s?.problems.map((p) => <Alert key={p} severity="warning">{p}</Alert>)}

@@ -1,5 +1,5 @@
 import type { Theme } from '@mui/material'
-import { RADIUS } from './theme'
+import { SURFACE_RADIUS } from './theme'
 
 /**
  * The light theme's whites. Pure white (#FFFFFF) next to a dark-on-light interface glares, so surfaces are soft off-whites on a cool grey canvas, the colour washes are muted
@@ -53,7 +53,7 @@ export function glass(t: Theme, { elevated = false }: { elevated?: boolean } = {
       : 'linear-gradient(145deg, rgba(251,251,252,0.8), rgba(247,248,250,0.6))',
     backdropFilter: 'blur(24px) saturate(180%)',
     border: `1px solid ${dark ? 'rgba(255,255,255,0.16)' : LIGHT.hairline}`,
-    borderRadius: `${RADIUS}px`,
+    borderRadius: `${SURFACE_RADIUS}px`,
     boxShadow: dark
       ? `inset 0 1px 0 rgba(255,255,255,0.12), 0 1px 2px rgba(0,0,0,0.3)${elevated ? ', 0 8px 24px rgba(0,0,0,0.3)' : ', 0 2px 8px rgba(0,0,0,0.18)'}`
       : `inset 0 1px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(20,40,90,0.06)${elevated ? ', 0 8px 24px rgba(20,40,90,0.10)' : ', 0 2px 8px rgba(20,40,90,0.05)'}`,

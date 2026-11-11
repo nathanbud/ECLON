@@ -31,7 +31,7 @@ function WorksheetActions({ branchCode, clientId, typeCode, refNo }: { branchCod
       <TextField size="small" type="date" label="Worksheet as of" value={asOf} onChange={(e) => setAsOf(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today } }} />
       <Button size="small" disabled={!asOf || busy !== null} onClick={() => run('pdf')}>{busy === 'pdf' ? 'Making PDF…' : 'Worksheet PDF'}</Button>
       <Button size="small" disabled={!asOf || busy !== null} onClick={() => run('xlsx')}>{busy === 'xlsx' ? 'Making Excel…' : 'Worksheet Excel'}</Button>
-      {note && <Typography role="status" sx={{ fontSize: 12.5 }} color={note.ok ? 'success.main' : 'error.main'}>{note.text}</Typography>}
+      {note && <Typography role="status" sx={{ fontSize: 12 }} color={note.ok ? 'success.main' : 'error.main'}>{note.text}</Typography>}
     </Box>
   )
 }

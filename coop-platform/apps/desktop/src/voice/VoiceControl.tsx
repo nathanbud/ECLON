@@ -119,7 +119,7 @@ export function VoiceControl({ handle }: { handle: (heard: string) => Handled })
             <IconButton
               aria-label={label} aria-pressed={on} aria-keyshortcuts="V" disabled={!installed} onClick={toggle} size="small"
               sx={{
-                borderRadius: '5px', p: 0.5, fontSize: 16, color: 'inherit', opacity: installed ? 0.8 : 0.4, '&:hover': { opacity: 1 },
+                borderRadius: '5px', p: 0.5, fontSize: 15, color: 'inherit', opacity: installed ? 0.8 : 0.4, '&:hover': { opacity: 1 },
                 ...(state === 'listening' && { color: '#fff', bgcolor: '#C8102E', opacity: 1, animation: `${pulse} 1.4s ease-out infinite`, '&:hover': { bgcolor: '#C8102E' }, '@media (prefers-reduced-motion: reduce)': { animation: 'none' } }),
                 ...(state === 'loading' && { opacity: 1, bgcolor: 'action.selected' }),
               }}
