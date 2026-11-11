@@ -322,7 +322,7 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
 
   return (
     <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-      <MemberSearchBox lk={lk} onPick={setId} width={{ xs: '100%', md: '38%' }} />
+      <MemberSearchBox lk={lk} onPick={setId} width={{ xs: '100%', md: '60%', lg: '50%' }} />
 
       <Box ref={container} sx={{ display: 'grid', alignItems: 'start', gridTemplateColumns: `${cols[0] === 0 ? '0px' : `minmax(0, ${cols[0]}fr)`} 10px ${cols[1] === 0 ? '0px' : `minmax(0, ${cols[1]}fr)`} 10px ${cols[2] === 0 ? '0px' : `minmax(0, ${cols[2]}fr)`}` }}>
         <Box className="col" sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, ...(cols[0] === 0 && { visibility: 'hidden', overflow: 'hidden' }) }}>

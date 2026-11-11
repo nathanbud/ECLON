@@ -50,7 +50,9 @@ export default function MemberSearchBox({ onPick, lk, width = '100%' }: { onPick
     <ClickAwayListener onClickAway={() => setOpen(false)}>
       <Box sx={{ position: 'relative', width }}>
         <TextField
-          size="small" fullWidth value={input} placeholder="Search member by name or member ID…"
+          size="small" fullWidth value={input} placeholder="Search member by name or member number…"
+          // the teller's main way in: taller and with larger type than an ordinary field, the corner radius unchanged
+          sx={{ '& .MuiOutlinedInput-root': { minHeight: 42, fontSize: 15, pl: 1.5 }, '& .MuiInputAdornment-root svg': { fontSize: 18 } }}
           onChange={(e) => { setInput(e.target.value); setActive(0); setOpen(true) }} onFocus={() => setOpen(true)} onKeyDown={onKeyDown}
           slotProps={{
             htmlInput: {
@@ -60,8 +62,8 @@ export default function MemberSearchBox({ onPick, lk, width = '100%' }: { onPick
             input: {
               startAdornment: <InputAdornment position="start"><FiSearch aria-hidden /></InputAdornment>,
               endAdornment: isFetching && enabled
-                ? <InputAdornment position="end"><CircularProgress size={14} aria-label="Searching" /></InputAdornment>
-                : input ? <InputAdornment position="end"><IconButton size="small" edge="end" aria-label="Clear search" onClick={() => { setInput(''); setQ(''); setActive(0) }}><FiX size={14} /></IconButton></InputAdornment> : undefined,
+                ? <InputAdornment position="end"><CircularProgress size={16} aria-label="Searching" /></InputAdornment>
+                : input ? <InputAdornment position="end"><IconButton size="small" edge="end" aria-label="Clear search" onClick={() => { setInput(''); setQ(''); setActive(0) }}><FiX size={16} /></IconButton></InputAdornment> : undefined,
             },
           }}
         />
