@@ -52,7 +52,7 @@ export default function MemberSearchBox({ onPick, lk, width = '100%' }: { onPick
         <TextField
           size="small" fullWidth value={input} placeholder="Search member by name or member number…"
           // the teller's main way in: taller and with larger type than an ordinary field, the corner radius unchanged
-          sx={{ '& .MuiOutlinedInput-root': { minHeight: 42, fontSize: 15, pl: 1.5 }, '& .MuiInputAdornment-root svg': { fontSize: 18 } }}
+          sx={{ '& .MuiOutlinedInput-root': { minHeight: 42, fontSize: 15, pl: 1.5 }, '& .MuiInputAdornment-root svg': { fontSize: 17 } }}
           onChange={(e) => { setInput(e.target.value); setActive(0); setOpen(true) }} onFocus={() => setOpen(true)} onKeyDown={onKeyDown}
           slotProps={{
             htmlInput: {
