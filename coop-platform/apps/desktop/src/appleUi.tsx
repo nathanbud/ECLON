@@ -11,6 +11,11 @@ export const EASE = 'cubic-bezier(.2,.8,.2,1)'
 
 const fill = (t: Theme) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)')
 
+/** A small rounded square in a colour with an icon in it, as on the cards' headings and the quick actions. */
+export const IconChip = ({ icon, color, size = 28 }: { icon: React.ReactNode; color: string; size?: number }) => (
+  <Box aria-hidden sx={{ width: size, height: size, flexShrink: 0, borderRadius: `${Math.round(size * 0.28)}px`, display: 'grid', placeItems: 'center', color, bgcolor: `${color}1F`, fontSize: Math.round(size * 0.55), lineHeight: 0 }}>{icon}</Box>
+)
+
 /** A large title with a quiet line under it. */
 export function PageTitle({ title, children }: { title: string; children?: ReactNode }) {
   return (

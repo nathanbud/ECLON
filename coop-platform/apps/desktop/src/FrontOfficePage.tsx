@@ -1,5 +1,5 @@
 import {
-  Alert, Badge, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Skeleton, Snackbar,
+  Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Skeleton, Snackbar,
   IconButton, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Tooltip, Typography,
 } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -201,6 +201,15 @@ function SummaryPanel({ setup, onOpen }: { setup: FoSetup; onOpen: (t: FoSummary
  * shown read-only. New transactions are drafts: checked (accounts exist, debits and credits are counted) and kept for
  * later, but never posted. Nothing here writes to the ledger.
  */
+/** How many wait under a tab, as a small orange count after its name (a badge above the name was cut off by the tab strip). */
+function Count({ n }: { n: number }) {
+  return (
+    <Box component="span" aria-label={`${n} waiting`} sx={{ ml: 0.75, px: 0.6, minWidth: 18, height: 18, borderRadius: '9px', bgcolor: 'warning.main', color: '#fff', fontSize: 11, fontWeight: 600, lineHeight: '18px', display: 'inline-block', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+      {n > 99 ? '99+' : n}
+    </Box>
+  )
+}
+
 export default function FrontOfficePage() {
   const qc = useQueryClient()
   const me = useMe()
@@ -557,7 +566,7 @@ export default function FrontOfficePage() {
             return (
               <Tab
                 key={g.key} value={g.key} title={i < 9 ? `${MOD}${i + 1}` : undefined}
-                label={waiting ? <Badge color="warning" badgeContent={waiting} sx={{ '& .MuiBadge-badge': { right: -14 } }}>{g.label}</Badge> : g.label}
+                label={waiting ? <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>{g.label}<Count n={waiting} /></Box> : g.label}
               />
             )
           })}
@@ -570,7 +579,7 @@ export default function FrontOfficePage() {
             {group.tabs.map((k) => {
               const waiting = waitingOf(k)
               const label = setup.tabs.find((t) => t.key === k)?.label ?? k
-              return <Tab key={k} value={k} label={waiting ? <Badge color="warning" badgeContent={waiting} sx={{ '& .MuiBadge-badge': { right: -14 } }}>{label}</Badge> : label} />
+              return <Tab key={k} value={k} label={waiting ? <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>{label}<Count n={waiting} /></Box> : label} />
             })}
           </Tabs>
         )}

@@ -1,4 +1,7 @@
-import { Alert, Box, Button, Chip, InputAdornment, MenuItem, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
+import { Alert, Box, Button, InputAdornment, MenuItem, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
+import { FiCheckCircle, FiRepeat } from 'react-icons/fi'
+import { IconChip } from './appleUi'
+import { tileFill } from './theme'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { getLoans, getSavings, getShares, type LoanItem, type SavingsAccount, type ShareAccount } from './api'
@@ -27,6 +30,9 @@ interface Option { key: string; kind: TellerKind; label: string; sub: string; sa
  * One panel for the teller's cash transactions on a member: choose the account, what to do with it, the amount (quick buttons for the usual ones) and a remark, then Post.
  * Posting opens the same confirmation as before with everything filled in, because that is where the receipt number, cheques, holds, limits and supervisor approvals are handled.
  */
+/** A small heading over a part of the form. */
+const Label = ({ children }: { children: string }) => <Typography sx={{ fontSize: 12, fontWeight: 600, mt: 0.5 }} color="text.secondary">{children}</Typography>
+
 export default function TellerTransaction({ id, preset }: { id: Id; preset: TellerPreset | null }) {
   const savings = useQuery({ queryKey: ['member-savings', id], queryFn: () => getSavings(id.branchCode, id.clientId), staleTime: 60_000 })
   const shares = useQuery({ queryKey: ['member-shares', id], queryFn: () => getShares(id.branchCode, id.clientId), staleTime: 60_000 })
@@ -62,24 +68,35 @@ export default function TellerTransaction({ id, preset }: { id: Id; preset: Tell
   const loading = savings.isLoading || shares.isLoading || loans.isLoading
 
   return (
-    <Box component="section" aria-label="Transaction" sx={(t) => ({ p: 1.5, mb: 1.25, ...glass(t) })}>
-      <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, mb: 1 }}>Transaction</Typography>
+    <Box component="section" aria-label="Transaction" sx={(t) => ({ p: 1.75, mb: 1.25, ...glass(t) })}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
+        <IconChip icon={<FiRepeat />} color={tileFill.blue} />
+        <Typography component="h2" sx={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>Transaction</Typography>
+      </Box>
       {!loading && options.length === 0 && <Alert severity="info">This member has no active account to post to.</Alert>}
       {options.length > 0 && (
-        <Box sx={{ display: 'grid', gap: 1.25 }}>
-          <TextField select size="small" label="Account" value={option?.key ?? ''} onChange={(e) => setOptKey(e.target.value)}>
+        <Box sx={{ display: 'grid', gap: 0.75 }}>
+          <Label>Account</Label>
+          <TextField select size="small" hiddenLabel value={option?.key ?? ''} onChange={(e) => setOptKey(e.target.value)} slotProps={{ htmlInput: { 'aria-label': 'Account' } }}>
             {options.map((o) => <MenuItem key={o.key} value={o.key}><Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2 }}><span>{o.label}</span><Box component="span" sx={{ color: 'text.secondary', fontSize: 12 }}>{o.sub}</Box></Box></MenuItem>)}
           </TextField>
+          <Label>Transaction type</Label>
           <ToggleButtonGroup exclusive fullWidth size="small" value={activeMode} aria-label="What to do" onChange={(_, v) => { if (v) setMode(v) }}>
             {modes.map((m) => <ToggleButton key={m.value} value={m.value} sx={{ textTransform: 'none' }}>{m.label}</ToggleButton>)}
           </ToggleButtonGroup>
-          <MoneyField label="Amount" value={amount} onValueChange={setAmount} placeholder="0.00" slotProps={{ input: { startAdornment: <InputAdornment position="start">₱</InputAdornment> } }} />
-          <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-            {QUICK.map((q) => <Chip key={q} label={`₱ ${q.toLocaleString()}`} onClick={() => setAmount(q.toFixed(2))} variant="outlined" />)}
-            <Chip label="Clear" onClick={() => setAmount('')} variant="outlined" />
+          <Label>Amount</Label>
+          <MoneyField
+            hiddenLabel value={amount} onValueChange={setAmount} placeholder="0.00"
+            sx={{ '& .MuiOutlinedInput-input': { fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em' } }}
+            slotProps={{ input: { startAdornment: <InputAdornment position="start">₱</InputAdornment> }, htmlInput: { 'aria-label': 'Amount' } }}
+          />
+          <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: `repeat(${QUICK.length + 1}, minmax(0, 1fr))` }}>
+            {QUICK.map((q) => <Button key={q} size="small" variant="outlined" onClick={() => setAmount(q.toFixed(2))} sx={{ minWidth: 0, px: 0.5, fontVariantNumeric: 'tabular-nums' }}>₱{q.toLocaleString()}</Button>)}
+            <Button size="small" variant="outlined" onClick={() => setAmount('')} sx={{ minWidth: 0, px: 0.5 }}>Clear</Button>
           </Box>
-          <TextField size="small" label="Remarks (optional)" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="e.g. monthly savings" />
-          <Button variant="contained" disabled={!ok} onClick={() => option && activeMode && setDialog({ option, mode: activeMode, amount, remarks })}>
+          <Label>Remarks (optional)</Label>
+          <TextField size="small" hiddenLabel value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="e.g. monthly savings" slotProps={{ htmlInput: { 'aria-label': 'Remarks (optional)' } }} />
+          <Button variant="contained" size="large" startIcon={<FiCheckCircle />} disabled={!ok} onClick={() => option && activeMode && setDialog({ option, mode: activeMode, amount, remarks })} sx={{ mt: 0.75 }}>
             Post {activeMode === 'withdraw' ? 'withdrawal' : activeMode === 'deposit' ? 'deposit' : 'payment'}{ok ? ` of ${money(value)}` : ''}
           </Button>
         </Box>

@@ -1,11 +1,12 @@
 import { Alert, Avatar, Box, Button, ButtonBase, Chip, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useRef, useState } from 'react'
-import { FiArrowDownCircle, FiChevronLeft, FiChevronRight, FiClock, FiDollarSign, FiPercent, FiUser } from 'react-icons/fi'
+import { FiActivity, FiArrowDownCircle, FiBriefcase, FiChevronLeft, FiChevronRight, FiClock, FiCreditCard, FiDollarSign, FiGrid, FiInfo, FiPercent, FiSearch, FiUser } from 'react-icons/fi'
 import { getFoTellerTotals, getKyc, getLoans, getLookups, getMember, getMembershipPolicy, getSavings, getShares, listFoTransactions, type FoSetup, type KycStatus } from './api'
 import { displayName, memberNo, statusOf, type Id } from './clients'
 import MemberSearchBox from './MemberSearchBox'
 import { money } from './FoTransactionForm'
+import { IconChip } from './appleUi'
 import { glass } from './glass'
 import LoansTab from './LoansTab'
 import { useMemberImage } from './memberImage'
@@ -124,21 +125,33 @@ function Tab_({ label, side, onClick }: { label: string; side: 'left' | 'right';
   )
 }
 
-const Card = ({ title, action, children, sx }: { title: string; action?: React.ReactNode; children: React.ReactNode; sx?: object }) => (
-  <Box component="section" aria-label={title} sx={(t) => ({ p: 1.5, ...glass(t), ...sx })}>
-    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-      <Typography component="h2" sx={{ flex: 1, fontSize: 15, fontWeight: 700 }}>{title}</Typography>
+const Card = ({ title, icon, color = tileFill.blue, action, children, sx }: { title: string; icon?: React.ReactNode; color?: string; action?: React.ReactNode; children: React.ReactNode; sx?: object }) => (
+  <Box component="section" aria-label={title} sx={(t) => ({ p: 1.75, ...glass(t), ...sx })}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
+      {icon && <IconChip icon={icon} color={color} />}
+      <Typography component="h2" noWrap sx={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>{title}</Typography>
       {action}
     </Box>
     {children}
   </Box>
 )
 
-function Balance({ label, value, color }: { label: string; value: number | null; color: string }) {
+/** A label and its value on one line, the label quiet. */
+const Fact = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <>
+    <Typography component="dt" sx={{ fontSize: 12, m: 0 }} color="text.secondary">{label}</Typography>
+    <Typography component="dd" sx={{ fontSize: 13, m: 0, fontVariantNumeric: 'tabular-nums', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{children}</Typography>
+  </>
+)
+
+function Balance({ label, value, color, icon }: { label: string; value: number | null; color: string; icon: React.ReactNode }) {
   return (
-    <Box sx={{ flex: 1, minWidth: 0, p: 1, borderRadius: '5px', bgcolor: `${color}22`, boxShadow: `inset 0 0 0 1px ${color}44` }}>
-      <Typography sx={{ fontSize: 11 }} color="text.secondary" noWrap>{label}</Typography>
-      <Typography sx={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} noWrap>{value === null ? '…' : money(value)}</Typography>
+    <Box sx={{ flex: '1 1 104px', minWidth: 0, px: 1, py: 1, borderRadius: '10px', bgcolor: `${color}14`, boxShadow: `inset 0 0 0 1px ${color}30` }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5, color }}>
+        <Box aria-hidden sx={{ display: 'flex', fontSize: 13, flexShrink: 0 }}>{icon}</Box>
+        <Typography sx={{ fontSize: 12, minWidth: 0 }} color="text.secondary" noWrap title={label}>{label}</Typography>
+      </Box>
+      <Typography sx={{ fontSize: 17, fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }} noWrap>{value === null ? '…' : money(value)}</Typography>
     </Box>
   )
 }
@@ -178,21 +191,25 @@ function MemberCard({ id, onChange, lk }: { id: Id; onChange: () => void; lk: Re
   const type = m?.clientType != null ? lk?.clientType?.[m.clientType] : null
   const loanBalance = loans.data ? (Array.isArray(loans.data) ? loans.data : []).reduce((n, l) => n + (l.outstanding ?? 0), 0) : null
   return (
-    <Card title="Member information" action={<Button size="small" onClick={onChange}>Change member</Button>}>
-      <Box sx={{ display: 'flex', gap: 1.5, mb: 1.25 }}>
-        <Avatar variant="rounded" src={photo ?? undefined} alt={m ? `Photo of ${displayName(m)}` : ''} sx={{ width: 72, height: 72, borderRadius: '5px' }}><FiUser size={32} aria-hidden /></Avatar>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 15 }} noWrap>{m ? displayName(m) : '…'}</Typography>
-          <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">Member no. {memberNo(id)}</Typography>
-          {type && <Typography sx={{ fontSize: 12 }} color="text.secondary">Type: {type}</Typography>}
-          {m?.dateOpened && <Typography sx={{ fontSize: 12 }} color="text.secondary">Member since {fmtDate(m.dateOpened)}</Typography>}
-          {status && <Chip size="small" label={status.label} color={status.kind === 'default' ? 'default' : status.kind} sx={{ mt: 0.5, height: 20 }} />}
+    <Card title="Member information" icon={<FiUser />} color={tileFill.blue} action={<Button size="small" onClick={onChange}>Change member</Button>}>
+      <Box sx={{ display: 'flex', gap: 1.75, alignItems: 'center', mb: 1.5 }}>
+        <Avatar src={photo ?? undefined} alt={m ? `Photo of ${displayName(m)}` : ''} sx={(t) => ({ width: 76, height: 76, borderRadius: '50%', flexShrink: 0, bgcolor: t.palette.mode === 'dark' ? '#3A3A3C' : '#E5E7EB', color: 'text.secondary' })}><FiUser size={34} aria-hidden /></Avatar>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75, minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 600, fontSize: 17, letterSpacing: '-0.01em', minWidth: 0 }} noWrap>{m ? displayName(m) : '…'}</Typography>
+            {status && <Chip size="small" label={status.label} color={status.kind === 'default' ? 'default' : status.kind} variant="outlined" sx={{ flexShrink: 0 }} />}
+          </Box>
+          <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', columnGap: 1.5, rowGap: 0.25 }}>
+            <Fact label="Member no.">{memberNo(id)}</Fact>
+            {type && <Fact label="Type">{type}</Fact>}
+            {m?.dateOpened && <Fact label="Member since">{fmtDate(m.dateOpened)}</Fact>}
+          </Box>
         </Box>
       </Box>
-      <Box sx={{ display: 'flex', gap: 0.75 }}>
-        <Balance label="Savings" value={savings.data ? savings.data.totalBalance : savings.isError ? 0 : null} color={tileFill.green} />
-        <Balance label="Share capital" value={shares.data ? shares.data.totalBalance : shares.isError ? 0 : null} color={tileFill.blue} />
-        <Balance label="Loans owed" value={loanBalance} color={tileFill.orange} />
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+        <Balance label="Savings" icon={<FiArrowDownCircle />} value={savings.data ? savings.data.totalBalance : savings.isError ? 0 : null} color={tileFill.green} />
+        <Balance label="Share capital" icon={<FiPercent />} value={shares.data ? shares.data.totalBalance : shares.isError ? 0 : null} color={tileFill.blue} />
+        <Balance label="Loans owed" icon={<FiDollarSign />} value={loanBalance} color={tileFill.orange} />
       </Box>
       <KycNotice id={id} />
     </Card>
@@ -203,22 +220,28 @@ function MemberCard({ id, onChange, lk }: { id: Id; onChange: () => void; lk: Re
 function AccountSummary({ id }: { id: Id }) {
   const savings = useQuery({ queryKey: ['teller-savings', id], queryFn: () => getSavings(id.branchCode, id.clientId), retry: false })
   return (
-    <Card title="Account summary">
+    <Card title="Account summary" icon={<FiCreditCard />} color={tileFill.green}>
       {!savings.data && <Skeleton variant="rounded" height={60} />}
       {savings.data && savings.data.accounts.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">No savings accounts.</Typography>}
-      {savings.data?.accounts.filter((a) => a.status === 15).map((a) => (
-        <Box key={`${a.typeCode}-${a.refNo}`} sx={{ mb: 1, '&:last-child': { mb: 0 } }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography sx={{ flex: 1, fontSize: 13, fontWeight: 600 }} noWrap>{a.type ?? 'Savings'} {a.refNoText ?? a.refNo}</Typography>
-            <Chip size="small" label={a.statusName} variant="outlined" sx={{ height: 20 }} />
-          </Box>
-          {([['Current balance', a.balance], ['Available balance', a.available], ['Hold amount', a.held + a.uncleared]] as const).map(([k, v]) => (
-            <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <span>{k}</span><b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(v)}</b>
+      <Box sx={{ display: 'grid', gap: 1 }}>
+        {savings.data?.accounts.filter((a) => a.status === 15).map((a) => (
+          <Box key={`${a.typeCode}-${a.refNo}`} sx={(t) => ({ p: 1.25, borderRadius: '8px', border: `1px solid ${t.palette.divider}`, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.55)' })}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 600 }} noWrap>{a.type ?? 'Savings'}</Typography>
+                <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary" noWrap>{a.refNoText ?? a.refNo}</Typography>
+              </Box>
+              <Chip size="small" label={a.statusName} color="success" variant="outlined" />
             </Box>
-          ))}
-        </Box>
-      ))}
+            {([['Current balance', a.balance, false], ['Available balance', a.available, true], ['Hold amount', a.held + a.uncleared, false]] as const).map(([k, v, main]) => (
+              <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', py: 0.2 }}>
+                <Typography sx={{ fontSize: 12 }} color="text.secondary">{k}</Typography>
+                <Typography sx={{ fontSize: main ? 15 : 13, fontWeight: main ? 600 : 500, fontVariantNumeric: 'tabular-nums' }}>{money(v)}</Typography>
+              </Box>
+            ))}
+          </Box>
+        ))}
+      </Box>
     </Card>
   )
 }
@@ -229,21 +252,30 @@ function DrawerCard({ setup }: { setup: FoSetup }) {
   const c = totals.data?.cash
   const rows: [string, number | undefined][] = [['Beginning balance', c?.beginning], ['Cash in', c?.in], ['Cash out', c?.out], ['Pending in', c?.pendingIn], ['Pending out', c?.pendingOut]]
   return (
-    <Card title="Cash drawer">
+    <Card title="Cash drawer" icon={<FiBriefcase />} color={tileFill.teal}>
       {totals.data && !totals.data.known && <Typography sx={{ fontSize: 13 }} color="text.secondary">{totals.data.reason}</Typography>}
       {!totals.data && <Skeleton variant="rounded" height={90} />}
       {totals.data?.known && (
         <>
           {rows.map(([k, v]) => (
-            <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, py: 0.15 }}><span>{k}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(v ?? 0)}</span></Box>
+            <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.2 }}>
+              <Typography sx={{ fontSize: 12 }} color="text.secondary">{k}</Typography><Typography sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{money(v ?? 0)}</Typography>
+            </Box>
           ))}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, borderTop: 1, borderColor: 'divider', mt: 0.5, pt: 0.5 }}>
-            <span>Total cash</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(c?.ending ?? 0)}</span>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: 1, borderColor: 'divider', mt: 0.75, pt: 0.75 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Total cash</Typography><Typography sx={{ fontSize: 17, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{money(c?.ending ?? 0)}</Typography>
           </Box>
         </>
       )}
     </Card>
   )
+}
+
+/** The kind of a transaction as a small coloured label: money in green, money out red, loans orange, the rest blue. */
+function TypeBadge({ type }: { type: string | null }) {
+  const t = type ?? '—'
+  const c = /withdraw|disburse|payout|pay-out|voucher|release/i.test(t) ? tileFill.red : /loan/i.test(t) ? tileFill.orange : /deposit|receipt|payment|collection/i.test(t) ? tileFill.green : tileFill.blue
+  return <Box component="span" sx={{ display: 'inline-block', maxWidth: '100%', px: 0.75, py: 0.1, borderRadius: '5px', fontSize: 11, fontWeight: 600, color: c, bgcolor: `${c}1A`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', verticalAlign: 'middle' }}>{t}</Box>
 }
 
 /** The day's transactions as they come in, newest first. It refreshes by itself. */
@@ -252,13 +284,13 @@ function TodayCard({ setup }: { setup: FoSetup }) {
   const { data, isFetching } = useQuery({ queryKey: ['fo-summary', setup.systemDate, ids], queryFn: () => listFoTransactions(setup.systemDate, ids, ''), enabled: ids.length > 0, refetchInterval: 15_000 })
   const rows = (data ?? []).slice(0, 8)
   return (
-    <Card title="Today’s transactions" action={<Chip size="small" color={isFetching ? 'default' : 'success'} variant="outlined" label="Live" sx={{ height: 20 }} />}>
-      <Table size="small" aria-label="Today’s transactions" sx={{ '& td, & th': { py: 0.4, px: 0.75, fontSize: 12 } }}>
+    <Card title="Today’s transactions" icon={<FiActivity />} color={tileFill.indigo} action={<Chip size="small" color={isFetching ? 'default' : 'success'} variant="outlined" label="Live" />}>
+      <Table size="small" aria-label="Today’s transactions" sx={(t) => ({ '& td, & th': { py: 0.6, px: 0.75, fontSize: 12, borderBottom: `0.5px solid ${t.palette.divider}` }, '& th': { fontSize: 11, fontWeight: 600, color: 'text.secondary' }, '& tbody tr:last-of-type td': { borderBottom: 0 } })}>
         <TableHead><TableRow><TableCell>Time</TableCell><TableCell>Type</TableCell><TableCell>Member</TableCell><TableCell align="right">Amount</TableCell></TableRow></TableHead>
         <TableBody>
           {rows.map((r) => (
             <TableRow key={`${r.year}-${r.module}-${r.code}-${r.ctlNo}`}>
-              <TableCell sx={{ fontVariantNumeric: 'tabular-nums' }}>{r.time?.slice(0, 5)}</TableCell><TableCell>{r.type}</TableCell>
+              <TableCell sx={{ fontVariantNumeric: 'tabular-nums' }}>{r.time?.slice(0, 5)}</TableCell><TableCell><TypeBadge type={r.type} /></TableCell>
               <TableCell sx={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.clientName ?? '—'}</TableCell>
               <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(r.total)}</TableCell>
             </TableRow>
@@ -287,22 +319,22 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
 
   return (
     <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-      <MemberSearchBox lk={lk} onPick={setId} width={{ xs: '100%', md: '25%' }} />
+      <MemberSearchBox lk={lk} onPick={setId} width={{ xs: '100%', md: '38%' }} />
 
       <Box ref={container} sx={{ display: 'grid', alignItems: 'start', gridTemplateColumns: `${cols[0] === 0 ? '0px' : `minmax(0, ${cols[0]}fr)`} 10px ${cols[1] === 0 ? '0px' : `minmax(0, ${cols[1]}fr)`} 10px ${cols[2] === 0 ? '0px' : `minmax(0, ${cols[2]}fr)`}` }}>
         <Box className="col" sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, ...(cols[0] === 0 && { visibility: 'hidden', overflow: 'hidden' }) }}>
           {id ? <MemberCard id={id} onChange={() => setId(null)} lk={lk} /> : (
-            <Card title="Member information"><Typography sx={{ fontSize: 13 }} color="text.secondary">Search for the member to take a deposit from or pay a withdrawal to.</Typography></Card>
+            <Card title="Member information" icon={<FiUser />} color={tileFill.blue}><Typography sx={{ fontSize: 13 }} color="text.secondary">Search for the member to take a deposit from or pay a withdrawal to.</Typography></Card>
           )}
-          <Card title="Go to account">
-            <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <Card title="Go to account" icon={<FiGrid />} color={tileFill.purple}>
+            <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
               {QUICK.map((q) => (
                 <ButtonBase
                   key={q.label} disabled={!id} onClick={() => { setSection(q.section); if (q.preset) setPreset({ ...q.preset, seq: (preset?.seq ?? 0) + 1 }) }} aria-label={q.label}
-                  sx={(t) => ({ flexDirection: 'column', gap: 0.25, py: 1, borderRadius: '5px', border: 1, borderColor: 'divider', '&:hover': { bgcolor: t.palette.action.hover }, '&.Mui-disabled': { opacity: 0.45 } })}
+                  sx={(t) => ({ flexDirection: 'column', gap: 0.75, py: 1.25, borderRadius: '10px', border: `1px solid ${t.palette.divider}`, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.55)', transition: 'background-color 140ms, transform 140ms', '&:hover': { bgcolor: t.palette.action.hover }, '&:active': { transform: 'scale(0.97)' }, '&.Mui-disabled': { opacity: 0.45 } })}
                 >
-                  <Box aria-hidden sx={{ display: 'flex', fontSize: 22, color: q.color }}>{q.icon}</Box>
-                  <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{q.label}</Typography>
+                  <IconChip icon={q.icon} color={q.color} size={34} />
+                  <Typography sx={{ fontSize: 12, fontWeight: 500 }}>{q.label}</Typography>
                 </ButtonBase>
               ))}
             </Box>
@@ -313,13 +345,26 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
         <Splitter index={0} cols={cols} setCols={setCols} container={container} />
         <Box className="col" sx={{ minWidth: 0, ...(cols[1] === 0 && { visibility: 'hidden', overflow: 'hidden' }) }}>
           {!id ? (
-            <Box sx={{ p: 4, textAlign: 'center' }}><Typography color="text.secondary">Search for a member above to start a transaction.</Typography></Box>
+            <Box sx={(t) => ({ ...glass(t), p: 5, display: 'grid', placeItems: 'center', textAlign: 'center', minHeight: 260 })}>
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1.5 }}><IconChip icon={<FiSearch />} color={tileFill.blue} size={52} /></Box>
+                <Typography sx={{ fontSize: 17, fontWeight: 600, mb: 0.5 }}>Find a member to begin</Typography>
+                <Typography sx={{ fontSize: 13, maxWidth: 320, mx: 'auto' }} color="text.secondary">Search by name or member number above. Their accounts, balances and the transaction form open here.</Typography>
+              </Box>
+            </Box>
           ) : (
             <>
               <TellerTransaction id={id} preset={preset} />
-              <Box role="tablist" aria-label="Member accounts" sx={(t) => ({ display: 'flex', gap: 0.5, p: 0.5, mb: 1, ...glass(t) })}>
+              <Box role="tablist" aria-label="Member accounts" sx={(t) => ({ display: 'flex', gap: '2px', p: '3px', mb: 1.25, borderRadius: '9px', bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' })}>
                 {SECTIONS.map((x) => (
-                  <Button key={x} role="tab" aria-selected={section === x} size="small" variant={section === x ? 'contained' : 'text'} onClick={() => setSection(x)} sx={{ textTransform: 'none' }}>{x}</Button>
+                  <ButtonBase
+                    key={x} role="tab" aria-selected={section === x} onClick={() => setSection(x)}
+                    sx={(t) => ({
+                      flex: 1, minWidth: 0, minHeight: 28, px: 1, borderRadius: '7px', fontSize: 13, fontWeight: section === x ? 600 : 500, fontFamily: 'inherit',
+                      color: section === x ? 'text.primary' : 'text.secondary', transition: 'background-color 160ms, color 160ms',
+                      ...(section === x && { bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.16)' : '#FBFBFC', boxShadow: t.palette.mode === 'dark' ? '0 1px 2px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.12)' }),
+                    })}
+                  ><Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x}</Box></ButtonBase>
                 ))}
               </Box>
               {section === 'Savings' && <SavingsTab id={id} teller />}
@@ -334,8 +379,8 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
         <Box className="col" sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, ...(cols[2] === 0 && { visibility: 'hidden', overflow: 'hidden' }) }}>
           {id && <AccountSummary id={id} />}
           <DrawerCard setup={setup} />
-          <Card title="Notes and reminders">
-            <Box component="ul" sx={{ m: 0, pl: 2, fontSize: 12, display: 'grid', gap: 0.5 }}>{REMINDERS.map((r) => <li key={r}>{r}</li>)}</Box>
+          <Card title="Notes and reminders" icon={<FiInfo />} color={tileFill.gray}>
+            <Box component="ul" sx={{ m: 0, pl: 2, fontSize: 12, display: 'grid', gap: 0.5, color: 'text.secondary' }}>{REMINDERS.map((r) => <li key={r}>{r}</li>)}</Box>
           </Card>
         </Box>
       </Box>
