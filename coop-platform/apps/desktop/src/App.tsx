@@ -35,14 +35,16 @@ import { unsavedWork } from './leaveGuard'
 import { screenFor, visibleScreens } from './nav/screens'
 import { useMe } from './session'
 import { parseCommand } from './voice/commands'
-import { requestFind, requestSection } from './voice/bus'
+import { requestFind, requestSection, requestSectionFor } from './voice/bus'
+import KycReviewPage from './KycReviewPage'
+import { TABS } from './profile/constants'
 import type { Handled } from './voice/VoiceControl'
 import SideNav from './nav/SideNav'
 import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
 const titles: Record<View, string> = {
-  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Waiting for you', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports', documents: 'Documents', workflows: 'Approval workflows', membershippolicy: 'Membership policy', documentation: 'Documentation', branding: 'Sign-in screen', connections: 'Database connection', backup: 'Backup', privacy: 'Data privacy', cic: 'CIC submission', dividends: 'Dividends',
+  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Waiting for you', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports', documents: 'Documents', workflows: 'Approval workflows', membershippolicy: 'Membership policy', documentation: 'Documentation', branding: 'Sign-in screen', connections: 'Database connection', backup: 'Backup', privacy: 'Data privacy', cic: 'CIC submission', dividends: 'Dividends', kycreview: 'KYC review',
 }
 
 /** Where the person is: a screen, and the tab inside it when the menu or the search named one. */
@@ -171,6 +173,7 @@ function Signed() {
             {view === 'documents' && <DocumentsPage />}
             {view === 'workflows' && <WorkflowSettingsPage />}
             {view === 'membershippolicy' && <MembershipPolicyPage />}
+            {view === 'kycreview' && <KycReviewPage onOpenMember={(id) => { requestSectionFor(id, TABS.indexOf('KYC')); openClient(id) }} />}
             {view === 'documentation' && <DocumentationPage />}
             {view === 'branding' && <BrandingPage />}
             {view === 'connections' && <DatabaseConnectionsPage />}

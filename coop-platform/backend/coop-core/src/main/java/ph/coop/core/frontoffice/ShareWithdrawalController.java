@@ -47,8 +47,11 @@ class ShareWithdrawalController {
     private final Db db;
     private final Clock clock;
     private final TransactionTemplate tx;
+    private final ph.coop.core.member.KycGate kyc;
 
-    ShareWithdrawalController(FrontOfficeAccess access, MemberLedgerPoster poster, JdbcTemplate jdbc, Db db, Clock clock, PlatformTransactionManager txm) {
+    ShareWithdrawalController(FrontOfficeAccess access, MemberLedgerPoster poster, JdbcTemplate jdbc, Db db, Clock clock, PlatformTransactionManager txm,
+                              ph.coop.core.member.KycGate kyc) {
+        this.kyc = kyc;
         this.access = access;
         this.poster = poster;
         this.jdbc = jdbc;
@@ -74,7 +77,9 @@ class ShareWithdrawalController {
                     SELECT COALESCE(SUM(DTAMT), 0) FROM transdt WHERE DTTR_BRCODE = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTUPD_TAG = ? AND DTAMT > 0
                       AND ClientIDDT = ? AND DTSLC_CODE = ? AND DTSLT_CODE = ? AND DTREF_NO = ? AND DTSLE_CODE = ?
                     """, BigDecimal.class, branch, MODULE, ShareWithdrawalRules.CASH_VOUCHER, PENDING, req.clientId(), SHARE, req.typeCode(), req.refNo(), PRINCIPAL);
-            var problems = ShareWithdrawalRules.check(amount, a.status(), a.balance(), a.held(), pending, c.status());
+            var problems = new java.util.ArrayList<>(ShareWithdrawalRules.check(amount, a.status(), a.balance(), a.held(), pending, c.status()));
+            String kycProblem = kyc.withdrawalProblem(branch, req.clientId(), LocalDate.now(clock));
+            if (kycProblem != null) problems.add(kycProblem);
             if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
             List<Integer> payable = jdbc.queryForList("SELECT MREF_NO FROM slmastersum WHERE MBR_CODE = ? AND MCLIENTID = ? AND MSLC_CODE = ? AND MSLT_CODE = 1 ORDER BY MREF_NO DESC LIMIT 1",
                 Integer.class, branch, req.clientId(), PAYABLE);

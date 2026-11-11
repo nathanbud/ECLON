@@ -50,6 +50,19 @@ public final class KycRules {
         return Status.COMPLETE;
     }
 
+    /**
+     * Why money may not be paid out to the member while the cooperative requires KYC for withdrawals, or null when it may. Only a missing, incomplete or expired record stops
+     * a withdrawal; an overdue review does not (the member's ID is still good), it is shown as a warning and listed for review.
+     */
+    public static String withdrawalProblem(Status s) {
+        return switch (s) {
+            case NONE -> "This member has no KYC record. Record the member's ID and source of funds (Member info > KYC) before paying anything out.";
+            case INCOMPLETE -> "This member's KYC record is incomplete. Complete it (Member info > KYC) before paying anything out.";
+            case EXPIRED -> "The ID on this member's KYC record has expired. Record a current ID (Member info > KYC) before paying anything out.";
+            case REVIEW_DUE, COMPLETE -> null;
+        };
+    }
+
     /** An ID number with all but its last four characters hidden, for the audit log. */
     public static String mask(String s) {
         if (s == null || s.isBlank()) return "";

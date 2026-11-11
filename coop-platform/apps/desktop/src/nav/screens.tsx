@@ -32,7 +32,7 @@ export const DOMAIN_ORDER: DomainId[] = ['inbox', 'members', 'teller', 'loans', 
 
 /** Who may open a screen. The server checks again on every call; this only decides what a person is shown. */
 export type Who =
-  | 'anyone' | 'admin' | 'superadmin' | 'accountant' | 'privacy' | 'documents' | 'purchasing' | 'inventory' | 'pos' | 'assets' | 'settings'
+  | 'anyone' | 'admin' | 'superadmin' | 'accountant' | 'privacy' | 'documents' | 'purchasing' | 'inventory' | 'pos' | 'assets' | 'settings' | 'memberrecords'
 
 export interface Screen {
   id: string
@@ -67,6 +67,7 @@ export function can(me: Me, who: Who): boolean {
     case 'pos': return me.admin || anyRole(me, ['POS_CASHIER', 'POS_SUPERVISOR', 'STOREKEEPER', 'ACCOUNTANT'])
     case 'assets': return me.admin || anyRole(me, ['ASSET_CUSTODIAN', 'ACCOUNTANT'])
     case 'settings': return me.admin || anyRole(me, ['ACCOUNTANT', 'DOCUMENT_CLERK', 'DATA_PROTECTION_OFFICER'])
+    case 'memberrecords': return me.admin || me.canEdit || role(me, 'MEMBERSHIP_OFFICER')
   }
 }
 
@@ -76,6 +77,7 @@ export const SCREENS: Screen[] = [
 
   // members
   { id: 'members', label: 'Client Profile', note: 'Find a member, see and change their record', domain: 'members', icon: <FiUsers />, view: 'members', who: 'anyone', tile: true, keywords: 'members clients customers people profile search register beneficiaries' },
+  { id: 'kycreview', label: 'KYC review', note: 'Members whose KYC is missing, incomplete, expired or due for review', domain: 'members', icon: <FiUserCheck />, view: 'kycreview', who: 'memberrecords', tile: true, keywords: 'kyc know your customer id expired review aml anti money laundering' },
 
   // teller and cash
   { id: 'frontoffice', label: 'Front Office', note: 'Deposits, withdrawals, payments and the teller’s day', domain: 'teller', icon: <FiDollarSign />, view: 'frontoffice', who: 'anyone', tile: true, keywords: 'teller cash receipt disburse withdrawal deposit encashment cheque clearing drawer' },

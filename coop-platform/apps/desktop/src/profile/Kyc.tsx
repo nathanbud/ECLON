@@ -55,7 +55,7 @@ export function KycTab({ id, canImages }: { id: Id; canImages: boolean }) {
   const st = STATUS[data.status]
   const set = <K extends keyof KycInput>(k: K, v: KycInput[K]) => { setForm((f) => ({ ...f, [k]: v })); setMessage(null) }
   const text = (k: 'idNumber' | 'idIssuer' | 'sourceOfFunds' | 'pepNote' | 'remarks') => form[k] ?? ''
-  const refresh = () => { void qc.invalidateQueries({ queryKey: ['kyc', id.branchCode, id.clientId] }); void qc.invalidateQueries({ queryKey: ['kyc-scan', id.branchCode, id.clientId] }) }
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ['kyc', id.branchCode, id.clientId] }); void qc.invalidateQueries({ queryKey: ['kyc-review'] }); void qc.invalidateQueries({ queryKey: ['kyc-scan', id.branchCode, id.clientId] }) }
 
   const save = async () => {
     setBusy(true)

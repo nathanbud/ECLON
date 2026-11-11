@@ -18,7 +18,7 @@ import { tabIcon } from './navIcons'
 import { ProfileHeader, SideFrame, SideScroll } from './ProfileHeader'
 import { ProfileStrip } from './ProfileStrip'
 import { StatTiles } from './StatTiles'
-import { VOICE_SECTION, type SectionRequest } from '../voice/bus'
+import { takePendingSection, VOICE_SECTION, type SectionRequest } from '../voice/bus'
 
 function TabContent({ tab, m, lk, canImages }: { tab: number; m: Member; lk?: Lookups; canImages: boolean }) {
   const key = TAB_KEYS[tab]
@@ -124,6 +124,12 @@ export function Profile({ id, lk, canPhoto = false, onNotice, fresh = false, new
   })
   const m = fresh ? BLANK_MEMBER : loaded.data
   const { error, isLoading } = loaded
+
+  // Another screen (the KYC review list) may have asked for this member to open on a particular section.
+  useEffect(() => {
+    const want = takePendingSection(id)
+    if (want !== null && groups.some((g) => g.tabs.includes(want))) setTab(want)
+  }, [id, groups])
 
   // "open savings" or "accounts" by voice shows that section, or the first section of that menu group.
   useEffect(() => {

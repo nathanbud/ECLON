@@ -1,8 +1,8 @@
-import { Avatar, Box, Button, ButtonBase, Chip, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import { Alert, Avatar, Box, Button, ButtonBase, Chip, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useRef, useState } from 'react'
 import { FiArrowDownCircle, FiChevronLeft, FiChevronRight, FiClock, FiDollarSign, FiPercent, FiUser } from 'react-icons/fi'
-import { getFoTellerTotals, getLoans, getLookups, getMember, getSavings, getShares, listFoTransactions, type FoSetup } from './api'
+import { getFoTellerTotals, getKyc, getLoans, getLookups, getMember, getMembershipPolicy, getSavings, getShares, listFoTransactions, type FoSetup, type KycStatus } from './api'
 import { displayName, memberNo, statusOf, type Id } from './clients'
 import MemberSearchBox from './MemberSearchBox'
 import { money } from './FoTransactionForm'
@@ -143,6 +143,30 @@ function Balance({ label, value, color }: { label: string; value: number | null;
   )
 }
 
+const KYC_TEXT: Partial<Record<KycStatus, string>> = {
+  NONE: 'This member has no KYC record.',
+  INCOMPLETE: 'This member’s KYC record is incomplete.',
+  EXPIRED: 'The ID on this member’s KYC record has expired.',
+}
+
+/**
+ * The member's KYC standing, so the teller knows before counting cash. When the cooperative requires KYC for withdrawals (Membership policy), a missing, incomplete or
+ * expired record stops every pay-out and the server refuses it with the same reason; otherwise it is a reminder. An overdue review never stops a withdrawal.
+ */
+export function KycNotice({ id }: { id: Id }) {
+  const kyc = useQuery({ queryKey: ['kyc', id.branchCode, id.clientId], queryFn: () => getKyc(id.branchCode, id.clientId), retry: false })
+  const policy = useQuery({ queryKey: ['membership-policy'], queryFn: getMembershipPolicy, retry: false })
+  const s = kyc.data?.status
+  if (!s || s === 'COMPLETE') return null
+  if (s === 'REVIEW_DUE') return <Alert severity="info" sx={{ mt: 1 }}>KYC review is overdue{kyc.data?.nextReview ? ` (due ${fmtDate(kyc.data.nextReview)})` : ''}. Withdrawals are not affected.</Alert>
+  const blocking = policy.data?.kycBlocksWithdrawals ?? false
+  return (
+    <Alert severity={blocking ? 'error' : 'warning'} sx={{ mt: 1 }}>
+      {KYC_TEXT[s]} {blocking ? 'Withdrawals are stopped until it is put right (Member info > KYC).' : 'Ask for the member’s ID and record it (Member info > KYC).'}
+    </Alert>
+  )
+}
+
 function MemberCard({ id, onChange, lk }: { id: Id; onChange: () => void; lk: ReturnType<typeof getLookups> extends Promise<infer T> ? T | undefined : never }) {
   const member = useQuery({ queryKey: ['member', id], queryFn: () => getMember(id.branchCode, id.clientId) })
   const photo = useMemberImage('photo', id)
@@ -170,6 +194,7 @@ function MemberCard({ id, onChange, lk }: { id: Id; onChange: () => void; lk: Re
         <Balance label="Share capital" value={shares.data ? shares.data.totalBalance : shares.isError ? 0 : null} color={tileFill.blue} />
         <Balance label="Loans owed" value={loanBalance} color={tileFill.orange} />
       </Box>
+      <KycNotice id={id} />
     </Card>
   )
 }

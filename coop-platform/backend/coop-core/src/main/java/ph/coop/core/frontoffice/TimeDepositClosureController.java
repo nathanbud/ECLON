@@ -72,8 +72,11 @@ class TimeDepositClosureController {
     private final FrontOfficeAccess access;
     private final MemberLedgerPoster poster;
     private final TransactionTemplate tx;
+    private final ph.coop.core.member.KycGate kyc;
 
-    TimeDepositClosureController(JdbcTemplate jdbc, Db db, Clock clock, FrontOfficeAccess access, MemberLedgerPoster poster, PlatformTransactionManager txm) {
+    TimeDepositClosureController(JdbcTemplate jdbc, Db db, Clock clock, FrontOfficeAccess access, MemberLedgerPoster poster, PlatformTransactionManager txm,
+                                 ph.coop.core.member.KycGate kyc) {
+        this.kyc = kyc;
         this.jdbc = jdbc;
         this.db = db;
         this.clock = clock;
@@ -169,6 +172,11 @@ class TimeDepositClosureController {
             fee = rn.fee();
             newMaturity = today.plusDays(Math.max(term, 0));
         }
+        // a pay-out pays the member; a renewal does only when part of it is taken out
+        if (!renew || (withdraw != null && withdraw.signum() > 0)) {
+            String kycProblem = kyc.withdrawalProblem(p.branch(), r.clientId(), today);
+            if (kycProblem != null) problems.add(kycProblem);
+        }
         return new Quote(renew ? "RENEW" : "PAYOUT", r.clientId(), client.name(), r.typeCode(), c.type(), r.refNo(), c.certificate(), c.maturity(), renew && r.termDays() != null ? r.termDays() : c.termDays(),
             renew && r.ratePercent() != null ? r.ratePercent() : c.rate(), a.principal(), a.interest(), a.accrued(), a.expense(), a.due(), newPrincipal, newMaturity, fee, withdraw, terms, problems, problems.isEmpty(), lockIn, years, lockIn ? TimeDepositClosureRules.maxYears(c.termDays()) : 0, nt,
             pre, a.termFee(), pre && !lockIn ? (r.pretermRate() == null ? TimeDepositClosureRules.SHORT_TERM_RATE : r.pretermRate()) : null, daysHeld);
@@ -227,6 +235,8 @@ class TimeDepositClosureController {
         List<String> problems = new ArrayList<>(TimeDepositClosureRules.interestProblems(r.typeCode(), status, c.maturity(), today, amount, available, payableAccount(p.branch(), r.clientId()) != null,
             voucherWaiting(p.branch(), today.getYear(), asClosure)));
         if (client.status() == 3 || client.status() == 98 || client.status() == 99) problems.add("This client's account is closed, disapproved or not yet approved.");
+        String kycProblem = kyc.withdrawalProblem(p.branch(), r.clientId(), today);
+        if (kycProblem != null) problems.add(kycProblem);
         return new InterestQuote(r.clientId(), client.name(), r.typeCode(), c.type(), r.refNo(), c.certificate(), balance, c.rate(), c.placed(), TimeDepositClosureRules.completedYears(c.placed(), today),
             year, withdrawn, available, c.accrued(), amount, amounts.fromAccrual(), amounts.expense(), problems, problems.isEmpty());
     }

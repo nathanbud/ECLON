@@ -56,8 +56,11 @@ class SavingsPostingController {
     private final FrontOfficeAccess access;
     private final MemberLedgerPoster poster;
     private final TransactionTemplate tx;
+    private final ph.coop.core.member.KycGate kyc;
 
-    SavingsPostingController(JdbcTemplate jdbc, Db db, FrontOfficeAccess access, MemberLedgerPoster poster, PlatformTransactionManager txManager) {
+    SavingsPostingController(JdbcTemplate jdbc, Db db, FrontOfficeAccess access, MemberLedgerPoster poster, PlatformTransactionManager txManager,
+                             ph.coop.core.member.KycGate kyc) {
+        this.kyc = kyc;
         this.jdbc = jdbc;
         this.db = db;
         this.access = access;
@@ -102,10 +105,11 @@ class SavingsPostingController {
         Account a = poster.account(Master.SAVINGS, p.branch(), req.clientId(), req.typeCode(), req.refNo());
         Client c = poster.client(p.branch(), req.clientId());
         SavingsRules.Check rules = rulesFor(amount, a, c, p);
+        List<String> problems = withKyc(rules.problems(), p.branch(), req.clientId());
         List<NeedStatus> needs = new ArrayList<>();
         for (Need n : rules.needs()) needs.add(statusOf(n, req, a, amount, p));
-        boolean ready = rules.problems().isEmpty() && needs.stream().allMatch((n) -> "APPROVED".equals(n.status()));
-        return new Check(rules.problems(), needs, ready);
+        boolean ready = problems.isEmpty() && needs.stream().allMatch((n) -> "APPROVED".equals(n.status()));
+        return new Check(problems, needs, ready);
     }
 
     @PostMapping("/withdrawals")
@@ -118,7 +122,8 @@ class SavingsPostingController {
             Account a = poster.account(Master.SAVINGS, p.branch(), req.clientId(), req.typeCode(), req.refNo());
             Client c = poster.client(p.branch(), req.clientId());
             SavingsRules.Check rules = rulesFor(amount, a, c, p);
-            if (!rules.problems().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", rules.problems()));
+            List<String> problems = withKyc(rules.problems(), p.branch(), req.clientId());
+            if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
 
             // every rule the old system let a supervisor allow needs its own approval, spent here and nowhere else
             List<long[]> spent = new ArrayList<>();
@@ -144,6 +149,14 @@ class SavingsPostingController {
     }
 
     // ---- helpers ------------------------------------------------------------------------------------------------
+
+    /** The withdrawal rules' problems, plus the KYC one when the cooperative requires KYC for withdrawals. */
+    private List<String> withKyc(List<String> problems, int branch, int clientId) {
+        List<String> out = new ArrayList<>(problems);
+        String k = kyc.withdrawalProblem(branch, clientId, java.time.LocalDate.now());
+        if (k != null) out.add(k);
+        return out;
+    }
 
     private SavingsRules.Check rulesFor(BigDecimal amount, Account a, Client c, Person p) {
         BigDecimal limit = p.disbursementLimit().min(p.maxWithdrawal());

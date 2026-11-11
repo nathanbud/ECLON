@@ -37,6 +37,8 @@ class SavingsLedgerPostingTest {
 
     @Autowired SavingsPostingController savings;
     @Autowired JdbcTemplate jdbc;
+    @Autowired ph.coop.core.member.MembershipPolicyController policy;
+    @Autowired ph.coop.core.member.KycGate kyc;
 
     private String teller;
     private int tellerId, tellerNumber, dept;
@@ -174,6 +176,22 @@ class SavingsLedgerPostingTest {
         assertEquals(0, amount.compareTo((BigDecimal) sl.get("AMT")), "a withdrawal is a debit in the member's ledger");
         assertEquals(0, savBefore.add(amount).compareTo(glNet("2010101", 23)), "savings deposits fall (debit)");
         assertEquals(0, cashBefore.subtract(amount).compareTo(glNet("10003", 23)), "cash on hand falls (credit)");
+    }
+
+    @Test
+    void withTheKycPolicyOnAMemberWithoutAKycRecordCannotWithdraw() {
+        assumeTrue(kyc.status(1, client, LocalDate.now()) == ph.coop.core.member.KycRules.Status.NONE, "the member already has a KYC record");
+        var admin = new TestingAuthenticationToken("admin", "x", "ROLE_ADMIN");
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(admin);
+        policy.set(new ph.coop.core.member.MembershipPolicyController.Change(null, true, "itest"), admin);
+        BigDecimal before = balanceNow();
+
+        Check c = savings.check(req("100.00"), as(teller));
+        assertFalse(c.ready());
+        assertTrue(c.problems().stream().anyMatch((p) -> p.contains("no KYC record")), "the teller is told why: " + c.problems());
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> savings.withdraw(req("100.00"), as(teller)));
+        assertTrue(e.getReason().contains("no KYC record"));
+        assertEquals(0, before.compareTo(balanceNow()), "nothing was posted");
     }
 
     @Test

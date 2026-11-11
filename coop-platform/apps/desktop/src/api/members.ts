@@ -207,8 +207,10 @@ export const approveMemberRequest = (id: number) => send<MemberRequest>('POST', 
 export const rejectMemberRequest = (id: number, note: string) => send<MemberRequest>('POST', `/api/member-requests/${id}/reject`, { note })
 export const withdrawMemberRequest = (id: number) => send<MemberRequest>('POST', `/api/member-requests/${id}/withdraw`)
 export const requestReactivation = (body: { branchCode: number; clientId: number; clientType: number; note: string }) => send<MemberRequest>('POST', '/api/member-requests/reactivations', body)
-export const getMembershipPolicy = () => getJson<{ returningPaysShareCapital: boolean }>('/api/membership-policy')
-export const setMembershipPolicy = (returningPaysShareCapital: boolean, reason: string) => send<{ returningPaysShareCapital: boolean }>('PUT', '/api/admin/membership-policy', { returningPaysShareCapital, reason })
+export interface MembershipPolicy { returningPaysShareCapital: boolean; kycBlocksWithdrawals: boolean }
+export const getMembershipPolicy = () => getJson<MembershipPolicy>('/api/membership-policy')
+/** Changes the switches given; the others stay as they are. */
+export const changeMembershipPolicy = (change: Partial<MembershipPolicy>, reason: string) => send<MembershipPolicy>('PUT', '/api/admin/membership-policy', { ...change, reason })
 
 async function uploadMemberImage(kind: 'photo' | 'signature', branchCode: number, clientId: number, picture: Blob): Promise<void> {
   const body = new FormData()
@@ -261,6 +263,12 @@ export interface Kyc {
 export type KycInput = Pick<Kyc, 'idType' | 'idNumber' | 'idIssuer' | 'idExpiry' | 'sourceOfFunds' | 'pep' | 'pepNote' | 'risk' | 'nextReview' | 'remarks'>
 const kycUrl = (b: number, c: number) => `/api/members/${b}/${c}/kyc`
 export const getKyc = (b: number, c: number) => getJson<Kyc>(kycUrl(b, c))
+
+/** One member on the KYC review list. */
+export interface KycReviewRow { branchCode: number; clientId: number; name: string; status: KycStatus; idType: string | null; idExpiry: string | null; risk: string | null; nextReview: string | null; updatedAt: string | null }
+export interface KycReview { counts: Record<KycStatus, number>; status: KycStatus; page: number; size: number; total: number; rows: KycReviewRow[] }
+/** Active members whose KYC has this status, a page at a time, with the count of each status. */
+export const getKycReview = (status: KycStatus, page: number, size = 50) => getJson<KycReview>(`/api/kyc/review?status=${status}&page=${page}&size=${size}`)
 export const saveKyc = (b: number, c: number, body: KycInput) => send<Kyc>('PUT', kycUrl(b, c), body)
 export async function getKycScan(b: number, c: number): Promise<string | null> {
   const res = await http(`${kycUrl(b, c)}/id-scan`)

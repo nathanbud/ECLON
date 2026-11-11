@@ -27,6 +27,23 @@ class KycRulesTest {
     }
 
     @Test
+    void theReviewListNamesAMemberAsTheProfileDoes() {
+        assertEquals("CLIMBS, CLAIMS FUND", KycReviewController.name(" CLIMBS, CLAIMS FUND ", null, null, null), "an organisation by its account name");
+        assertEquals("Dela Cruz, Juan Santos", KycReviewController.name("", "Dela Cruz", "Juan", "Santos"));
+        assertEquals("Reyes", KycReviewController.name(null, "Reyes", null, null));
+        assertEquals("", KycReviewController.name(null, null, null, null));
+    }
+
+    @Test
+    void aWithdrawalWaitsForAMissingIncompleteOrExpiredRecord_butNotForAnOverdueReview() {
+        assertTrue(KycRules.withdrawalProblem(Status.NONE).contains("no KYC record"));
+        assertTrue(KycRules.withdrawalProblem(Status.INCOMPLETE).contains("incomplete"));
+        assertTrue(KycRules.withdrawalProblem(Status.EXPIRED).contains("expired"));
+        assertEquals(null, KycRules.withdrawalProblem(Status.REVIEW_DUE), "an overdue review is a warning, not a refusal");
+        assertEquals(null, KycRules.withdrawalProblem(Status.COMPLETE));
+    }
+
+    @Test
     void anExpiredIdOrAPassedReviewDateIsFlagged_theIdFirst() {
         assertEquals(Status.EXPIRED, KycRules.status(new Record("Passport", "P1234567A", TODAY.minusDays(1), "Salary", "LOW", TODAY.plusYears(2), false, null), TODAY));
         assertEquals(Status.COMPLETE, KycRules.status(new Record("Passport", "P1234567A", TODAY, "Salary", "LOW", TODAY, false, null), TODAY), "today is still good");

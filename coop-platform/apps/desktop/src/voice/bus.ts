@@ -25,6 +25,21 @@ export function takePendingFind(): string | null {
 
 export interface SectionRequest { tab?: number; group?: 'Info' | 'Accounts' | 'Other' }
 
+let pendingSection: { branchCode: number; clientId: number; tab: number } | null = null
+
+/** Open this member's profile on this section once it is shown (the profile is not open yet when another screen asks). */
+export function requestSectionFor(id: { branchCode: number; clientId: number }, tab: number) {
+  pendingSection = { ...id, tab }
+}
+
+/** The section a profile for this member should open on, if another screen asked for one; it is forgotten once read. */
+export function takePendingSection(id: { branchCode: number; clientId: number }): number | null {
+  const p = pendingSection
+  if (!p || p.branchCode !== id.branchCode || p.clientId !== id.clientId) return null
+  pendingSection = null
+  return p.tab
+}
+
 /** Show a section (by its index in the profile's tabs) or the first section of a menu group in the open member's profile. */
 export function requestSection(request: SectionRequest) {
   window.dispatchEvent(new CustomEvent<SectionRequest>(VOICE_SECTION, { detail: request }))
