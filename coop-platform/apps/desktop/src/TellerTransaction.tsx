@@ -16,6 +16,11 @@ import { money } from './ui/format'
 export type TellerKind = 'savings' | 'share' | 'loan'
 export type TellerMode = 'deposit' | 'withdraw' | 'payment'
 export interface TellerPreset { kind: TellerKind; mode: TellerMode; seq: number }
+/** Which accounts the panel offers: one kind (chosen under Go to account), time deposits (posted in their own section), or all. */
+export type TellerOnly = TellerKind | 'td' | null
+
+const KIND_NAMES: Record<TellerKind | 'td', string> = { savings: 'Savings accounts', share: 'Share capital accounts', loan: 'Loans', td: 'Time deposits' }
+const NONE_OF_KIND: Record<TellerKind, string> = { savings: 'This member has no active savings account.', share: 'This member has no active share capital account.', loan: 'This member has no loan with a balance to pay.' }
 
 const MODES: Record<TellerKind, { value: TellerMode; label: string }[]> = {
   savings: [{ value: 'deposit', label: 'Deposit' }, { value: 'withdraw', label: 'Withdraw' }],
@@ -33,7 +38,7 @@ interface Option { key: string; kind: TellerKind; label: string; sub: string; sa
 /** A small heading over a part of the form. */
 const Label = ({ children }: { children: string }) => <Typography sx={{ fontSize: 12, fontWeight: 600, mt: 0.5 }} color="text.secondary">{children}</Typography>
 
-export default function TellerTransaction({ id, preset }: { id: Id; preset: TellerPreset | null }) {
+export default function TellerTransaction({ id, preset, only = null, onShowAll }: { id: Id; preset: TellerPreset | null; only?: TellerOnly; onShowAll?: () => void }) {
   const savings = useQuery({ queryKey: ['member-savings', id], queryFn: () => getSavings(id.branchCode, id.clientId), staleTime: 60_000 })
   const shares = useQuery({ queryKey: ['member-shares', id], queryFn: () => getShares(id.branchCode, id.clientId), staleTime: 60_000 })
   const loans = useQuery({ queryKey: ['member-loans', id.branchCode, id.clientId, false], queryFn: () => getLoans(id.branchCode, id.clientId, false), staleTime: 60_000 })
@@ -50,14 +55,16 @@ export default function TellerTransaction({ id, preset }: { id: Id; preset: Tell
   const [remarks, setRemarks] = useState('')
   const [dialog, setDialog] = useState<null | { option: Option; mode: TellerMode; amount: string; remarks: string }>(null)
 
-  const option = options.find((o) => o.key === optKey) ?? options[0]
+  // a kind chosen under Go to account narrows the list to that kind
+  const offered = useMemo(() => (only && only !== 'td' ? options.filter((o) => o.kind === only) : options), [options, only])
+  const option = offered.find((o) => o.key === optKey) ?? offered[0]
   const modes = option ? MODES[option.kind] : []
   const activeMode = modes.some((m) => m.value === mode) ? mode : modes[0]?.value
 
   // A quick action (Deposit, Withdraw, Share capital, Loan payment) picks the first account of that kind and the matching action.
   useEffect(() => {
     if (!preset) return
-    const first = options.find((o) => o.kind === preset.kind)
+    const first = offered.find((o) => o.kind === preset.kind)
     if (first) setOptKey(first.key)
     setMode(preset.mode)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,14 +78,24 @@ export default function TellerTransaction({ id, preset }: { id: Id; preset: Tell
     <Box component="section" aria-label="Transaction" sx={(t) => ({ p: 1.75, mb: 1.25, ...glass(t) })}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
         <IconChip icon={<FiRepeat />} color={tileFill.blue} />
-        <Typography component="h2" sx={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>Transaction</Typography>
+        <Typography component="h2" sx={{ flex: 1, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>Transaction</Typography>
+        {only && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+            <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{KIND_NAMES[only]}</Typography>
+            {onShowAll && <Button size="small" onClick={onShowAll} sx={{ minHeight: 22, py: 0, px: 0.75 }}>Show all</Button>}
+          </Box>
+        )}
       </Box>
-      {!loading && options.length === 0 && <Alert severity="info">This member has no active account to post to.</Alert>}
-      {options.length > 0 && (
+      {only === 'td' && (
+        <Alert severity="info">Time deposits are placed, renewed, paid out and have their interest withdrawn in the Time Deposits section below.</Alert>
+      )}
+      {only !== 'td' && !loading && options.length === 0 && <Alert severity="info">This member has no active account to post to.</Alert>}
+      {only && only !== 'td' && !loading && options.length > 0 && offered.length === 0 && <Alert severity="info">{NONE_OF_KIND[only]}</Alert>}
+      {only !== 'td' && offered.length > 0 && (
         <Box sx={{ display: 'grid', gap: 0.75 }}>
           <Label>Account</Label>
           <TextField select size="small" hiddenLabel value={option?.key ?? ''} onChange={(e) => setOptKey(e.target.value)} slotProps={{ htmlInput: { 'aria-label': 'Account' } }}>
-            {options.map((o) => <MenuItem key={o.key} value={o.key}><Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2 }}><span>{o.label}</span><Box component="span" sx={{ color: 'text.secondary', fontSize: 12 }}>{o.sub}</Box></Box></MenuItem>)}
+            {offered.map((o) => <MenuItem key={o.key} value={o.key}><Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 2 }}><span>{o.label}</span><Box component="span" sx={{ color: 'text.secondary', fontSize: 12 }}>{o.sub}</Box></Box></MenuItem>)}
           </TextField>
           <Label>Transaction type</Label>
           <ToggleButtonGroup exclusive fullWidth size="small" value={activeMode} aria-label="What to do" onChange={(_, v) => { if (v) setMode(v) }}>

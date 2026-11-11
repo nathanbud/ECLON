@@ -12,7 +12,7 @@ import LoansTab from './LoansTab'
 import { useMemberImage } from './memberImage'
 import { fmtDate } from './profile/format'
 import { SavingsTab } from './profile/Savings'
-import TellerTransaction, { type TellerPreset } from './TellerTransaction'
+import TellerTransaction, { type TellerOnly, type TellerPreset } from './TellerTransaction'
 import { ShareCapitalTab } from './profile/ShareCapital'
 import { TimeDepositsTab } from './profile/TimeDeposits'
 import { tileFill } from './theme'
@@ -21,11 +21,11 @@ const SECTIONS = ['Savings', 'Share Capital', 'Loans', 'Time Deposits'] as const
 type Section = (typeof SECTIONS)[number]
 
 /** What a teller does most, each one opening the account type it belongs to (the posting itself, with its limits, holds and approvals, is in the section below). */
-const QUICK: { label: string; section: Section; preset?: Omit<TellerPreset, 'seq'>; icon: React.ReactNode; color: string }[] = [
-  { label: 'Savings', section: 'Savings', preset: { kind: 'savings', mode: 'deposit' }, icon: <FiArrowDownCircle />, color: tileFill.green },
-  { label: 'Share capital', section: 'Share Capital', preset: { kind: 'share', mode: 'payment' }, icon: <FiPercent />, color: tileFill.blue },
-  { label: 'Loan', section: 'Loans', preset: { kind: 'loan', mode: 'payment' }, icon: <FiDollarSign />, color: tileFill.orange },
-  { label: 'Time deposit', section: 'Time Deposits', icon: <FiClock />, color: tileFill.purple },
+const QUICK: { label: string; section: Section; only: Exclude<TellerOnly, null>; preset?: Omit<TellerPreset, 'seq'>; icon: React.ReactNode; color: string }[] = [
+  { label: 'Savings', section: 'Savings', only: 'savings', preset: { kind: 'savings', mode: 'deposit' }, icon: <FiArrowDownCircle />, color: tileFill.green },
+  { label: 'Share capital', section: 'Share Capital', only: 'share', preset: { kind: 'share', mode: 'payment' }, icon: <FiPercent />, color: tileFill.blue },
+  { label: 'Loan', section: 'Loans', only: 'loan', preset: { kind: 'loan', mode: 'payment' }, icon: <FiDollarSign />, color: tileFill.orange },
+  { label: 'Time deposit', section: 'Time Deposits', only: 'td', icon: <FiClock />, color: tileFill.purple },
 ]
 
 const REMINDERS = [
@@ -310,7 +310,10 @@ function TodayCard({ setup }: { setup: FoSetup }) {
  */
 export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
   const { data: lk } = useQuery({ queryKey: ['lookups'], queryFn: getLookups, staleTime: Infinity })
-  const [id, setId] = useState<Id | null>(null)
+  const [id, setIdState] = useState<Id | null>(null)
+  /** The kind chosen under Go to account; the transaction panel then offers only accounts of that kind. A new member starts with all of them. */
+  const [only, setOnly] = useState<TellerOnly>(null)
+  const setId = (next: Id | null) => { setIdState(next); setOnly(null) }
   const [section, setSection] = useState<Section>('Savings')
   const [preset, setPreset] = useState<TellerPreset | null>(null)
   const [cols, setColsState] = useState<number[]>(storedCols)
@@ -330,8 +333,18 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
             <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
               {QUICK.map((q) => (
                 <ButtonBase
-                  key={q.label} disabled={!id} onClick={() => { setSection(q.section); if (q.preset) setPreset({ ...q.preset, seq: (preset?.seq ?? 0) + 1 }) }} aria-label={q.label}
-                  sx={(t) => ({ flexDirection: 'column', gap: 0.75, py: 1.25, borderRadius: '10px', border: `1px solid ${t.palette.divider}`, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.55)', transition: 'background-color 140ms, transform 140ms', '&:hover': { bgcolor: t.palette.action.hover }, '&:active': { transform: 'scale(0.97)' }, '&.Mui-disabled': { opacity: 0.45 } })}
+                  key={q.label} disabled={!id} aria-label={q.label} aria-pressed={only === q.only}
+                  onClick={() => {
+                    // a second click on the chosen kind shows every account again
+                    if (only === q.only) { setOnly(null); return }
+                    setOnly(q.only); setSection(q.section)
+                    if (q.preset) setPreset({ ...q.preset, seq: (preset?.seq ?? 0) + 1 })
+                  }}
+                  sx={(t) => ({
+                    flexDirection: 'column', gap: 0.75, py: 1.25, borderRadius: '10px', border: `1px solid ${t.palette.divider}`, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.55)',
+                    transition: 'background-color 140ms, border-color 140ms, transform 140ms', '&:hover': { bgcolor: t.palette.action.hover }, '&:active': { transform: 'scale(0.97)' }, '&.Mui-disabled': { opacity: 0.45 },
+                    ...(only === q.only && { borderColor: q.color, bgcolor: `${q.color}14`, boxShadow: `inset 0 0 0 1px ${q.color}`, '&:hover': { bgcolor: `${q.color}1F` } }),
+                  })}
                 >
                   <IconChip icon={q.icon} color={q.color} size={34} />
                   <Typography sx={{ fontSize: 12, fontWeight: 500 }}>{q.label}</Typography>
@@ -354,7 +367,7 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
             </Box>
           ) : (
             <>
-              <TellerTransaction id={id} preset={preset} />
+              <TellerTransaction id={id} preset={preset} only={only} onShowAll={() => setOnly(null)} />
               <Box role="tablist" aria-label="Member accounts" sx={(t) => ({ display: 'flex', gap: '2px', p: '3px', mb: 1.25, borderRadius: '9px', bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' })}>
                 {SECTIONS.map((x) => (
                   <ButtonBase
