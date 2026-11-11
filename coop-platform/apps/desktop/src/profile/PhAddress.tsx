@@ -23,6 +23,9 @@ const key = (s: string) => s.trim().toUpperCase()
 const same = (a: string, b: string) => key(a) === key(b)
 const MAX_LISTED = 50
 
+/** Provinces shown at the top of the list, before the rest in their usual order: the cooperative's own province, where most members live. */
+export const FIRST_PROVINCES = ['BENGUET']
+
 /**
  * A search box styled like the plain address fields beside it. A drop-down box brings its own, tighter padding, which made it a few pixels shorter than its neighbours; this
  * puts back the app's input padding (`INPUT_PAD`), keeping room on the right for the arrow and the clear button.
@@ -52,7 +55,9 @@ export function PhAddressFields({ cols, stored, children }: { cols: Cols; stored
 
   const all = useMemo(() => {
     if (!d) return null
-    const provinces: Opt[] = d.p.map((n, i) => ({ key: `p${i}`, name: n, idx: i }))
+    const listed: Opt[] = d.p.map((n, i) => ({ key: `p${i}`, name: n, idx: i }))
+    const first = (o: Opt) => FIRST_PROVINCES.findIndex((f) => same(f, o.name))
+    const provinces = [...FIRST_PROVINCES.flatMap((f) => listed.filter((o) => same(f, o.name))), ...listed.filter((o) => first(o) < 0)]
     const cities: (Opt & { prov: number })[] = d.c.map(([n, p], i) => ({ key: `c${i}`, name: n, idx: i, prov: p }))
     const barangays: (Opt & { city: number })[] = d.b.map(([n, c], i) => ({ key: `b${i}`, name: n, idx: i, city: c }))
     return { provinces, cities, barangays }

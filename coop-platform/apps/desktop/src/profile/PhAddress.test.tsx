@@ -55,6 +55,13 @@ describe('Philippine address fields', () => {
     expect(draft()).toEqual({ P: 'BENGUET', C: 'CITY OF BAGUIO', B: 'PACDAL' })
   })
 
+  it('lists Benguet first, then the other provinces in their usual order', async () => {
+    const user = userEvent.setup()
+    render(<Harness stored={{}} />)
+    await user.click(screen.getByLabelText('Province'))
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['Benguet', 'Abra'])
+  })
+
   it('changing the province clears a city and barangay that are not in it', async () => {
     const user = userEvent.setup()
     render(<Harness stored={{ province: 'BENGUET', city: 'LA TRINIDAD', barangay: 'BALILI' }} />)
