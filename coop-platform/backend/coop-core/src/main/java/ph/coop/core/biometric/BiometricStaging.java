@@ -205,6 +205,6 @@ public class BiometricStaging {
     }
 
     private void audit(String user, String action, int branch, int client, String next, String reason) {
-        AuditLog.write(jdbc, null, user, action, "client", branch + "-" + client, null, next, reason);
+        AuditLog.write(jdbc, user, action, "client", branch + "-" + client, null, next, reason);
     }
 }

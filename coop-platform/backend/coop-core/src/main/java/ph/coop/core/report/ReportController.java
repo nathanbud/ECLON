@@ -65,7 +65,7 @@ class ReportController {
         if (!may(auth, r)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot run this report.");
         Table t = r.run(new Reports.Args(params));
         LocalDateTime now = LocalDateTime.now(clock).withNano(0);
-        AuditLog.write(jdbc, Timestamp.valueOf(now), auth.getName(), "report.run", "report", id, null, params.toString() + " -> " + t.rows().size() + " rows", null);
+        AuditLog.write(jdbc, auth.getName(), "report.run", "report", id, null, params.toString() + " -> " + t.rows().size() + " rows", null);
         return new Result(r.info(), t, now, auth.getName());
     }
 }

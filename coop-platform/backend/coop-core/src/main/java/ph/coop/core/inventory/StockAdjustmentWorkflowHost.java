@@ -20,7 +20,7 @@ class StockAdjustmentWorkflowHost implements WorkflowHost {
     }
 
     private void audit(String user, String action, long id, String detail) {
-        AuditLog.write(jdbc, java.sql.Timestamp.valueOf(support.now()), user, action, "ecis_stock_adjustment", posting.number(id), null, detail, null);
+        AuditLog.write(jdbc, user, action, "ecis_stock_adjustment", posting.number(id), null, detail, null);
     }
 
     @Override

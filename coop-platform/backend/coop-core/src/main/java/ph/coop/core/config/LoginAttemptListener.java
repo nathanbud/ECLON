@@ -29,7 +29,7 @@ class LoginAttemptListener {
         if (attempts.failed(name)) {
             log.warn("Sign-in locked after {} wrong passwords: {}", LoginAttempts.MAX_FAILURES, name);
             try {
-                AuditLog.write(jdbc, null, name.length() > 60 ? name.substring(0, 60) : name, "signin.locked", "user", name.length() > 60 ? name.substring(0, 60) : name, null, LoginAttempts.MAX_FAILURES + " wrong passwords, locked for " + LoginAttempts.LOCK.toMinutes() + " minutes", null);
+                AuditLog.write(jdbc, name.length() > 60 ? name.substring(0, 60) : name, "signin.locked", "user", name.length() > 60 ? name.substring(0, 60) : name, null, LoginAttempts.MAX_FAILURES + " wrong passwords, locked for " + LoginAttempts.LOCK.toMinutes() + " minutes", null);
             } catch (RuntimeException ex) {
                 log.warn("Could not write the lock to the audit log: {}", ex.getMessage());
             }

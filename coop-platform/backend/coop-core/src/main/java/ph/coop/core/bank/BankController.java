@@ -274,7 +274,7 @@ class BankController {
     }
 
     private void audit(Authentication auth, String action, long id, String detail) {
-        AuditLog.write(jdbc, null, auth.getName(), action, "bank_recon", String.valueOf(id), null, detail, null);
+        AuditLog.write(jdbc, auth.getName(), action, "bank_recon", String.valueOf(id), null, detail, null);
     }
 
     private void requireTables() {

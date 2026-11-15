@@ -25,7 +25,7 @@ class PurchaseRequestWorkflowHost implements WorkflowHost {
     }
 
     private void audit(String user, String action, String no, String detail) {
-        AuditLog.write(jdbc, now(), user, action, "ecis_purchase_request", no, null, detail, null);
+        AuditLog.write(jdbc, user, action, "ecis_purchase_request", no, null, detail, null);
     }
 
     private String number(String entityId) {

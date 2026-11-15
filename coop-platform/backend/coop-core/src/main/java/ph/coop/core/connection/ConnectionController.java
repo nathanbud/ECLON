@@ -288,6 +288,6 @@ public class ConnectionController {
     }
 
     private void audit(Authentication auth, String action, String id, String prev, String next, String reason) {
-        AuditLog.write(jdbc, null, auth.getName(), action, "database_connection", id, prev, next, reason);
+        AuditLog.write(jdbc, auth.getName(), action, "database_connection", id, prev, next, reason);
     }
 }

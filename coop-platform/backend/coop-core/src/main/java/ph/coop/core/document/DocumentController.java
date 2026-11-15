@@ -108,7 +108,7 @@ class DocumentController {
     }
 
     private void audit(Authentication auth, String action, String docNo, String detail) {
-        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "ecis_document", docNo, null, detail, null);
+        AuditLog.write(jdbc, auth.getName(), action, "ecis_document", docNo, null, detail, null);
     }
 
     private static String sha256(byte[] data) {

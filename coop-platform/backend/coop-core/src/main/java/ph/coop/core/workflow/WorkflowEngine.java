@@ -242,7 +242,7 @@ public class WorkflowEngine {
         jdbc.update("DELETE FROM ecis_workflow_step WHERE workflow_id = ?", id);
         for (StepDef s : defs) jdbc.update("INSERT INTO ecis_workflow_step (workflow_id, step_no, name, role, min_amount) VALUES (?, ?, ?, ?, ?)", id, s.no(), s.name(), s.role(), s.minAmount());
         Definition after = definitions().stream().filter((d) -> d.entityType().equals(entityType)).findFirst().orElseThrow();
-        AuditLog.write(jdbc, Timestamp.valueOf(now()), user, "workflow.configure", "ecis_workflow", entityType, before.toString(), after.toString(), null);
+        AuditLog.write(jdbc, user, "workflow.configure", "ecis_workflow", entityType, before.toString(), after.toString(), null);
         return after;
     }
 }

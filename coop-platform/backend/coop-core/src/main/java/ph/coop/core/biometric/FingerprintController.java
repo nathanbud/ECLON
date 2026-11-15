@@ -210,7 +210,7 @@ public class FingerprintController {
     }
 
     private void audit(String user, String action, int branch, int client, String prev, String next, String reason) {
-        AuditLog.write(jdbc, null, user, action, "client", branch + "-" + client, prev, next, reason);
+        AuditLog.write(jdbc, user, action, "client", branch + "-" + client, prev, next, reason);
     }
 
     /** Used by tests to tell the matcher apart from the stand-in. */

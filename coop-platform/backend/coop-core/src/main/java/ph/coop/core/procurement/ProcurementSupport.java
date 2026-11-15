@@ -61,7 +61,7 @@ class ProcurementSupport {
     }
 
     void audit(Authentication auth, String action, String entity, String id, String detail) {
-        AuditLog.write(jdbc, Timestamp.valueOf(now()), auth.getName(), action, entity, id, null, detail, null);
+        AuditLog.write(jdbc, auth.getName(), action, entity, id, null, detail, null);
     }
 
     static ResponseStatusException bad(List<String> problems) {
