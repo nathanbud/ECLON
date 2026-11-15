@@ -11,6 +11,7 @@ import { fmtDate, peso } from './format'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from '../ChequeFields'
 import MoneyField from '../MoneyField'
 import PrintInvoice from '../ServiceInvoice'
+import { useRequestKey } from '../ui/requestKey'
 
 export function SavingsTab({ id, teller = false }: { id: Id; teller?: boolean }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
@@ -76,6 +77,7 @@ export function SavingsTab({ id, teller = false }: { id: Id; teller?: boolean })
 }
 
 export function SavingsCashDialog({ id, account, mode, initialAmount = '', initialExplanation = '', onClose }: { id: Id; account: SavingsAccount; mode: 'deposit' | 'withdraw'; initialAmount?: string; initialExplanation?: string; onClose: () => void }) {
+  const requestKey = useRequestKey() // one key for this posting: a second press, a retry or a confirm does not post twice
   const qc = useQueryClient()
   const withdraw = mode === 'withdraw'
   const [amount, setAmount] = useState(initialAmount)
@@ -116,7 +118,7 @@ export function SavingsCashDialog({ id, account, mode, initialAmount = '', initi
   const submit = async (confirmDuplicate: boolean) => {
     setBusy(true); setError(null)
     try {
-      const r = await (withdraw ? postSavingsWithdrawal : postSavingsDeposit)({ ...body, confirmDuplicate, ...(withdraw ? {} : { cheques: chequesToApi(cheques) }) })
+      const r = await (withdraw ? postSavingsWithdrawal : postSavingsDeposit)({ ...body, confirmDuplicate, ...(withdraw ? {} : { cheques: chequesToApi(cheques) }) }, requestKey)
       setReceipt(r)
       qc.invalidateQueries({ queryKey: ['member-savings'] })
       qc.invalidateQueries({ queryKey: ['member-savings-history'] })

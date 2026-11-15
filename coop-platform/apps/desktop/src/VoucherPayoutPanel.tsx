@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { askFoOverride, checkVoucherPayout, getVoucherPayablesOf, getVoucherPayablesWaiting, postVoucherPayout, type VoucherPayable, type VoucherPayoutCheck, type VoucherPayoutReceipt } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
+import { useRequestKey } from './ui/requestKey'
 
 /**
  * Members whose released loan, share withdrawal or time deposit payout is waiting in their vouchers-payable account: the cashier pays the whole balance
@@ -47,6 +48,7 @@ export function VoucherPayoutPanel() {
 }
 
 function PayDialog({ payable, onClose }: { payable: VoucherPayable; onClose: () => void }) {
+  const requestKey = useRequestKey() // one key for this posting: a second press, a retry or a confirm does not post twice
   const qc = useQueryClient()
   const [receiptNo, setReceiptNo] = useState('')
   const [explanation, setExplanation] = useState('')
@@ -80,7 +82,7 @@ function PayDialog({ payable, onClose }: { payable: VoucherPayable; onClose: () 
   const pay = async () => {
     setBusy(true); setError(null)
     try {
-      setReceipt(await postVoucherPayout(body))
+      setReceipt(await postVoucherPayout(body, requestKey))
       void qc.invalidateQueries({ queryKey: ['voucher-payables-waiting'] })
       void qc.invalidateQueries({ queryKey: ['voucher-payables-of'] })
     } catch (e) { setError((e as Error).message) } finally { setBusy(false) }

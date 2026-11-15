@@ -74,7 +74,7 @@ public class SecurityConfig {
         var c = new org.springframework.web.cors.CorsConfiguration();
         c.setAllowedOrigins(origins);
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        c.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        c.setAllowedHeaders(List.of("Authorization", "Content-Type", ph.coop.core.accounting.ledger.RequestKeys.HEADER));
         c.setExposedHeaders(List.of("X-Auth-Reason", "X-Auth-Attempts-Left", "Retry-After", "Content-Disposition"));
         c.setMaxAge(3600L);
         var source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();

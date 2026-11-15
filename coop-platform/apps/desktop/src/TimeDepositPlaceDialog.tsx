@@ -5,6 +5,7 @@ import { askTdRate, checkTdPlacement, getTdSetup, placeTimeDeposit, type TdPlace
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
 import { money as peso } from './ui/format'
+import { useRequestKey } from './ui/requestKey'
 
 
 /**
@@ -12,6 +13,7 @@ import { money as peso } from './ui/format'
  * them needs a supervisor), the amount, and pay by cash, cheque or both. The certificate fee is added to what the member pays.
  */
 export default function TimeDepositPlaceDialog({ clientId, onClose }: { clientId: number; onClose: () => void }) {
+  const requestKey = useRequestKey() // one key for this posting: a second press, a retry or a confirm does not post twice
   const qc = useQueryClient()
   const setup = useQuery({ queryKey: ['td-setup'], queryFn: getTdSetup, staleTime: 5 * 60_000 })
   const [typeCode, setTypeCode] = useState<number | ''>('')
@@ -62,7 +64,7 @@ export default function TimeDepositPlaceDialog({ clientId, onClose }: { clientId
   const ask = () => run(async () => { await askTdRate(body!); setCheck(await checkTdPlacement(body!)) })
   const submit = (confirmDuplicate: boolean) => run(async () => {
     try {
-      const r = await placeTimeDeposit({ ...body!, confirmDuplicate })
+      const r = await placeTimeDeposit({ ...body!, confirmDuplicate }, requestKey)
       setReceipt(r); setAskConfirm(false)
       void qc.invalidateQueries({ queryKey: ['member-time-deposits'] }); void qc.invalidateQueries({ queryKey: ['fo-totals'] })
     } catch (e) {

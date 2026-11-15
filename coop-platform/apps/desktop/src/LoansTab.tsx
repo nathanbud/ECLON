@@ -10,6 +10,7 @@ import { askFoOverride, checkLoanPayment, getLoanDetail, getLoans, postLoanPayme
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
 import { moneyOr, tabular } from './ui/format'
+import { useRequestKey } from './ui/requestKey'
 
 const money = (n: number | null | undefined) => moneyOr(n, '—')
 const num = tabular
@@ -69,6 +70,7 @@ export default function LoansTab({ branchCode, clientId }: { branchCode: number;
 }
 
 export function LoanPaymentDialog({ clientId, loan, initialAmount = '', initialExplanation = '', onClose }: { clientId: number; loan: LoanItem; initialAmount?: string; initialExplanation?: string; onClose: () => void }) {
+  const requestKey = useRequestKey() // one key for this posting: a second press, a retry or a confirm does not post twice
   const qc = useQueryClient()
   const [amount, setAmount] = useState(initialAmount)
   const [receiptNo, setReceiptNo] = useState('')
@@ -112,7 +114,7 @@ export function LoanPaymentDialog({ clientId, loan, initialAmount = '', initialE
   const submit = async (confirmDuplicate: boolean) => {
     setBusy(true); setError(null)
     try {
-      setReceipt(await postLoanPayment({ ...body, confirmDuplicate }))
+      setReceipt(await postLoanPayment({ ...body, confirmDuplicate }, requestKey))
       qc.invalidateQueries({ queryKey: ['member-loans'] })
       qc.invalidateQueries({ queryKey: ['member-loan'] })
     } catch (e) {

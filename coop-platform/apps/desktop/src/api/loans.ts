@@ -37,7 +37,7 @@ export interface LoanPaymentReceipt {
   amount: number; penalty: number; interest: number; principal: number; balanceAfter: number; cashier: string
 }
 export const checkLoanPayment = (b: LoanPaymentIn) => send<LoanPaymentBreakdown>('POST', '/api/front-office/loan-payments/check', b)
-export const postLoanPayment = (b: LoanPaymentIn) => send<LoanPaymentReceipt>('POST', '/api/front-office/loan-payments', b)
+export const postLoanPayment = (b: LoanPaymentIn, key?: string) => send<LoanPaymentReceipt>('POST', '/api/front-office/loan-payments', b, key)
 
 export interface LoanProfile {
   header: { clientNo: string; lastName: string | null; firstName: string | null; middleName: string | null; suffix: string | null; dateOpened: string | null; accountType: string | null; jointType: string; clientType: string | null; accountStatus: string | null }

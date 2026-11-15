@@ -30,7 +30,7 @@ export interface SharePaymentReceipt {
   account: string; amount: number; balanceAfter: number; cashier: string
 }
 /** Posts a cash payment into a share capital account (a Cash Receipt in the legacy ledger). */
-export const postSharePayment = (body: SharePaymentIn) => send<SharePaymentReceipt>('POST', '/api/front-office/share-payments', body)
+export const postSharePayment = (body: SharePaymentIn, key?: string) => send<SharePaymentReceipt>('POST', '/api/front-office/share-payments', body, key)
 
 export interface ShareWithdrawalIn { clientId: number; typeCode: number; refNo: number; amount: number; explanation?: string }
 export interface ShareWithdrawalOut { branchCode: number; year: number; controlNo: number; documentNo: string; clientId: number; clientName: string; amount: number; availableAfter: number }
@@ -67,9 +67,9 @@ export interface SavingsReceipt {
 export interface SavingsNeed { kind: string; title: string; description: string; amount: number; limit: number | null; status: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' }
 export interface SavingsWithdrawalCheck { problems: string[]; needs: SavingsNeed[]; ready: boolean }
 
-export const postSavingsDeposit = (b: SavingsCashIn) => send<SavingsReceipt>('POST', '/api/front-office/savings/deposits', b)
+export const postSavingsDeposit = (b: SavingsCashIn, key?: string) => send<SavingsReceipt>('POST', '/api/front-office/savings/deposits', b, key)
 export const checkSavingsWithdrawal = (b: SavingsCashIn) => send<SavingsWithdrawalCheck>('POST', '/api/front-office/savings/withdrawals/check', b)
-export const postSavingsWithdrawal = (b: SavingsCashIn) => send<SavingsReceipt>('POST', '/api/front-office/savings/withdrawals', b)
+export const postSavingsWithdrawal = (b: SavingsCashIn, key?: string) => send<SavingsReceipt>('POST', '/api/front-office/savings/withdrawals', b, key)
 
 // ---- cheque clearing -------------------------------------------------------------------------------------------------
 export interface ChequeClearRow {
@@ -129,7 +129,7 @@ export interface TdPlaceReceipt {
 export const getTdSetup = () => send<TdSetup>('GET', '/api/front-office/time-deposits/setup')
 export const checkTdPlacement = (b: TdPlaceIn) => send<TdPlaceCheck>('POST', '/api/front-office/time-deposits/check', b)
 export const askTdRate = (b: TdPlaceIn) => send<FoOverride>('POST', '/api/front-office/time-deposits/ask', b)
-export const placeTimeDeposit = (b: TdPlaceIn) => send<TdPlaceReceipt>('POST', '/api/front-office/time-deposits', b)
+export const placeTimeDeposit = (b: TdPlaceIn, key?: string) => send<TdPlaceReceipt>('POST', '/api/front-office/time-deposits', b, key)
 
 // ---- paying out and renewing a matured time deposit, and the maturity notices ---------------------------------------------
 export interface TdCloseReq {
@@ -172,7 +172,7 @@ export interface VoucherPayoutIn { clientId: number; refNo: number; explanation?
 export const getVoucherPayablesWaiting = () => getJson<VoucherPayable[]>('/api/front-office/voucher-payouts/waiting')
 export const getVoucherPayablesOf = (clientId: number) => getJson<VoucherPayable[]>(`/api/front-office/voucher-payouts/member/${clientId}`)
 export const checkVoucherPayout = (b: VoucherPayoutIn) => send<VoucherPayoutCheck>('POST', '/api/front-office/voucher-payouts/check', b)
-export const postVoucherPayout = (b: VoucherPayoutIn) => send<VoucherPayoutReceipt>('POST', '/api/front-office/voucher-payouts', b)
+export const postVoucherPayout = (b: VoucherPayoutIn, key?: string) => send<VoucherPayoutReceipt>('POST', '/api/front-office/voucher-payouts', b, key)
 
 // ---- time deposit interest accruals (module 8, type 52) ------------------------------------------------------------
 

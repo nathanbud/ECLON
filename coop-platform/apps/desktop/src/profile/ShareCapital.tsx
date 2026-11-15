@@ -11,6 +11,7 @@ import { fmtDate, peso } from './format'
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from '../ChequeFields'
 import MoneyField from '../MoneyField'
 import PrintInvoice from '../ServiceInvoice'
+import { useRequestKey } from '../ui/requestKey'
 
 export function ShareCapitalTab({ id }: { id: Id; teller?: boolean }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
@@ -56,6 +57,7 @@ export function ShareCapitalTab({ id }: { id: Id; teller?: boolean }) {
 }
 
 export function SharePaymentDialog({ id, account, initialAmount = '', initialExplanation = '', onClose }: { id: Id; account: ShareAccount; initialAmount?: string; initialExplanation?: string; onClose: () => void }) {
+  const requestKey = useRequestKey() // one key for this posting: a second press, a retry or a confirm does not post twice
   const qc = useQueryClient()
   const [amount, setAmount] = useState(initialAmount)
   const [receiptNo, setReceiptNo] = useState('')
@@ -71,7 +73,7 @@ export function SharePaymentDialog({ id, account, initialAmount = '', initialExp
   const submit = async (confirmDuplicate: boolean) => {
     setBusy(true); setError(null)
     try {
-      const r = await postSharePayment({ clientId: id.clientId, typeCode: account.typeCode, refNo: account.refNo, amount: value, explanation, receiptNo, confirmDuplicate, cheques: chequesToApi(cheques) })
+      const r = await postSharePayment({ clientId: id.clientId, typeCode: account.typeCode, refNo: account.refNo, amount: value, explanation, receiptNo, confirmDuplicate, cheques: chequesToApi(cheques) }, requestKey)
       setReceipt(r)
       qc.invalidateQueries({ queryKey: ['member-shares'] })
       qc.invalidateQueries({ queryKey: ['member-share-history'] })

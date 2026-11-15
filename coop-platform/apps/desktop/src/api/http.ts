@@ -101,10 +101,11 @@ export async function getJson<T>(url: string): Promise<T> {
   return res.json()
 }
 
-export async function send<T>(method: string, url: string, body?: unknown): Promise<T> {
+/** requestKey: for a posting, the dialog's key (ui/requestKey); the server writes that posting once whatever how often it is sent. */
+export async function send<T>(method: string, url: string, body?: unknown, requestKey?: string): Promise<T> {
   const res = await http(url, {
     method,
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(requestKey ? { 'Idempotency-Key': requestKey } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!res.ok) throw new Error(await errorFrom(res))

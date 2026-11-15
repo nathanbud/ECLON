@@ -157,6 +157,26 @@ class SavingsLedgerPostingTest {
     }
 
     @Test
+    void theSamePressSentTwicePostsOnce() {
+        org.springframework.mock.web.MockHttpServletRequest http = new org.springframework.mock.web.MockHttpServletRequest();
+        http.addHeader(ph.coop.core.accounting.ledger.RequestKeys.HEADER, "itest-" + java.util.UUID.randomUUID());
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(new org.springframework.web.context.request.ServletRequestAttributes(http));
+        try {
+            Receipt first = savings.deposit(req("150.00"), as(teller));
+            // the answer was lost and the screen sends it again, even with "post it anyway" set: nothing more is written
+            Request again = new Request(client, type, ref, new BigDecimal("150.00"), "itest", null, true);
+            ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> savings.deposit(again, as(teller)));
+            assertEquals(409, e.getStatusCode().value());
+            assertTrue(e.getReason().contains(first.documentNo()), e.getReason());
+            Integer after = jdbc.queryForObject("SELECT COUNT(*) FROM transsum WHERE TR_BRCODE = 1 AND TR_YEAR = ? AND TR_MODULE = 3 AND TR_CODE = 10 AND TR_CTLNO > ? AND TR_CLIENTID = ?",
+                Integer.class, first.year(), first.controlNo(), client);
+            assertEquals(0, after);
+        } finally {
+            org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Test
     void aDepositPostsTheSameRowsTheOldCashReceiptWrote() {
         BigDecimal cashBefore = glNet("10003", 10), savBefore = glNet("2010101", 10);
         Integer seqBefore = jdbc.queryForObject("SELECT COALESCE(MAX(SEQNO), 0) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 22 AND SLT_CODE = ? AND REF_NO = ?", Integer.class, client, type, ref);

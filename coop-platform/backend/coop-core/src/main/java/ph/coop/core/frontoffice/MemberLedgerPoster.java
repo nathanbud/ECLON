@@ -172,6 +172,10 @@ class MemberLedgerPoster {
         Ledger.Posted v = ledger.writeCash(new CashVoucher(RequestKeys.current(auditAction, username), username, branch, direction.module, direction.code,
             direction == Direction.IN, clientId, explanationText, receiptNo, confirmDuplicate, teller, lines.stream().map(MemberLedgerPoster::toLedger).toList(),
             cheques.stream().map(MemberLedgerPoster::toLedger).toList(), auditAction, auditDetail));
+        // the same press sent again (a retry after a lost answer): refused, so everything else this request would write (a new time deposit, a spent
+        // supervisor approval) is rolled back with it, and the first voucher stands alone
+        if (v.repeated()) throw new ResponseStatusException(HttpStatus.CONFLICT, "This was already posted as document " + v.documentNo() + " on " + v.date()
+            + ". Nothing was posted again; its receipt is in the account's history.");
         return new Posted(v.branch(), v.year(), v.controlNo(), v.documentNo(), v.date());
     }
 
