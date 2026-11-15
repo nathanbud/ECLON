@@ -140,8 +140,17 @@ export function CoMakerPicker({ applicant, ids, onAdd }: { applicant: number; id
 }
 
 /** The right half of the loan profile: everything about the loan that is not its amount and term, one tab each. */
-export default function LoanRelatedTabs({ branchCode, clientId, coMakers, collateral }: { branchCode: number; clientId: number; coMakers: ReactNode; collateral: ReactNode }) {
-  const [tab, setTab] = useState(0)
+/**
+ * tab / onTab let the form open a tab itself (the Collateral tab when it points at a missing collateral field); collateralRequired marks that
+ * tab with *, and collateralMissing adds a red dot while something on it is still to be filled in.
+ */
+export default function LoanRelatedTabs({ branchCode, clientId, coMakers, collateral, tab: shown, onTab, collateralRequired, collateralMissing }: {
+  branchCode: number; clientId: number; coMakers: ReactNode; collateral: ReactNode
+  tab?: number; onTab?: (t: number) => void; collateralRequired?: boolean; collateralMissing?: boolean
+}) {
+  const [own, setOwn] = useState(0)
+  const tab = shown ?? own
+  const setTab = (t: number) => { setOwn(t); onTab?.(t) }
   const tabs: [string, ReactNode][] = [
     ['Co-makers', coMakers],
     ['Collateral', collateral],
@@ -151,7 +160,11 @@ export default function LoanRelatedTabs({ branchCode, clientId, coMakers, collat
   return (
     <Box component="section" aria-label="Related to the loan" sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', minHeight: 280 }}>
       <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons={false} sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none', fontSize: 13 } }}>
-        {tabs.map(([label]) => <Tab key={label} label={label} />)}
+        {tabs.map(([label]) => (
+          <Tab key={label} label={label === 'Collateral' && collateralRequired
+            ? <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>Collateral *{collateralMissing && <Box component="span" aria-label="needs filling in" sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'error.main' }} />}</Box>
+            : label} />
+        ))}
       </Tabs>
       <Box role="tabpanel" sx={{ p: 1.5 }}>{tabs[tab][1]}</Box>
     </Box>

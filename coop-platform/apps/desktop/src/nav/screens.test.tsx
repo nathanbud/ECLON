@@ -36,7 +36,7 @@ describe('the screen registry', () => {
 describe('who sees what', () => {
   it('shows a person with no special role only the everyday screens', () => {
     const l = labels(me())
-    expect(l).toEqual(expect.arrayContaining(['Waiting for you', 'Client Profile', 'Front Office', 'Loan Application', 'Chart of Accounts', 'Reports', 'Documentation']))
+    expect(l).toEqual(expect.arrayContaining(['Waiting for you', 'Client Profile', 'Front Office', 'Loan Module', 'New loan application', 'Chart of Accounts', 'Reports', 'Documentation']))
     for (const hidden of ['Accounting', 'Debit/credit memos', 'Users', 'Audit Log', 'Purchasing', 'Inventory', 'Point of Sale', 'Fixed Assets', 'Data privacy', 'CIC submission', 'Settings']) expect(l).not.toContain(hidden)
   })
 

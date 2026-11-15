@@ -2,8 +2,8 @@ import { Alert, Box, Button, Chip, Skeleton, Table, TableBody, TableCell, TableH
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
 import {
-  approveLoanApplication, approveLoanRelease, cancelLoanApplication, disapproveLoanApplication, getLoanApplication, getLoanRelease, postLoanRelease, verifyLoanApplication,
-  type LoanApplicationDetail,
+  approveLoanApplication, cancelLoanApplication, disapproveLoanApplication, getLoanApplication, getLoanRelease, verifyLoanApplication,
+  type LoanApplicationDetail, getLoanAppPermissions, getLoanAppTemplate, saveLoanDeductions,
 } from './api'
 import { announceLoanApplicationSaved, closeThisWindow, FORM_SIZE, resizeThisWindow, SEARCH_SIZE } from './detachedWindow'
 import { appear } from './motion'
@@ -11,6 +11,8 @@ import { money } from './FoTransactionForm'
 import LoanApplicationDialog from './LoanApplicationDialog'
 import LoanApplicantCard from './LoanApplicantCard'
 import LoanStepper from './LoanStepper'
+import { labelOf } from './ui/labels'
+import LoanDeductionFields, { deductionInput, type DeductionAmounts, type Payoffs } from './LoanDeductionFields'
 
 
 const STEPS = [{ label: 'Profiling' }, { label: 'Deduction' }, { label: 'Verification' }, { label: 'Approval' }, { label: 'Loan Release' }]
@@ -76,6 +78,32 @@ function StepPage({ title, hint, children, actions }: { title: string; hint: str
  * Profiling and reviewed here), Verification, Approval and Loan Release. The step in hand comes from the application's status, so opening an application
  * later resumes where it stopped. The server still decides who may do each step; a refusal is shown as it comes.
  */
+/**
+ * The Deduction step of an application saved by someone who may do Profiling only: the loan type's deduction lines and the pay-offs, for the
+ * principal that was profiled. The person who profiled it may do this too when they also hold Deduction.
+ */
+function DeductionStep({ d, onSaved, onError }: { d: LoanApplicationDetail; onSaved: () => void; onError: (e: unknown) => void }) {
+  const it = d.item
+  const template = useQuery({ queryKey: ['loan-app-template', it.branchCode, it.clientId, it.typeCode], queryFn: () => getLoanAppTemplate(it.branchCode, it.clientId, it.typeCode) })
+  const [ded, setDed] = useState<DeductionAmounts>({})
+  const [paid, setPaid] = useState<Payoffs>({})
+  const save = useMutation({
+    meta: { done: 'Deductions saved. The application can now be verified.' },
+    mutationFn: () => saveLoanDeductions(it.branchCode, it.clientId, it.id, deductionInput(ded, paid)),
+    onSuccess: onSaved, onError,
+  })
+  if (template.isLoading) return <Skeleton variant="rounded" height={160} />
+  if (template.error) return <Alert severity="error">{(template.error as Error).message}</Alert>
+  if (!template.data) return null
+  return (
+    <Box sx={{ display: 'grid', gap: 1.25 }}>
+      <Typography sx={cell} color="text.secondary">{it.typeName} · principal <strong>{money(it.amount)}</strong> over {it.terms} months</Typography>
+      <LoanDeductionFields t={template.data} amount={it.amount} ded={ded} setDed={setDed} paid={paid} setPaid={setPaid} />
+      <Box><Button variant="contained" disabled={save.isPending} onClick={() => save.mutate()}>{save.isPending ? 'Saving…' : 'Save deductions'}</Button></Box>
+    </Box>
+  )
+}
+
 export default function LoanApplicationWindow() {
   const qc = useQueryClient()
   const q = new URLSearchParams(window.location.hash.split('?')[1] ?? '')
@@ -101,8 +129,11 @@ export default function LoanApplicationWindow() {
   const voucher = useQuery({ queryKey: ['loan-release', vYear, vCtl], queryFn: () => getLoanRelease(vYear!, vCtl!), enabled: vYear != null && vCtl != null, retry: false })
   const released = voucher.data?.voucher.status === 'POSTED'
 
+  const perms = useQuery({ queryKey: ['loan-app-permissions'], queryFn: getLoanAppPermissions, staleTime: 60_000 })
+  // saved by someone who may do Profiling only: the Deduction step is still to be done, and verification waits for it
+  const waiting = status === NEW && !!d?.item.waitingForDeductions
   const stopped = status === DISAPPROVED ? 'Disapproved' : status === CANCELLED ? 'Cancelled' : undefined
-  const current = appId == null ? (profiled ? 1 : 0) : status == null || stopped ? 1 : status === NEW ? 2 : status === VERIFIED ? 3 : released ? 5 : 4
+  const current = appId == null ? (profiled ? 1 : 0) : status == null || stopped ? 1 : status === NEW ? (waiting ? 1 : 2) : status === VERIFIED ? 3 : released ? 5 : 4
   const applicant = d ? { branchCode: d.item.branchCode, clientId: d.item.clientId } : picked
   // The member can be changed only while the application is unsaved and the member was not fixed by the address.
   const canChangeMember = appId == null && num('c') == null
@@ -117,17 +148,13 @@ export default function LoanApplicationWindow() {
   }
   const done = () => { setError(null); setViewStep(null); setEnding(null); setReason(''); refresh() }
   const fail = (e: unknown) => setError((e as Error).message)
-  const verify = useMutation({ mutationFn: () => verifyLoanApplication(appId!), onSuccess: done, onError: fail })
-  const approve = useMutation({ mutationFn: () => approveLoanApplication(appId!), onSuccess: done, onError: fail })
+  const verify = useMutation({ meta: { done: 'Application verified.' }, mutationFn: () => verifyLoanApplication(appId!), onSuccess: done, onError: fail })
+  const approve = useMutation({ meta: { done: 'Application approved.' }, mutationFn: () => approveLoanApplication(appId!), onSuccess: done, onError: fail })
   const end = useMutation({
     mutationFn: () => (ending === 'cancel' ? cancelLoanApplication : disapproveLoanApplication)(appId!, reason.trim()),
     onSuccess: done, onError: fail,
   })
-  const release = useMutation({
-    mutationFn: (kind: 'approve' | 'post') => (kind === 'approve' ? approveLoanRelease : postLoanRelease)(vYear!, vCtl!),
-    onSuccess: done, onError: fail,
-  })
-  const busy = verify.isPending || approve.isPending || end.isPending || release.isPending
+  const busy = verify.isPending || approve.isPending || end.isPending
 
   const canEnd = status === NEW || status === VERIFIED || status === APPROVED
   const endRow = canEnd && (
@@ -151,15 +178,26 @@ export default function LoanApplicationWindow() {
   } else if (viewing === 2) {
     page = (
       <StepPage title="Verification" hint="Check the application, the member's record and documents, and the figures from the Deduction step."
-        actions={<>{endRow}{status === NEW && <Button variant="contained" disabled={busy} onClick={() => verify.mutate()}>Verify</Button>}
+        actions={<>{endRow}{status === NEW && !waiting && <Button variant="contained" disabled={busy} onClick={() => verify.mutate()}>Verify</Button>}
           {status != null && status !== NEW && !stopped && <Chip color="success" variant="outlined" label="Verified" />}</>}>
-        {errorAlert}{needDetail((x) => <><Summary d={x} />{problems}<Lines d={x} /></>)}
+        {errorAlert}{waiting && <Alert severity="info" sx={{ mb: 1 }}>The deductions are not in yet, so this application cannot be verified.</Alert>}
+        {needDetail((x) => <><Summary d={x} />{problems}<Lines d={x} /></>)}
+      </StepPage>
+    )
+  } else if (viewing === 1 && waiting) {
+    page = (
+      <StepPage title="Deduction" hint="Fees, share capital and pay-offs come out of the proceeds. Fill them in; the application can be verified once they are saved."
+        actions={<>{endRow}<Chip color="warning" variant="outlined" label="Waiting for deductions" /></>}>
+        {errorAlert}
+        {perms.data?.canDeduct
+          ? needDetail((x) => <DeductionStep d={x} onSaved={done} onError={fail} />)
+          : <Alert severity="info">This application waits for its deductions. Someone who may do the <b>2 · Deduction</b> step fills them in (Settings &gt; Users, Receivables, Loan process).</Alert>}
       </StepPage>
     )
   } else if (viewing === 1) {
     page = (
-      <StepPage title="Deduction" hint="Fees, share capital and pay-offs come out of the proceeds. They were entered with the application; this is the net the member receives."
-        actions={<>{endRow}{!stopped && <Chip color="success" variant="outlined" label="Saved with the application" />}</>}>
+      <StepPage title="Deduction" hint="Fees, share capital and pay-offs come out of the proceeds. This is the net the member receives."
+        actions={<>{endRow}{!stopped && <Chip color="success" variant="outlined" label="Deductions done" />}</>}>
         {errorAlert}{needDetail((x) => (
           <>
             <Summary d={x} />{problems}<Lines d={x} />
@@ -172,7 +210,7 @@ export default function LoanApplicationWindow() {
   } else if (viewing === 3) {
     page = (
       <StepPage title="Approval" hint="Approving creates the release voucher. The encoder cannot approve, and the verifier cannot approve unless an administrator allowed it."
-        actions={<>{endRow}{(status === NEW || status === VERIFIED) && <Button variant="contained" disabled={busy || !!d?.problems.length} onClick={() => approve.mutate()}>Approve</Button>}
+        actions={<>{endRow}{(status === NEW || status === VERIFIED) && !waiting && <Button variant="contained" disabled={busy || !!d?.problems.length} onClick={() => approve.mutate()}>Approve</Button>}
           {status === APPROVED && <Chip color="success" variant="outlined" label="Approved" />}</>}>
         {errorAlert}{needDetail((x) => (
           <>
@@ -185,10 +223,10 @@ export default function LoanApplicationWindow() {
   } else if (viewing === 4) {
     const v = voucher.data?.voucher
     page = (
-      <StepPage title="Loan Release" hint="The voucher is approved by a second person and posted by a third. Posting writes the loan ledger entries dated today."
+      <StepPage title="Loan Release" hint="The money is released in Front Office > Disburse (Loan releases waiting) by the people allowed to release it: the voucher is approved by one person and posted by another."
         actions={<>{endRow}
-          {v?.status === 'WAITING FOR APPROVAL' && <Button variant="contained" disabled={busy || !!voucher.data?.problems.length} onClick={() => release.mutate('approve')}>Approve voucher</Button>}
-          {v?.status === 'APPROVED' && <Button variant="contained" color="success" disabled={busy || !!voucher.data?.problems.length} onClick={() => release.mutate('post')}>Post release</Button>}
+          {v?.status === 'WAITING FOR APPROVAL' && <Chip color="warning" variant="outlined" label="Waiting for release in Front Office" />}
+          {v?.status === 'APPROVED' && <Chip color="warning" variant="outlined" label="Approved, waiting to be posted in Front Office" />}
           {v?.status === 'POSTED' && <Chip color="success" label="Released" />}</>}>
         {errorAlert}
         {status !== APPROVED && <Alert severity="info">The application must be approved before it can be released.</Alert>}
@@ -196,7 +234,7 @@ export default function LoanApplicationWindow() {
         {v && (
           <>
             <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">
-              Voucher {v.documentNo} · {v.clientName ?? `Client ${v.clientId}`} · dated {v.date} · {v.status === 'WAITING FOR APPROVAL' ? 'waiting for approval' : v.status.toLowerCase()}{v.approvedByName ? ` · approved by ${v.approvedByName}` : ''}
+              Voucher {v.documentNo} · {v.clientName ?? `Client ${v.clientId}`} · dated {v.date} · {labelOf(v.status).toLowerCase()}{v.approvedByName ? ` · approved by ${v.approvedByName}` : ''}
             </Typography>
             {voucher.data?.problems.map((p) => <Alert key={p} severity="warning" sx={{ mb: 1 }}>{p}</Alert>)}
             <Table size="small">

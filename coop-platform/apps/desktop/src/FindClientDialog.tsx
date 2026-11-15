@@ -55,7 +55,9 @@ function LoadingRows() {
 export interface FindWording { title: string; lead: string; hint: string; enter: string; queryTag: string }
 const MEMBER_WORDING: FindWording = { title: 'Find Client', lead: 'Who are you looking for?', hint: 'Type at least two letters of a name, or a member ID.', enter: 'open', queryTag: 'find' }
 
-export function FindBody({ onPick, onPickMember, lk, inline = false, wording = MEMBER_WORDING }: { onPick: (id: Id) => void; onPickMember?: (member: Member) => void; lk?: Lookups; inline?: boolean; wording?: FindWording }) {
+export function FindBody({ onPick, onPickMember, lk, inline = false, wording = MEMBER_WORDING, allowInactive = true }: { onPick: (id: Id) => void; onPickMember?: (member: Member) => void; lk?: Lookups; inline?: boolean; wording?: FindWording
+  /** False where only active members may be chosen (a new loan application): the Include inactive switch is not shown and only active members are found. */
+  allowInactive?: boolean }) {
   const [input, setInput] = useState('')
   const [q, setQ] = useState('')
   const [active, setActive] = useState(0)
@@ -133,10 +135,12 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
       <Box sx={{ px: 2.5, pt: 2.25, pb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
           <Typography component="h2" sx={{ flex: 1, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">{wording.title}</Typography>
-          <FormControlLabel
-            sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} label="Include inactive"
-            control={<Switch size="small" checked={inactive} onChange={(e) => { setInactive(e.target.checked); setActive(0) }} />}
-          />
+          {allowInactive && (
+            <FormControlLabel
+              sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} label="Include inactive"
+              control={<Switch size="small" checked={inactive} onChange={(e) => { setInactive(e.target.checked); setActive(0) }} />}
+            />
+          )}
         </Box>
         <TextField
           id="find-client-input" fullWidth autoFocus value={input}
@@ -197,7 +201,7 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
         {!error && enabled && !isFetching && results.length === 0 && (
           <Box sx={{ px: 2.5, py: 3, textAlign: 'center' }}>
             <Typography sx={{ fontSize: 15, fontWeight: 600, mb: 0.5 }}>No clients found</Typography>
-            <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing matches “{q}”. Check the spelling, or try the member ID.{!inactive && ' Only active clients are listed: turn on Include inactive to see dormant and closed ones.'}</Typography>
+            <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing matches “{q}”. Check the spelling, or try the member ID.{!inactive && (allowInactive ? ' Only active clients are listed: turn on Include inactive to see dormant and closed ones.' : ' Only active members are listed: a dormant or closed member cannot apply.')}</Typography>
           </Box>
         )}
 

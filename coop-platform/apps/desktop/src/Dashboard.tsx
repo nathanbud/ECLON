@@ -7,7 +7,7 @@ import { byDomain, type Screen } from './nav/screens'
 import { useMe } from './session'
 import { SURFACE_RADIUS, tileFill, type Tint } from './theme'
 
-export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'amortization' | 'settings' | 'frontoffice' | 'loanapp' | 'procurement' | 'inventory' | 'pos' | 'assets' | 'reports' | 'documents' | 'workflows' | 'membershippolicy' | 'documentation' | 'branding' | 'connections' | 'backup' | 'privacy' | 'cic' | 'dividends' | 'kycreview'
+export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'amortization' | 'settings' | 'frontoffice' | 'loanapp' | 'loans' | 'procurement' | 'inventory' | 'pos' | 'assets' | 'reports' | 'documents' | 'workflows' | 'membershippolicy' | 'documentation' | 'branding' | 'connections' | 'backup' | 'privacy' | 'cic' | 'dividends' | 'kycreview' | 'accounttypes' | 'dormancy'
 
 // One shared motion rhythm: ease-out, items staggered 30ms apart.
 const EASE = 'cubic-bezier(.2,.8,.2,1)'

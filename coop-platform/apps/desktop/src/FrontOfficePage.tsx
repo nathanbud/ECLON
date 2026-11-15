@@ -19,7 +19,6 @@ import DrawerClose from './DrawerClose'
 import FoFindDialog from './FoFindDialog'
 import SavingsTellerPanel from './SavingsTellerPanel'
 import { useLeaveGuard } from './leaveGuard'
-import { LoanApplicationsPanel } from './LoanApplicationsPanel'
 import { LoanReleasePanel } from './LoanReleasePanel'
 import { VoucherPayoutPanel } from './VoucherPayoutPanel'
 import { TimeDepositAccrualPanel } from './TimeDepositAccrualPanel'
@@ -630,7 +629,7 @@ export default function FrontOfficePage() {
         : tab === 'handover' && shown.kind === 'none'
           ? <><CashHandoverPanel setup={setup} onNotice={setNotice} /><BankCashPanel setup={setup} /><ChequeClearingPanel /><ChequeReturnPanel /></>
           : tab === 'disburse' && shown.kind === 'none'
-          ? <><LoanApplicationsPanel /><LoanReleasePanel /><VoucherPayoutPanel /></>
+          ? <><LoanReleasePanel /><VoucherPayoutPanel /></>
           : tab === 'tdaccrual'
           ? <TimeDepositAccrualPanel />
           : tab === 'tdmaturity'

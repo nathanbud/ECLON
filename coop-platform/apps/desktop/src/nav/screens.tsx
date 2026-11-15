@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import {
-  FiBarChart2, FiBook, FiBookOpen, FiBriefcase, FiClipboard, FiCreditCard, FiDatabase, FiDollarSign, FiDownloadCloud, FiFilePlus, FiFileText, FiGitMerge, FiImage, FiInbox, FiList, FiPercent, FiRepeat,
+  FiBarChart2, FiBook, FiBookOpen, FiBriefcase, FiClipboard, FiCreditCard, FiDatabase, FiDollarSign, FiDownloadCloud, FiFilePlus, FiFileText, FiGitMerge, FiImage, FiInbox, FiLayers, FiList, FiMoon, FiPercent, FiRepeat,
   FiSend, FiSettings, FiShield, FiShoppingCart, FiSliders, FiPieChart, FiTrendingUp, FiUserCheck, FiUserPlus, FiUsers, FiLock, FiCalendar, FiHome,
 } from 'react-icons/fi'
 import type { Me } from '../api'
@@ -32,7 +32,7 @@ export const DOMAIN_ORDER: DomainId[] = ['inbox', 'members', 'teller', 'loans', 
 
 /** Who may open a screen. The server checks again on every call; this only decides what a person is shown. */
 export type Who =
-  | 'anyone' | 'admin' | 'superadmin' | 'accountant' | 'privacy' | 'documents' | 'purchasing' | 'inventory' | 'pos' | 'assets' | 'settings' | 'memberrecords'
+  | 'anyone' | 'admin' | 'superadmin' | 'accountant' | 'privacy' | 'documents' | 'purchasing' | 'inventory' | 'pos' | 'assets' | 'settings' | 'memberrecords' | 'officer'
 
 export interface Screen {
   id: string
@@ -68,6 +68,7 @@ export function can(me: Me, who: Who): boolean {
     case 'assets': return me.admin || anyRole(me, ['ASSET_CUSTODIAN', 'ACCOUNTANT'])
     case 'settings': return me.admin || anyRole(me, ['ACCOUNTANT', 'DOCUMENT_CLERK', 'DATA_PROTECTION_OFFICER'])
     case 'memberrecords': return me.admin || me.canEdit || role(me, 'MEMBERSHIP_OFFICER')
+    case 'officer': return me.admin || role(me, 'MEMBERSHIP_OFFICER')
   }
 }
 
@@ -77,13 +78,15 @@ export const SCREENS: Screen[] = [
 
   // members
   { id: 'members', label: 'Client Profile', note: 'Find a member, see and change their record', domain: 'members', icon: <FiUsers />, view: 'members', who: 'anyone', tile: true, keywords: 'members clients customers people profile search register beneficiaries' },
+  { id: 'dormancy', label: 'Savings dormancy', note: 'Savings accounts due to go dormant, and reactivating dormant ones', domain: 'members', icon: <FiMoon />, view: 'dormancy', who: 'officer', keywords: 'dormant dormancy inactive savings reactivate' },
   { id: 'kycreview', label: 'KYC review', note: 'Members whose KYC is missing, incomplete, expired or due for review', domain: 'members', icon: <FiUserCheck />, view: 'kycreview', who: 'memberrecords', tile: true, keywords: 'kyc know your customer id expired review aml anti money laundering' },
 
   // teller and cash
   { id: 'frontoffice', label: 'Front Office', note: 'Deposits, withdrawals, payments and the teller’s day', domain: 'teller', icon: <FiDollarSign />, view: 'frontoffice', who: 'anyone', tile: true, keywords: 'teller cash receipt disburse withdrawal deposit encashment cheque clearing drawer' },
 
   // loans
-  { id: 'loanapp', label: 'Loan Application', note: 'Find a member and start a loan application', domain: 'loans', icon: <FiFilePlus />, view: 'loanapp', who: 'anyone', tile: true, keywords: 'loan apply new application borrow release' },
+  { id: 'loans', label: 'Loan Module', note: 'Start loan applications and take them through Profiling, Deduction, Verification and Approval', domain: 'loans', icon: <FiBriefcase />, view: 'loans', who: 'anyone', tile: true, keywords: 'loan loans application applications apply borrow profiling deduction verify verification approve approval module' },
+  { id: 'loanapp', label: 'New loan application', note: 'Find a member and start a loan application', domain: 'loans', icon: <FiFilePlus />, view: 'loanapp', who: 'anyone', keywords: 'loan apply new application borrow release' },
 
   // accounting
   { id: 'accounting', label: 'Accounting', note: 'Trial balance, statements, journals, memos and periods', domain: 'accounting', icon: <FiBookOpen />, view: 'accounting', who: 'accountant', tile: true, keywords: 'accounting ledger books general' },
@@ -94,6 +97,7 @@ export const SCREENS: Screen[] = [
   { id: 'acc-periods', label: 'Accounting periods', note: 'Open and close the books', domain: 'accounting', icon: <FiCalendar />, view: 'accounting', tab: 'Periods', who: 'accountant', keywords: 'period close month year lock' },
   { id: 'acc-banks', label: 'Banks', note: 'Bank cash and reconciliation', domain: 'accounting', icon: <FiCreditCard />, view: 'accounting', tab: 'Banks', who: 'accountant', keywords: 'bank reconcile deposit withdrawal cash' },
   { id: 'acc-waivers', label: 'Penalty waivers', note: 'Loan payments where less penalty was charged', domain: 'accounting', icon: <FiPercent />, view: 'accounting', tab: 'Penalty waivers', who: 'accountant', keywords: 'penalty waiver loan' },
+  { id: 'acc-yearend', label: 'Year-end close', note: 'Close a finished year into undivided net surplus', domain: 'accounting', icon: <FiLock />, view: 'accounting', tab: 'Year-end close', who: 'accountant', keywords: 'closing entry close books year end surplus' },
   { id: 'acc-dividends', label: 'Dividends', note: 'Yearly dividend on share capital and patronage refund', domain: 'accounting', icon: <FiPieChart />, view: 'dividends', who: 'accountant', tile: true, keywords: 'dividend patronage refund share capital year end' },
   { id: 'accounts', label: 'Chart of Accounts', note: 'Ledger accounts: add, rename, move and switch off', domain: 'accounting', icon: <FiBook />, view: 'accounts', who: 'anyone', tile: true, keywords: 'coa back office accounts ledger gl' },
   { id: 'assets', label: 'Fixed Assets', note: 'Asset register and depreciation', domain: 'accounting', icon: <FiTrendingUp />, view: 'assets', who: 'assets', tile: true, keywords: 'asset depreciation register disposal' },
@@ -115,6 +119,7 @@ export const SCREENS: Screen[] = [
   // administration
   { id: 'settings', label: 'Settings', note: 'Administrator controls in one place', domain: 'admin', icon: <FiSettings />, view: 'settings', who: 'settings', tile: true, keywords: 'settings preferences configuration administrator' },
   { id: 'users', label: 'Users', note: 'Temporary passwords, levels, roles and permissions', domain: 'admin', icon: <FiUserCheck />, view: 'users', who: 'admin', keywords: 'users accounts passwords sign in roles membership officer' },
+  { id: 'accounttypes', label: 'Account Types', note: 'Savings, deposit, share capital, receivable and payable types and their ledger accounts', domain: 'admin', icon: <FiLayers />, view: 'accounttypes', who: 'admin', keywords: 'sl types subsidiary ledger savings time deposit share capital interest rate minimum balance gl control' },
   { id: 'loansetup', label: 'Loan Setup', note: 'Loan types, purposes, collateral and co-maker holds', domain: 'admin', icon: <FiSliders />, view: 'loansetup', who: 'admin', keywords: 'loan types purposes collateral setup' },
   { id: 'amortization', label: 'Amortization', note: 'How each schedule is worked out, with a calculator', domain: 'admin', icon: <FiPercent />, view: 'amortization', who: 'admin', keywords: 'amortization schedule calculator interest' },
   { id: 'workflows', label: 'Approval workflows', note: 'Extra approvals and the amounts they start at', domain: 'admin', icon: <FiGitMerge />, view: 'workflows', who: 'accountant', keywords: 'workflow approval limits steps' },

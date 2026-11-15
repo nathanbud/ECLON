@@ -76,6 +76,15 @@ describe('Find Client', () => {
     await user.click(screen.getByRole('switch', { name: /include inactive/i }))
     await waitFor(() => expect(screen.getAllByRole('option').length).toBe(2))
   })
+
+  it('has no Include inactive where only active members may be chosen (a new loan application)', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={qc}><AppThemeProvider><FindBody onPick={vi.fn()} inline allowInactive={false} /></AppThemeProvider></QueryClientProvider>)
+    const user = userEvent.setup()
+    expect(screen.queryByRole('switch', { name: /include inactive/i })).toBeNull()
+    await user.type(screen.getByRole('combobox'), 'budik')
+    await waitFor(() => expect(screen.getAllByRole('option').length).toBe(1))
+  })
 })
 
 describe('Find Client pop-up (Ctrl+F)', () => {

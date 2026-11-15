@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { approveLoanRelease, getLoanRelease, getLoanReleases, postLoanRelease, type LoanReleaseVoucher } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
+import { ConfirmButton } from './ui/dialogs'
 
 const statusColor = (s: LoanReleaseVoucher['status']) => (s === 'POSTED' ? 'success' : s === 'APPROVED' ? 'info' : 'warning')
 
@@ -14,7 +15,7 @@ export function LoanReleasePanel() {
   const [open, setOpen] = useState<LoanReleaseVoucher | null>(null)
   const [error, setError] = useState<string | null>(null)
   const detail = useQuery({ queryKey: ['loan-release', open?.year, open?.controlNo], queryFn: () => getLoanRelease(open!.year, open!.controlNo), enabled: !!open })
-  const act = useMutation({
+  const act = useMutation({ meta: { done: (_, v) => ((v as { kind: string }).kind === 'approve' ? 'Release voucher approved. A third person can now post it.' : 'Loan released.') },
     mutationFn: (v: { kind: 'approve' | 'post'; r: LoanReleaseVoucher }) => (v.kind === 'approve' ? approveLoanRelease : postLoanRelease)(v.r.year, v.r.controlNo),
     onSuccess: (d) => { setError(null); setOpen(d.voucher); void qc.invalidateQueries({ queryKey: ['loan-releases'] }); void qc.invalidateQueries({ queryKey: ['loan-release'] }) },
     onError: (e) => setError((e as Error).message),
@@ -71,7 +72,10 @@ export function LoanReleasePanel() {
         <DialogActions>
           <Button onClick={() => setOpen(null)}>Close</Button>
           {v?.status === 'WAITING FOR APPROVAL' && <Button variant="contained" disabled={act.isPending || !!detail.data?.problems.length} onClick={() => act.mutate({ kind: 'approve', r: v })}>Approve</Button>}
-          {v?.status === 'APPROVED' && <Button variant="contained" color="success" disabled={act.isPending || !!detail.data?.problems.length} onClick={() => act.mutate({ kind: 'post', r: v })}>Post release</Button>}
+          {v?.status === 'APPROVED' && (
+            <ConfirmButton variant="contained" color="success" disabled={act.isPending || !!detail.data?.problems.length} onConfirm={() => act.mutate({ kind: 'post', r: v })} title="Post the loan release?"
+              message={<>It releases the loan of <b>{money(v.loanAmount)}</b> to {v.clientName ?? `client ${v.clientId}`} and writes the loan ledger entries dated today. This cannot be edited afterwards.</>}>Post release</ConfirmButton>
+          )}
         </DialogActions>
       </Dialog>
     </Box>

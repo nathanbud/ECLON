@@ -1,21 +1,24 @@
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { approveLoanApplication, cancelLoanApplication, disapproveLoanApplication, getLoanApplication, getLoanApplications, verifyLoanApplication, type LoanApplicationItem } from './api'
+import { approveLoanApplication, cancelLoanApplication, disapproveLoanApplication, getLoanAppPermissions, getLoanApplication, getLoanApplications, verifyLoanApplication, type LoanApplicationItem } from './api'
 import { openLoanApplicationWindow } from './detachedWindow'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
+import { FILTERS, type LoanFilter } from './LoanMenu'
 
 const STALE_DAYS = 60
 
 /**
- * Loan applications waiting to be verified or approved. Approving creates the release voucher, which then shows in "Loan releases waiting" below.
+ * Loan applications waiting for their deductions, to be verified or approved (Loan Module). Approving creates the release voucher, which is released in
+ * Front Office > Disburse, "Loan releases waiting".
  * The server decides who may do which: the encoder cannot verify or approve their own application, the verifier cannot approve it, unless a
  * system administrator has let that person work alone.
  */
-export function LoanApplicationsPanel() {
+export function LoanApplicationsPanel({ full, filter = 'all', onShowAll }: { full?: boolean; filter?: LoanFilter; onShowAll?: () => void } = {}) {
   const qc = useQueryClient()
   const list = useQuery({ queryKey: ['loan-applications'], queryFn: getLoanApplications, refetchInterval: 30_000, retry: false })
+  const perms = useQuery({ queryKey: ['loan-app-permissions'], queryFn: getLoanAppPermissions, staleTime: 60_000 })
   const [open, setOpen] = useState<LoanApplicationItem | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
@@ -38,23 +41,29 @@ export function LoanApplicationsPanel() {
   })
   const approve = useMutation({
     mutationFn: (a: LoanApplicationItem) => approveLoanApplication(a.id),
-    onSuccess: (r) => { setError(null); setOpen(null); setNote(`Approved. Release voucher ${r.voucherDocumentNo} was created and waits below for approval and posting.`); refresh() },
+    onSuccess: (r) => { setError(null); setOpen(null); setNote(`Approved. Release voucher ${r.voucherDocumentNo} was created; the money is released in Front Office > Disburse, Loan releases waiting.`); refresh() },
     onError: (e) => setError((e as Error).message),
   })
 
   if (list.isLoading) return <Skeleton variant="rounded" height={120} />
   if (list.error) return null // no right to verify or approve loan applications
-  const all = list.data ?? []
+  const step = FILTERS.find((f) => f.key === filter) ?? FILTERS[0]
+  const all = (list.data ?? []).filter(step.test)
   const cutoff = new Date(Date.now() - STALE_DAYS * 86_400_000).toISOString().slice(0, 10)
   const older = all.filter((r) => r.date < cutoff).length
   const rows = showOlder ? all : all.filter((r) => r.date >= cutoff)
   const a = detail.data?.item ?? open
   const busy = verify.isPending || approve.isPending || cancel.isPending || disapprove.isPending
   return (
-    <Box sx={(t) => ({ p: 1.5, mb: 1.5, maxHeight: 240, overflow: 'auto', ...glass(t) })}>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Loan applications waiting</Typography>
+    <Box sx={(t) => ({ p: 1.5, mb: 1.5, ...(full ? {} : { maxHeight: 240, overflow: 'auto' }), ...glass(t) })}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+        <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', flex: 1 }} color="text.secondary">
+          Loan applications waiting{filter !== 'all' ? ` · ${step.label}` : ''}
+        </Typography>
+        {filter !== 'all' && onShowAll && <Button size="small" onClick={onShowAll}>Show all waiting</Button>}
+      </Box>
       {note && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setNote(null)}>{note}</Alert>}
-      {rows.length === 0 && <Typography sx={{ py: 1 }} color="text.secondary">No recent loan applications are waiting.</Typography>}
+      {rows.length === 0 && <Typography sx={{ py: 1 }} color="text.secondary">{filter === 'all' ? 'No recent loan applications are waiting.' : `No recent applications are ${step.label.toLowerCase()}.`}</Typography>}
       {older > 0 && (
         <Box sx={{ py: 0.5 }}>
           <Button size="small" onClick={() => setShowOlder((v) => !v)}>{showOlder ? `Hide ${older} older than ${STALE_DAYS} days` : `Show ${older} older than ${STALE_DAYS} days`}</Button>
@@ -67,7 +76,7 @@ export function LoanApplicationsPanel() {
             <Typography sx={{ fontSize: 13 }}>{r.clientName ?? `Client ${r.clientId}`} · {money(r.amount)}</Typography>
             <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{r.documentNo} · {r.typeName} · {r.terms} months · {r.date} · encoded by {r.encodedByName ?? '—'}</Typography>
           </Box>
-          <Chip size="small" variant="outlined" color={r.status === 2 ? 'info' : 'warning'} label={r.statusName} />
+          <Chip size="small" variant="outlined" color={r.waitingForDeductions ? 'warning' : r.status === 2 ? 'info' : 'warning'} label={r.waitingForDeductions ? 'Waiting for deductions' : r.statusName} />
         </Box>
       ))}
       <Dialog open={!!open} onClose={() => setOpen(null)} fullWidth maxWidth="md">
@@ -90,6 +99,7 @@ export function LoanApplicationsPanel() {
               </TableBody>
             </Table>
           )}
+          {a?.waitingForDeductions && <Alert severity="info" sx={{ mt: 1.5 }}>This application waits for its deductions. It can be verified once someone who may do the Deduction step fills them in.</Alert>}
           {disapproving && <TextField label="Reason for disapproving" value={reason} onChange={(e) => setReason(e.target.value)} fullWidth size="small" sx={{ mt: 1.5 }} autoFocus />}
           {cancelling && <TextField label="Reason for cancelling" value={reason} onChange={(e) => setReason(e.target.value)} fullWidth size="small" sx={{ mt: 1.5 }} autoFocus />}
           <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
@@ -103,8 +113,11 @@ export function LoanApplicationsPanel() {
           {a && !disapproving && !cancelling && (a.status === 1 || a.status === 2) && <Button color="error" disabled={busy} onClick={() => setDisapproving(true)}>Disapprove</Button>}
           {a && disapproving && <Button color="error" variant="outlined" disabled={busy || !reason.trim()} onClick={() => disapprove.mutate(a)}>Confirm disapprove</Button>}
           {a && cancelling && <Button color="error" variant="outlined" disabled={busy || !reason.trim()} onClick={() => cancel.mutate(a)}>Confirm cancel</Button>}
-          {a?.status === 1 && <Button disabled={busy} onClick={() => verify.mutate(a)}>Verify</Button>}
-          {a && (a.status === 1 || a.status === 2) && <Button variant="contained" disabled={busy || !!detail.data?.problems.length} onClick={() => approve.mutate(a)}>Approve</Button>}
+          {a?.waitingForDeductions && perms.data?.canDeduct && (
+            <Button variant="contained" onClick={() => { if (openLoanApplicationWindow({ branchCode: a.branchCode, clientId: a.clientId, applicationId: a.id })) setOpen(null) }}>Do the deductions</Button>
+          )}
+          {a?.status === 1 && !a.waitingForDeductions && <Button disabled={busy} onClick={() => verify.mutate(a)}>Verify</Button>}
+          {a && (a.status === 1 || a.status === 2) && !a.waitingForDeductions && <Button variant="contained" disabled={busy || !!detail.data?.problems.length} onClick={() => approve.mutate(a)}>Approve</Button>}
         </DialogActions>
       </Dialog>
     </Box>

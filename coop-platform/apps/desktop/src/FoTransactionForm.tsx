@@ -8,6 +8,7 @@ import { getFoClientAccounts, searchFoAccounts, searchMembers, type FoAllocation
 import { displayName, memberNo } from './clients'
 import { glass } from './glass'
 import MoneyField from './MoneyField'
+import { AccountPicker, type PickedAccount } from './ui/AccountPicker'
 import { money } from './ui/format'
 
 // ---- the form's data ----------------------------------------------------------------------------------------------
@@ -77,46 +78,9 @@ function Amount({ value, onChange, label, onEnter }: { value: string; onChange: 
   )
 }
 
-const RECENT_KEY = 'coop.foRecentAccounts'
-type Account = { code: string; description: string }
-const readRecent = (): Account[] => {
-  try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') } catch { return [] }
-}
-const remember = (a: Account) => {
-  try { localStorage.setItem(RECENT_KEY, JSON.stringify([a, ...readRecent().filter((x) => x.code !== a.code)].slice(0, 8))) } catch { /* storage unavailable */ }
-}
-
 /** Searches the chart of accounts as you type. With nothing typed it offers the accounts you used last. */
-function AccountPicker({ code, desc, onPick, label, autoFocus }: { code: string; desc: string; onPick: (a: Account | null) => void; label: string; autoFocus?: boolean }) {
-  const [input, setInput] = useState('')
-  const [q, setQ] = useState('')
-  useEffect(() => {
-    const t = setTimeout(() => setQ(input.trim()), 200)
-    return () => clearTimeout(t)
-  }, [input])
-  const { data } = useQuery({ queryKey: ['fo-accounts', q], queryFn: () => searchFoAccounts(q), enabled: q.length >= 1, staleTime: 60_000 })
-  const value = code ? { code, description: desc } : null
-  const options = q.length >= 1 ? data ?? [] : readRecent()
-  return (
-    <Autocomplete
-      size="small" options={options} value={value} filterOptions={(o) => o} autoHighlight openOnFocus
-      getOptionLabel={(o) => o.code} isOptionEqualToValue={(a, b) => a.code === b.code}
-      groupBy={() => (q.length >= 1 ? 'Accounts' : 'Recently used')}
-      onChange={(_, v) => { if (v) remember(v); onPick(v) }} onInputChange={(_, v, reason) => { if (reason === 'input') setInput(v) }}
-      noOptionsText="Type an account code or name"
-      renderOption={(props, o) => {
-        const { key, ...rest } = props as typeof props & { key: string }
-        return (
-          <Box component="li" key={key} {...rest} sx={{ display: 'flex', gap: 1.5 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{o.code}</Typography>
-            <Typography noWrap sx={{ fontSize: 13 }} color="text.secondary">{o.description}</Typography>
-          </Box>
-        )
-      }}
-      renderInput={(params) => <TextField {...params} autoFocus={autoFocus} placeholder="Account" slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps.htmlInput, 'aria-label': label } }} sx={box} />}
-      sx={{ width: 150 }} slotProps={{ popper: { style: { minWidth: 320 } } }}
-    />
-  )
+function FoAccountPicker(p: { code: string; desc: string; onPick: (a: PickedAccount | null) => void; label: string; autoFocus?: boolean }) {
+  return <AccountPicker {...p} search={searchFoAccounts} recentKey="coop.foRecentAccounts" sx={box} />
 }
 
 /** Finds a client by name or member ID. */
@@ -320,7 +284,7 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
                     <TableCell sx={{ minWidth: 160 }}>{l.accountDesc || (editing ? '' : '—')}</TableCell>
                     <TableCell>
                       {editing
-                        ? <AccountPicker code={l.accountCode} desc={l.accountDesc} label={`Entry ${i + 1} account`} autoFocus={l.key === focusKey} onPick={(a) => setLine(l.key, { accountCode: a?.code ?? '', accountDesc: a?.description ?? '' })} />
+                        ? <FoAccountPicker code={l.accountCode} desc={l.accountDesc} label={`Entry ${i + 1} account`} autoFocus={l.key === focusKey} onPick={(a) => setLine(l.key, { accountCode: a?.code ?? '', accountDesc: a?.description ?? '' })} />
                         : l.accountCode}
                     </TableCell>
                     <TableCell>
