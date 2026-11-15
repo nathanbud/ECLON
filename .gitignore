@@ -35,3 +35,6 @@ pics/CIC/**/*.txt
 
 # the speech model for voice commands (large; fetched by scripts/fetch-voice-model.ps1)
 coop-platform/apps/desktop/public/voice/model.tar.gz
+
+# real CIC submission files and other member data kept for reference: never commit
+pics/CIC/

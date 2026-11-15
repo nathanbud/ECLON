@@ -11,6 +11,8 @@ The write grants come from `V006_cash_handover.sql`, which an administrator runs
 The window polls `GET /api/front-office/handover/pulse` every 5 s for live alerts (EventSource cannot send the Basic header).
 The screen locks after 10 idle minutes. `scripts/run-backend.ps1` rebuilds and restarts the backend.
 Cash receipts into share capital and savings, and savings withdrawals, are now posted (see the share capital and savings entries below).
+A savings withdrawal is refused when it is more than the cash in the teller's own drawer (`SavingsRules.checkWithdrawal`, drawer cash from `DrawerBalances.of`), the same rule as voucher pay-outs; tested by `SavingsRulesTest` and `SavingsLedgerPostingTest`.
+Nothing is posted dated in a closed year or in an accounting period that is not open (`PostingPeriods.requireOpen`, see `year-end-close.md`).
 Other transaction types (loan and other receipts, vouchers, cheques) are still drafts: map a real posted example first, as for those, and do not add writes for them without it.
 A separate table `coopsystem_cash_transfer` and transaction 2026/4/32/33617 exist that this app did not create; leave them alone.
 What a person may do comes from `AccessCanAccessFrontOffice` and `access_trans` (find/new per transaction type).
