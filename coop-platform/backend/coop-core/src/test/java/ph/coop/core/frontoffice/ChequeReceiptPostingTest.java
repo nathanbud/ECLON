@@ -153,7 +153,12 @@ class ChequeReceiptPostingTest {
 
     @Test
     void aMixedDepositWritesTheChequeLinesFirstThenTheCashAndTheCashRowOfTransck() {
-        Receipt r = savings.deposit(req("12000.00", List.of(cheque(fresh(), 2, "2810.66"))), as(teller));
+        long gl0 = ph.coop.core.accounting.ledger.LedgerSnapshot.glMark(jdbc);
+        String chequeNo = fresh();
+        Receipt r = savings.deposit(req("12000.00", List.of(cheque(chequeNo, 2, "2810.66"))), as(teller));
+        ph.coop.core.accounting.ledger.LedgerSnapshot.assertMatches("savings-deposit-cheque-and-cash", ph.coop.core.accounting.ledger.LedgerSnapshot.voucherShape(jdbc, 1, r.year(), 3, 10, r.controlNo(), gl0,
+            java.util.stream.Stream.concat(ph.coop.core.accounting.ledger.LedgerSnapshot.teller(r.controlNo(), r.documentNo(), tellerId, tellerNumber, dept, account[0], account[1], account[2]).stream(),
+                java.util.stream.Stream.of(ph.coop.core.accounting.ledger.LedgerSnapshot.ph("chequeNo", ChequeRules.number(chequeNo), "checkno", "ckcheckno"))).toList()));
         List<Map<String, Object>> dt = jdbc.queryForList("SELECT DTACCT_CODE, DTSLT_CODE, DTCOCI_TYPE, DTAMT FROM transdt WHERE DTTR_BRCODE = 1 AND DTTR_YEAR = ? AND DTTR_MODULE = 3 AND DTTR_CODE = 10 AND DTTR_CTLNO = ? ORDER BY DTSEQ_NO", r.year(), r.controlNo());
         assertEquals(3, dt.size());
         assertEquals("100113", dt.get(0).get("DTACCT_CODE"));

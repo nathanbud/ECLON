@@ -113,6 +113,60 @@ public final class LedgerSnapshot {
         distinct.forEach((d) -> out.append(d).append('\n'));
     }
 
+    /** Columns that carry a member voucher's figures and dates rather than its format. */
+    private static final Set<String> VOUCHER_DATA = Set.of("dtamt", "dtseq_no", "gltransdr_amt", "gltranscr_amt", "amt", "ckamt", "seqno", "ckseq_no",
+        "tr_date", "dtsl_date", "gltranstr_date", "gl_date", "batch_no", "tr_year", "dttr_year", "cktr_year", "ckcheckdate", "explanation");
+
+    /**
+     * The format of one front-office voucher: its header, lines, member ledger rows and tender rows (found by its number) and the general-ledger rows
+     * written after {@code glIdAfter} (the posting's own; other postings on the same day are not taken). Figures and dates are left out; who and
+     * what are placeholders.
+     */
+    public static String voucherShape(JdbcTemplate jdbc, int branch, int year, int module, int code, long ctl, long glIdAfter, List<Placeholder> placeholders) {
+        StringBuilder out = new StringBuilder();
+        Set<String> data = VOUCHER_DATA;
+        rows(out, "transsum", jdbc.queryForList("SELECT * FROM transsum WHERE TR_BRCODE = ? AND TR_YEAR = ? AND TR_MODULE = ? AND TR_CODE = ? AND TR_CTLNO = ?", branch, year, module, code, ctl), placeholders, data);
+        rows(out, "transdt", jdbc.queryForList("SELECT * FROM transdt WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTTR_CTLNO = ? ORDER BY DTSEQ_NO", branch, year, module, code, ctl), placeholders, data);
+        rows(out, "sldtl", jdbc.queryForList("SELECT * FROM sldtl WHERE SL_BRCODE = ? AND TR_CODE = ? AND TR_CTLNO = ? AND TR_DATE >= ? ORDER BY SLC_CODE, SLE_CODE, SEQNO", branch, code, ctl, java.time.LocalDate.of(year, 1, 1)), placeholders, data);
+        rows(out, "transck", jdbc.queryForList("SELECT * FROM transck WHERE CKTR_BRCODE = ? AND CKTR_YEAR = ? AND CKTR_MODULE = ? AND CKTR_CODE = ? AND CKTR_CTLNO = ? ORDER BY CKSEQ_NO", branch, year, module, code, ctl), placeholders, data);
+        rows(out, "gltrans", jdbc.queryForList("SELECT * FROM gltrans WHERE GLTransBR_CODE = ? AND GLTransTR_CODE = ? AND GLTransID > ? ORDER BY GLTransID", branch, code, glIdAfter), placeholders, data);
+        return out.toString();
+    }
+
+    /** Rows in the order written, without the data columns; a general-ledger row also says whether it is a debit (D) or a credit (C). */
+    private static void rows(StringBuilder out, String table, List<Map<String, Object>> rows, List<Placeholder> placeholders, Set<String> data) {
+        out.append("## ").append(table).append(" (").append(rows.size()).append(" rows)\n");
+        for (Map<String, Object> r : rows) {
+            Map<String, Object> sorted = new TreeMap<>();
+            r.forEach((k, v) -> { String c = k.toLowerCase(); if (!VOLATILE.contains(c) && !data.contains(c)) sorted.put(c, v); });
+            if (table.equals("gltrans")) {
+                BigDecimal dr = (BigDecimal) r.get("gltransdr_amt"), cr = (BigDecimal) r.get("gltranscr_amt");
+                sorted.put("side", dr != null && dr.signum() > 0 ? "D" : cr != null && cr.signum() < 0 ? "C" : "0");
+            }
+            if (table.equals("transdt")) {
+                BigDecimal amt = (BigDecimal) r.get("dtamt");
+                sorted.put("side", amt == null ? "?" : amt.signum() > 0 ? "D" : amt.signum() < 0 ? "C" : "0");
+            }
+            List<String> cells = new ArrayList<>();
+            sorted.forEach((k, v) -> cells.add(k + "=" + text(k, v, placeholders)));
+            out.append(String.join(" | ", cells)).append('\n');
+        }
+    }
+
+    /** The usual placeholders of a teller's voucher: who posted it, from which drawer and department, for which member account. */
+    public static List<Placeholder> teller(long ctl, String docNo, int tellerId, int tellerNumber, int dept, int client, int type, int ref) {
+        return List.of(ph("ctl", ctl, "tr_ctlno", "dttr_ctlno", "cktr_ctlno"), ph("docNo", docNo, "tr_docno"),
+            ph("teller", tellerId, "dtencdby", "dtpostby", "ckencdby", "ckpostby"), ph("drawer", tellerNumber, "dtcts_num"),
+            ph("dept", dept, "dtdept", "gltransdept", "ckdept"), ph("client", client, "tr_clientid", "clientiddt", "sl_clientid"),
+            ph("type", type, "dtslt_code", "slt_code"), ph("ref", ref, "dtref_no", "ref_no"));
+    }
+
+    /** The general ledger's highest row id now, to take only the rows a posting writes after it. */
+    public static long glMark(JdbcTemplate jdbc) {
+        Long m = jdbc.queryForObject("SELECT COALESCE(MAX(GLTransID), 0) FROM gltrans", Long.class);
+        return m == null ? 0 : m;
+    }
+
     /** Compares with the golden file, writing it on the first run. */
     public static void assertMatches(String name, String snapshot) {
         Path file = Path.of("src/test/resources/ledger-golden", name + ".txt");
@@ -122,7 +176,8 @@ public final class LedgerSnapshot {
                 Files.writeString(file, snapshot, StandardCharsets.UTF_8);
                 fail("Wrote the golden snapshot " + file + " from the current code. Read it, commit it, and run again.");
             }
-            assertEquals(Files.readString(file, StandardCharsets.UTF_8), snapshot, "the rows written differ from " + file);
+            // a Windows checkout may turn the file's line ends into CRLF; the rows are what is compared
+            assertEquals(Files.readString(file, StandardCharsets.UTF_8).replace("\r\n", "\n"), snapshot, "the rows written differ from " + file);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }

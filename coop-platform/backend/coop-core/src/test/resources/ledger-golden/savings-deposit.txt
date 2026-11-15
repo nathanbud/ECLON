@@ -1,0 +1,12 @@
+## transsum (1 rows)
+andor_name=null | cashpayment=null | clientname=null | creditpayment=null | invtr_ctlno=null | is_fo=1 | pointspayment=null | tr_brcode=1 | tr_clientid={client} | tr_code=10 | tr_ctlno={ctl} | tr_docno={docNo} | tr_module=3 | tr_refno=null
+## transdt (2 rows)
+clientiddt=null | clientiddtna=null | dtacct_code=10003 | dtadj_flag=null | dtamtdue=null | dtapprvby=null | dtcheckisrelease=0 | dtcoci_type=1 | dtcts_num={drawer} | dtcts_num2=null | dtdept={dept} | dtencdby={teller} | dtiscleared=null | dtistransit=0 | dtisundentified=0 | dtpostby={teller} | dtref_no=1 | dtreference=null | dtslc_code=11 | dtsle_code=53 | dtsle_code2=null | dtslt_code={type} | dttr_brcode=1 | dttr_code=10 | dttr_ctlno={ctl} | dttr_module=3 | dtupd_tag=1 | side=D
+clientiddt={client} | clientiddtna=null | dtacct_code=2010101 | dtadj_flag=1 | dtamtdue=null | dtapprvby=null | dtcheckisrelease=0 | dtcoci_type=1 | dtcts_num=15 | dtcts_num2=null | dtdept={dept} | dtencdby={teller} | dtiscleared=null | dtistransit=0 | dtisundentified=0 | dtpostby={teller} | dtref_no={ref} | dtreference=null | dtslc_code=22 | dtsle_code=11 | dtsle_code2=null | dtslt_code={type} | dttr_brcode=1 | dttr_code=10 | dttr_ctlno={ctl} | dttr_module=3 | dtupd_tag=1 | side=C
+## sldtl (1 rows)
+adj_flag=1 | bank_code=null | checkno=null | clrg_days=0 | coci_type=1 | ref_no={ref} | sl_brcode=1 | sl_clientid={client} | slc_code=22 | sle_code=11 | slt_code={type} | tr_code=10 | tr_ctlno={ctl} | tr_ctlno2=null | tr_docno={docNo}
+## transck (1 rows)
+ckapprvby=null | ckbank_code=null | ckcheckno= | ckchecktype=null | ckclr_date=null | ckclrg_days=null | ckcoci_type=1 | ckdept={dept} | ckencdby={teller} | ckiscleared=0 | ckpayee= | ckpostby={teller} | ckref_no=null | ckslc_code=null | ckslt_code=null | cktr_brcode=1 | cktr_code=10 | cktr_ctlno={ctl} | cktr_module=3 | ckupd_tag=1 | clientidck=null
+## gltrans (2 rows)
+gltransacct_code=10003 | gltransbr_code=1 | gltranscr_balb4=0 | gltransdept={dept} | gltransdr_balb4=0 | gltranssum_balb4=0 | gltranssync=1 | gltranstr_code=10 | side=D
+gltransacct_code=2010101 | gltransbr_code=1 | gltranscr_balb4=0 | gltransdept={dept} | gltransdr_balb4=0 | gltranssum_balb4=0 | gltranssync=1 | gltranstr_code=10 | side=C

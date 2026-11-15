@@ -30,6 +30,12 @@ public final class LedgerRules {
         };
     }
 
+    /** A receipt's document number: the number typed at the window (checked there), or {@code *} and the control number in 7 digits. */
+    public static String receiptDocumentNo(String typed, long ctl) {
+        String t = typed == null ? "" : typed.trim();
+        return t.isEmpty() ? String.format("*%07d", ctl) : t;
+    }
+
     /** The header's explanation, at most 200 characters as the old system keeps it. */
     public static String explanation(String text) {
         if (text == null) return "";

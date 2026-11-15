@@ -161,7 +161,10 @@ class SavingsLedgerPostingTest {
         BigDecimal cashBefore = glNet("10003", 10), savBefore = glNet("2010101", 10);
         Integer seqBefore = jdbc.queryForObject("SELECT COALESCE(MAX(SEQNO), 0) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 22 AND SLT_CODE = ? AND REF_NO = ?", Integer.class, client, type, ref);
 
+        long gl0 = ph.coop.core.accounting.ledger.LedgerSnapshot.glMark(jdbc);
         Receipt r = savings.deposit(req("800.25"), as(teller));
+        ph.coop.core.accounting.ledger.LedgerSnapshot.assertMatches("savings-deposit", ph.coop.core.accounting.ledger.LedgerSnapshot.voucherShape(jdbc, 1, r.year(), 3, 10, r.controlNo(), gl0,
+            ph.coop.core.accounting.ledger.LedgerSnapshot.teller(r.controlNo(), r.documentNo(), tellerId, tellerNumber, dept, client, type, ref)));
 
         assertEquals("DEPOSIT", r.kind());
         assertEquals(0, balance.add(new BigDecimal("800.25")).compareTo(r.balanceAfter()));
@@ -208,7 +211,10 @@ class SavingsLedgerPostingTest {
         Check c = savings.check(req("100.00"), as(teller));
         assertTrue(c.ready() && c.needs().isEmpty() && c.problems().isEmpty());
 
+        long gl0 = ph.coop.core.accounting.ledger.LedgerSnapshot.glMark(jdbc);
         Receipt r = savings.withdraw(req("100.00"), as(teller));
+        ph.coop.core.accounting.ledger.LedgerSnapshot.assertMatches("savings-withdrawal", ph.coop.core.accounting.ledger.LedgerSnapshot.voucherShape(jdbc, 1, r.year(), 2, 23, r.controlNo(), gl0,
+            ph.coop.core.accounting.ledger.LedgerSnapshot.teller(r.controlNo(), r.documentNo(), tellerId, tellerNumber, dept, client, type, ref)));
 
         assertEquals("WITHDRAWAL", r.kind());
         assertEquals(0, balance.subtract(amount).compareTo(balanceNow()));

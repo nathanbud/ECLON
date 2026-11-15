@@ -111,7 +111,11 @@ class VoucherPayoutTest {
         assertEquals(0, w.balance().compareTo(c.payable().balance()));
         BigDecimal payableGlBefore = glNet("2012305", 24), cashGlBefore = glNet(HandoverRules.account(53), 24);
 
+        long gl0 = ph.coop.core.accounting.ledger.LedgerSnapshot.glMark(jdbc);
         Receipt r = payouts.pay(req, as(teller));
+        ph.coop.core.accounting.ledger.LedgerSnapshot.assertMatches("voucher-payout", ph.coop.core.accounting.ledger.LedgerSnapshot.voucherShape(jdbc, 1, r.year(), 2, 24, r.controlNo(), gl0,
+            ph.coop.core.accounting.ledger.LedgerSnapshot.teller(r.controlNo(), r.documentNo(), tellerId, tellerNumber,
+                jdbc.queryForObject("SELECT COALESCE(AccessDepartment, 0) FROM access WHERE AccessID = ?", Integer.class, tellerId), w.clientId(), 1, w.refNo())));
         assertEquals(0, w.balance().compareTo(r.amount()));
         assertEquals(String.format("*%07d", r.controlNo()), r.documentNo());
 
@@ -154,8 +158,12 @@ class VoucherPayoutTest {
 
     @Test
     void theWaitingListHoldsOnlyAccountsWithMoneyInThem() {
-        List<Map<String, Object>> t = jdbc.queryForList("SELECT AccessUserName FROM access WHERE AccessBR_CODE = 1 AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1");
-        assumeTrue(!t.isEmpty(), "no user");
+        // someone who may pay vouchers out (New on transaction type 24); a plain LIMIT 1 took whichever row came first
+        List<Map<String, Object>> t = jdbc.queryForList("""
+                SELECT a.AccessUserName FROM access a JOIN access_trans x ON x.USERID = a.AccessID AND x.BR_CODE = a.AccessBR_CODE AND x.TR_CODE = 24 AND x.CAN_NEW = 1
+                WHERE a.AccessBR_CODE = 1 AND COALESCE(a.AccessIsDisabled, 0) = 0 ORDER BY a.AccessID LIMIT 1
+                """);
+        assumeTrue(!t.isEmpty(), "nobody may pay vouchers out");
         for (Payable x : payouts.waiting(as((String) t.get(0).get("AccessUserName")))) assertTrue(x.balance().signum() > 0);
     }
 
