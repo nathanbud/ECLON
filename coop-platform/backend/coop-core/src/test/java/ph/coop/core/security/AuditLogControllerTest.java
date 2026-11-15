@@ -50,6 +50,29 @@ class AuditLogControllerTest {
         assertEquals(0, log.list(null, "TEST_ENT", null, null, LocalDate.now().plusDays(1), null, 0, 50).totalElements());
     }
 
+    @Test void eachEntryHasItsTimeToTheMillisecondAndWhatChanged() {
+        long before = System.currentTimeMillis();
+        ph.coop.core.audit.AuditLog.write(jdbc, "zz_tester_a", "TEST_ACT", "TEST_ENT", "ms-1", "{\"SLTypeINT_RATE\":1.00,\"SLTypeM_DESC\":\"SD\"}", "{\"SLTypeINT_RATE\":1.75,\"SLTypeM_DESC\":\"SD\"}", "rate");
+        ph.coop.core.audit.AuditLog.write(jdbc, "zz_tester_a", "UPDATE:ResAddStreet", "TEST_ENT", "ms-2", "Old street", "New street", "moved");
+        long after = System.currentTimeMillis();
+        var rows = log.list(null, "TEST_ENT", null, null, null, null, 0, 50).content();
+        var rate = rows.stream().filter((e) -> e.entityId().equals("ms-1")).findFirst().orElseThrow();
+        // the real moment of writing, kept to the millisecond: nothing finer, and not rounded to the second
+        long at = java.sql.Timestamp.valueOf(rate.at()).getTime();
+        assertTrue(at >= before && at <= after, "stamped while it was written");
+        assertEquals(0, rate.at().getNano() % 1_000_000, "no finer than a millisecond");
+        long stored = jdbc.queryForObject("SELECT at FROM ecis_audit_log WHERE entity_id = 'ms-1'", java.sql.Timestamp.class).getTime();
+        assertEquals(at, stored);
+        assertEquals(1, rate.changes().size(), "only the rate changed");
+        assertEquals("Interest rate", rate.changes().get(0).label());
+        assertEquals("1.00", rate.changes().get(0).before());
+        assertEquals("1.75", rate.changes().get(0).after());
+        var street = rows.stream().filter((e) -> e.entityId().equals("ms-2")).findFirst().orElseThrow().changes().get(0);
+        assertEquals("ResAddStreet", street.field());
+        assertEquals("Old street", street.before());
+        assertEquals("New street", street.after());
+    }
+
     @Test void refusesABadPageOrDateRange() {
         assertThrows(ResponseStatusException.class, () -> log.list(null, null, null, null, null, null, 0, 0));
         assertThrows(ResponseStatusException.class, () -> log.list(null, null, null, null, null, null, 0, 500));

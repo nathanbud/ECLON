@@ -31,26 +31,42 @@ class AuditSealsTest {
     @Autowired ph.coop.core.db.Db db;
 
     private static AuditSeals.Row row(long id, String reason) {
-        return new AuditSeals.Row(id, 1_700_000_000L + id, "ana", "member.update", "client", "1-100", "{\"a\":1}", "{\"a\":2}", reason, "10.0.0.5", "Mozilla");
+        return new AuditSeals.Row(id, 1_700_000_000_000L + id * 1000, "ana", "member.update", "client", "1-100", "{\"a\":1}", "{\"a\":2}", reason, "10.0.0.5", "Mozilla");
+    }
+
+    private static String hash(List<AuditSeals.Row> rows) {
+        return AuditSeals.blockHash(rows, AuditSeals.TO_THE_MILLISECOND);
     }
 
     // ---- pure ---------------------------------------------------------------------------------------------------
 
     @Test
+    void aMillisecondSealSeesTheMillisecondsAndASecondSealDoesNot() {
+        var at = new AuditSeals.Row(1, 1_700_000_000_123L, "ana", "member.update", "client", "1-100", "{\"a\":1}", "{\"a\":2}", "r", "10.0.0.5", "Mozilla");
+        var moved = new AuditSeals.Row(1, 1_700_000_000_456L, "ana", "member.update", "client", "1-100", "{\"a\":1}", "{\"a\":2}", "r", "10.0.0.5", "Mozilla");
+        assertNotEquals(AuditSeals.blockHash(List.of(at), AuditSeals.TO_THE_MILLISECOND), AuditSeals.blockHash(List.of(moved), AuditSeals.TO_THE_MILLISECOND), "a time moved by a third of a second");
+        // a seal made before milliseconds were kept fingerprinted whole seconds, and still checks out the same way
+        assertEquals(AuditSeals.blockHash(List.of(at), AuditSeals.TO_THE_SECOND), AuditSeals.blockHash(List.of(moved), AuditSeals.TO_THE_SECOND));
+        assertTrue(AuditSeals.canonical(at, AuditSeals.TO_THE_MILLISECOND).startsWith("1\u001F1700000000123\u001Fana\u001F"), "every field written as text, side by side");
+        // the first seals' formula is kept as it was: the id, the separator (31) and the time in seconds came out as one sum
+        assertTrue(AuditSeals.canonical(at, AuditSeals.TO_THE_SECOND).startsWith((1 + 31 + 1_700_000_000L + 31) + "ana"));
+    }
+
+    @Test
     void theBlockFingerprintChangesWithAnyFieldTheOrderAndTheCount() {
         List<AuditSeals.Row> rows = List.of(row(1, "a"), row(2, "b"), row(3, "c"));
-        String base = AuditSeals.blockHash(rows);
-        assertEquals(base, AuditSeals.blockHash(List.of(row(1, "a"), row(2, "b"), row(3, "c"))), "the same rows give the same fingerprint");
-        assertNotEquals(base, AuditSeals.blockHash(List.of(row(1, "a"), row(2, "changed"), row(3, "c"))), "a changed field");
-        assertNotEquals(base, AuditSeals.blockHash(List.of(row(1, "a"), row(3, "c"))), "a removed row");
-        assertNotEquals(base, AuditSeals.blockHash(List.of(row(1, "a"), row(3, "c"), row(2, "b"))), "a different order");
-        var moved = new AuditSeals.Row(2, 1_700_000_002L, "ana", "member.update", "client", "1-100", "{\"a\":1}", "{\"a\":2}", "b", "10.0.0.99", "Mozilla");
-        assertNotEquals(base, AuditSeals.blockHash(List.of(row(1, "a"), moved, row(3, "c"))), "even where the request came from is protected");
+        String base = hash(rows);
+        assertEquals(base, hash(List.of(row(1, "a"), row(2, "b"), row(3, "c"))), "the same rows give the same fingerprint");
+        assertNotEquals(base, hash(List.of(row(1, "a"), row(2, "changed"), row(3, "c"))), "a changed field");
+        assertNotEquals(base, hash(List.of(row(1, "a"), row(3, "c"))), "a removed row");
+        assertNotEquals(base, hash(List.of(row(1, "a"), row(3, "c"), row(2, "b"))), "a different order");
+        var moved = new AuditSeals.Row(2, 1_700_000_002_000L, "ana", "member.update", "client", "1-100", "{\"a\":1}", "{\"a\":2}", "b", "10.0.0.99", "Mozilla");
+        assertNotEquals(base, hash(List.of(row(1, "a"), moved, row(3, "c"))), "even where the request came from is protected");
     }
 
     @Test
     void aSealDependsOnTheOneBeforeIt() {
-        String block = AuditSeals.blockHash(List.of(row(1, "a")));
+        String block = hash(List.of(row(1, "a")));
         String first = AuditSeals.sealHash(AuditSeals.ZERO, 1, 1, 1, block);
         assertNotEquals(first, AuditSeals.sealHash("f".repeat(64), 1, 1, 1, block));
         assertNotEquals(first, AuditSeals.sealHash(AuditSeals.ZERO, 1, 2, 1, block));

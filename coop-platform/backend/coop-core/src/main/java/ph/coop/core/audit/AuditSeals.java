@@ -39,8 +39,12 @@ public class AuditSeals {
 
     public record Verification(boolean ok, long sealsChecked, long rowsChecked, long unsealedRows, List<String> problems) {}
 
-    /** One audit row as it is fingerprinted. */
-    record Row(long id, long atSecond, String user, String action, String entity, String entityId, String prev, String next, String reason, String ip, String info) {}
+    /** One audit row as it is fingerprinted; {@code atMillis} is its time in milliseconds since 1970. */
+    record Row(long id, long atMillis, String user, String action, String entity, String entityId, String prev, String next, String reason, String ip, String info) {}
+
+    /** How a seal fingerprinted its rows: 1 took the time to the second (every seal made before V022), 2 to the millisecond. New seals use the newest. */
+    static final int TO_THE_SECOND = 1;
+    static final int TO_THE_MILLISECOND = 2;
 
     private final JdbcTemplate jdbc;
     private final Db db;
@@ -59,9 +63,16 @@ public class AuditSeals {
     }
 
     /** The text of a row that is fingerprinted: every field, in a fixed order, separated by a character that cannot occur in the fields. */
-    static String canonical(Row r) {
+    static String canonical(Row r, int version) {
         char sep = '\u001F';
-        return r.id() + sep + r.atSecond() + sep + nz(r.user()) + sep + nz(r.action()) + sep + nz(r.entity()) + sep + nz(r.entityId()) + sep + nz(r.prev()) + sep + nz(r.next())
+        if (version == TO_THE_SECOND) {
+            // Kept exactly as the first seals made it, so they still check out. Its first terms are numbers, so the id, the separator and the time were added together
+            // rather than written side by side; version 2 below writes every field as text.
+            long at = Math.floorDiv(r.atMillis(), 1000);
+            return r.id() + sep + at + sep + nz(r.user()) + sep + nz(r.action()) + sep + nz(r.entity()) + sep + nz(r.entityId()) + sep + nz(r.prev()) + sep + nz(r.next())
+                + sep + nz(r.reason()) + sep + nz(r.ip()) + sep + nz(r.info());
+        }
+        return String.valueOf(r.id()) + sep + r.atMillis() + sep + nz(r.user()) + sep + nz(r.action()) + sep + nz(r.entity()) + sep + nz(r.entityId()) + sep + nz(r.prev()) + sep + nz(r.next())
             + sep + nz(r.reason()) + sep + nz(r.ip()) + sep + nz(r.info());
     }
 
@@ -78,15 +89,15 @@ public class AuditSeals {
     }
 
     /** Folds one row into a running block fingerprint. */
-    static void add(MessageDigest block, Row r) {
-        block.update(canonical(r).getBytes(StandardCharsets.UTF_8));
+    static void add(MessageDigest block, Row r, int version) {
+        block.update(canonical(r, version).getBytes(StandardCharsets.UTF_8));
         block.update((byte) '\n');
     }
 
     /** The fingerprint of a whole block of rows. */
-    static String blockHash(List<Row> rows) {
+    static String blockHash(List<Row> rows, int version) {
         MessageDigest d = sha();
-        for (Row r : rows) add(d, r);
+        for (Row r : rows) add(d, r, version);
         return hex(d);
     }
 
@@ -97,7 +108,7 @@ public class AuditSeals {
     }
 
     private static Row row(ResultSet rs) throws SQLException {
-        return new Row(rs.getLong(1), rs.getTimestamp(2).toInstant().getEpochSecond(), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8),
+        return new Row(rs.getLong(1), rs.getTimestamp(2).toInstant().toEpochMilli(), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8),
             rs.getString(9), rs.getString(10), rs.getString(11));
     }
 
@@ -107,6 +118,11 @@ public class AuditSeals {
 
     public boolean installed() {
         return db.allTablesExist("ecis_audit_seal") && db.columnExists("ecis_audit_log", "client_ip");
+    }
+
+    /** Whether seals can say how they fingerprinted (V022); a database without it keeps sealing to the second. */
+    private boolean versioned() {
+        return db.columnExists("ecis_audit_seal", "fingerprint_version");
     }
 
     public Status status() {
@@ -129,24 +145,29 @@ public class AuditSeals {
         List<String[]> last = jdbc.query("SELECT to_id, seal_hash FROM ecis_audit_seal ORDER BY id DESC LIMIT 1", (rs, i) -> new String[] {rs.getString(1), rs.getString(2)});
         long lastTo = last.isEmpty() ? 0 : Long.parseLong(last.get(0)[0]);
         String prev = last.isEmpty() ? ZERO : last.get(0)[1];
-        // The database's own clock stamped the rows, so it is the one asked what time it is.
-        Timestamp dbNow = jdbc.queryForObject("SELECT NOW()", Timestamp.class);
-        Timestamp cutoff = Timestamp.from(dbNow.toInstant().minus(settle));
+        // AuditLog stamps each row with the application's clock when it writes it, so the same clock says which rows have settled.
+        Timestamp cutoff = Timestamp.from(java.time.Instant.now().minus(settle));
         Long toId = jdbc.queryForObject("SELECT MAX(id) FROM (SELECT id FROM ecis_audit_log WHERE id > ? AND at <= ? ORDER BY id LIMIT " + MAX_BLOCK + ") b", Long.class, lastTo, cutoff);
         if (toId == null) return null;
+        int version = versioned() ? TO_THE_MILLISECOND : TO_THE_SECOND;
         MessageDigest block = sha();
         long[] counts = {0, Long.MAX_VALUE};
         jdbc.query(ROWS + " WHERE id > ? AND id <= ? ORDER BY id", (rs) -> {
             Row r = row(rs);
-            add(block, r);
+            add(block, r, version);
             counts[0]++;
             if (counts[1] == Long.MAX_VALUE) counts[1] = r.id();
         }, lastTo, toId);
         if (counts[0] == 0) return null;
         String blockHash = hex(block);
         String sealHash = sealHash(prev, counts[1], toId, counts[0], blockHash);
-        jdbc.update("INSERT INTO ecis_audit_seal (from_id, to_id, row_count, block_hash, prev_seal_hash, seal_hash, sealed_by, sealed_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
-            counts[1], toId, counts[0], blockHash, prev, sealHash, by);
+        if (version == TO_THE_SECOND) {
+            jdbc.update("INSERT INTO ecis_audit_seal (from_id, to_id, row_count, block_hash, prev_seal_hash, seal_hash, sealed_by, sealed_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+                counts[1], toId, counts[0], blockHash, prev, sealHash, by);
+        } else {
+            jdbc.update("INSERT INTO ecis_audit_seal (from_id, to_id, row_count, block_hash, prev_seal_hash, seal_hash, sealed_by, sealed_at, fingerprint_version) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)",
+                counts[1], toId, counts[0], blockHash, prev, sealHash, by, version);
+        }
         Long id = jdbc.queryForObject("SELECT MAX(id) FROM ecis_audit_seal", Long.class);
         return new Sealed(id == null ? 0 : id, counts[1], toId, counts[0], sealHash);
     }
@@ -169,19 +190,21 @@ public class AuditSeals {
     public Verification verify() {
         if (!installed()) return new Verification(false, 0, 0, 0, List.of("The audit seals are not installed (V045)."));
         List<String> problems = new ArrayList<>();
-        List<Object[]> seals = jdbc.query("SELECT id, from_id, to_id, row_count, block_hash, prev_seal_hash, seal_hash FROM ecis_audit_seal ORDER BY id",
-            (rs, i) -> new Object[] {rs.getLong(1), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getString(5), rs.getString(6), rs.getString(7)});
+        String version = versioned() ? "fingerprint_version" : String.valueOf(TO_THE_SECOND);
+        List<Object[]> seals = jdbc.query("SELECT id, from_id, to_id, row_count, block_hash, prev_seal_hash, seal_hash, " + version + " FROM ecis_audit_seal ORDER BY id",
+            (rs, i) -> new Object[] {rs.getLong(1), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getInt(8)});
         String prev = ZERO;
         long rowsChecked = 0, lastTo = 0;
         for (Object[] s : seals) {
             long id = (Long) s[0], from = (Long) s[1], to = (Long) s[2], count = (Long) s[3];
             String blockHash = (String) s[4], prevHash = (String) s[5], sealHash = (String) s[6];
+            int fingerprint = (Integer) s[7];
             if (!prevHash.equals(prev)) problems.add("Seal #" + id + " does not follow the seal before it: a seal was removed or changed.");
             if (!sealHash(prevHash, from, to, count, blockHash).equals(sealHash)) problems.add("Seal #" + id + " has been altered.");
             if (from <= lastTo) problems.add("Seal #" + id + " overlaps the one before it.");
             MessageDigest d = sha();
             long[] n = {0};
-            jdbc.query(ROWS + " WHERE id >= ? AND id <= ? ORDER BY id", (rs) -> { add(d, row(rs)); n[0]++; }, from, to);
+            jdbc.query(ROWS + " WHERE id >= ? AND id <= ? ORDER BY id", (rs) -> { add(d, row(rs), fingerprint); n[0]++; }, from, to);
             rowsChecked += n[0];
             if (n[0] < count) problems.add("Seal #" + id + ": " + (count - n[0]) + " audit row(s) between #" + from + " and #" + to + " have been removed.");
             else if (n[0] > count) problems.add("Seal #" + id + ": " + (n[0] - count) + " audit row(s) appear between #" + from + " and #" + to + " that were not there when it was sealed.");

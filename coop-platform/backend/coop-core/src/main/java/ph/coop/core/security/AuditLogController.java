@@ -3,6 +3,7 @@ package ph.coop.core.security;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -13,8 +14,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import ph.coop.core.audit.AuditChanges;
+import ph.coop.core.member.MemberFieldLabels;
 
-/** Read-only view of the audit trail ({@code ecis_audit_log}) for administrators: newest first, filtered by person, kind of record, action, date and text. */
+/** Read-only view of the audit trail ({@code ecis_audit_log}) for administrators: newest first, filtered by person, kind of record, action, date and text; each entry with its time to the millisecond and what changed, field by field. */
 @RestController
 @RequestMapping("/api/admin/audit-log")
 @PreAuthorize("hasRole('ADMIN')")
@@ -28,7 +31,9 @@ class AuditLogController {
         this.jdbc = jdbc;
     }
 
-    record Entry(long id, LocalDateTime at, String username, String action, String entity, String entityId, String previous, String current, String reason, String clientIp, String clientInfo) {}
+    /** {@code at} is to the millisecond; {@code changes} is the before and after read field by field ({@link AuditChanges}), with the stored text kept in previous and current. */
+    record Entry(long id, LocalDateTime at, String username, String action, String entity, String entityId, String previous, String current, String reason, String clientIp, String clientInfo,
+                 List<AuditChanges.Change> changes) {}
 
     record PageOf(List<Entry> content, long totalElements, int number, int size) {}
 
@@ -67,8 +72,9 @@ class AuditLogController {
         pageArgs.add((long) page * size);
         List<Entry> rows = jdbc.query("SELECT id, at, username, action, entity, entity_id, prev_value, new_value, reason, client_ip, client_info FROM ecis_audit_log" + where
                 + " ORDER BY id DESC LIMIT ? OFFSET ?",
-            (rs, i) -> new Entry(rs.getLong(1), rs.getTimestamp(2).toLocalDateTime(), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6),
-                rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10), rs.getString(11)),
+            (rs, i) -> new Entry(rs.getLong(1), rs.getTimestamp(2).toLocalDateTime().truncatedTo(ChronoUnit.MILLIS), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6),
+                rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10), rs.getString(11),
+                AuditChanges.of(rs.getString(4), rs.getString(7), rs.getString(8), MemberFieldLabels::of)),
             pageArgs.toArray());
         return new PageOf(rows, total == null ? 0 : total, page, size);
     }

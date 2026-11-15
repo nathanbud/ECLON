@@ -17,10 +17,10 @@ import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
 /**
- * Reads a list of members from a CSV or Excel (.xlsx) file into rows keyed by the header names. Deliberately small and dependency free: the first sheet only, values as text,
+ * Reads a list (members, or accounts for the chart of accounts) from a CSV or Excel (.xlsx) file into rows keyed by the header names. Deliberately small and dependency free: the first sheet only, values as text,
  * Excel date serials left as numbers (the importer turns them into dates for date columns). Pure logic, no database access.
  */
-final class SpreadsheetReader {
+public final class SpreadsheetReader {
 
     private SpreadsheetReader() {}
 
@@ -28,9 +28,9 @@ final class SpreadsheetReader {
     static final int MAX_BYTES = 5 * 1024 * 1024;
 
     /** One data row: its line number in the file (the header is line 1) and its values by header name. */
-    record Row(int line, Map<String, String> values) {}
+    public record Row(int line, Map<String, String> values) {}
 
-    static List<Row> read(String fileName, byte[] data) {
+    public static List<Row> read(String fileName, byte[] data) {
         if (data == null || data.length == 0) throw new IllegalArgumentException("The file is empty.");
         if (data.length > MAX_BYTES) throw new IllegalArgumentException("The file is larger than 5 MB.");
         List<List<String>> grid = fileName != null && fileName.toLowerCase(Locale.ROOT).endsWith(".xlsx") ? xlsx(data) : csv(new String(strip(data), StandardCharsets.UTF_8));

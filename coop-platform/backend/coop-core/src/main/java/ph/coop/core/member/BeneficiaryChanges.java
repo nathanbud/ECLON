@@ -98,7 +98,7 @@ class BeneficiaryChanges {
             jdbc.update("INSERT INTO benef (BenefBR_CODE, ClientIDBenef, BenefName, BenefRelation, BenefDateofBirth, BenefOccu, BenefDateTimeAdded, BenefTypeID) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 branch, client, BeneficiaryRules.name(next.get("name")), Integer.valueOf(next.get("relation")), blank(next.get("dateOfBirth")) == null ? null : java.sql.Date.valueOf(next.get("dateOfBirth")),
                 BeneficiaryRules.occupation(next.get("occupation")), Timestamp.valueOf(LocalDateTime.now()), Integer.valueOf(next.get("type")));
-            AuditLog.write(jdbc, null, approver, "MEMBER_BENEFICIARY_ADDED", "client", entity, null, describe(next), reason);
+            AuditLog.write(jdbc, approver, "MEMBER_BENEFICIARY_ADDED", "client", entity, null, describe(next), reason);
             return "Beneficiary " + BeneficiaryRules.name(next.get("name")) + " added";
         }
         long id = Long.parseLong(payload.get("benefId"));
@@ -110,7 +110,7 @@ class BeneficiaryChanges {
         if (!same(asked, now)) throw conflict("This beneficiary was changed after the request was made. Reject it and ask again.");
         if (action.equals("REMOVE")) {
             jdbc.update("DELETE FROM benef WHERE BenefID = ? AND BenefBR_CODE = ? AND ClientIDBenef = ?", id, branch, client);
-            AuditLog.write(jdbc, null, approver, "MEMBER_BENEFICIARY_REMOVED", "client", entity, describe(now), null, reason + ". " + payload.get("note"));
+            AuditLog.write(jdbc, approver, "MEMBER_BENEFICIARY_REMOVED", "client", entity, describe(now), null, reason + ". " + payload.get("note"));
             return "Beneficiary " + now.get("name") + " removed";
         }
         Map<String, String> next = pick(payload);
@@ -118,7 +118,7 @@ class BeneficiaryChanges {
         jdbc.update("UPDATE benef SET BenefName = ?, BenefRelation = ?, BenefDateofBirth = ?, BenefOccu = ?, BenefTypeID = ? WHERE BenefID = ? AND BenefBR_CODE = ? AND ClientIDBenef = ?",
             BeneficiaryRules.name(next.get("name")), Integer.valueOf(next.get("relation")), blank(next.get("dateOfBirth")) == null ? null : java.sql.Date.valueOf(next.get("dateOfBirth")),
             BeneficiaryRules.occupation(next.get("occupation")), Integer.valueOf(next.get("type")), id, branch, client);
-        AuditLog.write(jdbc, null, approver, "MEMBER_BENEFICIARY_CHANGED", "client", entity, describe(now), describe(next), reason);
+        AuditLog.write(jdbc, approver, "MEMBER_BENEFICIARY_CHANGED", "client", entity, describe(now), describe(next), reason);
         return "Beneficiary " + BeneficiaryRules.name(next.get("name")) + " changed";
     }
 

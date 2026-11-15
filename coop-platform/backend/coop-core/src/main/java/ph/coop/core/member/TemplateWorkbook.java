@@ -13,7 +13,7 @@ import java.util.zip.ZipOutputStream;
  * Builds the blank member list as an Excel (.xlsx) workbook without a spreadsheet library: a "Members" sheet with the column names and one example row, and a "Guide" sheet that says what
  * each column is and lists the names that may be written for Gender and Civil status. The Members sheet is the first sheet, which is the one {@link SpreadsheetReader} reads.
  */
-final class TemplateWorkbook {
+public final class TemplateWorkbook {
 
     private TemplateWorkbook() {}
 
@@ -76,6 +76,13 @@ final class TemplateWorkbook {
         guide.add(List.of("Civil status names", "Code"));
         civilStatuses.forEach((code, name) -> guide.add(List.of(name == null ? "" : name, Integer.toString(code))));
 
+        int[] memberWidths = new int[COLUMNS.size()];
+        java.util.Arrays.fill(memberWidths, 16);
+        return workbook("Members", members, memberWidths, guide, new int[] {38, 12, 90});
+    }
+
+    /** A two-sheet workbook: the list to fill in (first row bold) under the given name, and a Guide sheet. */
+    public static byte[] workbook(String firstName, List<List<String>> first, int[] firstWidths, List<List<String>> guide, int[] guideWidths) {
         String types = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
             + "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/>"
             + "<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>"
@@ -85,7 +92,7 @@ final class TemplateWorkbook {
         String rels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
             + "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>";
         String workbook = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" "
-            + "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets><sheet name=\"Members\" sheetId=\"1\" r:id=\"rId1\"/><sheet name=\"Guide\" sheetId=\"2\" r:id=\"rId2\"/></sheets></workbook>";
+            + "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets><sheet name=\"" + esc(firstName) + "\" sheetId=\"1\" r:id=\"rId1\"/><sheet name=\"Guide\" sheetId=\"2\" r:id=\"rId2\"/></sheets></workbook>";
         String workbookRels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
             + "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>"
             + "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet2.xml\"/>"
@@ -98,8 +105,6 @@ final class TemplateWorkbook {
             + "<cellXfs count=\"2\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/><xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/></cellXfs>"
             + "</styleSheet>";
 
-        int[] memberWidths = new int[COLUMNS.size()];
-        java.util.Arrays.fill(memberWidths, 16);
         try {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             try (ZipOutputStream z = new ZipOutputStream(out)) {
@@ -108,8 +113,8 @@ final class TemplateWorkbook {
                 put(z, "xl/workbook.xml", workbook);
                 put(z, "xl/_rels/workbook.xml.rels", workbookRels);
                 put(z, "xl/styles.xml", styles);
-                put(z, "xl/worksheets/sheet1.xml", sheet(members, 1, memberWidths));
-                put(z, "xl/worksheets/sheet2.xml", sheet(guide, 1, new int[] {38, 12, 90}));
+                put(z, "xl/worksheets/sheet1.xml", sheet(first, 1, firstWidths));
+                put(z, "xl/worksheets/sheet2.xml", sheet(guide, 1, guideWidths));
             }
             return out.toByteArray();
         } catch (IOException e) {

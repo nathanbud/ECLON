@@ -291,7 +291,7 @@ class MemberChangeService {
     }
 
     private void audit(String user, String action, String entityId, String prev, String next, String reason) {
-        AuditLog.write(jdbc, null, user, action, "client", entityId, prev, next, reason);
+        AuditLog.write(jdbc, user, action, "client", entityId, prev, next, reason);
     }
 
     private static String show(Map<Integer, String> lookup, String code) {

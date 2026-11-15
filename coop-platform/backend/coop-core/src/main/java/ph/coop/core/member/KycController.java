@@ -112,7 +112,7 @@ class KycController {
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", append(vals, branchCode, clientId));
         }
         Kyc after = read(branchCode, clientId);
-        AuditLog.write(jdbc, null, auth.getName(), "member.kyc.update", "client", branchCode + "-" + clientId, summary(before), summary(after), before.status().equals("NONE") ? "KYC recorded" : "KYC changed");
+        AuditLog.write(jdbc, auth.getName(), "member.kyc.update", "client", branchCode + "-" + clientId, summary(before), summary(after), before.status().equals("NONE") ? "KYC recorded" : "KYC changed");
         return after;
     }
 
@@ -150,7 +150,7 @@ class KycController {
         if (n == 0) {
             jdbc.update("INSERT INTO ecis_member_kyc (id_scan, id_scan_type, updated_by, updated_at, branch_code, client_id) VALUES (?, ?, ?, ?, ?, ?)", data, type, auth.getName(), now, branchCode, clientId);
         }
-        AuditLog.write(jdbc, null, auth.getName(), "member.kyc.id-scan", "client", branchCode + "-" + clientId, null, data.length + " bytes, " + type, "ID scan added");
+        AuditLog.write(jdbc, auth.getName(), "member.kyc.id-scan", "client", branchCode + "-" + clientId, null, data.length + " bytes, " + type, "ID scan added");
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
@@ -158,7 +158,7 @@ class KycController {
     ResponseEntity<byte[]> scan(@PathVariable int branchCode, @PathVariable int clientId, Authentication auth) {
         var rows = jdbc.queryForList("SELECT id_scan, id_scan_type FROM ecis_member_kyc WHERE branch_code = ? AND client_id = ? AND id_scan IS NOT NULL", branchCode, clientId);
         if (rows.isEmpty()) return ResponseEntity.notFound().build();
-        AuditLog.write(jdbc, null, auth.getName(), "member.kyc.id-scan.view", "client", branchCode + "-" + clientId, null, null, "ID scan viewed");
+        AuditLog.write(jdbc, auth.getName(), "member.kyc.id-scan.view", "client", branchCode + "-" + clientId, null, null, "ID scan viewed");
         return ResponseEntity.ok().contentType(MediaType.parseMediaType((String) rows.get(0).get("id_scan_type"))).cacheControl(CacheControl.noStore())
             .header("X-Content-Type-Options", "nosniff").body((byte[]) rows.get(0).get("id_scan"));
     }

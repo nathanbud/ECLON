@@ -47,17 +47,28 @@ class UserAccountController {
         this.encoder = encoder;
     }
 
-    record Me(String username, String name, List<String> roles, boolean canEdit, boolean canApprove, boolean admin, boolean mustChangePassword) {}
+    /** branchCode: the person's own branch in the old system (1 when they are not in it, as for the bootstrap account); screens start on it. */
+    record Me(String username, String name, List<String> roles, boolean canEdit, boolean canApprove, boolean admin, boolean mustChangePassword, int branchCode) {}
+
+    record Branch(int code, String name) {}
+
+    /** The branches, so a screen offers a choice by name instead of asking for a branch number. */
+    @GetMapping("/branches")
+    List<Branch> branches() {
+        return jdbc.query("SELECT BranchesID, BranchesDesc FROM branches ORDER BY BranchesID", (rs, i) -> new Branch(rs.getInt(1), rs.getString(2)));
+    }
 
     @GetMapping("/me")
     Me me(Authentication auth) {
         List<String> authorities = auth.getAuthorities().stream().map(GrantedAuthority::getAuthority).sorted().toList();
-        List<String> names = jdbc.query("SELECT CONCAT_WS(' ', AccessFName, AccessLName) FROM access WHERE AccessUserName = ? LIMIT 1",
-            (rs, i) -> rs.getString(1), auth.getName());
-        String name = names.isEmpty() || names.get(0) == null || names.get(0).isBlank() ? auth.getName() : names.get(0);
+        List<Object[]> found = jdbc.query("SELECT CONCAT_WS(' ', AccessFName, AccessLName), AccessBR_CODE FROM access WHERE AccessUserName = ? LIMIT 1",
+            (rs, i) -> new Object[]{rs.getString(1), rs.getInt(2)}, auth.getName());
+        String full = found.isEmpty() ? null : (String) found.get(0)[0];
+        String name = full == null || full.isBlank() ? auth.getName() : full;
+        int branch = found.isEmpty() || (Integer) found.get(0)[1] <= 0 ? 1 : (Integer) found.get(0)[1];
         return new Me(auth.getName(), name, authorities.stream().filter((a) -> a.startsWith("ROLE_")).map((a) -> a.substring(5)).toList(),
             authorities.contains("PERM_MEMBER_EDIT"), authorities.contains("ROLE_MEMBERSHIP_OFFICER"), authorities.contains("ROLE_ADMIN"),
-            authorities.contains(PASSWORD_CHANGE_REQUIRED));
+            authorities.contains(PASSWORD_CHANGE_REQUIRED), branch);
     }
 
     /** passwordState: NONE (no password yet), ACTIVE (their own), TEMPORARY (issued, not yet replaced, still valid) or EXPIRED (issued and ran out). */
@@ -181,6 +192,6 @@ class UserAccountController {
 
     /** Administration is audited too; the password itself is never logged. */
     private void audit(String by, String action, String subject, String detail) {
-        AuditLog.write(jdbc, LocalDateTime.now(clock), by, action, "user", subject, null, detail, null);
+        AuditLog.write(jdbc, by, action, "user", subject, null, detail, null);
     }
 }

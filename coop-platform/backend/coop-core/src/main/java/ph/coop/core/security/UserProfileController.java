@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.member.LookupController;
+import ph.coop.core.loan.LoanSteps;
 
 /**
  * Read-only view of a person's legacy account setup (the iAccs "Setup User Account" window): general settings and the
@@ -43,7 +44,7 @@ class UserProfileController {
      * A field is editable only when editing is on for this person and the column is on the editable list.
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    record Field(String label, String value, String kind, String key, boolean editable, String raw, List<Option> options) {}
+    record Field(String label, String value, String kind, String key, boolean editable, String raw, List<Option> options, String hint) {}
 
     record Option(String value, String label) {}
 
@@ -52,7 +53,10 @@ class UserProfileController {
     record UserProfile(String username, String name, boolean enabled, boolean hasPassword, List<String> roles,
                        boolean canEdit, String editNote, Map<String, List<Section>> tabs) {}
 
-    private record Spec(String label, String column, String kind, String how) {}
+    /** hint: a line under the setting saying what it allows in this application. kind "note" is a read-only line that is not a column (see {@link #note}). */
+    record Spec(String label, String column, String kind, String how, String hint) {
+        Spec(String label, String column, String kind, String how) { this(label, column, kind, how, null); }
+    }
 
     private static Spec t(String label, String col) { return new Spec(label, col, "text", null); }
     private static Spec n(String label, String col) { return new Spec(label, col, "number", null); }
@@ -60,9 +64,17 @@ class UserProfileController {
     private static Spec m(String label, String col) { return new Spec(label, col, "money", null); }
     private static Spec b(String label, String col) { return new Spec(label, col, "bool", null); }
     private static Spec l(String label, String col, String lookup) { return new Spec(label, col, "text", lookup); }
+    private static Spec b(String label, String col, String hint) { return new Spec(label, col, "bool", null, hint); }
+    /** A read-only line worked out for the person rather than read from a column, such as where the loan release right is kept. */
+    private static Spec note(String label, String key, String hint) { return new Spec(label, key, "note", null, hint); }
+    static final String LOAN_RELEASE = "LoanRelease";
+    /** The loan release voucher is a Cash Voucher (transaction type 21): approving and posting it needs New on that type. */
+    static final int CASH_VOUCHER = 21;
+    private static final String OLD_ONLY = "Used by the old system only; this application does not read it.";
+
     private static Spec list(String label, String col, String lookup) { return new Spec(label, col, "list", lookup); }
 
-    private static final Map<String, LinkedHashMap<String, List<Spec>>> TABS = tabs();
+    static final Map<String, LinkedHashMap<String, List<Spec>>> TABS = tabs();
 
     private static Map<String, LinkedHashMap<String, List<Spec>>> tabs() {
         var out = new LinkedHashMap<String, LinkedHashMap<String, List<Spec>>>();
@@ -123,11 +135,25 @@ class UserProfileController {
         out.put("client", client);
 
         var receivables = new LinkedHashMap<String, List<Spec>>();
-        receivables.put("Loans", List.of(
-            b("Create loan setup", "AccessCanCreateLoanSetup"), b("Edit loan setup", "AccessCanEditLoanSetup"), b("Batch edit loan setups", "AccessCanBatchEditLoanSetups"),
-            b("Add loan application", "AccessCanAddLoanApplication"), b("Edit loan application", "AccessCanEditLoanApplication"),
-            b("Delete loan application", "AccessCanDeleteLoanApplication"), b("Verify loan application", "AccessCanVerifyLoanApplication"),
-            b("Approve loan application", "AccessCanApproveLoanApplication"), b("Release loan", "AccessCanReleaseLoan"), b("Must use loan wizard", "AccessMustUseLoanWizard")));
+        // The loan application's steps, in order, each with what this application checks for it (LoanApplicationController, LoanApplicationWorkflowController,
+        // LoanReleaseController). The person who encodes, the one who verifies and the one who approves must each be different.
+        receivables.put("Loan process", List.of(
+            b("1 · Profiling", "AccessCanAddLoanApplication",
+                "Encode a loan application: the member, loan type, principal, terms, collateral and co-makers, and save it. Without Deduction it is saved waiting for deductions. Also lets them cancel an application."),
+            b("2 · Deduction", LoanSteps.DEDUCTION_COLUMN,
+                "Fill in the deductions and pay-offs of an application. With Profiling too, both are done in one save; otherwise they open the applications waiting for deductions."),
+            b("3 · Verification", "AccessCanVerifyLoanApplication", "Check an encoded application and mark it verified, once its deductions are in. Not their own application."),
+            b("4 · Approval", "AccessCanApproveLoanApplication",
+                "Approve or disapprove an application; approving makes its release voucher. Not one they encoded or verified."),
+            note("5 · Loan Release", LOAN_RELEASE,
+                "Approve and post the release voucher. This is the New right on Cash Voucher in the Transaction Types tab; the person who approved the application may not release it.")));
+        receivables.put("Loan setup (old system)", List.of(
+            b("Create loan setup", "AccessCanCreateLoanSetup", OLD_ONLY + " Here, loan types are changed by administrators in Settings > Loan Setup."),
+            b("Edit loan setup", "AccessCanEditLoanSetup", OLD_ONLY), b("Batch edit loan setups", "AccessCanBatchEditLoanSetups", OLD_ONLY)));
+        receivables.put("Loan applications (old system)", List.of(
+            b("Edit loan application", "AccessCanEditLoanApplication", OLD_ONLY), b("Delete loan application", "AccessCanDeleteLoanApplication", OLD_ONLY),
+            b("Release loan", "AccessCanReleaseLoan", OLD_ONLY + " Here, the release is the Cash Voucher right (see 5 · Loan Release)."),
+            b("Must use loan wizard", "AccessMustUseLoanWizard", OLD_ONLY)));
         receivables.put("Statements", List.of(
             b("Generate statement of account", "AccessCanGenerateSOA"), b("Batch generate statements", "AccessCanBatchGenerateSOA"), b("Export or print statements", "AccessCanExportPrintSOA")));
         out.put("receivables", receivables);
@@ -165,19 +191,21 @@ class UserProfileController {
 
     private static Map<String, Spec> specs() {
         Map<String, Spec> out = new LinkedHashMap<>();
-        TABS.values().forEach((sections) -> sections.values().forEach((list) -> list.forEach((s) -> out.putIfAbsent(s.column(), s))));
+        TABS.values().forEach((sections) -> sections.values().forEach((list) -> list.forEach((s) -> { if (!s.kind().equals("note")) out.putIfAbsent(s.column(), s); })));
         return out;
     }
 
     private final JdbcTemplate jdbc;
     private final Db db;
     private final LookupController lookups;
+    private final LoanSteps steps;
     private final TransactionTemplate tx;
     private final boolean enabled;
     private volatile Map<String, Integer> lengths;
 
     UserProfileController(JdbcTemplate jdbc, Db db, LookupController lookups, PlatformTransactionManager txManager,
-                          @Value("${coop.edit.enabled:false}") boolean enabled) {
+                          @Value("${coop.edit.enabled:false}") boolean enabled, LoanSteps steps) {
+        this.steps = steps;
         this.jdbc = jdbc;
         this.db = db;
         this.lookups = lookups;
@@ -188,7 +216,7 @@ class UserProfileController {
     @GetMapping("/profile")
     ResponseEntity<UserProfile> profile(@PathVariable String username, Authentication auth) {
         Set<String> columns = new LinkedHashSet<>(List.of("AccessUserName", "AccessFName", "AccessLName", "AccessIsDisabled", "AccessLevel"));
-        TABS.values().forEach((sections) -> sections.values().forEach((specs) -> specs.forEach((s) -> columns.add(s.column()))));
+        TABS.values().forEach((sections) -> sections.values().forEach((specs) -> specs.forEach((s) -> { if (!s.kind().equals("note") && present(s)) columns.add(s.column()); })));
 
         List<Map<String, String>> rows = jdbc.query("SELECT " + String.join(", ", columns) + " FROM access WHERE AccessUserName = ? LIMIT 1",
             (rs, i) -> {
@@ -205,7 +233,8 @@ class UserProfileController {
         Map<String, List<Section>> tabs = new LinkedHashMap<>();
         TABS.forEach((tab, sections) -> {
             List<Section> list = new ArrayList<>();
-            sections.forEach((title, specs) -> list.add(new Section(title, specs.stream().map((s) -> field(s, row.get(s.column()), canEdit)).toList())));
+            sections.forEach((title, specs) -> list.add(new Section(title, specs.stream().filter(this::present)
+                .map((s) -> s.kind().equals("note") ? new Field(s.label(), noteValue(s, name), "note", s.column(), false, null, null, s.hint()) : field(s, row.get(s.column()), canEdit)).toList())));
             tabs.put(tab, list);
         });
 
@@ -219,11 +248,11 @@ class UserProfileController {
 
     record Row(int code, String name, List<Boolean> allowed) {}
 
-    private static final List<String> TRANSACTION_COLUMNS = List.of(
+    static final List<String> TRANSACTION_COLUMNS = List.of(
         "CAN_FIND", "CAN_NEW", "CAN_EDIT", "CAN_EDIT_ENTRY", "CAN_DELETE", "CAN_TAG_APPROVED", "CAN_POST", "CAN_REVERSE", "CAN_CANCEL",
         "CAN_BACKDATE", "CAN_FUTUREDATE", "CAN_POST_AUTO", "CAN_POST_PARTIALPAY", "CAN_POST_OVERPAY", "CAN_POST_UNCLEAREDDEP",
         "CAN_POST_WITH_HOLD_DEP", "CAN_POST_RESULTSNEGATIVE", "CAN_SEE_OTHER_USERS_TRANS", "CAN_BACKDATE_CLOSEDBOOKS");
-    private static final List<String> TRANSACTION_LABELS = List.of(
+    static final List<String> TRANSACTION_LABELS = List.of(
         "Find", "New", "Edit", "Edit entry", "Delete", "Tag approved", "Post", "Reverse", "Cancel",
         "Back-date", "Future-date", "Post automatically", "Post partial payment", "Post over-payment", "Post uncleared deposit",
         "Post with hold", "Post if result is negative", "See others' transactions", "Back-date closed books");
@@ -255,7 +284,21 @@ class UserProfileController {
             shown = choices.get(v);
         }
         List<Option> options = choices == null ? null : choices.entrySet().stream().map((e) -> new Option(e.getKey(), e.getValue())).toList();
-        return new Field(s.label(), shown, s.kind(), s.column(), canEdit && !NOT_EDITABLE.contains(s.column()), v, options);
+        return new Field(s.label(), shown, s.kind(), s.column(), canEdit && !NOT_EDITABLE.contains(s.column()), v, options, s.hint());
+    }
+
+    /** False for a setting whose column this database does not have yet (the loan Deduction switch before its migration). */
+    boolean present(Spec s) {
+        return !LoanSteps.DEDUCTION_COLUMN.equals(s.column()) || steps.available();
+    }
+
+    /** The value of a read-only line: for the loan release, whether the person has New (and Find) on Cash Voucher. */
+    String noteValue(Spec s, String username) {
+        if (!LOAN_RELEASE.equals(s.column())) return null;
+        List<int[]> r = jdbc.query("SELECT COALESCE(x.CAN_NEW, 0), COALESCE(x.CAN_FIND, 0) FROM access a JOIN access_trans x ON x.BR_CODE = a.AccessBR_CODE AND x.USERID = a.AccessID"
+                + " WHERE a.AccessUserName = ? AND x.TR_CODE = ? LIMIT 1", (rs, i) -> new int[] {rs.getInt(1), rs.getInt(2)}, username, CASH_VOUCHER);
+        if (r.isEmpty() || r.get(0)[0] != 1) return "Not allowed: switch on New for Cash Voucher in the Transaction Types tab.";
+        return r.get(0)[1] == 1 ? "Allowed (Cash Voucher: New and Find)." : "Allowed (Cash Voucher: New). Switch on Find too, to see the vouchers waiting.";
     }
 
     /** The choices for a field, value to label, or null when it is free text, a number, a date or a switch. */
@@ -403,7 +446,7 @@ class UserProfileController {
     }
 
     private void audit(String by, String action, String subject, String prev, String next) {
-        AuditLog.write(jdbc, null, by, action, "user", subject, prev, next, null);
+        AuditLog.write(jdbc, by, action, "user", subject, prev, next, null);
     }
 
     private static boolean sameValue(Spec spec, String a, String b) {

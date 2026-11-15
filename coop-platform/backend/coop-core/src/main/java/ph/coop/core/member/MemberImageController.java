@@ -75,7 +75,7 @@ class MemberImageController {
         if (exists == null || exists == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found.");
         jdbc.update("INSERT INTO image (ImageBR_CODE, ClientIDimg, ImageType, ImageFileSize, ImageFile, ImageRemarks, ImageDateTimeAdded) VALUES (?, ?, ?, ?, ?, ?, NOW())",
             branchCode, clientId, imageType, data.length, data, "Set by " + auth.getName());
-        AuditLog.write(jdbc, null, auth.getName(), action, "client", branchCode + "-" + clientId, null, data.length + " bytes, " + type, reason);
+        AuditLog.write(jdbc, auth.getName(), action, "client", branchCode + "-" + clientId, null, data.length + " bytes, " + type, reason);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 

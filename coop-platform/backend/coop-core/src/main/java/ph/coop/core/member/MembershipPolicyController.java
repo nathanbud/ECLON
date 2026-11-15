@@ -74,6 +74,6 @@ public class MembershipPolicyController {
     private void change(String key, boolean before, boolean after, String reason, Authentication auth) {
         db.upsert("ecis_setting", Map.of("setting_key", key), new LinkedHashMap<>(Map.of("setting_value", Boolean.toString(after), "updated_by", auth.getName())));
         jdbc.update("UPDATE ecis_setting SET updated_at = NOW() WHERE setting_key = ?", key);
-        AuditLog.write(jdbc, null, auth.getName(), "membership.policy.changed", "setting", key, Boolean.toString(before), Boolean.toString(after), reason.trim());
+        AuditLog.write(jdbc, auth.getName(), "membership.policy.changed", "setting", key, Boolean.toString(before), Boolean.toString(after), reason.trim());
     }
 }

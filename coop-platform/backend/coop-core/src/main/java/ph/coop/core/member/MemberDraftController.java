@@ -119,7 +119,7 @@ class MemberDraftController {
         int type = in.clientType() == null ? 1 : in.clientType();
         long id = db.insertReturningId("INSERT INTO ecis_member_draft (owner, branch_code, client_type, title, fields, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())", "id",
             auth.getName(), in.branchCode() == null ? 1 : in.branchCode(), type, title, write(fields));
-        AuditLog.write(jdbc, null, auth.getName(), "member.draft.save", "member_draft", String.valueOf(id), null, null, "Saved a new-member draft");
+        AuditLog.write(jdbc, auth.getName(), "member.draft.save", "member_draft", String.valueOf(id), null, null, "Saved a new-member draft");
         return summary(id, auth);
     }
 
@@ -129,7 +129,7 @@ class MemberDraftController {
         int n = jdbc.update("UPDATE ecis_member_draft SET title = ?, client_type = ?, fields = ?, updated_at = NOW() WHERE id = ? AND owner = ?",
             titleOf(fields), in.clientType() == null ? 1 : in.clientType(), write(fields), id, auth.getName());
         if (n == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no such draft.");
-        AuditLog.write(jdbc, null, auth.getName(), "member.draft.save", "member_draft", String.valueOf(id), null, null, "Saved a new-member draft");
+        AuditLog.write(jdbc, auth.getName(), "member.draft.save", "member_draft", String.valueOf(id), null, null, "Saved a new-member draft");
         return summary(id, auth);
     }
 
@@ -137,7 +137,7 @@ class MemberDraftController {
     public void delete(@PathVariable long id, Authentication auth) {
         int n = jdbc.update("DELETE FROM ecis_member_draft WHERE id = ? AND owner = ?", id, auth.getName());
         if (n == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no such draft.");
-        AuditLog.write(jdbc, null, auth.getName(), "member.draft.delete", "member_draft", String.valueOf(id), null, null, "Deleted a new-member draft");
+        AuditLog.write(jdbc, auth.getName(), "member.draft.delete", "member_draft", String.valueOf(id), null, null, "Deleted a new-member draft");
     }
 
     private Summary summary(long id, Authentication auth) {

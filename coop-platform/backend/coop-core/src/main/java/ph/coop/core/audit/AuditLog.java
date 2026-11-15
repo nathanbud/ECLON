@@ -1,6 +1,9 @@
 package ph.coop.core.audit;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.context.request.RequestAttributes;
@@ -31,28 +34,31 @@ public final class AuditLog {
     }
 
     /**
-     * Records one audit row.
-     *
-     * @param at the time to record (a {@link java.sql.Timestamp} or {@link java.time.LocalDateTime}); {@code null} means the database's clock
+     * The moment a row is written, to the millisecond. It is always the real time of writing, never a time the caller chooses (a business date, a time rounded to the second), so the
+     * trail says exactly when each change happened and in what order. Milliseconds are kept, not finer: MySQL keeps three places (DATETIME(3)) and both databases then hold the same.
      */
-    public static void write(JdbcTemplate jdbc, Object at, String user, String action, String entity, String entityId, String prev, String next, String reason) {
+    static Timestamp now() {
+        return Timestamp.from(Instant.now().truncatedTo(ChronoUnit.MILLIS));
+    }
+
+    /**
+     * Records one audit row, stamped with the time of writing to the millisecond.
+     *
+     * @param prev the values before the change (a JSON object of field to value, or plain text); null for something new
+     * @param next the values after it; null for something removed
+     */
+    public static void write(JdbcTemplate jdbc, String user, String action, String entity, String entityId, String prev, String next, String reason) {
+        Timestamp at = now();
         if (wide) {
             try {
                 String[] where = where();
-                if (at == null) jdbc.update(WIDE.formatted("NOW()"), user, action, entity, entityId, prev, next, reason, where[0], where[1]);
-                else jdbc.update(WIDE.formatted("?"), at, user, action, entity, entityId, prev, next, reason, where[0], where[1]);
+                jdbc.update(WIDE.formatted("?"), at, user, action, entity, entityId, prev, next, reason, where[0], where[1]);
                 return;
             } catch (BadSqlGrammarException e) {
                 wide = false;
             }
         }
-        if (at == null) jdbc.update(NARROW.formatted("NOW()"), user, action, entity, entityId, prev, next, reason);
-        else jdbc.update(NARROW.formatted("?"), at, user, action, entity, entityId, prev, next, reason);
-    }
-
-    /** Records one audit row using the database's clock. */
-    public static void write(JdbcTemplate jdbc, String user, String action, String entity, String entityId, String prev, String next, String reason) {
-        write(jdbc, null, user, action, entity, entityId, prev, next, reason);
+        jdbc.update(NARROW.formatted("?"), at, user, action, entity, entityId, prev, next, reason);
     }
 
     /** The address and device of the request being served, or nulls when there is none. The address is the connection's own: a forwarded-for header is not trusted here. */

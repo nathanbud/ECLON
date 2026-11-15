@@ -327,6 +327,6 @@ public class MemberImportController {
     }
 
     private void audit(String user, String action, String entityId, String prev, String next, String reason) {
-        AuditLog.write(jdbc, null, user, action, "member_import", entityId, prev, next, reason);
+        AuditLog.write(jdbc, user, action, "member_import", entityId, prev, next, reason);
     }
 }
