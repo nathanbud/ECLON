@@ -199,7 +199,7 @@ public class LoanSetupController {
     }
 
     private void audit(Authentication auth, String action, String entity, String id, Object prev, Object next, String reason) {
-        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, entity, id, json(prev), json(next), reason);
+        AuditLog.write(jdbc, auth.getName(), action, entity, id, json(prev), json(next), reason);
     }
 
     private static String json(Object o) {
@@ -226,7 +226,7 @@ public class LoanSetupController {
     /** One line of a loan type's ledger wiring: what the event is for, which loan status it applies to (principal only), and the chart account it posts to. */
     public record WiredAccount(int event, String what, Integer status, String statusName, String account, String accountName, boolean accountActive, String remarks, boolean removable) {}
 
-    private static String eventRole(int e) {
+    static String eventRole(int e) {
         return switch (e) {
             case 11 -> "Principal (loan balance)";
             case 21 -> "Accrued interest receivable";

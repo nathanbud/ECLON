@@ -84,6 +84,6 @@ public class SingleHandGrants {
     }
 
     private void audit(Authentication auth, String action, String target, String detail, Timestamp at) {
-        AuditLog.write(jdbc, at, auth.getName(), action, "ecis_single_hand", target, null, detail, null);
+        AuditLog.write(jdbc, auth.getName(), action, "ecis_single_hand", target, null, detail, null);
     }
 }

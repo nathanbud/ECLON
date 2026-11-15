@@ -75,7 +75,9 @@ public class LoanApplicationController {
         }
     }
 
-    public record Created(long applicationId, String documentNo, int refNo, LocalDate firstDue, LocalDate maturity, BigDecimal totalInterest, BigDecimal totalDeductions, BigDecimal netProceeds, int scheduleRows) {}
+    /** waitingForDeductions: saved by someone who may do Profiling but not Deduction; someone else fills in the deductions before it can be verified. */
+    public record Created(long applicationId, String documentNo, int refNo, LocalDate firstDue, LocalDate maturity, BigDecimal totalInterest, BigDecimal totalDeductions, BigDecimal netProceeds, int scheduleRows,
+                          boolean waitingForDeductions) {}
 
     private record Type(String name, Map<String, Object> d) {}
 
@@ -83,9 +85,11 @@ public class LoanApplicationController {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final LoanBook book;
+    private final LoanSteps steps;
     private final CoMakerHolds holds;
 
-    LoanApplicationController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, LoanBook book, CoMakerHolds holds) {
+    LoanApplicationController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, LoanBook book, CoMakerHolds holds, LoanSteps steps) {
+        this.steps = steps;
         this.book = book;
         this.holds = holds;
         this.jdbc = jdbc;
@@ -176,13 +180,70 @@ public class LoanApplicationController {
             penalty == null ? null : (BigDecimal) penalty, days == null ? null : ((Number) days).intValue(), coll != null && ((Number) coll).intValue() != 0, unsupported(d));
     }
 
+    public record DeductionsIn(List<DeductionAmount> deductions, List<Payoff> payoffs) {}
+
+    public record Deducted(long applicationId, BigDecimal totalDeductions, BigDecimal netProceeds) {}
+
+    /**
+     * The Deduction step of an application that was saved by someone who may do Profiling only: the deduction lines, by the same rules as when both are
+     * done in one save. The person who did the Profiling may do this too when they hold both permissions. Audited as loan.application.deduction.
+     */
+    @PostMapping("/{appId}/deductions")
+    public Deducted deductions(@PathVariable int branchCode, @PathVariable int clientId, @PathVariable long appId, @RequestBody DeductionsIn in, Authentication auth) {
+        Encoder enc = encoder(auth.getName());
+        if (!enc.mayDeduct()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not do the Deduction step of loan applications.");
+        if (enc.branch() != branchCode) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This member belongs to another branch.");
+        return tx.execute((st) -> {
+            jdbc.queryForList("SELECT ID FROM loanapp WHERE BR_CODE = ? AND ID = ? FOR UPDATE", Long.class, branchCode, appId);
+            List<Map<String, Object>> app = jdbc.queryForList("""
+                    SELECT a.SLT_CODE, a.REF_NO, a.STATUSID, l.LoanPAMT FROM loanapp a
+                    JOIN loan l ON l.LoanBR_CODE = a.BR_CODE AND l.LoanSLC_CODE = a.SLC_CODE AND l.LoanSLT_CODE = a.SLT_CODE AND l.LoanREF_NO = a.REF_NO
+                    WHERE a.BR_CODE = ? AND a.ID = ? AND a.CLIENTID = ?
+                    """, branchCode, appId, clientId);
+            if (app.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such loan application for this member.");
+            Map<String, Object> a = app.get(0);
+            if (num(a, "STATUSID") != STATUS_NEW) throw new ResponseStatusException(HttpStatus.CONFLICT, "This application is no longer new, so its deductions cannot be filled in.");
+            if (!steps.waitingForDeductions(branchCode, appId)) throw new ResponseStatusException(HttpStatus.CONFLICT, "The deductions of this application were already filled in.");
+            int typeCode = num(a, "SLT_CODE"), ref = num(a, "REF_NO");
+            BigDecimal amount = (BigDecimal) a.get("LoanPAMT");
+            DeductionPlan plan = plan(branchCode, clientId, typeCode, ref, appId, deductionTemplate(branchCode, typeCode), in == null ? null : in.deductions(), in == null ? null : in.payoffs());
+            if (plan.total().compareTo(amount) >= 0) throw bad("The deductions (" + plan.total().toPlainString() + ") must be less than the loan amount.");
+            for (Object[] row : plan.rows()) {
+                jdbc.update("""
+                        INSERT INTO loandeduc (BR_CODE, LOANAPPID, SEQNO, DEDUCDESC, SLC_CODE, SLT_CODE, SLE_CODE, REF_NO, CLIENTID, ACCT_CODE, AMT, SLBEHAVIOR, ISTRANSITORYDEDUCITEM, IsHidePrinting,
+                          DeductClass, IsIncludeEffectiveIntRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, row);
+            }
+            if (!steps.deducted(branchCode, appId, auth.getName())) throw new ResponseStatusException(HttpStatus.CONFLICT, "Someone filled in the deductions in the meantime. Reload the application.");
+            AuditLog.write(jdbc, auth.getName(), "loan.application.deduction", "loanapp", branchCode + "/" + appId, "waiting for deductions",
+                plan.rows().size() + " lines, total " + plan.total().toPlainString() + ", net proceeds " + amount.subtract(plan.total()).toPlainString(), null);
+            return new Deducted(appId, plan.total(), amount.subtract(plan.total()));
+        });
+    }
+
     @PostMapping
     public Created create(@PathVariable int branchCode, @PathVariable int clientId, @RequestBody Create in, Authentication auth) {
         Encoder enc = encoder(auth.getName());
         if (!enc.mayAdd()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not add loan applications.");
         if (enc.branch() != branchCode) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This member belongs to another branch.");
+        // Profiling and Deduction are separate permissions; a person with both does both in this one save, as before.
+        boolean deducts = enc.mayDeduct();
+        boolean typedDeductions = (in.deductions() != null && in.deductions().stream().anyMatch((a) -> a.amount() != null && a.amount().signum() != 0))
+            || (in.payoffs() != null && !in.payoffs().isEmpty());
+        if (!deducts && typedDeductions) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may do Profiling but not Deduction. Save the application without deductions; someone who may do Deduction fills them in.");
+        }
+        if (!deducts && in.borrowerClass() != null && in.borrowerClass() == 3) {
+            throw bad("A restructured loan pays off the loan it replaces as part of its deductions, so it must be encoded by someone who may do both Profiling and Deduction.");
+        }
         if (in.amount() == null || in.amount().signum() <= 0 || in.amount().scale() > 2) throw bad("The loan amount must be more than zero, with at most 2 decimals.");
         Type t = type(branchCode, in.typeCode());
+        // A loan type whose setup requires collateral needs its type, value and description (the form says so too, before the save).
+        Object needsCollateral = t.d().get("SLTypeRequireCollateral");
+        if (needsCollateral != null && ((Number) needsCollateral).intValue() != 0
+            && (in.collateralType() == null || in.collateralAmount() == null || in.collateralAmount().signum() <= 0 || in.collateralDescription() == null || in.collateralDescription().isBlank())) {
+            throw bad("This loan type requires collateral: give its type, its value (more than zero) and a description.");
+        }
         List<Integer> clients = jdbc.queryForList("SELECT ClientID FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", Integer.class, branchCode, clientId);
         if (clients.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such client.");
         Integer existingVp = memberRef(branchCode, clientId, 29, 1);
@@ -222,54 +283,10 @@ public class LoanApplicationController {
             String docNo = String.format("%08d", appId);
 
             List<Map<String, Object>> template = deductionTemplate(branchCode, in.typeCode());
-            Map<Long, BigDecimal> typed = new HashMap<>();
-            if (in.deductions() != null) for (DeductionAmount a : in.deductions()) typed.put(a.id(), a.amount());
-            List<Object[]> deducRows = new ArrayList<>();
-            BigDecimal total = BigDecimal.ZERO;
-            int seq = 0;
-            for (Map<String, Object> r : template) {
-                BigDecimal amt = typed.remove(((Number) r.get("ID")).longValue());
-                int behavior = num(r, "SLBEHAVIOR");
-                if (behavior == BEHAVIOR_NET || amt == null || amt.signum() == 0) continue;
-                String desc = (String) r.get("DESCR");
-                if (amt.signum() < 0 || amt.scale() > 2) throw bad(desc + ": the amount must not be negative and has at most 2 decimals.");
-                if (behavior == BEHAVIOR_PAYOFF) throw bad(desc + ": paying off an earlier loan is not supported yet.");
-                Integer slc = objInt(r, "DSLC_CODE"), slt = objInt(r, "DSLT_CODE"), sle = objInt(r, "DSLE_CODE"), memberRef = null;
-                String gl = (String) r.get("DACCT_CODE");
-                if (slc != null) {
-                    memberRef = memberRef(branchCode, clientId, slc, slt);
-                    if (memberRef == null) throw bad(desc + ": the member has no account " + slc + "/" + slt + " to credit. Open it first.");
-                } else if (gl == null) {
-                    slc = LOAN_CLASS; slt = in.typeCode(); memberRef = ref;
-                }
-                seq++;
-                total = total.add(amt);
-                deducRows.add(new Object[] {branchCode, appId, seq, desc, slc, slt, sle, memberRef, clientId, gl, amt, behavior, objInt(r, "ISTRANSITORYDEDUCITEM"), objInt(r, "IsHidePrinting"),
-                    objInt(r, "DeductClass"), objInt(r, "IsIncludeEffectiveIntRate")});
-            }
-            if (!typed.isEmpty()) throw bad("Some deductions do not belong to this loan type.");
-            Payoff firstPaid = null;
-            java.util.Set<String> seen = new java.util.HashSet<>();
-            if (in.payoffs() != null) {
-                for (Payoff po : in.payoffs()) {
-                    if (!seen.add(po.typeCode() + "/" + po.refNo())) throw bad("Loan " + po.typeCode() + "/" + po.refNo() + " is listed twice.");
-                    LoanBook.Terms old = book.terms(branchCode, clientId, po.typeCode(), po.refNo()).orElseThrow(() -> bad("The member has no loan " + po.typeCode() + "/" + po.refNo() + "."));
-                    if (old.status() == 13) throw bad("Loan " + po.typeCode() + "/" + po.refNo() + " is in litigation and cannot be paid off here.");
-                    BigDecimal pr = money(po.principal()), ir = money(po.interest()), pe = money(po.penalty());
-                    if (pr.signum() <= 0) throw bad("The principal to pay off on loan " + po.typeCode() + "/" + po.refNo() + " must be more than zero.");
-                    if (pr.compareTo(old.outstanding()) > 0) throw bad("Loan " + po.typeCode() + "/" + po.refNo() + " owes only " + old.outstanding().toPlainString() + " principal.");
-                    String label = (old.type() == null ? "Loan " + po.typeCode() : old.type()) + " : ";
-                    Object[][] parts = {{label + "Principal", 11, pr}, {label + "Interest Paid", 23, ir}, {label + "Penalty/Fines", 41, pe}};
-                    for (Object[] part : parts) {
-                        BigDecimal amt = (BigDecimal) part[2];
-                        if (amt.signum() == 0) continue;
-                        seq++;
-                        total = total.add(amt);
-                        deducRows.add(new Object[] {branchCode, appId, seq, part[0], LOAN_CLASS, po.typeCode(), part[1], po.refNo(), clientId, null, amt, BEHAVIOR_PAYOFF, 0, 0, null, 1});
-                    }
-                    if (firstPaid == null) firstPaid = po;
-                }
-            }
+            DeductionPlan plan = plan(branchCode, clientId, in.typeCode(), ref, appId, template, in.deductions(), in.payoffs());
+            List<Object[]> deducRows = plan.rows();
+            BigDecimal total = plan.total();
+            Payoff firstPaid = plan.firstPaid();
             int borrowerClass = in.borrowerClass() == null ? 1 : in.borrowerClass();
             if (borrowerClass == 3 && firstPaid == null) throw bad("A restructured loan must pay off the loan it restructures.");
             final Payoff replaced = borrowerClass == 3 ? firstPaid : null;
@@ -324,18 +341,80 @@ public class LoanApplicationController {
                 }
             }
             holds.save(branchCode, appId, in.coMakerHolds());
-            AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), "loan.application.create", "loanapp", branchCode + "/" + appId, null, "client " + clientId + " type " + in.typeCode() + " ref " + ref + " amount " + in.amount().toPlainString() + " terms " + terms + " deductions " + total.toPlainString(), null);
-            return new Created(appId, docNo, ref, firstDue, maturity, LoanSchedule.totalInterest(schedule), total, in.amount().subtract(total), schedule.size());
+            steps.profiled(branchCode, appId, auth.getName(), deducts);
+            if (deducts) {
+                AuditLog.write(jdbc, auth.getName(), "loan.application.deduction", "loanapp", branchCode + "/" + appId, null,
+                    deducRows.size() + " lines, total " + total.toPlainString() + ", net proceeds " + in.amount().subtract(total).toPlainString() + " (with the profiling)", null);
+            }
+            AuditLog.write(jdbc, auth.getName(), "loan.application.create", "loanapp", branchCode + "/" + appId, null, "client " + clientId + " type " + in.typeCode() + " ref " + ref + " amount " + in.amount().toPlainString() + " terms " + terms + " deductions " + total.toPlainString(), null);
+            return new Created(appId, docNo, ref, firstDue, maturity, LoanSchedule.totalInterest(schedule), total, in.amount().subtract(total), schedule.size(), steps.available() && !deducts);
         });
+    }
+
+    /** The deduction lines of an application, as the old system stores them: the loan type's lines with an amount typed, then the pay-offs of earlier loans. */
+    private record DeductionPlan(List<Object[]> rows, BigDecimal total, Payoff firstPaid) {}
+
+    private DeductionPlan plan(int branchCode, int clientId, int typeCode, int ref, long appId, List<Map<String, Object>> template, List<DeductionAmount> deductions, List<Payoff> payoffs) {
+        Map<Long, BigDecimal> typed = new HashMap<>();
+        if (deductions != null) for (DeductionAmount a : deductions) typed.put(a.id(), a.amount());
+        List<Object[]> deducRows = new ArrayList<>();
+        BigDecimal total = BigDecimal.ZERO;
+        int seq = 0;
+        for (Map<String, Object> r : template) {
+            BigDecimal amt = typed.remove(((Number) r.get("ID")).longValue());
+            int behavior = num(r, "SLBEHAVIOR");
+            if (behavior == BEHAVIOR_NET || amt == null || amt.signum() == 0) continue;
+            String desc = (String) r.get("DESCR");
+            if (amt.signum() < 0 || amt.scale() > 2) throw bad(desc + ": the amount must not be negative and has at most 2 decimals.");
+            if (behavior == BEHAVIOR_PAYOFF) throw bad(desc + ": paying off an earlier loan is not supported yet.");
+            Integer slc = objInt(r, "DSLC_CODE"), slt = objInt(r, "DSLT_CODE"), sle = objInt(r, "DSLE_CODE"), memberRef = null;
+            String gl = (String) r.get("DACCT_CODE");
+            if (slc != null) {
+                memberRef = memberRef(branchCode, clientId, slc, slt);
+                if (memberRef == null) throw bad(desc + ": the member has no account " + slc + "/" + slt + " to credit. Open it first.");
+            } else if (gl == null) {
+                slc = LOAN_CLASS; slt = typeCode; memberRef = ref;
+            }
+            seq++;
+            total = total.add(amt);
+            deducRows.add(new Object[] {branchCode, appId, seq, desc, slc, slt, sle, memberRef, clientId, gl, amt, behavior, objInt(r, "ISTRANSITORYDEDUCITEM"), objInt(r, "IsHidePrinting"),
+                objInt(r, "DeductClass"), objInt(r, "IsIncludeEffectiveIntRate")});
+        }
+        if (!typed.isEmpty()) throw bad("Some deductions do not belong to this loan type.");
+        Payoff firstPaid = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        if (payoffs != null) {
+            for (Payoff po : payoffs) {
+                if (!seen.add(po.typeCode() + "/" + po.refNo())) throw bad("Loan " + po.typeCode() + "/" + po.refNo() + " is listed twice.");
+                LoanBook.Terms old = book.terms(branchCode, clientId, po.typeCode(), po.refNo()).orElseThrow(() -> bad("The member has no loan " + po.typeCode() + "/" + po.refNo() + "."));
+                if (old.status() == 13) throw bad("Loan " + po.typeCode() + "/" + po.refNo() + " is in litigation and cannot be paid off here.");
+                BigDecimal pr = money(po.principal()), ir = money(po.interest()), pe = money(po.penalty());
+                if (pr.signum() <= 0) throw bad("The principal to pay off on loan " + po.typeCode() + "/" + po.refNo() + " must be more than zero.");
+                if (pr.compareTo(old.outstanding()) > 0) throw bad("Loan " + po.typeCode() + "/" + po.refNo() + " owes only " + old.outstanding().toPlainString() + " principal.");
+                String label = (old.type() == null ? "Loan " + po.typeCode() : old.type()) + " : ";
+                Object[][] parts = {{label + "Principal", 11, pr}, {label + "Interest Paid", 23, ir}, {label + "Penalty/Fines", 41, pe}};
+                for (Object[] part : parts) {
+                    BigDecimal amt = (BigDecimal) part[2];
+                    if (amt.signum() == 0) continue;
+                    seq++;
+                    total = total.add(amt);
+                    deducRows.add(new Object[] {branchCode, appId, seq, part[0], LOAN_CLASS, po.typeCode(), part[1], po.refNo(), clientId, null, amt, BEHAVIOR_PAYOFF, 0, 0, null, 1});
+                }
+                if (firstPaid == null) firstPaid = po;
+            }
+        }
+        return new DeductionPlan(deducRows, total, firstPaid);
     }
 
     // ---- helpers ------------------------------------------------------------------------------------------------
 
-    private record Encoder(int id, int branch, int dept, boolean mayAdd) {}
+    /** mayAdd is "1 · Profiling" (Add loan application), mayDeduct "2 · Deduction". */
+    private record Encoder(int id, int branch, int dept, boolean mayAdd, boolean mayDeduct) {}
 
     private Encoder encoder(String username) {
-        List<Encoder> rows = jdbc.query("SELECT AccessID, AccessBR_CODE, COALESCE(AccessDepartment, 1), COALESCE(AccessCanAddLoanApplication, 0) FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1",
-            (rs, i) -> new Encoder(rs.getInt(1), rs.getInt(2), rs.getInt(3), rs.getInt(4) == 1), username);
+        List<Encoder> rows = jdbc.query("SELECT AccessID, AccessBR_CODE, COALESCE(AccessDepartment, 1), COALESCE(AccessCanAddLoanApplication, 0), " + steps.deductionFlagSql("")
+                + " FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1",
+            (rs, i) -> new Encoder(rs.getInt(1), rs.getInt(2), rs.getInt(3), rs.getInt(4) == 1, rs.getInt(5) == 1), username);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is not a staff account.");
         return rows.get(0);
     }

@@ -55,6 +55,7 @@ class LoanApplicationCreateTest {
     @Autowired LoanApplicationController applications;
     @Autowired JdbcTemplate jdbc;
     @Autowired Db db;
+    @Autowired LoanSteps steps;
 
     private Authentication clerk;
     private int client;
@@ -62,7 +63,9 @@ class LoanApplicationCreateTest {
     @BeforeEach
     void setUp() {
         assumeTrue(db.canInsertInto("loanapp", "loan", "amortsched", "loandeduc", "comaker", "slmastersum"), "V016 (INSERT on the application tables) has not been applied");
-        List<Map<String, Object>> who = jdbc.queryForList("SELECT AccessUserName u FROM access WHERE COALESCE(AccessIsDisabled, 0) = 0 AND AccessCanAddLoanApplication = 1 AND AccessBR_CODE = 1 LIMIT 1");
+        // a clerk who does both Profiling and Deduction, as these tests save the deductions with the application
+        List<Map<String, Object>> who = jdbc.queryForList("SELECT AccessUserName u FROM access WHERE COALESCE(AccessIsDisabled, 0) = 0 AND AccessCanAddLoanApplication = 1 AND "
+            + steps.deductionFlagSql("") + " = 1 AND AccessBR_CODE = 1 ORDER BY AccessID LIMIT 1");
         assumeTrue(!who.isEmpty(), "nobody may add loan applications");
         clerk = new TestingAuthenticationToken((String) who.get(0).get("u"), "x");
         List<Map<String, Object>> m = jdbc.queryForList("SELECT MCLIENTID c FROM slmastersum WHERE MBR_CODE = 1 AND MSLC_CODE = 29 AND MSLT_CODE = 1 ORDER BY MCLIENTID DESC LIMIT 1");
@@ -158,5 +161,20 @@ class LoanApplicationCreateTest {
         assertEquals(15, ((Number) osl.get("OSLSTATUS")).intValue());
         assertEquals(0, BigDecimal.ZERO.compareTo((BigDecimal) osl.get("OSLPAMT")));
         assertEquals(before + 1, jdbc.queryForObject("SELECT NPREF_NO FROM loanapp WHERE BR_CODE = 1 AND ID = ?", Integer.class, c.applicationId()));
+    }
+
+    @Test
+    void aLoanTypeThatRequiresCollateralNeedsItsTypeValueAndDescription() {
+        jdbc.update("UPDATE sltype SET SLTypeRequireCollateral = 1 WHERE SLTypeBR_CODE = 1 AND SLTypeSLC_CODE = 12 AND SLTypeSLT_CODE = 48");
+        Integer type = jdbc.queryForObject("SELECT MIN(CollateralTypeID) FROM collateraltype", Integer.class);
+        assumeTrue(type != null, "no collateral types");
+        ResponseStatusException none = assertThrows(ResponseStatusException.class,
+            () -> applications.create(1, client, new Create(48, new BigDecimal("5000.00"), 5, 5, 1, 1, null, null, null, null, List.of(), List.of()), clerk));
+        assertTrue(none.getReason().contains("requires collateral"), none.getReason());
+        assertThrows(ResponseStatusException.class,
+            () -> applications.create(1, client, new Create(48, new BigDecimal("5000.00"), 5, 5, 1, 1, type, new BigDecimal("80000.00"), " ", null, List.of(), List.of()), clerk),
+            "a description is needed too");
+        Created c = applications.create(1, client, new Create(48, new BigDecimal("5000.00"), 5, 5, 1, 1, type, new BigDecimal("80000.00"), "TCT 1234, house and lot", null, List.of(), List.of()), clerk);
+        assertTrue(c.applicationId() > 0);
     }
 }

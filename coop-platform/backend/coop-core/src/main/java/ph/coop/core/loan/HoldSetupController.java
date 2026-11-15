@@ -87,7 +87,7 @@ class HoldSetupController {
     }
 
     private void audit(Authentication auth, String action, int branch, int slc, int slt, String prev, String next, String why) {
-        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "hold_setting", branch + "/" + slc + "/" + slt, prev, next, why);
+        AuditLog.write(jdbc, auth.getName(), action, "hold_setting", branch + "/" + slc + "/" + slt, prev, next, why);
     }
 
     @PutMapping("/{slc}/{slt}")
