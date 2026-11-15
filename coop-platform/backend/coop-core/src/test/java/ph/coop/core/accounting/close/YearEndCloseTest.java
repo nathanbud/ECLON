@@ -160,6 +160,21 @@ class YearEndCloseTest {
         assertTrue(audits != null && audits >= 2);
     }
 
+    /** Characterization: the format of every row the Closing Entry writes (documentation/design/posting-engine.md). */
+    @Test
+    void theClosingEntryWritesRowsOfExactlyThisShape() {
+        assumeTrue(incomeAndExpenseNet().signum() != 0, "no income or expense in 2026");
+        Close posted = closes.post(closes.prepare(new NewClose(branch, YEAR), as(maker)).id(), as(checker));
+        long ctl = posted.controlNo();
+        String snap = ph.coop.core.accounting.ledger.LedgerSnapshot.shape(jdbc,
+            new ph.coop.core.accounting.ledger.LedgerSnapshot.Where(branch, YEAR, 1, 99, ctl, END, 99, List.of()),
+            List.of(ph.coop.core.accounting.ledger.LedgerSnapshot.ph("ctl", ctl, "tr_ctlno", "dttr_ctlno"),
+                ph.coop.core.accounting.ledger.LedgerSnapshot.ph("docNo", String.format("%08d", ctl), "tr_docno"),
+                ph.coop.core.accounting.ledger.LedgerSnapshot.ph("preparer", makerId, "dtencdby"),
+                ph.coop.core.accounting.ledger.LedgerSnapshot.ph("checker", checkerId, "dtapprvby", "dtpostby")));
+        ph.coop.core.accounting.ledger.LedgerSnapshot.assertMatches("year-end-close", snap);
+    }
+
     @Test
     void aClosingIsRefusedWhenTheLedgerChangedAfterItWasPrepared() {
         Preview p = closes.preview(branch, YEAR);

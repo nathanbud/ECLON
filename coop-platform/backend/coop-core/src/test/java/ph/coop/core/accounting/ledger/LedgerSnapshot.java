@@ -77,6 +77,42 @@ public final class LedgerSnapshot {
         return s;
     }
 
+    /** Columns that carry the data rather than the format: left out of a {@link #shape}. */
+    private static final Set<String> DATA = Set.of("dtacct_code", "dtdept", "dtamt", "dtseq_no", "gltransacct_code", "gltransdept", "gltransdr_amt", "gltranscr_amt",
+        "explanation", "tr_date", "dtsl_date", "gltranstr_date", "batch_no", "tr_year", "dttr_year");
+
+    /**
+     * The format of a posting whose figures depend on live data (the year-end close of a real year): every distinct row once, without the
+     * account, department, amount, sequence and dates, and for a general-ledger row whether it is a debit (D), a credit (C) or zero (0).
+     */
+    public static String shape(JdbcTemplate jdbc, Where w, List<Placeholder> placeholders) {
+        StringBuilder out = new StringBuilder();
+        shapeSection(out, "transsum", jdbc.queryForList("SELECT * FROM transsum WHERE TR_BRCODE = ? AND TR_YEAR = ? AND TR_MODULE = ? AND TR_CODE = ? AND TR_CTLNO = ?",
+            w.branch(), w.year(), w.module(), w.code(), w.ctl()), placeholders);
+        shapeSection(out, "transdt", jdbc.queryForList("SELECT * FROM transdt WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTTR_CTLNO = ?",
+            w.branch(), w.year(), w.module(), w.code(), w.ctl()), placeholders);
+        shapeSection(out, "gltrans", jdbc.queryForList("SELECT * FROM gltrans WHERE GLTransBR_CODE = ? AND GLTransTR_DATE = ? AND GLTransTR_CODE = ?",
+            w.branch(), w.glDate(), w.glCode()), placeholders);
+        return out.toString();
+    }
+
+    private static void shapeSection(StringBuilder out, String table, List<Map<String, Object>> rows, List<Placeholder> placeholders) {
+        java.util.TreeSet<String> distinct = new java.util.TreeSet<>();
+        for (Map<String, Object> r : rows) {
+            Map<String, Object> sorted = new TreeMap<>();
+            r.forEach((k, v) -> { String c = k.toLowerCase(); if (!VOLATILE.contains(c) && !DATA.contains(c)) sorted.put(c, v); });
+            if (table.equals("gltrans")) {
+                BigDecimal dr = (BigDecimal) r.get("gltransdr_amt"), cr = (BigDecimal) r.get("gltranscr_amt");
+                sorted.put("side", dr != null && dr.signum() > 0 ? "D" : cr != null && cr.signum() < 0 ? "C" : "0");
+            }
+            List<String> cells = new ArrayList<>();
+            sorted.forEach((k, v) -> cells.add(k + "=" + text(k, v, placeholders)));
+            distinct.add(String.join(" | ", cells));
+        }
+        out.append("## ").append(table).append(rows.isEmpty() ? " (none)" : "").append('\n');
+        distinct.forEach((d) -> out.append(d).append('\n'));
+    }
+
     /** Compares with the golden file, writing it on the first run. */
     public static void assertMatches(String name, String snapshot) {
         Path file = Path.of("src/test/resources/ledger-golden", name + ".txt");

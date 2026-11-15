@@ -1,6 +1,6 @@
 # Design: one posting engine for the ledger
 
-Status: **proposed**, waiting for approval. Author: Claude, for the Coop Platform. Date: 2026-11-15.
+Status: **approved 2026-11-15, being built.** Author: Claude, for the Coop Platform. Date: 2026-11-15.
 
 ## Problem
 
@@ -107,6 +107,14 @@ closure, loan release; cash handover last (it already has request keys).
 * **Speed of the big runs** (dividends and interest write thousands of lines): `write` uses batch inserts, as the year-end close does.
 * **MySQL** keeps working the same; the new table is optional there until V063 is applied (no request key protection without it).
 
-## Decision asked for
+## Progress
 
-Approve this design, and the order above, before any code moves.
+| Flow | On the ledger | Proof |
+|---|---|---|
+| Journals (`JournalController`) | yes | `ledger-golden/journal.txt`: every column of every row, unchanged |
+| Year-end close (`YearEndCloseController`) | yes | `ledger-golden/year-end-close.txt`: the shape of every row, unchanged; totals in `YearEndCloseTest` |
+| `MemberLedgerPoster` and its callers, memos, bank cash, returned cheques, penalty waivers, the voucher runs, share withdrawal, time deposit closure, loan release, cash handover | not yet | |
+
+The service is `ph.coop.core.accounting.ledger.Ledger` (with `Voucher`, `Money`, `LedgerRules`); request keys are kept in `ecis_posting_request`
+(PostgreSQL V026 applied, MySQL V063 written). A journal's key is `journal/<branch>/<id>` and a closing's `yearend/<branch>/<id>`, so neither can
+be written twice. Tested by `LedgerRulesTest`, `LedgerTest` (one voucher per key; a refused voucher writes nothing) and the golden tests.

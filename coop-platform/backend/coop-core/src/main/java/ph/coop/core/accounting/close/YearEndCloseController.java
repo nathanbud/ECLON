@@ -27,6 +27,9 @@ import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.accounting.close.YearEndRules.Balance;
 import ph.coop.core.accounting.close.YearEndRules.Department;
 import ph.coop.core.accounting.close.YearEndRules.Line;
+import ph.coop.core.accounting.ledger.Ledger;
+import ph.coop.core.accounting.ledger.Money;
+import ph.coop.core.accounting.ledger.Voucher;
 import ph.coop.core.audit.AuditLog;
 import ph.coop.core.db.Db;
 
@@ -61,10 +64,12 @@ class YearEndCloseController {
     private final Db db;
     private final Clock clock;
     private final ClosedBooks books;
+    private final Ledger ledger;
     private final String surplusAccount;
 
-    YearEndCloseController(JdbcTemplate jdbc, Db db, Clock clock, ClosedBooks books,
+    YearEndCloseController(JdbcTemplate jdbc, Db db, Clock clock, ClosedBooks books, Ledger ledger,
                            @Value("${coop.year-end.surplus-account:30198}") String surplusAccount) {
+        this.ledger = ledger;
         this.jdbc = jdbc;
         this.db = db;
         this.clock = clock;
@@ -133,7 +138,7 @@ class YearEndCloseController {
         }
         Person preparer = legacyPerson(c.preparedBy(), "person who prepared the closing");
         Person poster = legacyPerson(auth.getName(), "person posting the closing");
-        long ctl = writeClosingEntry(branch, year, lines, preparer, poster);
+        long ctl = writeClosingEntry(id, auth.getName(), branch, year, lines, preparer, poster);
         int n = jdbc.update("UPDATE ecis_year_end_close SET status = 'POSTED', decided_by = ?, decided_at = ?, tr_ctlno = ? WHERE id = ? AND status = 'PREPARED'",
                 auth.getName(), LocalDateTime.now(clock), ctl, id);
         if (n != 1) throw conflict("The closing changed while you were working. Reload it.");
@@ -166,50 +171,26 @@ class YearEndCloseController {
      * closing does, so that account ends the year at zero. The old system writes zero lines for every other account too; those change nothing
      * and are left out.
      */
-    private long writeClosingEntry(int branch, int year, List<Line> lines, Person preparer, Person poster) {
+    private long writeClosingEntry(long closeId, String username, int branch, int year, List<Line> lines, Person preparer, Person poster) {
         LocalDate date = YearEndRules.closingDate(year);
-        LocalDateTime now = LocalDateTime.now(clock).withNano(0);
-        long ctl = db.nextControlNumber(branch, 1, ClosedBooks.CLOSING_ENTRY, year);
-        jdbc.update("""
-                INSERT INTO transsum (TR_BRCODE, TR_YEAR, TR_MODULE, TR_CODE, TR_CTLNO, TR_DOCNO, TR_DATE, TR_TIME, BATCH_NO, EXPLANATION, IS_FO, DATETIMEADDED)
-                VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, 0, ?)
-                """, branch, year, ClosedBooks.CLOSING_ENTRY, ctl, String.format("%08d", ctl), date, now.format(DateTimeFormatter.ofPattern("HH:mm:ss")),
-                date.format(DateTimeFormatter.BASIC_ISO_DATE),
-                "Closing Entries (Computer Generated) for Date Ending: " + date.format(DateTimeFormatter.ofPattern("MM/dd/yyyy")), now);
-        List<Object[]> dt = new ArrayList<>();
-        List<Object[]> gl = new ArrayList<>();
-        int seq = 0;
-        for (Line l : lines) {
-            dt.add(new Object[]{branch, year, ClosedBooks.CLOSING_ENTRY, ctl, seq++, l.dept(), l.account(), l.amount(), preparer.id(), poster.id(), poster.id()});
-            gl.add(glRow(branch, l.account(), date, l.dept(), l.amount(), now));
-        }
         String pl = books.profitLossAccount(branch);
+        List<Voucher.GlOnly> mirrors = new ArrayList<>();
         jdbc.query("""
                 SELECT GLTransDEPT, SUM(GLTransDR_AMT) + SUM(GLTransCR_AMT) FROM gltrans
                 WHERE GLTransBR_CODE = ? AND GLTransACCT_CODE = ? AND GLTransTR_DATE BETWEEN ? AND ? AND GLTransTR_CODE = ?
                 GROUP BY GLTransDEPT ORDER BY GLTransDEPT
                 """, rs -> {
             BigDecimal net = rs.getBigDecimal(2);
-            if (net != null && net.signum() != 0) gl.add(glRow(branch, pl, date, rs.getInt(1), net.negate(), now));
+            if (net != null && net.signum() != 0) mirrors.add(new Voucher.GlOnly(pl, rs.getInt(1), Money.of(net.negate())));
         }, branch, pl, LocalDate.of(year, 1, 1), date, ClosedBooks.PROFIT_LOSS_SUMMARY);
-        jdbc.batchUpdate("""
-                INSERT INTO transdt (DTTR_BRCODE, DTTR_YEAR, DTTR_MODULE, DTTR_CODE, DTTR_CTLNO, DTSEQ_NO, DTDEPT, DTACCT_CODE, DTSL_DATE, DTADJ_FLAG, DTAMT,
-                  DTENCDBY, DTAPPRVBY, DTPOSTBY, DTUPD_TAG, DTREFERENCE, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
-                VALUES (?, ?, 1, ?, ?, ?, ?, ?, NULL, 1, ?, ?, ?, ?, 1, '', 0, 0, 0)
-                """, dt);
-        jdbc.batchUpdate("""
-                INSERT INTO gltrans (GLTransBR_CODE, GLTransACCT_CODE, GLTransTR_DATE, GLTransTR_CODE, GLTransDEPT, GLTransDR_AMT, GLTransCR_AMT,
-                  GLTransDR_BALB4, GLTransCR_BALB4, GLTransSUM_BALB4, GLTransSYNC, GLTransLASTUPDATED)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 1, ?)
-                """, gl);
-        return ctl;
+        // The ledger writes the Closing Entry (documentation/design/posting-engine.md); the closing's own id is its request key, so it is written once.
+        Ledger.Posted v = ledger.write(new Voucher("yearend/" + branch + "/" + closeId, username, branch, 1, ClosedBooks.CLOSING_ENTRY, date,
+            "Closing Entries (Computer Generated) for Date Ending: " + date.format(DateTimeFormatter.ofPattern("MM/dd/yyyy")), Voucher.Style.CLOSING_ENTRY,
+            new Voucher.People(preparer.id(), poster.id(), poster.id()),
+            lines.stream().map((l) -> new Voucher.Line(l.account(), l.dept(), Money.of(l.amount()))).toList(), mirrors));
+        return v.controlNo();
     }
 
-    private static Object[] glRow(int branch, String account, LocalDate date, int dept, BigDecimal amount, LocalDateTime now) {
-        BigDecimal dr = amount.signum() > 0 ? amount : BigDecimal.ZERO;
-        BigDecimal cr = amount.signum() < 0 ? amount : BigDecimal.ZERO;
-        return new Object[]{branch, account, date, ClosedBooks.CLOSING_ENTRY, dept, dr, cr, now};
-    }
 
     /** Open and soft-closed periods that lie inside the year become CLOSED, each audited. */
     private void closePeriods(int branch, int year, Authentication auth) {
