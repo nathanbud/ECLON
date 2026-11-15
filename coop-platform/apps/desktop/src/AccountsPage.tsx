@@ -4,9 +4,10 @@ import {
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { FiChevronRight, FiLock, FiMinusSquare, FiPlus, FiPlusSquare } from 'react-icons/fi'
+import { FiChevronRight, FiLock, FiMinusSquare, FiPlus, FiPlusSquare, FiUpload } from 'react-icons/fi'
 import { createChartAccount, getChart, getChartUsage, listAccounts, updateChartAccount, type ChartAccount } from './api'
 import { listTable, PageTitle, SearchField, Surface } from './appleUi'
+import ChartUpload from './ChartUpload'
 import { appBackground } from './glass'
 import { useMe } from './session'
 
@@ -48,6 +49,7 @@ export default function AccountsPage() {
   const [open, setOpen] = useState<Set<string> | null>(null) // null = the top two levels
   const [dialog, setDialog] = useState<{ target: ChartAccount | 'new'; under?: ChartAccount } | null>(null)
   const [done, setDone] = useState<string | null>(null)
+  const [upload, setUpload] = useState(false) // advanced mode: add accounts from a list
   const [current, setCurrent] = useState<string | null>(null) // the one row in the tab order; arrow keys move it
 
   const { data, error, isFetching } = useQuery({ queryKey: ['chart'], queryFn: getChart, enabled: canEdit })
@@ -117,6 +119,16 @@ export default function AccountsPage() {
   const edit = (a: ChartAccount) => { setDone(null); setDialog({ target: a }) }
 
   if (!canEdit) return <ReadOnlyChart />
+  if (upload) {
+    return (
+      <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
+        <ChartUpload
+          onClose={() => setUpload(false)}
+          onDone={(msg) => { setUpload(false); setDone(msg); setOpen(null); void qc.invalidateQueries({ queryKey: ['chart'] }); void qc.invalidateQueries({ queryKey: ['accounts'] }) }}
+        />
+      </Box>
+    )
+  }
 
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
@@ -125,6 +137,11 @@ export default function AccountsPage() {
           <Box sx={{ flex: 1, minWidth: 260 }}>
             <PageTitle title="Chart of Accounts">The ledger accounts the books are kept in, grouped under their headings. Click a name to change it; numbers are never changed or deleted.</PageTitle>
           </Box>
+          {me.admin && (
+            <Tooltip title="Advanced mode: add many accounts from an Excel or CSV list">
+              <Button startIcon={<FiUpload />} onClick={() => { setDone(null); setUpload(true) }} sx={{ mt: 0.5 }}>Upload from Excel</Button>
+            </Tooltip>
+          )}
           <Button variant="contained" startIcon={<FiPlus />} onClick={() => { setDone(null); setDialog({ target: 'new' }) }} sx={{ mt: 0.5 }}>New account</Button>
         </Box>
         {done && <Alert severity="success" onClose={() => setDone(null)} sx={{ mb: 1.5 }}>{done}</Alert>}

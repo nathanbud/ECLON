@@ -113,7 +113,7 @@ export default function UsersPage() {
       <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
         <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Users</Typography>
         <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
-          People come from the iAccs user list. Select a person to see their account setup, issue them a temporary password, and choose who is a Membership Officer.
+          Select a person to see their account setup, issue them a temporary password, and choose who is a Membership Officer.
         </Typography>
 
         {!me.admin && <Alert severity="info">Only administrators can manage users.</Alert>}

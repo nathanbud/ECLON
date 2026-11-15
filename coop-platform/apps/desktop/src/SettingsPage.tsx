@@ -1,6 +1,6 @@
 import { Box, ButtonBase, InputAdornment, TextField, Typography } from '@mui/material'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { FiBook, FiDatabase, FiImage, FiBookOpen, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMonitor, FiSearch, FiSend, FiShield, FiSliders, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
+import { FiBook, FiDatabase, FiImage, FiBookOpen, FiLayers, FiMoon, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMonitor, FiSearch, FiSend, FiShield, FiSliders, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
 import { tint } from './theme'
@@ -28,6 +28,7 @@ const categories: Category[] = [
   {
     id: 'membership', label: 'Membership', icon: <FiUserPlus />, color: tint.blue[0],
     items: [
+      { label: 'Savings dormancy', note: 'Savings accounts with no deposit or withdrawal for their type’s period, to mark dormant; and reactivating dormant ones', icon: <FiMoon />, color: tint.indigo[0], view: 'dormancy', who: 'admin' },
       { label: 'Membership policy', note: 'Whether a returning member must pay share capital again before reactivation is approved', icon: <FiUserPlus />, color: tint.blue[0], view: 'membershippolicy', who: 'admin' },
     ],
   },
@@ -42,6 +43,7 @@ const categories: Category[] = [
     id: 'accounting', label: 'Accounting', icon: <FiBookOpen />, color: tint.orange[0],
     items: [
       { label: 'Chart of Accounts', note: 'Add, rename, move and switch off ledger accounts', icon: <FiBookOpen />, color: tint.orange[0], view: 'accounts', who: 'accountant' },
+      { label: 'Account Types', note: 'Savings, time deposit, share capital, receivable and payable types, their rates and minimum balances, and the ledger accounts they post to', icon: <FiLayers />, color: tint.teal[0], view: 'accounttypes', who: 'admin' },
     ],
   },
   {

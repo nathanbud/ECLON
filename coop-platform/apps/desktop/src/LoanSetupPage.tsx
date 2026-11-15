@@ -10,6 +10,7 @@ import {
   type HoldSetupRow, type WiredAccount, type LoanSetupForm, type LoanSetupLists, type LoanSetupType, type SetupNamed,
 } from './api'
 import AmortizationTab from './AmortizationTab'
+import LoanDeductions from './LoanDeductions'
 import { Dot, listTable, PageTitle, ReasonDialog, SearchField, SectionLabel, Segmented, Surface } from './appleUi'
 import { appBackground } from './glass'
 import { useMe } from './session'
@@ -141,7 +142,7 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [seeded, setSeeded] = useState<string>('')
-  const [pane, setPane] = useState<'setup' | 'coa'>('setup')
+  const [pane, setPane] = useState<'setup' | 'coa' | 'deductions'>('setup')
   // Fill the form once per opening (not on every render, which would undo typing).
   const key = editing ? `e${editing.code}` : creating ? 'new' : ''
   if (open && seeded !== key) {
@@ -192,11 +193,11 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
         <DialogTitle id="type-title" sx={{ pb: 0.25 }}>{editing ? editing.name : 'New loan type'}</DialogTitle>
         {editing && (
           <Tabs value={pane} onChange={(_, v) => setPane(v)} aria-label="Loan type sections" sx={{ px: 2, minHeight: 38, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 38, textTransform: 'none' } }}>
-            <Tab value="setup" label="Setup" /><Tab value="coa" label="COA Links" />
+            <Tab value="setup" label="Setup" /><Tab value="coa" label="COA Links" /><Tab value="deductions" label="Deductions" />
           </Tabs>
         )}
         <DialogContent sx={{ pt: 0.5, pb: 1, overflow: 'visible' }}>
-          <Box sx={{ display: pane === 'coa' ? 'none' : undefined }}>
+          <Box sx={{ display: pane !== 'setup' ? 'none' : undefined }}>
           {used && (
             <Typography color="text.secondary" sx={{ fontSize: 12, mb: 1.5 }}>
               {editing!.loans.toLocaleString()} loans and {editing!.applications.toLocaleString()} applications use this type. Changes apply to new applications only.
@@ -250,8 +251,9 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
           </Box>
           </Box>
           {editing && pane === 'coa' && <WiredAccounts code={editing.code} />}
+          {editing && pane === 'deductions' && <LoanDeductions code={editing.code} />}
         </DialogContent>
-        {pane === 'coa' && editing ? (
+        {pane !== 'setup' && editing ? (
           <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}><Button onClick={onClose} color="inherit">Close</Button></DialogActions>
         ) : (
         <DialogActions sx={{ px: 3, pb: 2, pt: 1, gap: 1.5, alignItems: 'flex-start' }}>

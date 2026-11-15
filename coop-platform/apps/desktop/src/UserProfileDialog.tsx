@@ -62,14 +62,29 @@ function FieldInput({ f }: { f: UserField }) {
   const from = f.raw ?? null
   const current = draft[f.key] ? draft[f.key].to : from
 
+  if (f.kind === 'note') {
+    const allowed = (f.value ?? '').startsWith('Allowed')
+    return (
+      <Box>
+        <Allowed on={allowed} label={f.label} />
+        <Typography sx={{ fontSize: 12, ml: 3.25 }} color={allowed ? 'text.secondary' : 'warning.main'}>{f.value}</Typography>
+        {f.hint && <Typography sx={{ fontSize: 12, ml: 3.25 }} color="text.secondary">{f.hint}</Typography>}
+      </Box>
+    )
+  }
+
   if (f.kind === 'bool') {
     const on = (live ? current : from) === '1'
-    if (!live) return <Allowed on={on} label={f.label} />
+    const hint = f.hint && <Typography sx={{ fontSize: 12, ml: live ? 3.75 : 3.25, mt: live ? -0.75 : 0 }} color="text.secondary">{f.hint}</Typography>
+    if (!live) return <Box><Allowed on={on} label={f.label} />{hint}</Box>
     return (
-      <FormControlLabel
-        label={<Typography sx={{ fontSize: 13 }}>{f.label}</Typography>}
-        control={<Checkbox size="small" checked={on} onChange={(e) => set(f.key, from, e.target.checked ? '1' : '0')} />}
-      />
+      <Box>
+        <FormControlLabel
+          label={<Typography sx={{ fontSize: 13 }}>{f.label}</Typography>}
+          control={<Checkbox size="small" checked={on} onChange={(e) => set(f.key, from, e.target.checked ? '1' : '0')} />}
+        />
+        {hint}
+      </Box>
     )
   }
 
@@ -149,6 +164,14 @@ function Sections({ sections }: { sections: UserSection[] }) {
   return (
     <Box sx={{ columns: '340px', columnGap: '12px' }}>
       {sections.map((sec) => {
+        // A section whose settings carry notes (the loan process) is a list in its own order, one setting under the other, so each note sits under its setting.
+        if (sec.fields.some((f) => f.hint)) {
+          return (
+            <Card key={sec.title} title={sec.title}>
+              <Box sx={{ display: 'grid', gap: 1.25 }}>{sec.fields.map((f) => <FieldInput key={f.key} f={f} />)}</Box>
+            </Card>
+          )
+        }
         const flags = sec.fields.filter((f) => f.kind === 'bool')
         const lists = sec.fields.filter((f) => f.kind === 'list')
         const values = sec.fields.filter((f) => f.kind !== 'bool' && f.kind !== 'list')
@@ -370,7 +393,7 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
               )}
               {key === 'transaction-types' ? <TransactionTypesTab username={username} /> : <Sections sections={profile.tabs[key] ?? []} />}
               <Typography sx={{ mt: 2, fontSize: 12 }} color="text.secondary">
-                Settings come from iAccs. Changes saved here are written to it and recorded in the audit log.
+                Changes saved here are recorded in the audit log.
               </Typography>
             </>
           )}

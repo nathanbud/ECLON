@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Me } from './api'
-import AuditLogPage from './AuditLogPage'
+import AuditLogPage, { when } from './AuditLogPage'
 import { AppThemeProvider } from './theme'
 
 vi.mock('./session', () => ({ useMe: () => ({ username: 'boss', name: 'Boss', roles: ['ROLE_ADMIN'], canEdit: true, canApprove: false, admin: true, mustChangePassword: false }) as Me }))
@@ -16,8 +16,10 @@ vi.mock('./api', async (orig) => ({
   ...(await orig<typeof import('./api')>()),
   getAuditFacets: async () => ({ entities: [], actions: [], users: [] }),
   getAuditLog: async () => ({
-    content: [{ id: 9, at: '2026-10-29T10:00:00', username: 'ana', action: 'member.update', entity: 'client', entityId: '1-100', previous: null, current: null, reason: 'Fix', clientIp: '203.0.113.9', clientInfo: 'CoopPlatform/0.1' },
-              { id: 8, at: '2026-10-29T09:00:00', username: 'system', action: 'audit.sealed', entity: 'audit_seal', entityId: '3', previous: null, current: null, reason: null, clientIp: null, clientInfo: null }],
+    content: [{ id: 9, at: '2026-10-29T10:00:00.042', username: 'ana', action: 'account.type.update', entity: 'account_type', entityId: '1/22/1',
+                previous: '{"SLTypeINT_RATE":1.00,"SLTypeMAXBAL":null}', current: '{"SLTypeINT_RATE":1.75,"SLTypeMAXBAL":250000}', reason: 'Fix', clientIp: '203.0.113.9', clientInfo: 'CoopPlatform/0.1',
+                changes: [{ field: 'SLTypeINT_RATE', label: 'Interest rate', before: '1.00', after: '1.75' }, { field: 'SLTypeMAXBAL', label: 'Maximum balance', before: null, after: '250000' }] },
+              { id: 8, at: '2026-10-29T09:00:00', username: 'system', action: 'audit.sealed', entity: 'audit_seal', entityId: '3', previous: null, current: null, reason: null, clientIp: null, clientInfo: null, changes: [] }],
     totalElements: 2, number: 0, size: 50,
   }),
   getAuditIntegrity: async () => integrity,
@@ -41,6 +43,28 @@ describe('audit log integrity', () => {
     show()
     expect(await screen.findByText('203.0.113.9')).toBeInTheDocument()
     expect(screen.getByText('System')).toBeInTheDocument()
+  })
+
+  it('shows the time to the millisecond and what changed, field by field', async () => {
+    show()
+    expect(await screen.findByText('29 Oct 2026 · 10:00:00.042')).toBeInTheDocument()
+    expect(screen.getByText('29 Oct 2026 · 09:00:00.000')).toBeInTheDocument()
+    expect(screen.getByText('Interest rate, Maximum balance')).toBeInTheDocument()
+    await userEvent.click(screen.getAllByRole('button', { name: 'Show details' })[0])
+    const changes = await screen.findByRole('table', { name: 'What changed' })
+    const rate = within(changes).getByText('Interest rate').closest('tr')!
+    expect(within(rate).getByText('1.00')).toBeInTheDocument()
+    expect(within(rate).getByText('1.75')).toBeInTheDocument()
+    const max = within(changes).getByText('Maximum balance').closest('tr')!
+    expect(within(max).getByText('none')).toBeInTheDocument()
+    expect(within(max).getByText('250000')).toBeInTheDocument()
+    expect(screen.getByText('The values exactly as stored')).toBeInTheDocument()
+  })
+
+  it('formats a time with or without its fraction', () => {
+    expect(when('2026-11-13T05:16:17.874233')).toBe('13 Nov 2026 · 05:16:17.874')
+    expect(when('2026-11-13T05:16:17.8')).toBe('13 Nov 2026 · 05:16:17.800')
+    expect(when('2026-01-02T00:00:00')).toBe('2 Jan 2026 · 00:00:00.000')
   })
 
   it('says how far the log is sealed and how much is not', async () => {

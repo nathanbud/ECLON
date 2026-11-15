@@ -4,12 +4,46 @@ import {
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useState } from 'react'
 import { FiChevronDown, FiChevronRight, FiSearch } from 'react-icons/fi'
-import { getAuditFacets, getAuditIntegrity, getAuditLog, sealAuditLog, verifyAuditLog, type AuditFilter, type AuditVerification } from './api'
+import { getAuditFacets, getAuditIntegrity, getAuditLog, sealAuditLog, verifyAuditLog, type AuditChange, type AuditEntry, type AuditFilter, type AuditVerification } from './api'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
 
 const SIZE = 50
-const when = (s: string) => new Date(s).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'medium' })
+/** The date, and the time to the millisecond: 13 Nov 2026 · 05:16:17.874. Read from the text itself, so no time zone shifts it. */
+export function when(s: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?/.exec(s)
+  if (!m) return s
+  const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m[2]) - 1]
+  const ms = (m[7] ?? '').padEnd(3, '0').slice(0, 3)
+  return `${Number(m[3])} ${month} ${m[1]} · ${m[4]}:${m[5]}:${m[6]}.${ms}`
+}
+
+/** The changed fields of an entry in a few words, for the list. */
+function changedFields(e: AuditEntry) {
+  const names = e.changes.map((c) => c.label)
+  if (names.length === 0) return '—'
+  if (names.length === 1 && names[0] === 'Value') return e.previous && e.current ? 'Value changed' : e.current ? 'Added' : 'Removed'
+  return names.length <= 3 ? names.join(', ') : `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`
+}
+
+/** What changed, field by field: the field, its value before and its value after. */
+function Changes({ changes }: { changes: AuditChange[] }) {
+  const empty = <Typography component="span" color="text.disabled" sx={{ fontSize: 12, fontStyle: 'italic' }}>none</Typography>
+  return (
+    <Table size="small" aria-label="What changed" sx={(t) => ({ '& td, & th': { py: 0.5, verticalAlign: 'top' }, '& th': { color: t.palette.text.secondary, fontWeight: 600 } })}>
+      <TableHead><TableRow><TableCell sx={{ width: '24%' }}>Field</TableCell><TableCell sx={{ width: '38%' }}>Before</TableCell><TableCell>After</TableCell></TableRow></TableHead>
+      <TableBody>
+        {changes.map((c, i) => (
+          <TableRow key={`${c.field}-${i}`}>
+            <TableCell title={c.field && c.field !== c.label ? c.field : undefined}>{c.label}</TableCell>
+            <TableCell sx={(t) => ({ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: c.before == null ? undefined : t.palette.error.main, textDecoration: c.before != null && c.after != null ? 'line-through' : undefined })}>{c.before ?? empty}</TableCell>
+            <TableCell sx={(t) => ({ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: c.after == null ? undefined : t.palette.success.main, fontWeight: 500 })}>{c.after ?? empty}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
 
 /** A stored value is often JSON; show it indented so a change reads line by line. */
 function pretty(v: string | null) {
@@ -105,10 +139,10 @@ export default function AuditLogPage() {
             <Box sx={(t) => ({ overflow: 'auto', opacity: isFetching && !isLoading ? 0.7 : 1, transition: 'opacity 150ms', ...glass(t) })}>
               <Table size="small" aria-label="Audit log">
                 <TableHead>
-                  <TableRow><TableCell width={36} /><TableCell>When</TableCell><TableCell>Person</TableCell><TableCell>Action</TableCell><TableCell>Record</TableCell><TableCell>Where</TableCell><TableCell>Reason</TableCell></TableRow>
+                  <TableRow><TableCell width={36} /><TableCell>When</TableCell><TableCell>Person</TableCell><TableCell>Action</TableCell><TableCell>Record</TableCell><TableCell>What changed</TableCell><TableCell>Where</TableCell><TableCell>Reason</TableCell></TableRow>
                 </TableHead>
                 <TableBody>
-                  {isLoading && Array.from({ length: 8 }, (_, i) => <TableRow key={i}><TableCell colSpan={7}><Skeleton /></TableCell></TableRow>)}
+                  {isLoading && Array.from({ length: 8 }, (_, i) => <TableRow key={i}><TableCell colSpan={8}><Skeleton /></TableCell></TableRow>)}
                   {data?.content.map((e) => (
                     <Fragment key={e.id}>
                       <TableRow hover onClick={() => setOpen(open === e.id ? null : e.id)} sx={{ cursor: 'pointer', '& > td': { borderBottom: open === e.id ? 0 : undefined } }}>
@@ -119,19 +153,34 @@ export default function AuditLogPage() {
                         <TableCell>{e.username}</TableCell>
                         <TableCell><Chip size="small" variant="outlined" label={e.action} /></TableCell>
                         <TableCell>{e.entity} · {e.entityId}</TableCell>
+                        <TableCell sx={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{changedFields(e)}</TableCell>
                         <TableCell sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }} title={e.clientInfo ?? undefined}>{e.clientIp ?? 'System'}</TableCell>
                         <TableCell sx={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.reason ?? '—'}</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell colSpan={7} sx={{ py: 0, border: 0 }}>
+                        <TableCell colSpan={8} sx={{ py: 0, border: 0 }}>
                           <Collapse in={open === e.id} unmountOnExit>
                             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, py: 1.25 }}>
-                              {([['Before', e.previous], ['After', e.current]] as const).map(([label, v]) => (
-                                <Box key={label}>
-                                  <Typography sx={{ fontSize: 12 }} color="text.secondary">{label}</Typography>
-                                  <Box component="pre" sx={{ m: 0, fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'ui-monospace, Consolas, monospace' }}>{pretty(v)}</Box>
+                              <Box sx={{ gridColumn: '1 / -1' }}>
+                                <Typography sx={{ fontSize: 12 }} color="text.secondary">When, to the millisecond</Typography>
+                                <Typography sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{when(e.at)}</Typography>
+                              </Box>
+                              <Box sx={{ gridColumn: '1 / -1' }}>
+                                {e.changes.length > 0 ? <Changes changes={e.changes} /> : <Typography sx={{ fontSize: 13 }} color="text.secondary">No values were recorded for this entry.</Typography>}
+                              </Box>
+                              {(e.previous || e.current) && (
+                                <Box component="details" sx={{ gridColumn: '1 / -1', '& summary': { cursor: 'pointer', fontSize: 12, color: 'text.secondary' } }}>
+                                  <summary>The values exactly as stored</summary>
+                                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 1 }}>
+                                    {([['Before', e.previous], ['After', e.current]] as const).map(([label, v]) => (
+                                      <Box key={label}>
+                                        <Typography sx={{ fontSize: 12 }} color="text.secondary">{label}</Typography>
+                                        <Box component="pre" sx={{ m: 0, fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'ui-monospace, Consolas, monospace' }}>{pretty(v)}</Box>
+                                      </Box>
+                                    ))}
+                                  </Box>
                                 </Box>
-                              ))}
+                              )}
                               {e.clientInfo && <Box sx={{ gridColumn: '1 / -1' }}><Typography sx={{ fontSize: 12 }} color="text.secondary">Device</Typography><Typography sx={{ fontSize: 13 }}>{e.clientInfo}</Typography></Box>}
                               {e.reason && <Box sx={{ gridColumn: '1 / -1' }}><Typography sx={{ fontSize: 12 }} color="text.secondary">Reason</Typography><Typography sx={{ fontSize: 13 }}>{e.reason}</Typography></Box>}
                             </Box>
@@ -140,7 +189,7 @@ export default function AuditLogPage() {
                       </TableRow>
                     </Fragment>
                   ))}
-                  {data && data.content.length === 0 && <TableRow><TableCell colSpan={7}><Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>{filtered ? 'Nothing matches these filters.' : 'The audit log is empty.'}</Typography></TableCell></TableRow>}
+                  {data && data.content.length === 0 && <TableRow><TableCell colSpan={8}><Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>{filtered ? 'Nothing matches these filters.' : 'The audit log is empty.'}</Typography></TableCell></TableRow>}
                 </TableBody>
               </Table>
               <TablePagination component="div" count={data?.totalElements ?? 0} page={page} rowsPerPage={SIZE} rowsPerPageOptions={[SIZE]} onPageChange={(_, p) => { setPage(p); setOpen(null) }} />
