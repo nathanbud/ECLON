@@ -2,7 +2,7 @@ import { Alert, Box, Button, CircularProgress, IconButton, InputAdornment, TextF
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { FiAlertTriangle, FiDatabase, FiEye, FiEyeOff } from 'react-icons/fi'
-import { activeServer, apiUrl, getPublicConnections, signIn, type Me } from './api'
+import { activeServer, apiUrl, getPublicConnections, signIn, type Me, takeSignOutReason } from './api'
 import { BrandBlock, Mark, SystemLine, useBranding } from './BrandBlock'
 import { brand } from './brand'
 import ConnectionDialog from './ConnectionDialog'
@@ -98,6 +98,8 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [connectionOpen, setConnectionOpen] = useState(false)
+  // why the last sign-in ended without the person asking (an administrator switched the account off, reset the password ...), shown once
+  const [endedBecause] = useState(() => takeSignOutReason())
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -140,6 +142,7 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
           <Typography component="h2" sx={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.15, mb: 0.75 }}>Welcome back</Typography>
           <Typography sx={{ fontSize: 15, mb: 3.5 }} color="text.secondary">Sign in to {brand.product} with your own account.</Typography>
 
+          {endedBecause && <Alert severity="info" sx={{ mb: 2 }}>{endedBecause}</Alert>}
           {status === 'offline' && (
             <Alert severity="warning" icon={<FiAlertTriangle />} sx={{ mb: 2 }}>The server cannot be reached right now. Check the connection, or ask an administrator.</Alert>
           )}

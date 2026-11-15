@@ -91,7 +91,7 @@ export function VoiceControl({ handle }: { handle: (heard: string) => Handled })
   // Esc stops listening; V starts or stops it. Like H and M, V does nothing while typing or with a dialog open.
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && state !== 'idle') { stop(''); return }
+      if (e.key === 'Escape' && state !== 'idle') { e.preventDefault(); stop(''); return }
       if (e.key.toLowerCase() !== 'v' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat || installed !== true) return
       const t = e.target as HTMLElement | null
       if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return

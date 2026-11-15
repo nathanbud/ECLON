@@ -1,13 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { openLoanApplicationWindow, openLoanSetupWindow, serveDetachedWindows } from './detachedWindow'
 import AccountsPage from './AccountsPage'
+import AccountTypesPage from './AccountTypesPage'
+import SavingsDormancyPage from './SavingsDormancyPage'
 import ApprovalsPage from './ApprovalsPage'
 import ClientProfilePage from './ClientProfilePage'
 import type { Id } from './clients'
 import Dashboard, { type View } from './Dashboard'
 import ErrorBoundary from './ErrorBoundary'
 import FrontOfficePage from './FrontOfficePage'
+import LoanModulePage from './LoanModulePage'
 import LoanApplicationDialog from './LoanApplicationDialog'
 import TopBar from './TopBar'
 import UsersPage from './UsersPage'
@@ -40,15 +43,21 @@ import KycReviewPage from './KycReviewPage'
 import { TABS } from './profile/constants'
 import type { Handled } from './voice/VoiceControl'
 import SideNav from './nav/SideNav'
+import { listenForEscape, pushed } from './nav/back'
 import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
 const titles: Record<View, string> = {
-  home: 'Coop Platform', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Waiting for you', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports', documents: 'Documents', workflows: 'Approval workflows', membershippolicy: 'Membership policy', documentation: 'Documentation', branding: 'Sign-in screen', connections: 'Database connection', backup: 'Backup', privacy: 'Data privacy', cic: 'CIC submission', dividends: 'Dividends', kycreview: 'KYC review',
+  home: 'Coop Platform', loans: 'Loan Module', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Waiting for you', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports', documents: 'Documents', workflows: 'Approval workflows', membershippolicy: 'Membership policy', documentation: 'Documentation', branding: 'Sign-in screen', connections: 'Database connection', backup: 'Backup', privacy: 'Data privacy', cic: 'CIC submission', dividends: 'Dividends', kycreview: 'KYC review', accounttypes: 'Account Types', dormancy: 'Savings Dormancy',
 }
 
 /** Where the person is: a screen, and the tab inside it when the menu or the search named one. */
 interface Place { view: View; tab?: string }
+
+/** A screen as it was left, so Esc can go back to it: with the member that was open and whether it was opened from Settings. */
+interface Visit extends Place { client: Id | null; fromSettings: boolean }
+const sameClient = (a: Id | null, b: Id | null) => (a === null || b === null ? a === b : a.branchCode === b.branchCode && a.clientId === b.clientId)
+const sameVisit = (a: Visit, b: Visit) => a.view === b.view && a.tab === b.tab && sameClient(a.client, b.client)
 
 function Signed() {
   const qc = useQueryClient()
@@ -67,13 +76,17 @@ function Signed() {
   // The menu of screens is hidden until the logo (or M) opens it.
   const [menuOpen, setMenuOpen] = useState(false)
   const [leavingText, setLeavingText] = useState('')
+  // The screens left behind, newest last; Esc goes back through them.
+  const history = useRef<Visit[]>([])
+  /** Remembers this screen before moving away from it. */
+  const remember = () => { history.current = pushed(history.current, { view, tab, client, fromSettings: cameFromSettings }, sameVisit) }
   /** Does the move, or asks first when the screen holds unsaved work. Every way of leaving a screen goes through here: the menu, the tiles, the search, Home and the H key. */
   const guarded = (move: () => void) => {
     const unsaved = unsavedWork()
     if (unsaved) { setLeavingText(unsaved); setLeaving(() => move); return }
     move()
   }
-  const goTo = (v: View, t: string | undefined, fromSettings: boolean) => guarded(() => { setCameFromSettings(fromSettings && v !== 'home'); setPlace({ view: v, tab: t }) })
+  const goTo = (v: View, t: string | undefined, fromSettings: boolean) => guarded(() => { remember(); setCameFromSettings(fromSettings && v !== 'home'); setPlace({ view: v, tab: t }) })
   // The Loan Application tile goes straight to the form in its own window; the in-app dialog is only the fallback if that window cannot open.
   const navigate = (v: View, t?: string, fromSettings = false) => {
     if (v === 'loanapp' && openLoanApplicationWindow({})) return
@@ -81,7 +94,9 @@ function Signed() {
     if (v === view && t === tab) return
     goTo(v, t, fromSettings)
   }
-  const openClient = (id: Id) => guarded(() => { setClient(id); setCameFromSettings(false); setPlace({ view: 'members' }) })
+  const openClient = (id: Id) => guarded(() => { remember(); setClient(id); setCameFromSettings(false); setPlace({ view: 'members' }) })
+  /** Picking another member on the profile screen is a step too, so Esc returns to the one before (or to the search). */
+  const selectClient = (id: Id) => { if (!sameClient(id, client)) remember(); setClient(id) }
   const here = screenFor(view, tab)?.label ?? titles[view]
   const me = useMe()
   /** Carries out a spoken sentence. Voice only moves around and searches: it never saves, approves or posts, and it reaches only the screens this person's menu shows. */
@@ -105,7 +120,27 @@ function Signed() {
   // The window title names the screen, for the task bar, the window list and screen readers.
   useEffect(() => { document.title = view === 'home' ? 'Coop Platform' : `${here} · Coop Platform` }, [view, here])
   /** Straight to the dashboard, asking first when a screen holds unsaved work. */
-  const goHome = () => { setMenuOpen(false); guarded(() => { setCameFromSettings(false); setPlace({ view: 'home' }) }) }
+  const goHome = () => { setMenuOpen(false); guarded(() => { if (view !== 'home') remember(); setCameFromSettings(false); setPlace({ view: 'home' }) }) }
+  /** Esc: back to the screen before (and the member that was open there), asking first when this screen holds unsaved work. With nothing to go back to,
+   * a member's profile returns to the search, and any other screen to Settings (when opened from there) or the dashboard. */
+  const back = () => guarded(() => {
+    const prev = history.current[history.current.length - 1]
+    if (prev) {
+      history.current = history.current.slice(0, -1)
+      if (prev.view === 'members') setClient(prev.client)
+      setCameFromSettings(prev.fromSettings)
+      setPlace({ view: prev.view, tab: prev.tab })
+      return
+    }
+    if (view === 'members' && client) { setClient(null); return }
+    if (view === 'home') return
+    if (cameFromSettings && view !== 'settings') { setCameFromSettings(false); setPlace({ view: 'settings' }) } else setPlace({ view: 'home' })
+  })
+  const backRef = useRef(back)
+  backRef.current = back
+  const menuRef = useRef(menuOpen)
+  menuRef.current = menuOpen
+  useEffect(() => listenForEscape(() => backRef.current(), () => menuRef.current), [])
   // M opens and closes the menu of screens (the logo does the same). Like H, it is ignored while typing, with a modifier key held, or while a dialog is open.
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
@@ -142,7 +177,7 @@ function Signed() {
       </Dialog>
       <TopBar
         title={here}
-        onHome={view === 'home' ? undefined : () => guarded(() => { if (cameFromSettings && view !== 'settings') { setCameFromSettings(false); setPlace({ view: 'settings' }) } else setPlace({ view: 'home' }) })}
+        onHome={view === 'home' ? undefined : () => guarded(() => { remember(); if (cameFromSettings && view !== 'settings') { setCameFromSettings(false); setPlace({ view: 'settings' }) } else setPlace({ view: 'home' }) })}
         onNavigate={navigate} onOpenClient={openClient}
         onMenu={() => setMenuOpen((o) => !o)} menuOpen={menuOpen} onVoice={handleVoice}
       />
@@ -152,8 +187,10 @@ function Signed() {
           <ErrorBoundary resetKey={`${view}/${tab ?? ''}`}>
             {(view === 'home' || view === 'loanapp') && <Dashboard onOpen={navigate} />}
             {view === 'loanapp' && <LoanApplicationDialog onClose={() => setPlace({ view: 'home' })} />}
-            {view === 'members' && <ClientProfilePage selected={client} onSelect={setClient} />}
+            {view === 'members' && <ClientProfilePage selected={client} onSelect={selectClient} />}
             {view === 'accounts' && <AccountsPage />}
+            {view === 'accounttypes' && <AccountTypesPage />}
+            {view === 'dormancy' && <SavingsDormancyPage />}
             {view === 'accounting' && <AccountingPage key={tab ?? ''} initialTab={tab} />}
             {view === 'approvals' && <ApprovalsPage onOpenClient={openClient} onOpen={navigate} />}
             {view === 'users' && <UsersPage />}
@@ -165,6 +202,7 @@ function Signed() {
             {view === 'amortization' && <LoanSetupPage key="amortization" initialTab="amortization" />}
             {view === 'settings' && <SettingsPage onOpen={(v) => navigate(v, undefined, true)} />}
             {view === 'frontoffice' && <FrontOfficePage />}
+            {view === 'loans' && <LoanModulePage />}
             {view === 'procurement' && <ProcurementPage key={tab ?? ''} initialTab={tab} />}
             {view === 'inventory' && <InventoryPage key={tab ?? ''} initialTab={tab} />}
             {view === 'pos' && <PosPage />}

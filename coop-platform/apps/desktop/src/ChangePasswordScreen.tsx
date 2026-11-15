@@ -83,7 +83,7 @@ export default function ChangePasswordScreen({ me, onDone }: { me: Me; onDone: (
           <Button type="submit" variant="contained" fullWidth disabled={busy || !ready} sx={{ py: 1 }}>
             {busy ? <CircularProgress size={20} /> : 'Continue'}
           </Button>
-          <Button color="inherit" fullWidth onClick={signOut} sx={{ mt: 1, color: 'text.secondary' }}>Sign out</Button>
+          <Button color="inherit" fullWidth onClick={() => signOut()} sx={{ mt: 1, color: 'text.secondary' }}>Sign out</Button>
         </Box>
       </Box>
     </Box>

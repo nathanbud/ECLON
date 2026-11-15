@@ -1,10 +1,11 @@
 import { Box, Button, CircularProgress, TextField, Typography } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
-import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { restoreSession, signIn, signOut, SIGNED_OUT, type Me } from './api'
 import { appBackground } from './glass'
 import ChangePasswordScreen from './ChangePasswordScreen'
 import SignInPage from './SignInPage'
+import AccessWatcher from './AccessWatcher'
 
 const SessionCtx = createContext<Me | null>(null)
 
@@ -64,7 +65,7 @@ function LockScreen({ me, onUnlock }: { me: Me; onUnlock: () => void }) {
           {busy ? <CircularProgress size={18} color="inherit" /> : 'Unlock'}
         </Button>
         {error && <Typography role="alert" sx={{ mt: 1.5, fontSize: 13 }} color="error">{error}</Typography>}
-        <Button color="inherit" onClick={signOut} sx={{ mt: 3, fontSize: 13, fontWeight: 500, opacity: 0.7, textTransform: 'none', borderRadius: 999 }}>Sign out</Button>
+        <Button color="inherit" onClick={() => signOut()} sx={{ mt: 3, fontSize: 13, fontWeight: 500, opacity: 0.7, textTransform: 'none', borderRadius: 999 }}>Sign out</Button>
       </Box>
     </Box>
   )
@@ -105,11 +106,13 @@ export function SessionGate({ children }: { children: ReactNode }) {
     window.addEventListener(SIGNED_OUT, out)
     return () => { live = false; window.removeEventListener(SIGNED_OUT, out) }
   }, [qc])
+  // The person's rights changed while signed in: the menu and buttons follow at once, without signing in again.
+  const updateMe = useCallback((me: Me) => setState((s) => (s.status === 'in' ? { status: 'in', me } : s)), [])
 
   if (state.status === 'checking') {
     return <Box sx={{ minHeight: '100dvh', display: 'grid', placeItems: 'center' }}><CircularProgress aria-label="Loading" /></Box>
   }
   if (state.status === 'out') return <SignInPage onSignedIn={(me) => setState({ status: 'in', me })} />
   if (state.me.mustChangePassword) return <ChangePasswordScreen me={state.me} onDone={(me) => setState({ status: 'in', me })} />
-  return <SessionCtx.Provider value={state.me}><IdleLock me={state.me}>{children}</IdleLock></SessionCtx.Provider>
+  return <SessionCtx.Provider value={state.me}><IdleLock me={state.me}>{children}<AccessWatcher onMe={updateMe} /></IdleLock></SessionCtx.Provider>
 }

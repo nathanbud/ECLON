@@ -134,7 +134,7 @@ export default function TopBar({ title, onHome, onNavigate, onOpenClient, onMenu
         </Tooltip>
         <Typography {...drag} noWrap sx={{ fontSize: 12, opacity: 0.8, display: { xs: 'none', md: 'block' }, maxWidth: 160 }}>{me.name}</Typography>
         <Tooltip title={`Sign out (${me.name})`}>
-          <IconButton aria-label={`Sign out ${me.name}`} size="small" sx={flatIcon} onClick={signOut}><FiPower /></IconButton>
+          <IconButton aria-label={`Sign out ${me.name}`} size="small" sx={flatIcon} onClick={() => signOut()}><FiPower /></IconButton>
         </Tooltip>
         <WindowControls />
       </Box>
