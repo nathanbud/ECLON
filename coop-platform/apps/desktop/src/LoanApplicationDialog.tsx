@@ -300,18 +300,21 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
       </>,
     <>
       {part === 'deduction' && !done ? <Button onClick={onBack}>Back</Button> : <Button onClick={onClose}>{done ? 'Close' : 'Cancel'}</Button>}
-      {showProfile && (
-        <Button disabled={!t || !!t.setup.unsupported || print.isPending} title="The schedule of this loan as it is on the form, for the member to sign"
-          onClick={() => (done ? print.mutate() : goOn(() => print.mutate()))}>{print.isPending ? 'Preparing…' : 'Print amortization'}</Button>
-      )}
-      {part === 'profile' && !done && mayDeduct && <Button variant="contained" ref={spot('next')} disabled={!t || !!t.setup.unsupported} onClick={() => goOn(() => onNext?.())}>Next: Deduction</Button>}
-      {part === 'profile' && !done && !mayDeduct && (
-        <Button variant="contained" title={restructureNeedsBoth ? 'A restructured loan needs both Profiling and Deduction.' : undefined}
-          ref={spot('next')} disabled={!mayAdd || restructureNeedsBoth || !t || !!t.setup.unsupported || save.isPending}
-          onClick={() => goOn(() => save.mutate())}>Save and send for deductions</Button>
-      )}
-      {part !== 'profile' && !done && <Button variant="contained" ref={part ? undefined : spot('next')} disabled={!mayAdd || !t || !!t.setup.unsupported || save.isPending || (!!part && missing.length > 0)}
-        onClick={() => (part ? save.mutate() : goOn(() => save.mutate()))}>{part ? 'Save and continue' : 'Save application'}</Button>}
+      {/* Printing, going on and saving show once the member applying has been chosen; until then only Cancel. */}
+      {ready && (<>
+        {showProfile && (
+          <Button disabled={!t || !!t.setup.unsupported || print.isPending} title="The schedule of this loan as it is on the form, for the member to sign"
+            onClick={() => (done ? print.mutate() : goOn(() => print.mutate()))}>{print.isPending ? 'Preparing…' : 'Print amortization'}</Button>
+        )}
+        {part === 'profile' && !done && mayDeduct && <Button variant="contained" ref={spot('next')} disabled={!t || !!t.setup.unsupported} onClick={() => goOn(() => onNext?.())}>Next: Deduction</Button>}
+        {part === 'profile' && !done && !mayDeduct && (
+          <Button variant="contained" title={restructureNeedsBoth ? 'A restructured loan needs both Profiling and Deduction.' : undefined}
+            ref={spot('next')} disabled={!mayAdd || restructureNeedsBoth || !t || !!t.setup.unsupported || save.isPending}
+            onClick={() => goOn(() => save.mutate())}>Save and send for deductions</Button>
+        )}
+        {part !== 'profile' && !done && <Button variant="contained" ref={part ? undefined : spot('next')} disabled={!mayAdd || !t || !!t.setup.unsupported || save.isPending || (!!part && missing.length > 0)}
+          onClick={() => (part ? save.mutate() : goOn(() => save.mutate()))}>{part ? 'Save and continue' : 'Save application'}</Button>}
+      </>)}
     </>,
   )
 }

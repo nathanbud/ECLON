@@ -13,6 +13,7 @@ vi.mock('./api', async (orig) => ({
   getLoanAppPermissions: () => Promise.resolve({ canAdd: true, canVerify: false, canApprove: false, canDeduct: true }),
   getLoanAppTemplate: () => Promise.resolve(template),
   getLoanTypes: () => Promise.resolve([]),
+  searchMembers: () => Promise.resolve({ content: [], totalElements: 0, number: 0, size: 8, last: true }),
   getAmortizationPdf: (b: number, c: number, body: { typeCode: number; amount: number }, refNo?: number) => pdf(b, c, body, refNo),
 }))
 vi.mock('./ui/printPdf', () => ({ printPdf: (file: Blob, name: string) => printed(file, name) }))
@@ -32,6 +33,17 @@ function show() {
 
 describe('Printing the amortization schedule while profiling', () => {
   beforeEach(() => { pdf.mockReset(); printed.mockReset() })
+
+  it('shows only Cancel until the member applying is chosen', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={qc}><AppThemeProvider>
+      <LoanApplicationDialog embedded part="profile" onClose={() => {}} onNext={() => {}} />
+    </AppThemeProvider></QueryClientProvider>)
+    expect(await screen.findByText('Who is applying for a loan?')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Print amortization' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next: Deduction' })).not.toBeInTheDocument()
+  })
 
   it('asks for what Profiling still needs first, then prints the schedule of what is on the form', async () => {
     pdf.mockResolvedValue(new Blob(['%PDF'], { type: 'application/pdf' }))
