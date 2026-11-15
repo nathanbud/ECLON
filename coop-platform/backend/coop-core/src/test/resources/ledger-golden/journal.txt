@@ -1,0 +1,9 @@
+## transsum (1 rows)
+andor_name=null | batch_no=20990115 | cashpayment=null | clientname=null | creditpayment=null | explanation=ITEST-GOLD - integration test | invtr_ctlno=null | is_fo=0 | pointspayment=null | tr_brcode=1 | tr_clientid=null | tr_code=1 | tr_ctlno={ctl} | tr_date=2099-01-15 | tr_docno={docNo} | tr_module=1 | tr_refno=null | tr_year=2099
+## transdt (2 rows)
+clientiddt=null | clientiddtna=null | dtacct_code=50105 | dtadj_flag=null | dtamt=12.34 | dtamtdue=0 | dtapprvby={checker} | dtcheckisrelease=0 | dtcoci_type=null | dtcts_num=null | dtcts_num2=null | dtdept={dept} | dtencdby={maker} | dtiscleared=null | dtistransit=0 | dtisundentified=0 | dtpostby={checker} | dtref_no=null | dtreference= | dtseq_no=0 | dtsl_date=2099-01-15 | dtslc_code=null | dtsle_code=null | dtsle_code2=null | dtslt_code=null | dttr_brcode=1 | dttr_code=1 | dttr_ctlno={ctl} | dttr_module=1 | dttr_year=2099 | dtupd_tag=null
+clientiddt=null | clientiddtna=null | dtacct_code=2010201 | dtadj_flag=null | dtamt=-12.34 | dtamtdue=0 | dtapprvby={checker} | dtcheckisrelease=0 | dtcoci_type=null | dtcts_num=null | dtcts_num2=null | dtdept={dept} | dtencdby={maker} | dtiscleared=null | dtistransit=0 | dtisundentified=0 | dtpostby={checker} | dtref_no=null | dtreference= | dtseq_no=1 | dtsl_date=2099-01-15 | dtslc_code=null | dtsle_code=null | dtsle_code2=null | dtslt_code=null | dttr_brcode=1 | dttr_code=1 | dttr_ctlno={ctl} | dttr_module=1 | dttr_year=2099 | dtupd_tag=null
+## sldtl (0 rows)
+## gltrans (2 rows)
+gltransacct_code=50105 | gltransbr_code=1 | gltranscr_amt=0 | gltranscr_balb4=0 | gltransdept={dept} | gltransdr_amt=12.34 | gltransdr_balb4=0 | gltranssum_balb4=0 | gltranssync=1 | gltranstr_code=1 | gltranstr_date=2099-01-15
+gltransacct_code=2010201 | gltransbr_code=1 | gltranscr_amt=-12.34 | gltranscr_balb4=0 | gltransdept={dept} | gltransdr_amt=0 | gltransdr_balb4=0 | gltranssum_balb4=0 | gltranssync=1 | gltranstr_code=1 | gltranstr_date=2099-01-15

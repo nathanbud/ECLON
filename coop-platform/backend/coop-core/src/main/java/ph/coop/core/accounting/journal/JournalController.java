@@ -2,8 +2,10 @@ package ph.coop.core.accounting.journal;
 
 
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
-import ph.coop.core.db.Db;
 import ph.coop.core.accounting.close.ClosedBooks;
+import ph.coop.core.accounting.ledger.Ledger;
+import ph.coop.core.accounting.ledger.Money;
+import ph.coop.core.accounting.ledger.Voucher;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -53,13 +55,13 @@ class JournalController {
             """;
 
     private final JdbcTemplate jdbc;
-    private final Db db;
     private final ClosedBooks books;
+    private final Ledger ledger;
 
-    JournalController(JdbcTemplate jdbc, Db db, ClosedBooks books) {
+    JournalController(JdbcTemplate jdbc, ClosedBooks books, Ledger ledger) {
         this.jdbc = jdbc;
-        this.db = db;
         this.books = books;
+        this.ledger = ledger;
     }
 
     private static Summary summary(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
@@ -133,33 +135,14 @@ class JournalController {
         Person creator = legacyPerson(r.createdBy(), "creator");
         Person approver = legacyPerson(r.approvedBy(), "approver");
         List<String> desc = jdbc.queryForList("SELECT description FROM ecis_journal WHERE id = ?", String.class, id);
-        LocalDateTime now = LocalDateTime.now().withNano(0);
-        int year = r.date().getYear();
-        // Control numbers run on across years for each type; the lock keeps two people from taking the same one.
-        long ctl = db.nextControlNumber(r.branch(), 1, 1, year);
-        String explanation = (r.reference() + (desc.get(0) == null ? "" : " - " + desc.get(0)));
-        explanation = explanation.substring(0, Math.min(explanation.length(), 200));
-        jdbc.update("""
-                INSERT INTO transsum (TR_BRCODE, TR_YEAR, TR_MODULE, TR_CODE, TR_CTLNO, TR_DOCNO, TR_DATE, TR_TIME, BATCH_NO, EXPLANATION, IS_FO, DATETIMEADDED)
-                VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?, ?, 0, ?)
-                """, r.branch(), year, ctl, String.format("*%07d", ctl), r.date(), now.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")),
-                r.date().format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE), explanation, now);
-        int seq = 0;
-        for (JournalLine l : lines(id)) {
-            BigDecimal amount = l.debit().signum() > 0 ? l.debit() : l.credit().negate();
-            jdbc.update("""
-                    INSERT INTO transdt (DTTR_BRCODE, DTTR_YEAR, DTTR_MODULE, DTTR_CODE, DTTR_CTLNO, DTSEQ_NO, DTDEPT, DTACCT_CODE, DTSL_DATE, DTAMT, DTAMTDUE,
-                      DTENCDBY, DTAPPRVBY, DTPOSTBY, DTREFERENCE, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
-                    VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, '', 0, 0, 0)
-                    """, r.branch(), year, ctl, seq++, creator.dept(), l.accountCode(), r.date(), amount, creator.id(), approver.id(), poster.id());
-            jdbc.update("""
-                    INSERT INTO gltrans (GLTransBR_CODE, GLTransACCT_CODE, GLTransTR_DATE, GLTransTR_CODE, GLTransDEPT, GLTransDR_AMT, GLTransCR_AMT,
-                      GLTransDR_BALB4, GLTransCR_BALB4, GLTransSUM_BALB4, GLTransSYNC, GLTransLASTUPDATED)
-                    VALUES (?, ?, ?, 1, ?, ?, ?, 0, 0, 0, 1, ?)
-                    """, r.branch(), l.accountCode(), r.date(), creator.dept(), l.debit(), l.credit().negate(), now);
-        }
-        jdbc.update("UPDATE ecis_journal SET tr_year = ?, tr_ctlno = ? WHERE id = ?", year, ctl, id);
-        AuditLog.write(jdbc, auth.getName(), "JOURNAL_LEDGER_POST", "transsum", r.branch() + "/" + year + "/1/1/" + ctl, null, "journal " + r.reference(), null);
+        String explanation = r.reference() + (desc.get(0) == null ? "" : " - " + desc.get(0));
+        // The ledger writes the General Journal (documentation/design/posting-engine.md); the journal's own id is its request key, so it is written once.
+        List<Voucher.Line> lines = lines(id).stream()
+            .map((l) -> new Voucher.Line(l.accountCode(), creator.dept(), Money.of(l.debit().signum() > 0 ? l.debit() : l.credit().negate()))).toList();
+        Ledger.Posted v = ledger.write(new Voucher("journal/" + r.branch() + "/" + id, auth.getName(), r.branch(), 1, 1, r.date(), explanation,
+            Voucher.Style.GENERAL_JOURNAL, new Voucher.People(creator.id(), approver.id(), poster.id()), lines, List.of()));
+        jdbc.update("UPDATE ecis_journal SET tr_year = ?, tr_ctlno = ? WHERE id = ?", v.year(), v.controlNo(), id);
+        AuditLog.write(jdbc, auth.getName(), "JOURNAL_LEDGER_POST", "transsum", r.branch() + "/" + v.year() + "/1/1/" + v.controlNo(), null, "journal " + r.reference(), null);
     }
 
     /** Creates the DRAFT reversing journal; it then goes through the same review and approval. */
