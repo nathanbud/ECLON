@@ -35,6 +35,21 @@ describe('Find Client', () => {
     expect(screen.getByRole('combobox', { name: /client name or member id/i })).toHaveFocus()
   })
 
+  it('shows the keys to move and choose only while a search has results', async () => {
+    renderFind()
+    const user = userEvent.setup()
+    expect(screen.queryByText('move')).not.toBeInTheDocument()
+    expect(screen.queryByText('open')).not.toBeInTheDocument()
+    await user.type(screen.getByRole('combobox'), 'budik')
+    await screen.findByRole('option', { name: /budikey/i })
+    expect(screen.getByText('move')).toBeInTheDocument()
+    expect(screen.getByText('open')).toBeInTheDocument()
+    await user.clear(screen.getByRole('combobox'))
+    await user.type(screen.getByRole('combobox'), 'zzzz')
+    await screen.findByText('No clients found')
+    expect(screen.queryByText('move')).not.toBeInTheDocument()
+  })
+
   it('lists matches, highlights what was typed and opens the highlighted one with Enter', async () => {
     const onPick = renderFind()
     const user = userEvent.setup()

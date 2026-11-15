@@ -124,6 +124,7 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
 
   const rule = (t: Theme) => (dark(t) ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)')
   const busy = isFetching && enabled
+  const hints = [...(results.length > 0 ? [['↑↓', 'move'], ['Enter', wording.enter]] : []), ...(inline ? [] : [['Esc', 'close']])]
   return (
     <Box sx={{ position: 'relative', isolation: 'isolate' }}>
       {/* Soft colour behind the glass gives it something to refract. Decorative only. */}
@@ -255,18 +256,21 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
         )}
       </Box>
 
-      <Box sx={(t) => ({
-        px: 2.5, py: 1.1, display: 'flex', gap: 2.5, flexWrap: 'wrap', alignItems: 'center',
-        borderTop: `1px solid ${rule(t)}`,
-        backgroundColor: dark(t) ? 'rgba(0,0,0,0.18)' : 'rgba(244,245,247,0.55)',
-      })}>
-        {[['↑↓', 'move'], ['Enter', wording.enter], ...(inline ? [] : [['Esc', 'close']])].map(([k, label]) => (
-          <Box key={k} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-            <Key>{k}</Key>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary">{label}</Typography>
-          </Box>
-        ))}
-      </Box>
+      {/* The keys to move and choose show only while a search has results to move through; Esc closes the pop-up at any time. */}
+      {(hints.length > 0) && (
+        <Box sx={(t) => ({
+          px: 2.5, py: 1.1, display: 'flex', gap: 2.5, flexWrap: 'wrap', alignItems: 'center',
+          borderTop: `1px solid ${rule(t)}`,
+          backgroundColor: dark(t) ? 'rgba(0,0,0,0.18)' : 'rgba(244,245,247,0.55)',
+        })}>
+          {hints.map(([k, label]) => (
+            <Box key={k} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <Key>{k}</Key>
+              <Typography sx={{ fontSize: 12 }} color="text.secondary">{label}</Typography>
+            </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   )
 }
