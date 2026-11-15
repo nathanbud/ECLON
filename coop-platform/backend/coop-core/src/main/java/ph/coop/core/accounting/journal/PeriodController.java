@@ -94,6 +94,6 @@ class PeriodController {
     }
 
     private void audit(Authentication auth, String action, long id, String prev, String next) {
-        AuditLog.write(jdbc, LocalDateTime.now(), auth.getName(), action, "accounting_period", String.valueOf(id), prev, next, null);
+        AuditLog.write(jdbc, auth.getName(), action, "accounting_period", String.valueOf(id), prev, next, null);
     }
 }

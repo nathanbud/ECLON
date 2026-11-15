@@ -3,6 +3,7 @@ package ph.coop.core.accounting.journal;
 
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import ph.coop.core.db.Db;
+import ph.coop.core.accounting.close.ClosedBooks;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -53,10 +54,12 @@ class JournalController {
 
     private final JdbcTemplate jdbc;
     private final Db db;
+    private final ClosedBooks books;
 
-    JournalController(JdbcTemplate jdbc, Db db) {
+    JournalController(JdbcTemplate jdbc, Db db, ClosedBooks books) {
         this.jdbc = jdbc;
         this.db = db;
+        this.books = books;
     }
 
     private static Summary summary(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
@@ -156,7 +159,7 @@ class JournalController {
                     """, r.branch(), l.accountCode(), r.date(), creator.dept(), l.debit(), l.credit().negate(), now);
         }
         jdbc.update("UPDATE ecis_journal SET tr_year = ?, tr_ctlno = ? WHERE id = ?", year, ctl, id);
-        AuditLog.write(jdbc, now, auth.getName(), "JOURNAL_LEDGER_POST", "transsum", r.branch() + "/" + year + "/1/1/" + ctl, null, "journal " + r.reference(), null);
+        AuditLog.write(jdbc, auth.getName(), "JOURNAL_LEDGER_POST", "transsum", r.branch() + "/" + year + "/1/1/" + ctl, null, "journal " + r.reference(), null);
     }
 
     /** Creates the DRAFT reversing journal; it then goes through the same review and approval. */
@@ -218,8 +221,11 @@ class JournalController {
                 (rs, i) -> new JournalLine(rs.getString(1), rs.getBigDecimal(2), rs.getBigDecimal(3)), id);
     }
 
-    /** No period covering the date means no posting. */
+    /** No period covering the date means no posting, and nothing is posted into a year whose books are closed. */
     private PeriodStatus periodFor(int branch, LocalDate date) {
+        if (books.isClosed(branch, date.getYear())) {
+            throw new JournalException("the books for " + date.getYear() + " are closed; date the correction in an open year");
+        }
         List<String> s = jdbc.queryForList("SELECT status FROM ecis_accounting_period WHERE branch_code = ? AND ? BETWEEN start_date AND end_date",
                 String.class, branch, date);
         if (s.isEmpty()) throw new JournalException("no accounting period covers " + date);
@@ -269,6 +275,6 @@ class JournalController {
     }
 
     private void audit(Authentication auth, String action, long id, String prev, String next, String reason) {
-        AuditLog.write(jdbc, LocalDateTime.now(), auth.getName(), action, "journal", String.valueOf(id), prev, next, reason);
+        AuditLog.write(jdbc, auth.getName(), action, "journal", String.valueOf(id), prev, next, reason);
     }
 }

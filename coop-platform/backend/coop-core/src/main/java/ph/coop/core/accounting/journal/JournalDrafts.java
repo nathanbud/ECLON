@@ -48,7 +48,7 @@ public class JournalDrafts {
         for (JournalLine l : lines) {
             jdbc.update("INSERT INTO ecis_journal_line (journal_id, line_no, account_code, debit, credit) VALUES (?,?,?,?,?)", id, no++, l.accountCode(), l.debit(), l.credit());
         }
-        AuditLog.write(jdbc, LocalDateTime.now(), user, "JOURNAL_CREATE", "journal", String.valueOf(id), null, "DRAFT", null);
+        AuditLog.write(jdbc, user, "JOURNAL_CREATE", "journal", String.valueOf(id), null, "DRAFT", null);
         return id;
     }
 }

@@ -57,7 +57,7 @@ public class ChartOfAccountsController {
     public record Form(String code, String name, Boolean summary, String parent, Boolean glOnly, Boolean disabled, String reason) {}
 
 
-    private int branch(Authentication auth) {
+    int branch(Authentication auth) {
         List<Integer> r = jdbc.queryForList("SELECT AccessBR_CODE FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1", Integer.class, auth.getName());
         if (r.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is not a staff account.");
         return r.get(0);
@@ -110,7 +110,7 @@ public class ChartOfAccountsController {
         return r;
     }
 
-    private static String reason(String r) {
+    static String reason(String r) {
         if (r == null || r.isBlank()) throw bad("Give the reason for this change.");
         String t = r.trim();
         return t.length() > 255 ? t.substring(0, 255) : t;
@@ -134,8 +134,8 @@ public class ChartOfAccountsController {
         return a;
     }
 
-    private void audit(Authentication auth, String action, int branch, String code, Object prev, Object next, String why) {
-        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "coa", branch + "/" + code, json(prev), json(next), why);
+    void audit(Authentication auth, String action, int branch, String code, Object prev, Object next, String why) {
+        AuditLog.write(jdbc, auth.getName(), action, "coa", branch + "/" + code, json(prev), json(next), why);
     }
 
     private static String json(Object o) {
@@ -147,9 +147,21 @@ public class ChartOfAccountsController {
         }
     }
 
-    private Integer userId(Authentication auth) {
+    Integer userId(Authentication auth) {
         List<Integer> r = jdbc.queryForList("SELECT AccessID FROM access WHERE AccessUserName = ? LIMIT 1", Integer.class, auth.getName());
         return r.isEmpty() ? null : r.get(0);
+    }
+
+    /** Writes one new account the way the old system does, with its audit row. {@code parent} is null only for a top-level heading (from an uploaded list). */
+    void insert(int branch, String code, String name, boolean summary, String parent, boolean glOnly, Integer userId, Authentication auth, String why) {
+        int type = code.charAt(0) - '0';
+        jdbc.update("""
+                INSERT INTO coa (COABR_CODE, COAID, COADesc, COAacct_type, COAacct_tag, COAacct_sum, COAconso_acct, COAseqno, COAisdisabled, COAcanGLOnly, COAUpdUser, COAupdDateTime)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)""",
+            branch, code, name, type, summary ? "S" : "D", parent, summary ? null : code, glOnly ? 1 : 0, userId, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)));
+        Map<String, Object> shown = new LinkedHashMap<>();
+        shown.put("name", name); shown.put("type", type); shown.put("summary", summary); shown.put("parent", parent); shown.put("glOnly", glOnly);
+        audit(auth, "chart.account.create", branch, code, null, shown, why);
     }
 
     @PostMapping
@@ -171,13 +183,7 @@ public class ChartOfAccountsController {
         boolean summary = Boolean.TRUE.equals(in.summary());
         // a detail account is posted to from the general ledger unless it is controlled by a subsidiary ledger; a summary account never takes postings
         int glOnly = summary ? 0 : (Boolean.FALSE.equals(in.glOnly()) ? 0 : 1);
-        jdbc.update("""
-                INSERT INTO coa (COABR_CODE, COAID, COADesc, COAacct_type, COAacct_tag, COAacct_sum, COAconso_acct, COAseqno, COAisdisabled, COAcanGLOnly, COAUpdUser, COAupdDateTime)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)""",
-            branch, code, name, type, summary ? "S" : "D", parent.code(), summary ? null : code, glOnly, userId(auth), Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)));
-        Map<String, Object> shown = new LinkedHashMap<>();
-        shown.put("name", name); shown.put("type", type); shown.put("summary", summary); shown.put("parent", parent.code()); shown.put("glOnly", glOnly == 1);
-        audit(auth, "chart.account.create", branch, code, null, shown, why);
+        insert(branch, code, name, summary, parent.code(), glOnly == 1, userId(auth), auth, why);
         return find(branch, code);
     }
 
