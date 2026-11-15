@@ -45,15 +45,13 @@ describe('Printing the amortization schedule while profiling', () => {
     expect(screen.queryByRole('button', { name: 'Next: Deduction' })).not.toBeInTheDocument()
   })
 
-  it('asks for what Profiling still needs first, then prints the schedule of what is on the form', async () => {
+  it('can be pressed once Profiling is complete, and prints the schedule of what is on the form', async () => {
     pdf.mockResolvedValue(new Blob(['%PDF'], { type: 'application/pdf' }))
     printed.mockResolvedValue('printing')
     show()
     await screen.findByRole('textbox', { name: /Principal/ })
     const button = screen.getByRole('button', { name: 'Print amortization' })
-    await userEvent.click(button)
-    expect(pdf).not.toHaveBeenCalled()
-    expect(screen.getByRole('alert')).toHaveTextContent('Fill in Principal')
+    expect(button).toBeDisabled()
 
     await waitFor(() => expect(screen.getByRole('textbox', { name: /Principal/ })).toHaveFocus())
     await userEvent.keyboard('25000')

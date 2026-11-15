@@ -40,30 +40,41 @@ describe('Profiling guidance', () => {
     expect(within(needs).getByRole('button', { name: 'Principal: still to fill in' })).toBeInTheDocument()
   })
 
-  it('does not go on with something missing: it says what and puts the cursor there', async () => {
+  it('keeps Next and Print unusable until Profiling is complete, saying what is still needed', async () => {
     template.mockResolvedValue(setup(false))
     const onNext = show()
     await screen.findByRole('textbox', { name: /Principal/ }) // the loan type's setup is in
     const next = screen.getByRole('button', { name: 'Next: Deduction' })
-    expect(next).toBeEnabled()
-    await userEvent.click(next)
-    expect(onNext).not.toHaveBeenCalled()
-    expect(screen.getByRole('alert')).toHaveTextContent('Fill in Principal to go on.')
-    expect(screen.getByText('Enter the principal, more than zero.')).toBeInTheDocument()
+    expect(next).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Print amortization' })).toBeDisabled()
+    await userEvent.hover(next.parentElement!)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Fill in Principal first.')
+
     await waitFor(() => expect(screen.getByRole('textbox', { name: /Principal/ })).toHaveFocus())
     await userEvent.keyboard('5000')
+    expect(next).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Print amortization' })).toBeEnabled()
     await userEvent.click(next)
     expect(onNext).toHaveBeenCalledOnce()
   })
 
-  it('asks for the collateral when the loan type requires it, opening its tab', async () => {
+  it('says what a required field needs once the person leaves it empty', async () => {
+    template.mockResolvedValue(setup(false))
+    show()
+    const principal = await screen.findByRole('textbox', { name: /Principal/ })
+    await waitFor(() => expect(principal).toHaveFocus())
+    expect(screen.queryByText('Enter the principal, more than zero.')).not.toBeInTheDocument()
+    await userEvent.tab()
+    expect(screen.getByText('Enter the principal, more than zero.')).toBeInTheDocument()
+  })
+
+  it('waits for the collateral when the loan type requires it, and its checklist item opens the tab', async () => {
     template.mockResolvedValue(setup(true))
-    const onNext = show()
+    show()
     await screen.findByRole('tab', { name: /Collateral \*/ })
     await userEvent.type(await screen.findByRole('textbox', { name: /Principal/ }), '5000')
-    await userEvent.click(screen.getByRole('button', { name: 'Next: Deduction' }))
-    expect(onNext).not.toHaveBeenCalled()
-    expect(screen.getByRole('alert')).toHaveTextContent('Fill in Collateral type, Collateral amount and Collateral description to go on.')
+    expect(screen.getByRole('button', { name: 'Next: Deduction' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Collateral type: still to fill in' }))
     await waitFor(() => expect(screen.getByRole('tab', { name: /Collateral/ })).toHaveAttribute('aria-selected', 'true'))
   })
 

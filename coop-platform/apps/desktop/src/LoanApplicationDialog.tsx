@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, InputAdornment, MenuItem, Select, Skeleton, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, InputAdornment, MenuItem, Select, Skeleton, TextField, Tooltip, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { createLoanApplication, getAmortizationPdf, getLoanAppPermissions, getLoanAppTemplate, getLoanTypes, type LoanAppCreated, type Member } from './api'
@@ -10,7 +10,7 @@ import { appear } from './motion'
 import { announceLoanApplicationSaved, openLoanApplicationWindow } from './detachedWindow'
 import type { ReactNode } from 'react'
 import MoneyField from './MoneyField'
-import { firstMissing, missingText, profileChecks, type ProfileField } from './loanProfileChecks'
+import { missingText, profileChecks, type ProfileField } from './loanProfileChecks'
 import { money } from './ui/format'
 import { printPdf } from './ui/printPdf'
 
@@ -80,7 +80,8 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
     collateralRequired: !!t?.setup.collateralRequired, collType, collAmount, collDesc,
   })
   const missing = checks.filter((c) => !c.done)
-  const [showMissing, setShowMissing] = useState(false)
+  // A required field shows what it needs once the person has left it (not before they reach it).
+  const [touched, setTouched] = useState<ReadonlySet<ProfileField>>(new Set())
   const [relatedTab, setRelatedTab] = useState(0)
   const spots = useRef<Partial<Record<ProfileField | 'next', HTMLElement | null>>>({})
   const spot = (f: ProfileField | 'next') => (el: HTMLElement | null) => { spots.current[f] = el }
@@ -95,7 +96,12 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
       target?.focus()
     }))
   }
-  const problem = (f: ProfileField) => (showMissing ? checks.find((c) => c.field === f && !c.done)?.message : undefined)
+  const problem = (f: ProfileField) => (touched.has(f) ? checks.find((c) => c.field === f && !c.done)?.message : undefined)
+  /** Marks the field that focus left as touched, so its message shows if it is still missing. */
+  const leftField = (e: React.FocusEvent) => {
+    const f = (Object.keys(spots.current) as (ProfileField | 'next')[]).find((k) => k !== 'next' && spots.current[k]?.contains(e.target as Node)) as ProfileField | undefined
+    if (f && !touched.has(f)) setTouched((prev) => new Set(prev).add(f))
+  }
   /** Enter in a field moves to the next one still to be filled in, or to the button that goes on. */
   const onEnter = (f: ProfileField) => (e: React.KeyboardEvent) => {
     if (e.key !== 'Enter' || e.shiftKey) return
@@ -105,11 +111,16 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
     focusField(after.find((x) => missing.some((m) => m.field === x)) ?? 'next')
   }
   /** Goes on only when Profiling is complete; otherwise shows what is missing and puts the cursor on the first. */
-  const goOn = (action: () => void) => {
-    const first = firstMissing(checks)
-    if (first) { setShowMissing(true); focusField(first); return }
-    action()
-  }
+  // The buttons that go on (Print amortization, Next, Save) can be pressed only once Profiling is complete; until then they say what is still needed.
+  const incomplete = missing.length > 0
+  const stillNeeded = incomplete ? `Fill in ${missingText(checks)} first.` : ''
+  /**
+   * A button that waits for Profiling, with the reason on hover. A disabled button needs a wrapper to show it; the wrapper is always there (with no
+   * reason, no tooltip), so the button is not remounted, and does not lose focus, when Profiling becomes complete.
+   */
+  const gate = (waiting: boolean, button: ReactNode) => (
+    <Tooltip title={waiting && t ? stillNeeded : ''}><span style={{ display: 'inline-flex' }}>{button}</span></Tooltip>
+  )
   // Once the loan type's setup is in, the next thing to type is the principal.
   const loadedType = t ? typeCode : null
   useEffect(() => {
@@ -137,7 +148,7 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
       `amortization-schedule-${clientId}.pdf`),
     meta: { done: (how: unknown) => (how === 'saved' ? 'The amortization schedule was saved as a PDF; open it to print.' : 'The amortization schedule is ready to print.') },
   })
-  const clear = () => { setAmount(''); setTerms(''); setUnit(''); setPurpose(''); setCollType(''); setCollAmount(''); setCollDesc(''); setRemarks(''); setCoMakers(''); setCoHolds({}); setDed({}); setDone(null); setCls('1'); setPaid({}); save.reset() }
+  const clear = () => { setTouched(new Set()); setAmount(''); setTerms(''); setUnit(''); setPurpose(''); setCollType(''); setCollAmount(''); setCollDesc(''); setRemarks(''); setCoMakers(''); setCoHolds({}); setDed({}); setDone(null); setCls('1'); setPaid({}); save.reset() }
   const pick = (m: Member | null) => { clear(); setPicked(m); }
 
   const title = `New loan application${t ? ` · ${t.typeName}` : ''}`
@@ -212,14 +223,11 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
               </Typography>
               {checks.map((c) => (
                 <Chip key={c.field} size="small" variant="outlined" clickable onClick={() => focusField(c.field)}
-                  color={c.done ? 'success' : showMissing ? 'error' : 'default'} label={`${c.done ? '✓' : '○'} ${c.label}`}
+                  color={c.done ? 'success' : touched.has(c.field) ? 'error' : 'default'} label={`${c.done ? '✓' : '○'} ${c.label}`}
                   aria-label={`${c.label}: ${c.done ? 'done' : 'still to fill in'}`} />
               ))}
             </Box>
-            {showMissing && missing.length > 0 && (
-              <Alert severity="warning" role="alert">Fill in {missingText(checks)} to go on. The cursor is on the first one.</Alert>
-            )}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, alignItems: 'start' }}>
+            <Box onBlurCapture={leftField} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, alignItems: 'start' }}>
               {/* Left half: the loan itself. Right half: everything related to it, one tab each. */}
               <Box sx={{ display: 'grid', gap: 1.5 }}>
                 <TextField size="small" select label="Loan classification" value={cls} onChange={(e) => setCls(e.target.value)} fullWidth
@@ -252,7 +260,7 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
                 <TextField size="small" label="Remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} multiline minRows={2} />
               </Box>
               <LoanRelatedTabs branchCode={branchCode} clientId={clientId} tab={relatedTab} onTab={setRelatedTab}
-                collateralRequired={t.setup.collateralRequired} collateralMissing={showMissing && missing.some((m) => m.field.startsWith('coll'))}
+                collateralRequired={t.setup.collateralRequired} collateralMissing={missing.some((m) => m.field.startsWith('coll') && touched.has(m.field))}
                 coMakers={
                   <>
                     <CoMakerPicker applicant={clientId} ids={coMakerIds} onAdd={(id) => setCoMakers([...coMakerIds, id].join(','))} />
@@ -302,18 +310,22 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
       {part === 'deduction' && !done ? <Button onClick={onBack}>Back</Button> : <Button onClick={onClose}>{done ? 'Close' : 'Cancel'}</Button>}
       {/* Printing, going on and saving show once the member applying has been chosen; until then only Cancel. */}
       {ready && (<>
-        {showProfile && (
-          <Button disabled={!t || !!t.setup.unsupported || print.isPending} title="The schedule of this loan as it is on the form, for the member to sign"
-            onClick={() => (done ? print.mutate() : goOn(() => print.mutate()))}>{print.isPending ? 'Preparing…' : 'Print amortization'}</Button>
+        {showProfile && gate(!done && incomplete,
+          <Button disabled={!t || !!t.setup.unsupported || print.isPending || (!done && incomplete)} title={done || !incomplete ? 'The schedule of this loan as it is on the form, for the member to sign' : undefined}
+            onClick={() => print.mutate()}>{print.isPending ? 'Preparing…' : 'Print amortization'}</Button>,
         )}
-        {part === 'profile' && !done && mayDeduct && <Button variant="contained" ref={spot('next')} disabled={!t || !!t.setup.unsupported} onClick={() => goOn(() => onNext?.())}>Next: Deduction</Button>}
-        {part === 'profile' && !done && !mayDeduct && (
+        {part === 'profile' && !done && mayDeduct && gate(incomplete,
+          <Button variant="contained" ref={spot('next')} disabled={!t || !!t.setup.unsupported || incomplete} onClick={() => onNext?.()}>Next: Deduction</Button>,
+        )}
+        {part === 'profile' && !done && !mayDeduct && gate(incomplete,
           <Button variant="contained" title={restructureNeedsBoth ? 'A restructured loan needs both Profiling and Deduction.' : undefined}
-            ref={spot('next')} disabled={!mayAdd || restructureNeedsBoth || !t || !!t.setup.unsupported || save.isPending}
-            onClick={() => goOn(() => save.mutate())}>Save and send for deductions</Button>
+            ref={spot('next')} disabled={!mayAdd || restructureNeedsBoth || !t || !!t.setup.unsupported || save.isPending || incomplete}
+            onClick={() => save.mutate()}>Save and send for deductions</Button>,
         )}
-        {part !== 'profile' && !done && <Button variant="contained" ref={part ? undefined : spot('next')} disabled={!mayAdd || !t || !!t.setup.unsupported || save.isPending || (!!part && missing.length > 0)}
-          onClick={() => (part ? save.mutate() : goOn(() => save.mutate()))}>{part ? 'Save and continue' : 'Save application'}</Button>}
+        {part !== 'profile' && !done && gate(incomplete,
+          <Button variant="contained" ref={part ? undefined : spot('next')} disabled={!mayAdd || !t || !!t.setup.unsupported || save.isPending || incomplete}
+            onClick={() => save.mutate()}>{part ? 'Save and continue' : 'Save application'}</Button>,
+        )}
       </>)}
     </>,
   )
