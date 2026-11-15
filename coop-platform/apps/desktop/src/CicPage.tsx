@@ -8,6 +8,8 @@ import {
   SUBMISSION_TYPES, validateCic, type CicBatch, type CicStatus,
 } from './api/cic'
 import { appBackground, glass } from './glass'
+import { labelOf, CIC_WORDS } from './ui/labels'
+import { LoadingRow } from './ui/Loading'
 
 const STEPS: CicStatus[] = ['DRAFT', 'GENERATED', 'VALIDATED', 'APPROVED', 'SUBMITTED', 'RESULT', 'RECONCILED']
 const today = () => new Date().toISOString().slice(0, 10)
@@ -83,10 +85,11 @@ export default function CicPage() {
             <Table size="small" aria-label="Batches">
               <TableHead><TableRow>{['Reference', 'Cut-off', 'Type', 'Status', 'Records', 'Created by'].map((c) => <TableCell key={c}>{c}</TableCell>)}</TableRow></TableHead>
               <TableBody>
+                <LoadingRow q={batches} what="the batches" />
                 {(batches.data ?? []).map((r) => (
                   <TableRow key={r.id} hover selected={r.id === id} onClick={() => { setSelected(r.id); setPage(0) }} sx={{ cursor: 'pointer' }}>
                     <TableCell>{r.ref}</TableCell><TableCell>{r.cut_off_date}</TableCell><TableCell>{SUBMISSION_TYPES[r.submission_type]}</TableCell>
-                    <TableCell>{r.status}</TableCell><TableCell>{r.subjects + r.installment_contracts + r.other_contracts}</TableCell><TableCell>{r.created_by}</TableCell>
+                    <TableCell>{labelOf(r.status, CIC_WORDS)}</TableCell><TableCell>{r.subjects + r.installment_contracts + r.other_contracts}</TableCell><TableCell>{r.created_by}</TableCell>
                   </TableRow>
                 ))}
                 {batches.data?.length === 0 && <TableRow><TableCell colSpan={6}><Typography color="text.secondary" sx={{ py: 1, textAlign: 'center', fontSize: 13 }}>No batches yet. Fill in the form above and choose Create batch.</Typography></TableCell></TableRow>}
@@ -154,6 +157,7 @@ export default function CicPage() {
                 <Table size="small" aria-label="Findings">
                   <TableHead><TableRow>{['', 'Record', 'About', 'What is wrong'].map((c) => <TableCell key={c}>{c}</TableCell>)}</TableRow></TableHead>
                   <TableBody>
+                    <LoadingRow q={findings} what="the findings" />
                     {(findings.data ?? []).map((f, i) => (
                       <TableRow key={i}>
                         <TableCell><Chip size="small" color={color(f.severity)} label={f.severity} /></TableCell>
@@ -184,7 +188,7 @@ export default function CicPage() {
                   <TableBody>
                     {(records.data?.items ?? []).map((r) => (
                       <TableRow key={r.id}><TableCell>{r.record_type}</TableCell><TableCell>{r.subject_key}</TableCell><TableCell>{r.contract_no ?? '—'}</TableCell>
-                        <TableCell><Chip size="small" color={color(r.status)} label={r.status} /></TableCell><TableCell>{r.excluded ? 'Left out' : 'Yes'}</TableCell></TableRow>
+                        <TableCell><Chip size="small" color={color(r.status)} label={labelOf(r.status)} /></TableCell><TableCell>{r.excluded ? 'Left out' : 'Yes'}</TableCell></TableRow>
                     ))}
                   </TableBody>
                 </Table>

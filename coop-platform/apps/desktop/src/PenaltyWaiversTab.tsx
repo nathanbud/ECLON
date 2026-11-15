@@ -8,6 +8,8 @@ import {
 import { glass } from './glass'
 import MoneyField from './MoneyField'
 import { money } from './ui/format'
+import { ConfirmButton } from './ui/dialogs'
+import { LoadingBlock } from './ui/Loading'
 
 const today = () => new Date().toLocaleDateString('en-CA')
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toLocaleDateString('en-CA')
@@ -39,7 +41,7 @@ export default function PenaltyWaiversTab() {
   const state = useQuery({ queryKey: ['penalty-waiver-check', req], queryFn: () => checkPenaltyWaiver(req!), enabled: req !== null && reason.trim().length >= 5, refetchInterval: 8_000, retry: false })
   const s = state.data
 
-  const ask = useMutation({
+  const ask = useMutation({ meta: { done: 'Sent for approval.' },
     mutationFn: () => askPenaltyWaiver(req!),
     onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['penalty-waiver-check'] }) },
     onError: (e) => setError((e as Error).message),
@@ -52,7 +54,7 @@ export default function PenaltyWaiversTab() {
     },
     onError: (e) => setError((e as Error).message),
   })
-  const decide = useMutation({
+  const decide = useMutation({ meta: { done: (_, v) => ((v as { approve: boolean }).approve ? 'Waiver approved.' : 'Waiver rejected.') },
     mutationFn: (v: { id: number; approve: boolean }) => decidePenaltyWaiver(v.id, v.approve, v.approve ? 'approved' : 'rejected from the waiver list'),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['penalty-waiver-pending'] }) },
     onError: (e) => setError((e as Error).message),
@@ -64,6 +66,7 @@ export default function PenaltyWaiversTab() {
       {note && <Alert severity="success" onClose={() => setNote(null)}>{note}</Alert>}
       {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
 
+      <LoadingBlock q={pending} what="the waivers waiting" />
       {(pending.data ?? []).length > 0 && (
         <Box sx={(t) => ({ p: 1.5, ...glass(t) })}>
           <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Waivers waiting for your approval</Typography>
@@ -131,7 +134,10 @@ export default function PenaltyWaiversTab() {
           {s?.approval === 'REJECTED' && <Alert severity="error">This was rejected. You can ask again.</Alert>}
           <Box>
             {s?.approval === 'APPROVED'
-              ? <Button variant="contained" disabled={!s.ready || post.isPending} onClick={() => post.mutate()}>{post.isPending ? 'Posting…' : 'Post the waiver'}</Button>
+              ? <ConfirmButton variant="contained" disabled={!s.ready || post.isPending} onConfirm={() => post.mutate()} title="Post the penalty waiver?" confirmLabel="Post the waiver"
+                  message={<>It waives <b>{money(Number(amount) || 0)}</b> of penalty on loan {loanKey} and charges it to account {account}, dated today. This cannot be edited afterwards.</>}>
+                  {post.isPending ? 'Posting…' : 'Post the waiver'}
+                </ConfirmButton>
               : <Button variant="contained" disabled={!s || s.problems.length > 0 || s.approval === 'PENDING' || ask.isPending} onClick={() => ask.mutate()}>Ask for approval</Button>}
           </Box>
         </Box>

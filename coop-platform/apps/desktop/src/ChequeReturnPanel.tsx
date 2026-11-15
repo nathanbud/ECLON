@@ -7,6 +7,7 @@ import {
 } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
+import { ConfirmButton } from './ui/dialogs'
 
 /**
  * A cheque the bank sent back. Find it by number, say where it is now (with a cashier or teller, in the vault, or in the bank), ask a different
@@ -38,7 +39,7 @@ export function ChequeReturnPanel() {
   const state = useQuery({
     queryKey: ['cheque-return-check', r], queryFn: () => checkChequeReturn(r!), enabled: r !== null, refetchInterval: 8_000, retry: false,
   })
-  const ask = useMutation({
+  const ask = useMutation({ meta: { done: 'Sent to a supervisor for approval.' },
     mutationFn: () => askChequeReturn(r!),
     onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['cheque-return-check'] }) },
     onError: (e) => setError((e as Error).message),
@@ -100,7 +101,10 @@ export function ChequeReturnPanel() {
           {s?.approval === 'REJECTED' && <Alert severity="error">A supervisor rejected this. You can ask again.</Alert>}
           <Box sx={{ display: 'flex', gap: 1 }}>
             {s?.approval === 'APPROVED'
-              ? <Button variant="contained" disabled={!s.ready || post.isPending} onClick={() => post.mutate()}>{post.isPending ? 'Posting…' : 'Post the return'}</Button>
+              ? <ConfirmButton variant="contained" disabled={!s.ready || post.isPending} onConfirm={() => post.mutate()} title="Post the returned cheque?" confirmLabel="Post the return"
+                  message={<>It takes <b>{money(picked.amount)}</b> back from the savings account of {picked.client} and writes it to the ledger dated today. This cannot be edited afterwards.</>}>
+                  {post.isPending ? 'Posting…' : 'Post the return'}
+                </ConfirmButton>
               : <Button variant="contained" disabled={!s || s.problems.length > 0 || s.approval === 'PENDING' || ask.isPending} onClick={() => ask.mutate()}>Ask a supervisor</Button>}
             <Button onClick={() => setPicked(null)}>Cancel</Button>
           </Box>

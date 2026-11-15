@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { approveAccrual, encodeAccrual, getAccrualPreview, getAccrualVouchers, postAccrual, type AccrualGroup, type AccrualVoucher } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
+import { ConfirmButton } from './ui/dialogs'
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
@@ -30,12 +31,12 @@ export function TimeDepositAccrualPanel() {
   const preview = useQuery({ queryKey: ['td-accrual-preview', asked], queryFn: () => getAccrualPreview(asked!.group, asked!.to), enabled: !!asked, retry: false })
   const vouchers = useQuery({ queryKey: ['td-accrual-vouchers', asked], queryFn: () => getAccrualVouchers(asked!.group, asked!.to), enabled: !!asked, retry: false, refetchInterval: 20_000 })
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['td-accrual-preview'] }); void qc.invalidateQueries({ queryKey: ['td-accrual-vouchers'] }) }
-  const encode = useMutation({
+  const encode = useMutation({ meta: { done: 'Accrual vouchers made. They now wait for approval.' },
     mutationFn: () => encodeAccrual({ group: asked!.group, to: asked!.to, types: (preview.data?.types ?? []).filter((t) => !t.alreadyEncoded && !skip.includes(t.typeCode)).map((t) => t.typeCode) }),
     onSuccess: () => { setError(null); refresh() },
     onError: (e) => setError((e as Error).message),
   })
-  const act = useMutation({
+  const act = useMutation({ meta: { done: (_, v) => ((v as { kind: string }).kind === 'approve' ? 'Voucher approved. Someone else can now post it.' : 'Accrual voucher posted.') },
     mutationFn: (v: { kind: 'approve' | 'post'; r: AccrualVoucher }) => (v.kind === 'approve' ? approveAccrual : postAccrual)(v.r.year, v.r.controlNo),
     onSuccess: () => { setError(null); refresh() },
     onError: (e) => setError((e as Error).message),
@@ -89,7 +90,10 @@ export function TimeDepositAccrualPanel() {
               </Box>
               <Chip size="small" variant="outlined" color={statusColor(v.status)} label={v.status === 'WAITING FOR APPROVAL' ? 'Waiting for approval' : v.status === 'APPROVED' ? 'Approved' : 'Posted'} />
               {v.status === 'WAITING FOR APPROVAL' && <Button size="small" variant="contained" disabled={act.isPending} onClick={() => act.mutate({ kind: 'approve', r: v })}>Approve</Button>}
-              {v.status === 'APPROVED' && <Button size="small" variant="contained" color="success" disabled={act.isPending} onClick={() => act.mutate({ kind: 'post', r: v })}>Post</Button>}
+              {v.status === 'APPROVED' && (
+                <ConfirmButton size="small" variant="contained" color="success" disabled={act.isPending} onConfirm={() => act.mutate({ kind: 'post', r: v })} title={`Post accrual voucher ${v.documentNo}?`}
+                  message={<>It writes <b>{money(v.total)}</b> of accrued interest in {v.lines.toLocaleString()} lines. A posted voucher cannot be edited.</>}>Post</ConfirmButton>
+              )}
             </Box>
           ))}
         </>

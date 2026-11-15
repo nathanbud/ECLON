@@ -10,6 +10,8 @@ import { appBackground, glass } from './glass'
 import { useMe } from './session'
 import { money, parseAmount } from './ui/format'
 import { ReasonDialog } from './ui/dialogs'
+import { labelOf } from './ui/labels'
+import { LoadingRow } from './ui/Loading'
 
 const color = (s: string) => (s === 'APPROVED' || s === 'RECEIVED' ? 'success' : s === 'SUBMITTED' || s === 'DRAFT' ? 'warning' : s === 'ORDERED' || s === 'PARTIAL' ? 'info' : 'default') as 'success' | 'warning' | 'info' | 'default'
 
@@ -123,7 +125,7 @@ function Requests({ buyer, approver, user }: { buyer: boolean; approver: boolean
   const [ordering, setOrdering] = useState<PrSummary | null>(null)
   const [reason, setReason] = useState<{ r: PrSummary; kind: 'reject' | 'cancel' } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const approve = useMutation({
+  const approve = useMutation({ meta: { done: 'Purchase request approved.' },
     mutationFn: (r: PrSummary) => decideRequest(r.id, 'approve'),
     onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['pr-list'] }) },
     onError: (e) => setError((e as Error).message),
@@ -135,12 +137,13 @@ function Requests({ buyer, approver, user }: { buyer: boolean; approver: boolean
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Date</TableCell><TableCell>Purpose</TableCell><TableCell>By</TableCell><TableCell align="right">Estimate</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the purchase requests" />
           {(list.data ?? []).map((r) => (
             <TableRow key={r.id} hover>
               <TableCell>{r.requestNo}</TableCell><TableCell>{r.requestDate}</TableCell>
               <TableCell>{r.purpose}{r.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{r.decisionNote}</Typography>}</TableCell>
               <TableCell>{r.requestedBy}</TableCell><TableCell align="right">{money(r.total)}</TableCell>
-              <TableCell><Chip size="small" color={color(r.status)} variant="outlined" label={r.status.toLowerCase()} />{r.waiting && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">waiting for {r.waiting}</Typography>}</TableCell>
+              <TableCell><Chip size="small" color={color(r.status)} variant="outlined" label={labelOf(r.status)} />{r.waiting && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">waiting for {r.waiting}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {approver && r.status === 'SUBMITTED' && r.requestedBy !== user && (<>
                   {!r.waiting && <Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(r)}>Approve</Button>}
@@ -171,7 +174,7 @@ function Orders({ buyer, approver, receiver, user }: { buyer: boolean; approver:
   const [cancelling, setCancelling] = useState<PoSummary | null>(null)
   const [receiving, setReceiving] = useState<PoSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const approve = useMutation({
+  const approve = useMutation({ meta: { done: 'Purchase order approved.' },
     mutationFn: (o: PoSummary) => approveOrder(o.id),
     onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['po-list'] }) },
     onError: (e) => setError((e as Error).message),
@@ -183,11 +186,12 @@ function Orders({ buyer, approver, receiver, user }: { buyer: boolean; approver:
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Date</TableCell><TableCell>Supplier</TableCell><TableCell>Request</TableCell><TableCell align="right">Total</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the purchase orders" />
           {(list.data ?? []).map((o) => (
             <TableRow key={o.id} hover>
               <TableCell>{o.orderNo}</TableCell><TableCell>{o.orderDate}</TableCell><TableCell>{o.supplier}</TableCell><TableCell>{o.requestNo ?? ''}</TableCell>
               <TableCell align="right">{money(o.total)}</TableCell>
-              <TableCell><Chip size="small" color={color(o.status)} variant="outlined" label={o.status.toLowerCase()} />{o.waiting && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">waiting for {o.waiting}</Typography>}</TableCell>
+              <TableCell><Chip size="small" color={color(o.status)} variant="outlined" label={labelOf(o.status)} />{o.waiting && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">waiting for {o.waiting}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {approver && o.status === 'DRAFT' && o.createdBy !== user && !o.waiting && <Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(o)}>Approve</Button>}
                 {receiver && (o.status === 'APPROVED' || o.status === 'PARTIAL') && o.createdBy !== user && <Button size="small" onClick={() => setReceiving(o)}>Receive</Button>}
@@ -280,10 +284,11 @@ function Receipts({ approver, user }: { approver: boolean; user: string }) {
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Date</TableCell><TableCell>Order</TableCell><TableCell>Supplier</TableCell><TableCell>Delivery receipt</TableCell><TableCell>By</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the goods received" />
           {(list.data ?? []).map((g) => (
             <TableRow key={g.id} hover>
               <TableCell>{g.receiptNo}</TableCell><TableCell>{g.receiptDate}</TableCell><TableCell>{g.orderNo}</TableCell><TableCell>{g.supplier}</TableCell><TableCell>{g.deliveryNote ?? ''}</TableCell><TableCell>{g.receivedBy}</TableCell>
-              <TableCell><Chip size="small" variant="outlined" color={g.status === 'RECEIVED' ? 'success' : 'default'} label={g.status.toLowerCase()} />{g.reverseNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{g.reverseNote}</Typography>}</TableCell>
+              <TableCell><Chip size="small" variant="outlined" color={g.status === 'RECEIVED' ? 'success' : 'default'} label={labelOf(g.status)} />{g.reverseNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{g.reverseNote}</Typography>}</TableCell>
               <TableCell align="right">{approver && g.status === 'RECEIVED' && g.receivedBy !== user && <Button size="small" color="warning" onClick={() => setReversing(g)}>Reverse</Button>}</TableCell>
             </TableRow>
           ))}
@@ -352,6 +357,7 @@ function Suppliers({ buyer }: { buyer: boolean }) {
       <Table size="small">
         <TableHead><TableRow><TableCell>Code</TableCell><TableCell>Name</TableCell><TableCell>Contact</TableCell><TableCell>Phone</TableCell><TableCell align="right">Terms</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the suppliers" />
           {(list.data ?? []).map((s) => (
             <TableRow key={s.id} hover>
               <TableCell>{s.code}</TableCell><TableCell>{s.name}</TableCell><TableCell>{s.contact ?? ''}</TableCell><TableCell>{s.phone ?? ''}</TableCell>

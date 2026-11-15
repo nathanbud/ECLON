@@ -8,6 +8,7 @@ import {
 import { glass } from './glass'
 import MoneyField from './MoneyField'
 import { money, tabular } from './ui/format'
+import { labelOf } from './ui/labels'
 
 const iso = (d: Date) => d.toLocaleDateString('en-CA')
 const addDays = (date: string, n: number) => { const d = new Date(`${date}T00:00:00`); d.setDate(d.getDate() + n); return iso(d) }
@@ -188,7 +189,7 @@ function ReconcileDialog({ branchCode, bank, onClose }: { branchCode: number; ba
                 {history.data.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell>{r.statementDate}</TableCell><TableCell align="right" sx={num}>{money(r.statementBalance)}</TableCell>
-                    <TableCell><Chip size="small" label={r.status} color={r.status === 'FINAL' ? 'success' : 'default'} /></TableCell>
+                    <TableCell><Chip size="small" label={labelOf(r.status)} color={r.status === 'FINAL' ? 'success' : 'default'} /></TableCell>
                     <TableCell>{r.preparedBy}{r.finalizedBy ? ` / ${r.finalizedBy}` : ''}</TableCell>
                     <TableCell align="right">{r.status === 'DRAFT' && r.reconciled && <Button size="small" disabled={finalize.isPending} onClick={() => finalize.mutate(r.id)}>Finalize</Button>}</TableCell>
                   </TableRow>

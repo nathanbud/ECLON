@@ -12,6 +12,8 @@ import DocumentsPanel from './DocumentsPanel'
 import { ReasonDialog } from './ui/dialogs'
 import { useMe } from './session'
 import { money, parseAmount } from './ui/format'
+import { labelOf } from './ui/labels'
+import { LoadingRow } from './ui/Loading'
 
 const today = () => new Date().toLocaleDateString('en-CA')
 const lastMonthEnd = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 0).toLocaleDateString('en-CA') }
@@ -126,7 +128,7 @@ function DetailDialog({ id, custodian, onClose }: { id: number; custodian: boole
   const a = d.data?.summary
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{a ? `${a.assetNo} · ${a.name}` : 'Asset'} {a && <Chip size="small" variant="outlined" color={statusColor(a.status)} label={a.status.toLowerCase()} sx={{ ml: 1 }} />}</DialogTitle>
+      <DialogTitle>{a ? `${a.assetNo} · ${a.name}` : 'Asset'} {a && <Chip size="small" variant="outlined" color={statusColor(a.status)} label={labelOf(a.status)} sx={{ ml: 1 }} />}</DialogTitle>
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
         {a && d.data && (
@@ -173,7 +175,7 @@ function DetailDialog({ id, custodian, onClose }: { id: number; custodian: boole
             <Box>
               <Typography sx={label} color="text.secondary">Transfers</Typography>
               <Table size="small"><TableBody>
-                {d.data.transfers.map((t) => <TableRow key={t.id}><TableCell>{t.transferNo}</TableCell><TableCell>{t.from} → {t.to}</TableCell><TableCell>{t.reason}</TableCell><TableCell><Chip size="small" variant="outlined" color={statusColor(t.status)} label={t.status.toLowerCase()} /></TableCell></TableRow>)}
+                {d.data.transfers.map((t) => <TableRow key={t.id}><TableCell>{t.transferNo}</TableCell><TableCell>{t.from} → {t.to}</TableCell><TableCell>{t.reason}</TableCell><TableCell><Chip size="small" variant="outlined" color={statusColor(t.status)} label={labelOf(t.status)} /></TableCell></TableRow>)}
                 {d.data.transfers.length === 0 && <TableRow><TableCell><Typography color="text.secondary">None.</Typography></TableCell></TableRow>}
               </TableBody></Table>
             </Box>
@@ -219,11 +221,12 @@ function Register({ custodian }: { custodian: boolean }) {
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Tag</TableCell><TableCell>Name</TableCell><TableCell>Category</TableCell><TableCell>Where</TableCell><TableCell align="right">Cost</TableCell><TableCell align="right">Net book value</TableCell><TableCell>Status</TableCell></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the assets" />
           {(list.data ?? []).map((a) => (
             <TableRow key={a.id} hover sx={{ cursor: 'pointer' }} onClick={() => setOpen(a.id)}>
               <TableCell>{a.assetNo}</TableCell><TableCell>{a.tag}</TableCell><TableCell>{a.name}</TableCell><TableCell>{a.category}</TableCell><TableCell>{a.location}</TableCell>
               <TableCell align="right">{money(a.cost)}</TableCell><TableCell align="right">{money(a.netBookValue)}</TableCell>
-              <TableCell><Chip size="small" variant="outlined" color={statusColor(a.status)} label={a.status.toLowerCase()} /></TableCell>
+              <TableCell><Chip size="small" variant="outlined" color={statusColor(a.status)} label={labelOf(a.status)} /></TableCell>
             </TableRow>
           ))}
           {list.data?.length === 0 && <TableRow><TableCell colSpan={8}><Typography color="text.secondary">No assets registered yet.</Typography></TableCell></TableRow>}
@@ -241,17 +244,18 @@ function Transfers({ accountant, user }: { accountant: boolean; user: string }) 
   const [rejecting, setRejecting] = useState<AssetTransfer | null>(null)
   const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['asset-transfers'] }); void qc.invalidateQueries({ queryKey: ['assets'] }) }
-  const approve = useMutation({ mutationFn: (t: AssetTransfer) => decideAssetTransfer(t.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const approve = useMutation({ meta: { done: 'Transfer approved.' }, mutationFn: (t: AssetTransfer) => decideAssetTransfer(t.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
   return (
     <Box>
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>From → to</TableCell><TableCell>Reason</TableCell><TableCell>By</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the transfers" />
           {(list.data ?? []).map((t) => (
             <TableRow key={t.id} hover>
               <TableCell>{t.transferNo}</TableCell><TableCell>{t.from} → {t.to}</TableCell><TableCell>{t.reason}{t.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{t.decisionNote}</Typography>}</TableCell><TableCell>{t.requestedBy}</TableCell>
-              <TableCell><Chip size="small" variant="outlined" color={statusColor(t.status)} label={t.status.toLowerCase()} /></TableCell>
+              <TableCell><Chip size="small" variant="outlined" color={statusColor(t.status)} label={labelOf(t.status)} /></TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {accountant && t.status === 'PENDING' && t.requestedBy !== user && (<><Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(t)}>Approve</Button><Button size="small" color="error" onClick={() => setRejecting(t)}>Reject</Button></>)}
               </TableCell>
@@ -271,18 +275,19 @@ function Disposals({ accountant, user }: { accountant: boolean; user: string }) 
   const [rejecting, setRejecting] = useState<AssetDisposal | null>(null)
   const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['asset-disposals'] }); void qc.invalidateQueries({ queryKey: ['assets'] }) }
-  const approve = useMutation({ mutationFn: (x: AssetDisposal) => decideAssetDisposal(x.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const approve = useMutation({ meta: { done: 'Disposal approved.' }, mutationFn: (x: AssetDisposal) => decideAssetDisposal(x.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
   return (
     <Box>
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Asset</TableCell><TableCell>Date</TableCell><TableCell>Kind</TableCell><TableCell align="right">Book value</TableCell><TableCell align="right">Proceeds</TableCell><TableCell align="right">Gain / loss</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the disposals" />
           {(list.data ?? []).map((x) => (
             <TableRow key={x.id} hover>
-              <TableCell>{x.disposalNo}</TableCell><TableCell>{x.assetNo} · {x.asset}</TableCell><TableCell>{x.disposalDate}</TableCell><TableCell>{x.kind.toLowerCase()}</TableCell>
+              <TableCell>{x.disposalNo}</TableCell><TableCell>{x.assetNo} · {x.asset}</TableCell><TableCell>{x.disposalDate}</TableCell><TableCell>{labelOf(x.kind)}</TableCell>
               <TableCell align="right">{money(x.bookValue)}</TableCell><TableCell align="right">{money(x.proceeds)}</TableCell><TableCell align="right" sx={{ color: x.gainLoss < 0 ? 'error.main' : undefined }}>{money(x.gainLoss)}</TableCell>
-              <TableCell><Chip size="small" variant="outlined" color={statusColor(x.status)} label={x.status.toLowerCase()} />{x.journal && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">journal {x.journal}</Typography>}{x.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{x.decisionNote}</Typography>}</TableCell>
+              <TableCell><Chip size="small" variant="outlined" color={statusColor(x.status)} label={labelOf(x.status)} />{x.journal && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">journal {x.journal}</Typography>}{x.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{x.decisionNote}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {accountant && x.status === 'PENDING' && x.requestedBy !== user && (<><Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(x)}>Approve</Button><Button size="small" color="error" onClick={() => setRejecting(x)}>Reject</Button></>)}
               </TableCell>
@@ -340,6 +345,7 @@ function Depreciation() {
       <Table size="small">
         <TableHead><TableRow><TableCell>Month end</TableCell><TableCell align="right">Assets</TableCell><TableCell align="right">Depreciation</TableCell><TableCell>Journal</TableCell><TableCell>Status</TableCell></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={history} what="the depreciation runs" />
           {(history.data ?? []).map((h) => <TableRow key={h.periodEnd}><TableCell>{h.periodEnd}</TableCell><TableCell align="right">{h.assets}</TableCell><TableCell align="right">{money(h.total)}</TableCell><TableCell>{h.journal ?? ''}</TableCell><TableCell>{h.journalStatus?.toLowerCase() ?? ''}</TableCell></TableRow>)}
           {history.data?.length === 0 && <TableRow><TableCell colSpan={5}><Typography color="text.secondary">Nothing depreciated yet.</Typography></TableCell></TableRow>}
         </TableBody>
@@ -391,6 +397,7 @@ function Categories({ accountant }: { accountant: boolean }) {
       <Table size="small">
         <TableHead><TableRow><TableCell>Name</TableCell><TableCell>Asset</TableCell><TableCell>Accumulated</TableCell><TableCell>Expense</TableCell><TableCell align="right">Life</TableCell><TableCell align="right">Salvage</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the categories" />
           {(list.data ?? []).map((c) => (
             <TableRow key={c.id} hover>
               <TableCell>{c.name}</TableCell><TableCell>{c.assetAccount}</TableCell><TableCell>{c.accumAccount}</TableCell><TableCell>{c.expenseAccount}</TableCell>

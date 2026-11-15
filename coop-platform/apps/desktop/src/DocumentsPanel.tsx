@@ -7,6 +7,8 @@ import {
   type DocInfo,
 } from './api'
 import { ReasonDialog } from './ui/dialogs'
+import { labelOf } from './ui/labels'
+import { LoadingRow } from './ui/Loading'
 
 const size = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`)
 const classColor = (c: string) => (c === 'RESTRICTED' ? 'error' : c === 'CONFIDENTIAL' ? 'warning' : c === 'INTERNAL' ? 'info' : 'default') as 'error' | 'warning' | 'info' | 'default'
@@ -40,7 +42,7 @@ function UploadDialog({ entityType, entityId, onClose }: { entityType?: string; 
           {!fixed && (
             <Stack direction="row" spacing={1.5}>
               <TextField select size="small" label="Belongs to" value={f.entityType} onChange={(e) => setF({ ...f, entityType: e.target.value })} sx={{ width: 200 }}>
-                {(setup.data?.entityTypes ?? []).map((t) => <MenuItem key={t} value={t}>{t.replace('_', ' ').toLowerCase()}</MenuItem>)}
+                {(setup.data?.entityTypes ?? []).map((t) => <MenuItem key={t} value={t}>{labelOf(t)}</MenuItem>)}
               </TextField>
               <TextField size="small" label="Record number" value={f.entityId} onChange={(e) => setF({ ...f, entityId: e.target.value })} sx={{ flex: 1 }} />
             </Stack>
@@ -92,7 +94,7 @@ function DetailDialog({ id, onClose }: { id: number; onClose: () => void }) {
               <span>Belongs to</span><b>{doc.entityType.replace('_', ' ').toLowerCase()} {doc.entityId}</b><span>File</span><b>{doc.fileName}</b>
               <span>Uploaded by</span><b>{doc.createdBy}</b><span>On</span><b>{doc.createdAt.replace('T', ' ').slice(0, 16)}</b>
               <span>Kept until</span><b>{doc.retentionDate}</b><span>Size</span><b>{size(doc.sizeBytes)}</b>
-              <span>Status</span><b>{doc.status.toLowerCase()}</b><span>Version</span><b>{doc.version}</b>
+              <span>Status</span><b>{labelOf(doc.status)}</b><span>Version</span><b>{doc.version}</b>
             </Box>
             <Typography sx={{ fontSize: 12, wordBreak: 'break-all' }} color="text.secondary">SHA-256 {doc.sha256}</Typography>
             {doc.description && <Typography sx={{ fontSize: 13 }}>{doc.description}</Typography>}
@@ -161,10 +163,11 @@ export default function DocumentsPanel({ entityType, entityId, canUpload = true 
       <Table size="small">
         <TableHead><TableRow>{!entityType && <TableCell>Belongs to</TableCell>}<TableCell>No.</TableCell><TableCell>Title</TableCell><TableCell>File</TableCell><TableCell>Read by</TableCell><TableCell>Version</TableCell><TableCell>Uploaded</TableCell><TableCell>Kept until</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the documents" />
           {(list.data ?? []).map((d) => (
             <TableRow key={d.id} hover>
               {!entityType && <TableCell>{d.entityType.replace('_', ' ').toLowerCase()} {d.entityId}</TableCell>}
-              <TableCell>{d.docNo}</TableCell><TableCell>{d.title}{d.status !== 'ACTIVE' && <Chip size="small" variant="outlined" label={d.status.toLowerCase()} sx={{ ml: 0.75 }} />}</TableCell><TableCell>{d.fileName} · {size(d.sizeBytes)}</TableCell>
+              <TableCell>{d.docNo}</TableCell><TableCell>{d.title}{d.status !== 'ACTIVE' && <Chip size="small" variant="outlined" label={labelOf(d.status)} sx={{ ml: 0.75 }} />}</TableCell><TableCell>{d.fileName} · {size(d.sizeBytes)}</TableCell>
               <TableCell><Chip size="small" variant="outlined" color={classColor(d.classification)} label={d.classification.toLowerCase()} /></TableCell>
               <TableCell>v{d.version}</TableCell><TableCell>{d.createdBy}, {d.createdAt.slice(0, 10)}</TableCell><TableCell>{d.retentionDate}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>

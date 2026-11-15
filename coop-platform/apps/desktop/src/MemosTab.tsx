@@ -11,10 +11,12 @@ import { useMe } from './session'
 import { fmtDate } from './profile/format'
 import { Gated } from './ui/Gated'
 import { money } from './ui/format'
+import { ConfirmButton } from './ui/dialogs'
+import { labelOf } from './ui/labels'
 
 const today = () => new Date().toLocaleDateString('en-CA')
 const statusColor: Record<MemoStatus, 'default' | 'info' | 'warning' | 'success' | 'error'> = { DRAFT: 'default', FOR_REVIEW: 'info', APPROVED: 'warning', POSTED: 'success', CANCELLED: 'error' }
-const statusLabel = (s: MemoStatus) => s.replace('_', ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase())
+const statusLabel = (s: MemoStatus) => labelOf(s)
 const KINDS: [MemoKind, string][] = [['SAVINGS', 'Member savings'], ['SHARE', 'Member share capital'], ['LEDGER', 'Ledger account']]
 
 /**
@@ -107,7 +109,7 @@ function NewMemo({ branchCode, onClose, onDone }: { branchCode: number; onClose:
       ? { kind: 'LEDGER', clientId: null, typeCode: null, refNo: null, accountCode: l.ledger.trim(), debit: Number(l.debit) || 0, credit: Number(l.credit) || 0, note: null }
       : { kind: l.kind, clientId: Number(l.client) || null, typeCode: type ? Number(type) : null, refNo: ref ? Number(ref) : null, accountCode: null, debit: Number(l.debit) || 0, credit: Number(l.credit) || 0, note: null }
   }
-  const m = useMutation({ mutationFn: () => createMemo({ branchCode, memoDate: date, description: description.trim(), lines: lines.map(toLine) }), onSuccess: onDone })
+  const m = useMutation({ meta: { done: 'Memo saved as a draft.' }, mutationFn: () => createMemo({ branchCode, memoDate: date, description: description.trim(), lines: lines.map(toLine) }), onSuccess: onDone })
   const ready = description.trim().length >= 5 && balanced && lines.every((l) => (l.kind === 'LEDGER' ? l.ledger.trim() : l.account) && (Number(l.debit) > 0) !== (Number(l.credit) > 0))
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
@@ -151,7 +153,7 @@ function MemoView({ id, user, admin, onClose, onChanged }: { id: number; user: s
   const [asking, setAsking] = useState<'cancel' | 'reverse' | null>(null)
   const [reason, setReason] = useState('')
   const done = () => { void qc.invalidateQueries({ queryKey: ['memo', id] }); onChanged() }
-  const step = useMutation({ mutationFn: (s: 'submit' | 'approve' | 'post') => memoStep(id, s), onSuccess: done })
+  const step = useMutation({ meta: { done: (_, s) => ({ submit: 'Memo sent for review.', approve: 'Memo approved. A third person can now post it.', post: 'Memo posted.' } as Record<string, string>)[s as string] ?? null }, mutationFn: (s: 'submit' | 'approve' | 'post') => memoStep(id, s), onSuccess: done })
   const ask = useMutation({
     mutationFn: () => (asking === 'cancel' ? cancelMemo(id, reason.trim()) : reverseMemo(id, reason.trim())),
     onSuccess: () => { setAsking(null); setReason(''); done() },
@@ -207,7 +209,8 @@ function MemoView({ id, user, admin, onClose, onChanged }: { id: number; user: s
         )}
         {s?.status === 'APPROVED' && (
           <Gated allowed={!maker && !approver} reason="You made or approved this memo. A third person has to post it.">
-            <Button variant="contained" disabled={step.isPending} onClick={() => step.mutate('post')}>Post</Button>
+            <ConfirmButton variant="contained" disabled={step.isPending} onConfirm={() => step.mutate('post')} title={`Post memo ${s.reference}?`}
+              message={<>It moves <b>{money(s.total)}</b> between members’ accounts and ledger accounts, dated {s.memoDate}. A posted memo cannot be edited; it is corrected with a reversing memo.</>}>Post</ConfirmButton>
           </Gated>
         )}
         {s?.status === 'POSTED' && !asking && <Button color="warning" onClick={() => setAsking('reverse')}>Reverse…</Button>}

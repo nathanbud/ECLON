@@ -50,7 +50,7 @@ describe('Memos tab', () => {
     const row = (await screen.findByText('MEMO-2026-0007')).closest('tr')!
     expect(within(row).getByText('10/31/2026')).toBeInTheDocument()
     expect(within(row).getByText('500.00')).toBeInTheDocument()
-    expect(within(row).getByText('For review')).toBeInTheDocument()
+    expect(within(row).getByText('Waiting for review')).toBeInTheDocument()
   })
 
   it('does not let the maker approve their own memo, and says why', async () => {

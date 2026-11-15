@@ -10,6 +10,7 @@ import {
 } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
+import { ConfirmButton } from './ui/dialogs'
 
 const statusColor = (s: DividendVoucher['status']) => (s === 'POSTED' ? 'success' : s === 'APPROVED' ? 'info' : 'warning')
 const pct = (n: number) => `${Number(n.toFixed(6))}%`
@@ -114,8 +115,8 @@ export function DividendPanel() {
   const preview = useQuery({ queryKey: ['dividend-preview', asked], queryFn: () => previewDividend(asked!), enabled: !!asked, retry: false, staleTime: Infinity })
   const vouchers = useQuery({ queryKey: ['dividend-vouchers', asked?.cutoff], queryFn: () => getDividendVouchers(asked!.cutoff), enabled: !!asked, retry: false, refetchInterval: 20_000 })
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['dividend-preview'] }); void qc.invalidateQueries({ queryKey: ['dividend-vouchers'] }) }
-  const encode = useMutation({ mutationFn: () => encodeDividend(asked!), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
-  const act = useMutation({
+  const encode = useMutation({ meta: { done: 'Dividend vouchers made. They now wait for approval.' }, mutationFn: () => encodeDividend(asked!), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const act = useMutation({ meta: { done: (_, v) => ((v as { kind: string }).kind === 'approve' ? 'Voucher approved. Someone else can now post it.' : 'Dividend voucher posted.') },
     mutationFn: (v: { kind: 'approve' | 'post'; r: DividendVoucher }) => (v.kind === 'approve' ? approveDividend : postDividend)(v.r.year, v.r.controlNo),
     onSuccess: () => { setError(null); refresh() },
     onError: (e) => setError((e as Error).message),
@@ -285,7 +286,10 @@ export function DividendPanel() {
               </Box>
               <Chip size="small" variant="outlined" color={statusColor(v.status)} label={v.status === 'WAITING FOR APPROVAL' ? 'Waiting for approval' : v.status === 'APPROVED' ? 'Approved' : 'Posted'} />
               {v.status === 'WAITING FOR APPROVAL' && <Button size="small" variant="contained" disabled={act.isPending} onClick={() => act.mutate({ kind: 'approve', r: v })}>Approve</Button>}
-              {v.status === 'APPROVED' && <Button size="small" variant="contained" color="success" disabled={act.isPending} onClick={() => act.mutate({ kind: 'post', r: v })}>Post</Button>}
+              {v.status === 'APPROVED' && (
+                <ConfirmButton size="small" variant="contained" color="success" disabled={act.isPending} onConfirm={() => act.mutate({ kind: 'post', r: v })} title={`Post dividend voucher ${v.documentNo}?`}
+                  message={<>It credits <b>{money(v.total)}</b> to members’ accounts in {v.lines.toLocaleString()} lines. A posted voucher cannot be edited.</>}>Post</ConfirmButton>
+              )}
             </Box>
           ))}
         </Box>

@@ -5,7 +5,7 @@ import { FiPaperclip, FiX } from 'react-icons/fi'
 import { approveMemberImport, approveMemberRequest, listMemberImports, listMemberRequests, rejectMemberImport, withdrawMemberImport, type ImportBatch, rejectMemberRequest, requestClosure, requestReactivation, withdrawMemberRequest, type MemberRequest, getDocumentSetup, uploadDocument } from './api'
 import { glass } from './glass'
 import { useMe } from './session'
-import { ReasonDialog } from './ui/dialogs'
+import { ReasonDialog, ConfirmButton } from './ui/dialogs'
 import { Gated } from './ui/Gated'
 
 const when = (at: string) => new Date(at.replace(' ', 'T')).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -180,7 +180,10 @@ function ImportBatches() {
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                     {me.canApprove && <>
                       <Gated allowed={b.uploadedBy.toLowerCase() !== me.username.toLowerCase()} reason="You uploaded this list. Another Membership Officer must approve it.">
-                        <Button size="small" disabled={act.isPending} onClick={() => act.mutate({ b, kind: 'approve' })}>{act.isPending ? 'Opening…' : 'Approve all'}</Button>
+                        <ConfirmButton size="small" disabled={act.isPending} onConfirm={() => act.mutate({ b, kind: 'approve' })} title={`Approve all ${b.okRows} members?`} confirmLabel="Approve all"
+                          message={<>It opens {b.okRows} new members from {b.fileName}, each with their share capital and savings accounts. They are not removed afterwards; a member opened by mistake has to be closed.</>}>
+                          {act.isPending ? 'Opening…' : 'Approve all'}
+                        </ConfirmButton>
                       </Gated>
                       <Gated allowed={b.uploadedBy.toLowerCase() !== me.username.toLowerCase()} reason="You uploaded this list. Another Membership Officer must decide it.">
                         <Button size="small" color="error" disabled={act.isPending} onClick={() => setRejecting(b)}>Reject</Button>
@@ -207,7 +210,7 @@ export default function MemberRequestsPanel() {
   const [rejecting, setRejecting] = useState<MemberRequest | null>(null)
   const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['member-requests'] }) }
-  const act = useMutation({
+  const act = useMutation({ meta: { done: (_, v) => ((v as { kind: string }).kind === 'approve' ? 'Request approved.' : 'Request withdrawn.') },
     mutationFn: ({ r, kind }: { r: MemberRequest; kind: 'approve' | 'withdraw' }) => (kind === 'approve' ? approveMemberRequest(r.id) : withdrawMemberRequest(r.id)),
     onSuccess: () => { setError(null); refresh() },
     onError: (e) => setError((e as Error).message),

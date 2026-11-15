@@ -8,7 +8,11 @@ import {
   startPrivacyRequest, stepPrivacyRequest, type RegisterKey, type RequestStep, type Row,
 } from './api'
 import { appBackground, glass } from './glass'
+import { useMe } from './session'
 import { ReasonDialog } from './ui/dialogs'
+import { BranchSelect } from './ui/BranchSelect'
+import { labelOf, PRIVACY_REQUEST_WORDS } from './ui/labels'
+import { LoadingBlock, LoadingRow } from './ui/Loading'
 
 interface Field { key: string; label: string; kind?: 'text' | 'long' | 'date' | 'datetime' | 'number' | 'bool'; options?: string[]; required?: boolean }
 interface Register { key: RegisterKey; label: string; note: string; fields: Field[]; columns: string[] }
@@ -62,7 +66,7 @@ const REGISTERS: Register[] = [
   },
 ]
 
-const label = (k: string) => k.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
+const label = (k: string) => labelOf(k, PRIVACY_REQUEST_WORDS)
 const show = (v: Row[string] | undefined) => (v == null || v === '' ? '—' : typeof v === 'number' ? (v === 1 || v === 0 ? v === 1 ? 'Yes' : 'No' : String(v)) : String(v).replace('T', ' '))
 const shows = (k: string, v: Row[string] | undefined) => (['confirmed', 'reviewed'].includes(k) ? (v === 1 ? 'Yes' : 'No') : show(v))
 
@@ -122,6 +126,7 @@ function RegisterTab({ reg }: { reg: Register }) {
         <Table size="small">
           <TableHead><TableRow>{reg.columns.map((c) => <TableCell key={c}>{label(c)}</TableCell>)}<TableCell /></TableRow></TableHead>
           <TableBody>
+            <LoadingRow q={rows} what="the register" />
             {(rows.data ?? []).map((r) => (
               <TableRow key={String(r.id)} hover>
                 <Cells row={r} columns={reg.columns} />
@@ -150,7 +155,8 @@ const TYPES = ['ACCESS', 'CORRECTION', 'ERASURE', 'OBJECTION', 'PORTABILITY', 'W
 
 function NewRequest({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
-  const [f, setF] = useState({ requestType: 'ACCESS', branch: '1', client: '', name: '', contact: '', summary: '' })
+  const me = useMe()
+  const [f, setF] = useState({ requestType: 'ACCESS', branch: String(me.branchCode ?? 1), client: '', name: '', contact: '', summary: '' })
   const [error, setError] = useState<string | null>(null)
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }))
   const save = () => addPrivacyRequest({
@@ -164,7 +170,7 @@ function NewRequest({ onClose }: { onClose: () => void }) {
           {error && <Alert severity="error">{error}</Alert>}
           <TextField select size="small" label="Request" value={f.requestType} onChange={(e) => set('requestType', e.target.value)}>{TYPES.map((t) => <MenuItem key={t} value={t}>{label(t)}</MenuItem>)}</TextField>
           <Stack direction="row" spacing={1}>
-            <TextField size="small" label="Branch" value={f.branch} onChange={(e) => set('branch', e.target.value)} sx={{ width: 100 }} />
+            <BranchSelect label="Member’s branch" value={Number(f.branch)} onChange={(b) => set('branch', String(b))} />
             <TextField size="small" label="Member number" value={f.client} onChange={(e) => set('client', e.target.value)} fullWidth />
           </Stack>
           <TextField size="small" label="Name of the person asking" required value={f.name} onChange={(e) => set('name', e.target.value)} />
@@ -196,6 +202,7 @@ function RequestsTab() {
       </Stack>
       {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
       <Stack spacing={1}>
+        <LoadingBlock q={rows} what="the requests" />
         {(rows.data ?? []).map((r) => {
           const open = r.status === 'OPEN' || r.status === 'IN_PROGRESS'
           const late = open && String(r.due_on) < today
@@ -245,6 +252,7 @@ function ReviewTab() {
         <Table size="small">
           <TableHead><TableRow><TableCell>To look at</TableCell><TableCell align="right">Count</TableCell><TableCell>What to do</TableCell></TableRow></TableHead>
           <TableBody>
+            <LoadingRow q={review} what="the review list" />
             {(review.data ?? []).map((r) => (
               <TableRow key={r.what}><TableCell>{r.what}</TableCell><TableCell align="right"><Chip size="small" color={r.count > 0 ? 'warning' : 'success'} label={r.count} /></TableCell><TableCell sx={{ color: 'text.secondary' }}>{r.note}</TableCell></TableRow>
             ))}
@@ -256,6 +264,7 @@ function ReviewTab() {
         <Table size="small">
           <TableHead><TableRow>{['at', 'username', 'export_type', 'subject', 'row_count', 'purpose'].map((c) => <TableCell key={c}>{label(c)}</TableCell>)}</TableRow></TableHead>
           <TableBody>
+            <LoadingRow q={exportsQ} what="the export log" />
             {(exportsQ.data ?? []).map((r) => <TableRow key={String(r.id)}><Cells row={r} columns={['at', 'username', 'export_type', 'subject', 'row_count', 'purpose']} /></TableRow>)}
             {exportsQ.data?.length === 0 && <TableRow><TableCell colSpan={6}><Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>No exports logged yet.</Typography></TableCell></TableRow>}
           </TableBody>

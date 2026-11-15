@@ -11,6 +11,8 @@ import { appBackground, glass } from './glass'
 import { ReasonDialog } from './ui/dialogs'
 import { useMe } from './session'
 import { parseAmount } from './ui/format'
+import { labelOf } from './ui/labels'
+import { LoadingRow } from './ui/Loading'
 
 const qty = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 })
 const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })
@@ -90,6 +92,7 @@ function StockDialog({ product, onClose }: { product: InvProduct; onClose: () =>
         <Table size="small">
           <TableHead><TableRow><TableCell>Warehouse</TableCell><TableCell>Batch</TableCell><TableCell>Expires</TableCell><TableCell align="right">On hand</TableCell></TableRow></TableHead>
           <TableBody>
+            <LoadingRow q={stock} what="the stock" />
             {(stock.data ?? []).map((s) => <TableRow key={`${s.warehouseId}-${s.batchId}`}><TableCell>{s.warehouse}</TableCell><TableCell>{s.batchNo}</TableCell><TableCell>{s.expiry ?? ''}</TableCell><TableCell align="right">{qty(s.quantity)}</TableCell></TableRow>)}
             {stock.data?.length === 0 && <TableRow><TableCell colSpan={4}><Typography color="text.secondary">No stock.</Typography></TableCell></TableRow>}
           </TableBody>
@@ -98,7 +101,8 @@ function StockDialog({ product, onClose }: { product: InvProduct; onClose: () =>
         <Table size="small">
           <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Date</TableCell><TableCell>Type</TableCell><TableCell>Warehouse</TableCell><TableCell>Batch</TableCell><TableCell align="right">Qty</TableCell><TableCell align="right">Cost</TableCell></TableRow></TableHead>
           <TableBody>
-            {(ledger.data ?? []).map((l) => <TableRow key={l.id}><TableCell>{l.txnNo}</TableCell><TableCell>{l.date}</TableCell><TableCell>{l.type.toLowerCase()}</TableCell><TableCell>{l.warehouse}</TableCell><TableCell>{l.batchNo}</TableCell><TableCell align="right">{qty(l.quantity)}</TableCell><TableCell align="right">{money(l.unitCost)}</TableCell></TableRow>)}
+            <LoadingRow q={ledger} what="the movements" />
+            {(ledger.data ?? []).map((l) => <TableRow key={l.id}><TableCell>{l.txnNo}</TableCell><TableCell>{l.date}</TableCell><TableCell>{labelOf(l.type)}</TableCell><TableCell>{l.warehouse}</TableCell><TableCell>{l.batchNo}</TableCell><TableCell align="right">{qty(l.quantity)}</TableCell><TableCell align="right">{money(l.unitCost)}</TableCell></TableRow>)}
           </TableBody>
         </Table>
       </DialogContent>
@@ -121,6 +125,7 @@ function Products({ keeper }: { keeper: boolean }) {
       <Table size="small">
         <TableHead><TableRow><TableCell>SKU</TableCell><TableCell>Name</TableCell><TableCell>Category</TableCell><TableCell>Unit</TableCell><TableCell align="right">On hand</TableCell><TableCell align="right">Avg cost</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the products" />
           {(list.data ?? []).map((p) => (
             <TableRow key={p.id} hover>
               <TableCell>{p.sku}</TableCell><TableCell>{p.name}</TableCell><TableCell>{p.category ?? ''}</TableCell><TableCell>{p.unit}</TableCell>
@@ -212,9 +217,10 @@ function Movements({ keeper }: { keeper: boolean }) {
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Date</TableCell><TableCell>Type</TableCell><TableCell>Product</TableCell><TableCell>Warehouse</TableCell><TableCell>Batch</TableCell><TableCell align="right">Qty</TableCell><TableCell align="right">Cost</TableCell><TableCell>Reference</TableCell></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={ledger} what="the movements" />
           {(ledger.data ?? []).map((l) => (
             <TableRow key={l.id} hover>
-              <TableCell>{l.txnNo}</TableCell><TableCell>{l.date}</TableCell><TableCell>{l.type.toLowerCase()}</TableCell><TableCell>{l.sku} · {l.product}</TableCell><TableCell>{l.warehouse}</TableCell><TableCell>{l.batchNo}</TableCell>
+              <TableCell>{l.txnNo}</TableCell><TableCell>{l.date}</TableCell><TableCell>{labelOf(l.type)}</TableCell><TableCell>{l.sku} · {l.product}</TableCell><TableCell>{l.warehouse}</TableCell><TableCell>{l.batchNo}</TableCell>
               <TableCell align="right" sx={{ color: l.quantity < 0 ? 'error.main' : undefined }}>{qty(l.quantity)}</TableCell><TableCell align="right">{money(l.unitCost)}</TableCell><TableCell>{l.refNo ?? l.remarks ?? ''}</TableCell>
             </TableRow>
           ))}
@@ -292,7 +298,7 @@ function Adjustments({ keeper, approver, user }: { keeper: boolean; approver: bo
   const [rejecting, setRejecting] = useState<InvAdjSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['inv-adjustments'] }); void qc.invalidateQueries({ queryKey: ['inv-products'] }); void qc.invalidateQueries({ queryKey: ['inv-ledger'] }) }
-  const approve = useMutation({ mutationFn: (a: InvAdjSummary) => decideInvAdjustment(a.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const approve = useMutation({ meta: { done: 'Adjustment approved.' }, mutationFn: (a: InvAdjSummary) => decideInvAdjustment(a.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
   return (
     <Box>
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
@@ -300,11 +306,12 @@ function Adjustments({ keeper, approver, user }: { keeper: boolean; approver: bo
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Warehouse</TableCell><TableCell>Kind</TableCell><TableCell>Reason</TableCell><TableCell>By</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the adjustments" />
           {(list.data ?? []).map((a) => (
             <TableRow key={a.id} hover>
-              <TableCell>{a.adjustNo}</TableCell><TableCell>{a.warehouse}</TableCell><TableCell>{a.type.toLowerCase()}</TableCell>
+              <TableCell>{a.adjustNo}</TableCell><TableCell>{a.warehouse}</TableCell><TableCell>{labelOf(a.type)}</TableCell>
               <TableCell>{a.reason}{a.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{a.decisionNote}</Typography>}</TableCell><TableCell>{a.requestedBy}</TableCell>
-              <TableCell><Chip size="small" variant="outlined" color={statusColor(a.status)} label={a.status.toLowerCase()} />{a.waiting && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">waiting for {a.waiting}</Typography>}</TableCell>
+              <TableCell><Chip size="small" variant="outlined" color={statusColor(a.status)} label={labelOf(a.status)} />{a.waiting && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">waiting for {a.waiting}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {approver && a.status === 'SUBMITTED' && a.requestedBy !== user && (<>{!a.waiting && <Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(a)}>Approve</Button>}<Button size="small" color="error" onClick={() => setRejecting(a)}>Reject</Button></>)}
               </TableCell>
@@ -353,7 +360,7 @@ function Counts({ keeper, approver, user }: { keeper: boolean; approver: boolean
   const [rejecting, setRejecting] = useState<InvCountSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['inv-counts'] }); void qc.invalidateQueries({ queryKey: ['inv-products'] }); void qc.invalidateQueries({ queryKey: ['inv-ledger'] }) }
-  const approve = useMutation({ mutationFn: (c: InvCountSummary) => decideInvCount(c.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const approve = useMutation({ meta: { done: 'Count approved.' }, mutationFn: (c: InvCountSummary) => decideInvCount(c.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
   return (
     <Box>
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
@@ -361,10 +368,11 @@ function Counts({ keeper, approver, user }: { keeper: boolean; approver: boolean
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Date</TableCell><TableCell>Warehouse</TableCell><TableCell align="right">Differences</TableCell><TableCell>By</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the counts" />
           {(list.data ?? []).map((c) => (
             <TableRow key={c.id} hover>
               <TableCell>{c.countNo}</TableCell><TableCell>{c.countDate}</TableCell><TableCell>{c.warehouse}</TableCell><TableCell align="right">{c.differences}</TableCell><TableCell>{c.countedBy}</TableCell>
-              <TableCell><Chip size="small" variant="outlined" color={statusColor(c.status)} label={c.status.toLowerCase()} />{c.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{c.decisionNote}</Typography>}</TableCell>
+              <TableCell><Chip size="small" variant="outlined" color={statusColor(c.status)} label={labelOf(c.status)} />{c.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{c.decisionNote}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {approver && c.status === 'SUBMITTED' && c.countedBy !== user && (<><Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(c)}>Approve</Button><Button size="small" color="error" onClick={() => setRejecting(c)}>Reject</Button></>)}
               </TableCell>

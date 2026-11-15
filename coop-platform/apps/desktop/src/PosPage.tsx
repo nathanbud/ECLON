@@ -12,6 +12,8 @@ import { ReasonDialog } from './ui/dialogs'
 import { useMe } from './session'
 import { useLeaveGuard } from './leaveGuard'
 import { money, parseAmount } from './ui/format'
+import { labelOf } from './ui/labels'
+import { LoadingRow } from './ui/Loading'
 
 const qty = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 })
 const today = () => new Date().toLocaleDateString('en-CA')
@@ -101,6 +103,7 @@ function Register() {
           <Table size="small">
             <TableHead><TableRow><TableCell>Product</TableCell><TableCell align="right">Price</TableCell><TableCell align="right">In stock</TableCell><TableCell /></TableRow></TableHead>
             <TableBody>
+              <LoadingRow q={products} what="the products" />
               {(products.data ?? []).map((p) => (
                 <TableRow key={p.id} hover>
                   <TableCell>{p.name}{p.promoPercent ? <Chip size="small" color="success" variant="outlined" label={`${p.promoPercent}% off`} sx={{ ml: 0.75 }} /> : null}</TableCell>
@@ -210,6 +213,7 @@ function Sales() {
       <Table size="small">
         <TableHead><TableRow><TableCell>Receipt</TableCell><TableCell>Time</TableCell><TableCell>Store</TableCell><TableCell>Cashier</TableCell><TableCell align="right">Total</TableCell><TableCell align="right">Returned</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the sales" />
           {(list.data ?? []).map((s) => (
             <TableRow key={s.id} hover>
               <TableCell>{s.saleNo}</TableCell><TableCell>{s.saleTime.slice(11, 16)}</TableCell><TableCell>{s.warehouse}</TableCell><TableCell>{s.cashier}</TableCell>
@@ -232,19 +236,20 @@ function Returns({ supervisor, user }: { supervisor: boolean; user: string }) {
   const [rejecting, setRejecting] = useState<PosReturn | null>(null)
   const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['pos-returns'] }); void qc.invalidateQueries({ queryKey: ['pos-sales'] }); void qc.invalidateQueries({ queryKey: ['inv-products'] }) }
-  const approve = useMutation({ mutationFn: (r: PosReturn) => decidePosReturn(r.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const approve = useMutation({ meta: { done: 'Return approved.' }, mutationFn: (r: PosReturn) => decidePosReturn(r.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
   return (
     <Box>
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Sale</TableCell><TableCell>Reason</TableCell><TableCell align="right">Refund</TableCell><TableCell>By</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
+          <LoadingRow q={list} what="the returns" />
           {(list.data ?? []).map((r) => (
             <TableRow key={r.id} hover>
               <TableCell>{r.returnNo}</TableCell><TableCell>{r.saleNo}</TableCell>
               <TableCell>{r.reason}{r.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{r.decisionNote}</Typography>}</TableCell>
               <TableCell align="right">{money(r.refund)}</TableCell><TableCell>{r.requestedBy}</TableCell>
-              <TableCell><Chip size="small" variant="outlined" color={r.status === 'APPROVED' ? 'success' : r.status === 'PENDING' ? 'warning' : 'default'} label={r.status.toLowerCase()} /></TableCell>
+              <TableCell><Chip size="small" variant="outlined" color={r.status === 'APPROVED' ? 'success' : r.status === 'PENDING' ? 'warning' : 'default'} label={labelOf(r.status)} /></TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {supervisor && r.status === 'PENDING' && r.requestedBy !== user && (<><Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(r)}>Approve</Button><Button size="small" color="error" onClick={() => setRejecting(r)}>Reject</Button></>)}
               </TableCell>
