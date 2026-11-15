@@ -113,8 +113,20 @@ closure, loan release; cash handover last (it already has request keys).
 |---|---|---|
 | Journals (`JournalController`) | yes | `ledger-golden/journal.txt`: every column of every row, unchanged |
 | Year-end close (`YearEndCloseController`) | yes | `ledger-golden/year-end-close.txt`: the shape of every row, unchanged; totals in `YearEndCloseTest` |
-| `MemberLedgerPoster` and its callers, memos, bank cash, returned cheques, penalty waivers, the voucher runs, share withdrawal, time deposit closure, loan release, cash handover | not yet | |
+| Cash at the window through `MemberLedgerPoster` (savings deposits and withdrawals, share and loan payments, time deposit placement, voucher pay-outs): `Ledger.writeCash` | yes | `ledger-golden/savings-deposit.txt`, `savings-withdrawal.txt`, `savings-deposit-cheque-and-cash.txt`, `voucher-payout.txt`: the shape of every row, unchanged |
+| The shared member-ledger and general-ledger row writers (`writeLedgerRow`, `writeGlLine`, used by the flows below) | written by the ledger (`memberLedgerRow`, `glLine`) | the flows' own tests |
+| Memos, bank cash, cheque clearing, returned cheques, penalty waivers, the dividend, interest and accrual runs, share withdrawal, time deposit closure, loan release voucher and posting, cash handover | not yet (listed in `LedgerBoundaryTest.NOT_MOVED_YET`) | |
 
 The service is `ph.coop.core.accounting.ledger.Ledger` (with `Voucher`, `Money`, `LedgerRules`); request keys are kept in `ecis_posting_request`
 (PostgreSQL V026 applied, MySQL V063 written). A journal's key is `journal/<branch>/<id>` and a closing's `yearend/<branch>/<id>`, so neither can
 be written twice. Tested by `LedgerRulesTest`, `LedgerTest` (one voucher per key; a refused voucher writes nothing) and the golden tests.
+
+**Request keys from the screens.** A posting dialog makes one key when it opens (`useRequestKey`, `ui/requestKey.ts`) and sends it with every
+press as the header `Idempotency-Key` (`send(..., key)` in `api/http.ts`; allowed by CORS in `SecurityConfig`). The server reads it with
+`RequestKeys.current(action, user)` (stored as `<action>/<user>/<key>`). The same key again, after a lost answer, a second press, or with "post it
+anyway", is refused with 409 naming the first document; the whole request rolls back, so what the controller would also write (a new time deposit
+certificate, a spent supervisor approval) is not written twice. A request with no key posts as before, with the one-minute duplicate check.
+Tested by `SavingsLedgerPostingTest#theSamePressSentTwicePostsOnce` and `requestKey.test.ts`.
+
+**One writer, checked.** `LedgerBoundaryTest` fails when any class but `Ledger` inserts, updates or deletes `transsum`, `transdt`, `sldtl`,
+`gltrans` or `transck`, except the flows on its not-moved-yet list, and fails too when a listed flow no longer does (so the list only shrinks).
