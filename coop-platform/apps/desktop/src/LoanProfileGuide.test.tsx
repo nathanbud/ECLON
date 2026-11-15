@@ -78,6 +78,22 @@ describe('Profiling guidance', () => {
     await waitFor(() => expect(screen.getByRole('tab', { name: /Collateral/ })).toHaveAttribute('aria-selected', 'true'))
   })
 
+  it('starts the term at the loan type’s and says at once when it goes over', async () => {
+    template.mockResolvedValue(setup(false))
+    show()
+    const term = await screen.findByRole('spinbutton', { name: /Term/ })
+    expect(term).toHaveValue(12)
+    expect(screen.getByText('Up to 12 months')).toBeInTheDocument()
+    await userEvent.type(screen.getByRole('textbox', { name: /Principal/ }), '5000')
+    await userEvent.clear(term)
+    await userEvent.type(term, '13')
+    expect(screen.getByText('This loan type allows at most 12 months.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next: Deduction' })).toBeDisabled()
+    await userEvent.clear(term)
+    await userEvent.type(term, '12')
+    expect(screen.getByRole('button', { name: 'Next: Deduction' })).toBeEnabled()
+  })
+
   it('moves on with Enter', async () => {
     template.mockResolvedValue(setup(false))
     show()

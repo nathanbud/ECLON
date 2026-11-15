@@ -104,6 +104,18 @@ class LoanApplicationCreateTest {
     }
 
     @Test
+    void refusesATermLongerThanTheLoanTypeAllows() {
+        Integer most = jdbc.queryForObject("SELECT SLTypeTERMS FROM sltype WHERE SLTypeBR_CODE = 1 AND SLTypeSLC_CODE = 12 AND SLTypeSLT_CODE = 48", Integer.class);
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> applications.create(1, client,
+            new Create(48, new BigDecimal("5000.00"), most + 1, 5, 1, 1, null, null, null, null, List.of(), List.of()), clerk));
+        assertTrue(e.getReason().contains("at most " + most + " months"), e.getReason());
+        // in years too: the type's months, counted in whole years
+        assertThrows(ResponseStatusException.class, () -> applications.create(1, client,
+            new Create(48, new BigDecimal("5000.00"), most / 12 + 1, 5, 1, 1, null, null, null, null, List.of(), List.of(), List.of(), 7), clerk));
+        assertEquals(most, applications.create(1, client, new Create(48, new BigDecimal("5000.00"), most, 5, 1, 1, null, null, null, null, List.of(), List.of()), clerk).scheduleRows() - 1);
+    }
+
+    @Test
     void writesTheApplicationLikeTheOldSystem() {
         Created c = applications.create(1, client, new Create(48, new BigDecimal("5000.00"), 5, 5, 1, 1, null, null, "SC 7000", null, List.of(), List.of()), clerk);
         assertEquals(6, c.scheduleRows());

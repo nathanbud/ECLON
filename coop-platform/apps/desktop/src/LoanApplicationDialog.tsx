@@ -10,7 +10,7 @@ import { appear } from './motion'
 import { announceLoanApplicationSaved, openLoanApplicationWindow } from './detachedWindow'
 import type { ReactNode } from 'react'
 import MoneyField from './MoneyField'
-import { missingText, profileChecks, type ProfileField } from './loanProfileChecks'
+import { missingText, mostTerm, profileChecks, termLimitText, type ProfileField } from './loanProfileChecks'
 import { money } from './ui/format'
 import { printPdf } from './ui/printPdf'
 
@@ -80,6 +80,20 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
     collateralRequired: !!t?.setup.collateralRequired, collType, collAmount, collDesc,
   })
   const missing = checks.filter((c) => !c.done)
+  // The loan type's term is the longest it allows: going over shows at once under the field (the buttons stay off until it is fixed).
+  const termMost = t ? mostTerm(unitOf(t), t.termUnit === 7 ? 7 : 4, t.terms) : 0
+  const termOver = termMost > 0 && terms.trim() !== '' && Number(terms) > termMost
+  /** Counting the term in the other unit converts what is typed when it converts to whole numbers (36 months is 3 years), and empties it otherwise. */
+  const switchUnit = (to: number) => {
+    if (!t) return
+    const from = unitOf(t)
+    const n = Number(terms)
+    if (from !== to && terms.trim() !== '' && n > 0) {
+      const months = from === 7 ? n * 12 : n
+      setTerms(to === 7 ? (months % 12 === 0 ? String(months / 12) : '') : String(months))
+    }
+    setUnit(String(to))
+  }
   // A required field shows what it needs once the person has left it (not before they reach it).
   const [touched, setTouched] = useState<ReadonlySet<ProfileField>>(new Set())
   const [relatedTab, setRelatedTab] = useState(0)
@@ -124,6 +138,8 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
   // Once the loan type's setup is in, the next thing to type is the principal.
   const loadedType = t ? typeCode : null
   useEffect(() => {
+    // the term starts at the loan type's own, which is also the longest it allows
+    if (t && loadedType != null) { setTerms(String(t.terms)); setUnit('') }
     if (loadedType != null && showProfile && !amount) focusField('principal')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedType])
@@ -241,12 +257,12 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
                       error={!!problem('principal')} helperText={problem('principal')} />
                   </Box>
                   {/* One field: the number and its unit share a single outline. */}
-                  <TextField size="small" label="Term" type="number" value={terms} onChange={(e) => setTerms(e.target.value)} placeholder={unitOf(t) === t.termUnit ? String(t.terms) : undefined}
-                    ref={spot('term')} onKeyDown={onEnter('term')} required={unitOf(t) !== t.termUnit} error={!!problem('term')}
-                    helperText={problem('term') ?? (unitOf(t) === t.termUnit && !terms ? `Blank: the loan type’s ${t.terms} ${unitOf(t) === 7 ? 'years' : 'months'}` : undefined)}
-                    slotProps={{ input: { endAdornment: (
+                  <TextField size="small" label="Term" type="number" value={terms} onChange={(e) => setTerms(e.target.value)}
+                    ref={spot('term')} onKeyDown={onEnter('term')} required error={termOver || !!problem('term')}
+                    helperText={termOver ? termLimitText(unitOf(t), t.termUnit === 7 ? 7 : 4, t.terms) : problem('term') ?? (termMost > 0 ? `Up to ${termMost} ${unitOf(t) === 7 ? 'years' : 'months'}` : undefined)}
+                    slotProps={{ htmlInput: { min: 1, max: termMost > 0 ? termMost : undefined, step: 1 }, input: { endAdornment: (
                       <InputAdornment position="end">
-                        <Select variant="standard" disableUnderline value={String(unitOf(t))} onChange={(e) => setUnit(String(e.target.value))} inputProps={{ 'aria-label': 'Term unit' }}
+                        <Select variant="standard" disableUnderline value={String(unitOf(t))} onChange={(e) => switchUnit(Number(e.target.value))} inputProps={{ 'aria-label': 'Term unit' }}
                           sx={{ fontSize: 13, color: 'text.secondary', '& .MuiSelect-select': { py: 0, pr: '20px !important' } }}>
                           <MenuItem value="4">Months</MenuItem><MenuItem value="7">Years</MenuItem>
                         </Select>

@@ -346,6 +346,13 @@ public class LoanApplicationController {
         if (terms <= 0) throw bad("The term must be more than zero.");
         int termMonths = unit == YEARS ? terms * 12 : terms;
         if (termMonths > 600) throw bad("The term is too long.");
+        // the loan type's term is the longest it allows (the form fills it in and stops there too)
+        int typeTerms = num(t.d(), "SLTypeTERMS");
+        int mostMonths = typeUnit == YEARS ? typeTerms * 12 : typeTerms;
+        if (typeTerms > 0 && termMonths > mostMonths) {
+            throw bad("This loan type allows a term of at most " + typeTerms + (typeUnit == YEARS ? " years" : " months")
+                + (unit != typeUnit ? " (" + (unit == YEARS ? mostMonths / 12 + " years" : mostMonths + " months") + ")" : "") + ".");
+        }
         BigDecimal rate = (BigDecimal) t.d().get("SLTypeINT_RATE");
         int pmode = num(t.d(), "SLTypePPMT_MODE");
         List<LoanSchedule.Row> schedule;
