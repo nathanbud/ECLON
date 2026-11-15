@@ -87,8 +87,10 @@ public class LoanApplicationController {
     private final LoanBook book;
     private final LoanSteps steps;
     private final CoMakerHolds holds;
+    private final AmortizationSchedulePrint amortizationPrint;
 
-    LoanApplicationController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, LoanBook book, CoMakerHolds holds, LoanSteps steps) {
+    LoanApplicationController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, LoanBook book, CoMakerHolds holds, LoanSteps steps, AmortizationSchedulePrint amortizationPrint) {
+        this.amortizationPrint = amortizationPrint;
         this.steps = steps;
         this.book = book;
         this.holds = holds;
@@ -248,32 +250,11 @@ public class LoanApplicationController {
         if (clients.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such client.");
         Integer existingVp = memberRef(branchCode, clientId, 29, 1);
 
-        // The clerk may count the term in months or in years, whatever the type's default; the old system keeps the number as typed with its unit.
-        int typeUnit = num(t.d(), "SLTypeTERM_PERD");
-        int unit = in.termUnit() == null ? typeUnit : in.termUnit();
-        if (unit != MONTHS && unit != YEARS) throw bad("The term can be counted in months or years.");
-        if (in.terms() == null && unit != typeUnit) throw bad("Give the term when it is counted in a different unit from the loan type's.");
-        int terms = in.terms() == null ? num(t.d(), "SLTypeTERMS") : in.terms();
-        if (terms <= 0) throw bad("The term must be more than zero.");
-        int termMonths = unit == YEARS ? terms * 12 : terms;
-        if (termMonths > 600) throw bad("The term is too long.");
-        BigDecimal rate = (BigDecimal) t.d().get("SLTypeINT_RATE");
-        int pmode = num(t.d(), "SLTypePPMT_MODE");
-        LocalDate today = LocalDate.now(clock);
-        List<LoanSchedule.Row> schedule;
-        try {
-            int kind = num(t.d(), "SLTypeAMORTYPE");
-            if (kind == LoanSchedule.ANNUITY) {
-                Object nd = t.d().get("SLTypeND_FLAG");
-                schedule = LoanSchedule.annuity(in.amount(), termMonths, pmode, rate, today, nd != null && ((Number) nd).intValue() == 1);
-            } else if (kind == LoanSchedule.DIMINISHING) {
-                schedule = LoanSchedule.diminishing(in.amount(), termMonths, pmode, rate, today);
-            } else {
-                throw new IllegalArgumentException("Only diminishing-balance and annuity loan types can be applied for here so far.");
-            }
-        } catch (IllegalArgumentException e) {
-            throw bad(e.getMessage());
-        }
+        Planned planned = plan(t, in, LocalDate.now(clock));
+        int terms = planned.terms(), unit = planned.unit(), pmode = planned.paymentMode();
+        BigDecimal rate = planned.rate();
+        LocalDate today = planned.release();
+        List<LoanSchedule.Row> schedule = planned.rows();
 
         return tx.execute((st) -> {
             // the old system opens the member's vouchers-payable account (osl, status 15, amount 0.00) with their first application
@@ -352,6 +333,71 @@ public class LoanApplicationController {
     }
 
     /** The deduction lines of an application, as the old system stores them: the loan type's lines with an amount typed, then the pay-offs of earlier loans. */
+    /** The term as typed (with its unit), the rate, payment mode and the schedule an application builds; the save and the printed schedule use the same one. */
+    record Planned(int terms, int unit, int termMonths, BigDecimal rate, int paymentMode, LocalDate release, List<LoanSchedule.Row> rows) {}
+
+    private Planned plan(Type t, Create in, LocalDate today) {
+        // The clerk may count the term in months or in years, whatever the type's default; the old system keeps the number as typed with its unit.
+        int typeUnit = num(t.d(), "SLTypeTERM_PERD");
+        int unit = in.termUnit() == null ? typeUnit : in.termUnit();
+        if (unit != MONTHS && unit != YEARS) throw bad("The term can be counted in months or years.");
+        if (in.terms() == null && unit != typeUnit) throw bad("Give the term when it is counted in a different unit from the loan type's.");
+        int terms = in.terms() == null ? num(t.d(), "SLTypeTERMS") : in.terms();
+        if (terms <= 0) throw bad("The term must be more than zero.");
+        int termMonths = unit == YEARS ? terms * 12 : terms;
+        if (termMonths > 600) throw bad("The term is too long.");
+        BigDecimal rate = (BigDecimal) t.d().get("SLTypeINT_RATE");
+        int pmode = num(t.d(), "SLTypePPMT_MODE");
+        List<LoanSchedule.Row> schedule;
+        try {
+            int kind = num(t.d(), "SLTypeAMORTYPE");
+            if (kind == LoanSchedule.ANNUITY) {
+                Object nd = t.d().get("SLTypeND_FLAG");
+                schedule = LoanSchedule.annuity(in.amount(), termMonths, pmode, rate, today, nd != null && ((Number) nd).intValue() == 1);
+            } else if (kind == LoanSchedule.DIMINISHING) {
+                schedule = LoanSchedule.diminishing(in.amount(), termMonths, pmode, rate, today);
+            } else {
+                throw new IllegalArgumentException("Only diminishing-balance and annuity loan types can be applied for here so far.");
+            }
+        } catch (IllegalArgumentException e) {
+            throw bad(e.getMessage());
+        }
+        return new Planned(terms, unit, termMonths, rate, pmode, today, schedule);
+    }
+
+    /**
+     * The amortization schedule of the application on the form, as a PDF laid out like the old system's printed Amortization Schedule (for the member to sign,
+     * CONFORME), before or after it is saved. Nothing is saved; the print is written to the audit log and the export log, since it holds a member's loan.
+     * {@code refNo}: the loan number once saved, printed only when that loan is this member's, of this type and amount; otherwise "To be assigned".
+     */
+    @PostMapping("/amortization/pdf")
+    public org.springframework.http.ResponseEntity<byte[]> amortizationPdf(@PathVariable int branchCode, @PathVariable int clientId, @RequestBody Create in,
+                                                                          @RequestParam(required = false) Integer refNo, Authentication auth) {
+        Encoder enc = encoder(auth.getName());
+        if (!enc.mayAdd()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not add loan applications, so you cannot print their schedules.");
+        if (enc.branch() != branchCode) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This member belongs to another branch.");
+        if (in.amount() == null || in.amount().signum() <= 0 || in.amount().scale() > 2) throw bad("The loan amount must be more than zero, with at most 2 decimals.");
+        Type t = type(branchCode, in.typeCode());
+        Planned planned = plan(t, in, LocalDate.now(clock));
+        Integer saved = null;
+        if (refNo != null) {
+            Integer same = jdbc.queryForObject("SELECT COUNT(*) FROM loan WHERE LoanBR_CODE = ? AND ClientIDLoan = ? AND LoanSLC_CODE = ? AND LoanSLT_CODE = ? AND LoanREF_NO = ? AND LoanPAMT = ?",
+                Integer.class, branchCode, clientId, LOAN_CLASS, in.typeCode(), refNo, in.amount());
+            if (same != null && same > 0) saved = refNo;
+        }
+        java.time.LocalDateTime now = java.time.LocalDateTime.now(clock);
+        AmortizationSchedulePrint.Sheet sheet = amortizationPrint.sheet(branchCode, clientId, in.typeCode(), t.d(), in.purpose(), in.amount(), planned, saved, enc.id());
+        byte[] pdf = amortizationPrint.pdf(sheet, auth.getName(), now);
+        String subject = "loan application " + sheet.refNo() + " of member " + branchCode + "-" + clientId;
+        jdbc.update("INSERT INTO ecis_data_export (at, username, export_type, subject, row_count, purpose) VALUES (?, ?, 'REPORT', ?, ?, ?)",
+            java.sql.Timestamp.valueOf(now), auth.getName(), subject, planned.rows().size(), "Amortization schedule (pdf)");
+        AuditLog.write(jdbc, auth.getName(), "loan.application.amortization.print", "loan", branchCode + "-" + clientId + "-" + sheet.refNo(), null,
+            "type " + in.typeCode() + " amount " + in.amount().toPlainString() + " term " + planned.terms() + (planned.unit() == YEARS ? " years" : " months"), "Amortization schedule printed");
+        String name = "amortization-schedule-" + branchCode + "-" + clientId + "-" + planned.release() + ".pdf";
+        return org.springframework.http.ResponseEntity.ok().contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+            .header("Content-Disposition", "inline; filename=\"" + name + "\"").body(pdf);
+    }
+
     private record DeductionPlan(List<Object[]> rows, BigDecimal total, Payoff firstPaid) {}
 
     private DeductionPlan plan(int branchCode, int clientId, int typeCode, int ref, long appId, List<Map<String, Object>> template, List<DeductionAmount> deductions, List<Payoff> payoffs) {

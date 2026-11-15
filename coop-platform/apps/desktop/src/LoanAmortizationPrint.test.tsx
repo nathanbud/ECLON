@@ -1,0 +1,61 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { LoanAppTemplate } from './api'
+import LoanApplicationDialog from './LoanApplicationDialog'
+import { AppThemeProvider } from './theme'
+
+const pdf = vi.fn<(b: number, c: number, body: { typeCode: number; amount: number }, refNo?: number) => Promise<Blob>>()
+const printed = vi.fn<(file: Blob, name: string) => Promise<'printing' | 'saved'>>()
+vi.mock('./api', async (orig) => ({
+  ...(await orig<typeof import('./api')>()),
+  getLoanAppPermissions: () => Promise.resolve({ canAdd: true, canVerify: false, canApprove: false, canDeduct: true }),
+  getLoanAppTemplate: () => Promise.resolve(template),
+  getLoanTypes: () => Promise.resolve([]),
+  getAmortizationPdf: (b: number, c: number, body: { typeCode: number; amount: number }, refNo?: number) => pdf(b, c, body, refNo),
+}))
+vi.mock('./ui/printPdf', () => ({ printPdf: (file: Blob, name: string) => printed(file, name) }))
+
+const template: LoanAppTemplate = {
+  typeCode: 21, typeName: 'Salary loan', terms: 12, termUnit: 4, paymentMode: 1, interestRate: 12, hasVouchersPayable: true, nextRefNo: 1,
+  deductions: [], purposes: [{ id: 5, name: 'Education' }], collateralTypes: [], payoffs: [],
+  setup: { termUnit: 'Months', principalPayment: 'Monthly', interestPayment: 'Monthly', basedOn: null, diminish: null, penaltyRate: null, yearDays: 360, collateralRequired: false, unsupported: null },
+}
+
+function show() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(<QueryClientProvider client={qc}><AppThemeProvider>
+    <LoanApplicationDialog embedded part="profile" branchCode={1} clientId={5} typeCode={21} onClose={() => {}} onNext={() => {}} />
+  </AppThemeProvider></QueryClientProvider>)
+}
+
+describe('Printing the amortization schedule while profiling', () => {
+  beforeEach(() => { pdf.mockReset(); printed.mockReset() })
+
+  it('asks for what Profiling still needs first, then prints the schedule of what is on the form', async () => {
+    pdf.mockResolvedValue(new Blob(['%PDF'], { type: 'application/pdf' }))
+    printed.mockResolvedValue('printing')
+    show()
+    await screen.findByRole('textbox', { name: /Principal/ })
+    const button = screen.getByRole('button', { name: 'Print amortization' })
+    await userEvent.click(button)
+    expect(pdf).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('Fill in Principal')
+
+    await waitFor(() => expect(screen.getByRole('textbox', { name: /Principal/ })).toHaveFocus())
+    await userEvent.keyboard('25000')
+    await userEvent.click(button)
+    await waitFor(() => expect(printed).toHaveBeenCalledOnce())
+    expect(pdf).toHaveBeenCalledWith(1, 5, expect.objectContaining({ typeCode: 21, amount: 25000 }), undefined)
+  })
+
+  it('says why when the schedule cannot be made', async () => {
+    pdf.mockRejectedValue(new Error('The term is too long.'))
+    show()
+    await userEvent.type(await screen.findByRole('textbox', { name: /Principal/ }), '25000')
+    await userEvent.click(screen.getByRole('button', { name: 'Print amortization' }))
+    expect(await screen.findByText('The term is too long.')).toBeInTheDocument()
+    expect(printed).not.toHaveBeenCalled()
+  })
+})

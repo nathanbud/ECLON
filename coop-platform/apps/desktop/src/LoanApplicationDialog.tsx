@@ -1,7 +1,7 @@
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, InputAdornment, MenuItem, Select, Skeleton, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { createLoanApplication, getLoanAppPermissions, getLoanAppTemplate, getLoanTypes, type LoanAppCreated, type Member } from './api'
+import { createLoanApplication, getAmortizationPdf, getLoanAppPermissions, getLoanAppTemplate, getLoanTypes, type LoanAppCreated, type Member } from './api'
 import LoanDeductionFields, { deductionInput, type DeductionAmounts, type Payoffs } from './LoanDeductionFields'
 import { FindBody, type FindWording } from './FindClientDialog'
 import LoanApplicantCard from './LoanApplicantCard'
@@ -12,6 +12,7 @@ import type { ReactNode } from 'react'
 import MoneyField from './MoneyField'
 import { firstMissing, missingText, profileChecks, type ProfileField } from './loanProfileChecks'
 import { money } from './ui/format'
+import { printPdf } from './ui/printPdf'
 
 
 /**
@@ -115,8 +116,8 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
     if (loadedType != null && showProfile && !amount) focusField('principal')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedType])
-  const save = useMutation({
-    mutationFn: () => createLoanApplication(branchCode, clientId, {
+  /** What the form holds, as the save (and the printed schedule) take it. */
+  const formBody = () => ({
       typeCode: typeCode!, amount: Number(amount), terms: terms ? Number(terms) : null, termUnit: unit ? Number(unit) : null, purpose: purpose ? Number(purpose) : null, loanClass: 1, borrowerClass: Number(cls),
       collateralType: collType ? Number(collType) : null, collateralAmount: collAmount ? Number(collAmount) : null, collateralDescription: collDesc || null, remarks: remarks || null,
       coMakers: coMakers.split(/[\s,]+/).filter(Boolean).map(Number),
@@ -125,8 +126,16 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
         return { clientId: id, amount: Number(coHolds[id].amount), slc, slt, refNo }
       }),
       ...(mayDeduct ? deductionInput(ded, paid) : { deductions: [], payoffs: [] }),
-    }),
+  })
+  const save = useMutation({
+    mutationFn: () => createLoanApplication(branchCode, clientId, formBody()),
     onSuccess: (r) => { setDone(r); qc.invalidateQueries({ queryKey: ['member-loans', branchCode, clientId] }); if (embedded) announceLoanApplicationSaved(); onSaved?.(r) },
+  })
+  // The amortization schedule of what is on the form, for the member to read and sign; once saved it carries the loan number.
+  const print = useMutation({
+    mutationFn: async () => printPdf(await getAmortizationPdf(branchCode, clientId, formBody(), done?.refNo),
+      `amortization-schedule-${clientId}.pdf`),
+    meta: { done: (how: unknown) => (how === 'saved' ? 'The amortization schedule was saved as a PDF; open it to print.' : 'The amortization schedule is ready to print.') },
   })
   const clear = () => { setAmount(''); setTerms(''); setUnit(''); setPurpose(''); setCollType(''); setCollAmount(''); setCollDesc(''); setRemarks(''); setCoMakers(''); setCoHolds({}); setDed({}); setDone(null); setCls('1'); setPaid({}); save.reset() }
   const pick = (m: Member | null) => { clear(); setPicked(m); }
@@ -279,6 +288,7 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
               : <Alert severity="info">You may do Profiling but not Deduction. The application is saved without deductions, and someone who may do the Deduction step fills them in before it is verified.</Alert>}
             </>}
             {save.error && <Alert severity="error">{(save.error as Error).message}</Alert>}
+            {print.error && <Alert severity="error">{(print.error as Error).message}</Alert>}
           </Box>
         )}
         {done && (
@@ -290,6 +300,10 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
       </>,
     <>
       {part === 'deduction' && !done ? <Button onClick={onBack}>Back</Button> : <Button onClick={onClose}>{done ? 'Close' : 'Cancel'}</Button>}
+      {showProfile && (
+        <Button disabled={!t || !!t.setup.unsupported || print.isPending} title="The schedule of this loan as it is on the form, for the member to sign"
+          onClick={() => (done ? print.mutate() : goOn(() => print.mutate()))}>{print.isPending ? 'Preparing…' : 'Print amortization'}</Button>
+      )}
       {part === 'profile' && !done && mayDeduct && <Button variant="contained" ref={spot('next')} disabled={!t || !!t.setup.unsupported} onClick={() => goOn(() => onNext?.())}>Next: Deduction</Button>}
       {part === 'profile' && !done && !mayDeduct && (
         <Button variant="contained" title={restructureNeedsBoth ? 'A restructured loan needs both Profiling and Deduction.' : undefined}

@@ -74,6 +74,36 @@ class LoanApplicationCreateTest {
     }
 
     @Test
+    void printsTheScheduleOfTheFormBeforeAndAfterItIsSavedAndSavesNothingForIt() {
+        Create form = new Create(48, new BigDecimal("5000.00"), 5, 5, 1, 1, null, null, null, null, List.of(), List.of());
+        Integer loansBefore = jdbc.queryForObject("SELECT COUNT(*) FROM loan WHERE LoanBR_CODE = 1 AND ClientIDLoan = ?", Integer.class, client);
+        var before = applications.amortizationPdf(1, client, form, null, clerk);
+        assertEquals(org.springframework.http.MediaType.APPLICATION_PDF, before.getHeaders().getContentType());
+        assertEquals("%PDF", new String(before.getBody(), 0, 4));
+        assertEquals(loansBefore, jdbc.queryForObject("SELECT COUNT(*) FROM loan WHERE LoanBR_CODE = 1 AND ClientIDLoan = ?", Integer.class, client), "printing saves no loan");
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'loan.application.amortization.print' AND entity_id LIKE ?", Integer.class,
+            "1-" + client + "-To be assigned"));
+
+        Created c = applications.create(1, client, form, clerk);
+        applications.amortizationPdf(1, client, form, c.refNo(), clerk);
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'loan.application.amortization.print' AND entity_id = ?", Integer.class,
+            String.format("1-%d-1248-%08d", client, c.refNo())), "once saved, the loan number is printed");
+        // a number that is not this member's loan of that amount is not printed
+        applications.amortizationPdf(1, client, new Create(48, new BigDecimal("5001.00"), 5, 5, 1, 1, null, null, null, null, List.of(), List.of()), c.refNo(), clerk);
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'loan.application.amortization.print' AND entity_id LIKE ?", Integer.class,
+            "1-" + client + "-To be assigned"));
+    }
+
+    @Test
+    void onlyAProfilerPrintsTheSchedule() {
+        List<String> none = jdbc.queryForList("SELECT AccessUserName FROM access WHERE COALESCE(AccessCanAddLoanApplication, 0) = 0 AND COALESCE(AccessIsDisabled, 0) = 0 AND AccessBR_CODE = 1 ORDER BY AccessID LIMIT 1", String.class);
+        assumeTrue(!none.isEmpty(), "everyone may add applications");
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> applications.amortizationPdf(1, client,
+            new Create(48, new BigDecimal("5000.00"), 5, 5, 1, 1, null, null, null, null, List.of(), List.of()), null, new TestingAuthenticationToken(none.get(0), null)));
+        assertEquals(403, e.getStatusCode().value());
+    }
+
+    @Test
     void writesTheApplicationLikeTheOldSystem() {
         Created c = applications.create(1, client, new Create(48, new BigDecimal("5000.00"), 5, 5, 1, 1, null, null, "SC 7000", null, List.of(), List.of()), clerk);
         assertEquals(6, c.scheduleRows());

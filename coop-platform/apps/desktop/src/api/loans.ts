@@ -93,6 +93,18 @@ export const saveLoanDeductions = (b: number, c: number, applicationId: number, 
   send<{ applicationId: number; totalDeductions: number; netProceeds: number }>('POST', `/api/members/${b}/${c}/loan-applications/${applicationId}/deductions`, body)
 export const createLoanApplication = (b: number, c: number, body: LoanAppIn) => send<LoanAppCreated>('POST', `/api/members/${b}/${c}/loan-applications`, body)
 
+/**
+ * The amortization schedule of the application on the form as a PDF (laid out like the old system's printout, with a page for the member to sign).
+ * Nothing is saved; the server logs the print. refNo: the loan number once the application is saved, so it is printed on it.
+ */
+export async function getAmortizationPdf(b: number, c: number, body: LoanAppIn, refNo?: number): Promise<Blob> {
+  const res = await http(`/api/members/${b}/${c}/loan-applications/amortization/pdf${refNo ? `?refNo=${refNo}` : ''}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await errorFrom(res))
+  return res.blob()
+}
+
 export interface LoanApplicationItem { id: number; documentNo: string; clientId: number; clientName: string | null; typeCode: number; typeName: string | null; refNo: number; amount: number; terms: number; status: number; statusName: string; encodedByName: string | null; date: string; voucherYear: number | null; voucherControlNo: number | null; branchCode: number; waitingForDeductions: boolean }
 export interface CoMakerHoldSaved { clientId: number; name: string | null; amount: number; slc: number; slt: number; refNo: number; accountType: string | null; placed: boolean }
 export interface LoanApplicationDetail { item: LoanApplicationItem; lines: { account: string | null; description: string; amount: number }[]; totalDeductions: number; netProceeds: number; problems: string[]; coMakerHolds: CoMakerHoldSaved[] }
