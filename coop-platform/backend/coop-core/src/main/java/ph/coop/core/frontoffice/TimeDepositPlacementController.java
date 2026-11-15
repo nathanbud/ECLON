@@ -212,7 +212,7 @@ class TimeDepositPlacementController {
             if (spent != null) {
                 String used = r.branch() + "/" + r.year() + "/3/10/" + r.controlNo();
                 jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", used, spent[0]);
-                AuditLog.write(jdbc, null, auth.getName(), "td.rate.override.used", "fo_override", String.valueOf(spent[0]), null, "allowed by user " + spent[1] + " for " + used + " " + c.rateDescription(), null);
+                AuditLog.write(jdbc, auth.getName(), "td.rate.override.used", "fo_override", String.valueOf(spent[0]), null, "allowed by user " + spent[1] + " for " + used + " " + c.rateDescription(), null);
             }
             String type = jdbc.queryForList("SELECT SLTypeM_DESC FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", String.class, p.branch(), CLASS_TD, req.typeCode())
                 .stream().findFirst().orElse("Time deposit");

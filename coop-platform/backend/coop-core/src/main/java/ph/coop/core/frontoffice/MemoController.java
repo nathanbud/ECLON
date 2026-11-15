@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import ph.coop.core.accounting.close.ClosedBooks;
 import ph.coop.core.audit.AuditLog;
 import ph.coop.core.db.Db;
 import ph.coop.core.frontoffice.MemberLedgerPoster.Master;
@@ -76,12 +77,14 @@ class MemoController {
     private final Db db;
     private final MemberLedgerPoster poster;
     private final Clock clock;
+    private final ClosedBooks books;
 
-    MemoController(JdbcTemplate jdbc, Db db, MemberLedgerPoster poster, Clock clock) {
+    MemoController(JdbcTemplate jdbc, Db db, MemberLedgerPoster poster, Clock clock, ClosedBooks books) {
         this.jdbc = jdbc;
         this.db = db;
         this.poster = poster;
         this.clock = clock;
+        this.books = books;
     }
 
     private static boolean admin(Authentication auth) {
@@ -239,7 +242,7 @@ class MemoController {
         int n = jdbc.update("UPDATE ecis_memo SET status = 'POSTED', posted_by = ?, posted_at = ?, tr_year = ?, tr_ctlno = ? WHERE id = ? AND status = 'APPROVED'", auth.getName(), stamp, year, ctl, id);
         if (n != 1) throw conflict("The memo changed while you were posting it. Reload it.");
         audit(auth, "MEMO_POST", id, "APPROVED", "POSTED", "doc " + docNo);
-        AuditLog.write(jdbc, stamp, auth.getName(), "memo.ledger.post", "transsum", r.branch() + "/" + year + "/1/2/" + ctl, null, "memo " + r.reference() + " " + lines.size() + " lines", null);
+        AuditLog.write(jdbc, auth.getName(), "memo.ledger.post", "transsum", r.branch() + "/" + year + "/1/2/" + ctl, null, "memo " + r.reference() + " " + lines.size() + " lines", null);
         return get(id).summary();
     }
 
@@ -331,6 +334,7 @@ class MemoController {
 
     /** No period covering the date, or a period that is not open, means no posting (as for a journal). */
     private void requireOpenPeriod(int branch, LocalDate date) {
+        if (books.isClosed(branch, date.getYear())) throw conflict("The books for " + date.getYear() + " are closed, so the memo cannot be posted on " + date + ". Date it in an open year.");
         List<String> s = jdbc.queryForList("SELECT status FROM ecis_accounting_period WHERE branch_code = ? AND ? BETWEEN start_date AND end_date", String.class, branch, date);
         if (s.isEmpty()) throw conflict("No accounting period covers " + date + ", so the memo cannot be posted.");
         if (!"OPEN".equals(s.get(0))) throw conflict("The accounting period of " + date + " is " + s.get(0).toLowerCase().replace('_', ' ') + "; posting is not allowed.");
@@ -415,6 +419,6 @@ class MemoController {
     }
 
     private void audit(Authentication auth, String action, long id, String prev, String next, String reason) {
-        AuditLog.write(jdbc, LocalDateTime.now(clock), auth.getName(), action, "memo", String.valueOf(id), prev, next, reason);
+        AuditLog.write(jdbc, auth.getName(), action, "memo", String.valueOf(id), prev, next, reason);
     }
 }

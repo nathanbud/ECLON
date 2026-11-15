@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -133,6 +134,7 @@ class SavingsInterestController {
         Person p = poster.person(auth.getName());
         LocalDate to = quarterEnd(in.quarterEnd());
         return tx.execute((st) -> {
+            PostingPeriods.requireOpen(jdbc, p.branch(), to);
             if (vouchersOf(p.branch(), to) > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Interest vouchers already exist for this quarter, so it cannot be run again.");
             Plan plan = run.plan(p.branch(), to);
             if (plan.credits().isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "No account earns interest for this quarter.");
@@ -287,6 +289,6 @@ class SavingsInterestController {
     }
 
     private void audit(Authentication auth, String action, Person p, String entity, String detail) {
-        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "transsum", p.branch() + "/" + MODULE + "/" + CODE + "/" + entity, null, detail, null);
+        AuditLog.write(jdbc, auth.getName(), action, "transsum", p.branch() + "/" + MODULE + "/" + CODE + "/" + entity, null, detail, null);
     }
 }

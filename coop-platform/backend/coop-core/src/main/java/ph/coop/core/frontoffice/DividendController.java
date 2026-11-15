@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -176,6 +177,7 @@ class DividendController {
         if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so the vouchers cannot be encoded.");
         LocalDate cutoff = cutoff(in.cutoff());
         return tx.execute((st) -> {
+            PostingPeriods.requireOpen(jdbc, p.branch(), cutoff);
             if (vouchersOf(p.branch(), cutoff) > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Dividend vouchers already exist for " + cutoff.getYear() + ", so it cannot be run again.");
             Plan plan = plan(p.branch(), cutoff, in.params());
             if (plan.credits().isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "No member earns a dividend or refund with these rates.");
@@ -366,6 +368,6 @@ class DividendController {
     }
 
     private void audit(Authentication auth, String action, Person p, String entity, String detail) {
-        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "transsum", p.branch() + "/" + MODULE + "/" + CODE + "/" + entity, null, detail, null);
+        AuditLog.write(jdbc, auth.getName(), action, "transsum", p.branch() + "/" + MODULE + "/" + CODE + "/" + entity, null, detail, null);
     }
 }

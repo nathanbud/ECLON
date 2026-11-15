@@ -210,6 +210,6 @@ class LoanReleaseController {
     }
 
     private void audit(Authentication auth, String action, Person p, int year, long ctl, String detail) {
-        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "transsum", p.branch() + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl, null, detail, null);
+        AuditLog.write(jdbc, auth.getName(), action, "transsum", p.branch() + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl, null, detail, null);
     }
 }

@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -91,6 +92,7 @@ class ShareWithdrawalController {
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
             LocalDate day = now.toLocalDate();
             int year = day.getYear();
+            PostingPeriods.requireOpen(jdbc, branch, day);
             long ctl = db.nextControlNumber(branch, MODULE, ShareWithdrawalRules.CASH_VOUCHER, year);
             String docNo = SharePaymentRules.documentNo(null, ctl);
             String explanation = req.explanation() == null || req.explanation().isBlank() ? "SC WITHDRAWAL" : req.explanation().trim();
@@ -109,7 +111,7 @@ class ShareWithdrawalController {
                 req.refNo(), PRINCIPAL, a.status(), day.toString(), amount, p.id(), PENDING);
             jdbc.update(sql, branch, year, MODULE, ShareWithdrawalRules.CASH_VOUCHER, ctl, 1, p.dept(), payableGl, req.clientId(), PAYABLE, 1,
                 payable.get(0), PRINCIPAL, payableStatus, day.toString(), amount.negate(), p.id(), PENDING);
-            AuditLog.write(jdbc, Timestamp.valueOf(now), auth.getName(), "share.withdrawal.encode", "transsum", branch + "/" + year + "/" + MODULE + "/" + ShareWithdrawalRules.CASH_VOUCHER + "/" + ctl, null, "client " + req.clientId() + " type " + req.typeCode() + " ref " + req.refNo() + " amount " + amount.toPlainString() + " doc " + docNo, null);
+            AuditLog.write(jdbc, auth.getName(), "share.withdrawal.encode", "transsum", branch + "/" + year + "/" + MODULE + "/" + ShareWithdrawalRules.CASH_VOUCHER + "/" + ctl, null, "client " + req.clientId() + " type " + req.typeCode() + " ref " + req.refNo() + " amount " + amount.toPlainString() + " doc " + docNo, null);
             return new Encoded(branch, year, ctl, docNo, req.clientId(), c.name(), amount, a.balance().subtract(a.held()).subtract(pending).subtract(amount));
         });
     }

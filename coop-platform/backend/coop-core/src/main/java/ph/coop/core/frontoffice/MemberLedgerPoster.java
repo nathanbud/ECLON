@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -85,7 +86,8 @@ class MemberLedgerPoster {
 
     Account account(Master m, int branch, int clientId, int typeCode, int refNo) {
         String p = m.prefix();
-        String maxCol = m.slc() == 31 ? "s.SCMAX_BAL" : "NULL";
+        // share capital carries its own limit on the account; a savings account takes the limit of its type (Settings > Account Types)
+        String maxCol = m.slc() == 31 ? "s.SCMAX_BAL" : m.slc() == 22 ? "t.SLTypeMAXBAL" : "NULL";
         // savings and share capital both carry holds (a co-maker's agreed amount sits on share capital)
         String uncleared = m.slc() == 22 ? " + " + ChequeRules.unclearedSql("s") : "";
         String holds = "((SELECT COALESCE(SUM(h.HHELD_AMT), 0) FROM hold h WHERE h.HBR_CODE = s." + p + "BR_CODE AND h.ClientID" + "H = s.ClientID" + p + " AND h.HSLC_CODE = s." + p + "SLC_CODE AND h.HSLT_CODE = s." + p + "SLT_CODE AND h.HREF_NO = s." + p + "REF_NO)" + uncleared + ")";
@@ -165,6 +167,7 @@ class MemberLedgerPoster {
         int module = direction.module, code = direction.code;
         boolean in = direction == Direction.IN;
 
+        PostingPeriods.requireOpen(jdbc, branch, day);
         long ctl = db.nextControlNumber(branch, module, code, year);
         if (!confirmDuplicate) {
             Integer same = jdbc.queryForObject("""
@@ -275,7 +278,7 @@ class MemberLedgerPoster {
         if (cashLine) writeGlLine(branch, cashAccount, day, code, p.dept(), cashAmount, stamp);
         for (Object[] g : glCredits) writeGlLine(branch, (String) g[0], day, code, p.dept(), (BigDecimal) g[1], stamp);
 
-        AuditLog.write(jdbc, stamp, username, auditAction, "transsum", branch + "/" + year + "/" + module + "/" + code + "/" + ctl, null, "client " + clientId + " " + auditDetail + " doc " + docNo, null);
+        AuditLog.write(jdbc, username, auditAction, "transsum", branch + "/" + year + "/" + module + "/" + code + "/" + ctl, null, "client " + clientId + " " + auditDetail + " doc " + docNo, null);
         return new Posted(branch, year, ctl, docNo, day);
     }
 

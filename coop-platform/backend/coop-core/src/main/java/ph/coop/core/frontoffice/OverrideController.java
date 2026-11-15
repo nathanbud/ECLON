@@ -136,7 +136,7 @@ class OverrideController {
         int n = jdbc.update("UPDATE ecis_fo_override SET status = ?, decided_by = ?, decided_at = ?, note = ? WHERE id = ? AND status = 'PENDING'",
             d.approve() ? "APPROVED" : "REJECTED", w.id(), Timestamp.valueOf(LocalDateTime.now()), note, id);
         if (n == 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "This request has already been decided.");
-        AuditLog.write(jdbc, null, w.username(), d.approve() ? "fo.override.approve" : "fo.override.reject", "fo_override", String.valueOf(id), null, row.get(0)[2] + " " + row.get(0)[3], note);
+        AuditLog.write(jdbc, w.username(), d.approve() ? "fo.override.approve" : "fo.override.reject", "fo_override", String.valueOf(id), null, row.get(0)[2] + " " + row.get(0)[3], note);
         return jdbc.queryForObject(SELECT + " WHERE o.id = ?", (rs, i) -> map(rs), id);
     }
 }

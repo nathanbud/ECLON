@@ -136,7 +136,7 @@ class ChequeClearingController {
                 n++;
                 jdbc.update("INSERT INTO ecis_cheque_clearing (tr_year, ctl_no, seq_no, cleared_on, bank_reference, early_reason, cleared_by, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     r.year(), r.ctlNo(), r.seq(), java.sql.Date.valueOf(clearedOn), bankRef, r.due() ? null : why, auth.getName(), java.sql.Timestamp.valueOf(java.time.LocalDateTime.now(clock)));
-                AuditLog.write(jdbc, null, auth.getName(), "cheque.clear", "transck", r.year() + "/10/" + r.ctlNo() + "/" + r.seq(), "not cleared", "cleared: cheque " + r.number() + " " + r.amount().toPlainString() + " (" + r.documentNo() + ")" + (r.due() ? "" : " before " + r.clearsOn()), why);
+                AuditLog.write(jdbc, auth.getName(), "cheque.clear", "transck", r.year() + "/10/" + r.ctlNo() + "/" + r.seq(), "not cleared", "cleared: cheque " + r.number() + " " + r.amount().toPlainString() + " (" + r.documentNo() + ")" + (r.due() ? "" : " before " + r.clearsOn()), why);
             }
             return n;
         });

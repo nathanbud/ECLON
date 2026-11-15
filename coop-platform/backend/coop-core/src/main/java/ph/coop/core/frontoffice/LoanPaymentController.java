@@ -135,7 +135,7 @@ class LoanPaymentController {
             if (spent != null) {
                 String ref = r.branch() + "/" + r.year() + "/3/10/" + r.controlNo();
                 jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", ref, spent[0]);
-                AuditLog.write(jdbc, null, auth.getName(), "loan.payment.override.used", "fo_override", String.valueOf(spent[0]), null, "allowed by user " + spent[1] + " for " + ref + " " + b.approval().description(), null);
+                AuditLog.write(jdbc, auth.getName(), "loan.payment.override.used", "fo_override", String.valueOf(spent[0]), null, "allowed by user " + spent[1] + " for " + ref + " " + b.approval().description(), null);
             }
             return new Receipt(r.branch(), r.year(), r.controlNo(), r.documentNo(), r.date().toString(), req.clientId(), c.name(),
                 (t.type() == null ? "Loan " + req.typeCode() : t.type()) + " " + req.refNo(), amount, b.penalty(), b.interest(), b.principal(), b.balanceAfter(), p.name());

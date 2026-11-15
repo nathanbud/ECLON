@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;import ph.coop.core.db.Db;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -358,7 +359,7 @@ class HandoverController {
             if (blocked != null) {
                 String why = req.overrideReason() == null ? "" : req.overrideReason().trim();
                 if (why.length() < 5) throw new ResponseStatusException(HttpStatus.CONFLICT, blocked);
-                AuditLog.write(jdbc, null, p.username(), "eod.override", "cash_handover", p.branch() + "/" + LocalDate.now(), null, blocked, why.substring(0, Math.min(why.length(), 250)));
+                AuditLog.write(jdbc, p.username(), "eod.override", "cash_handover", p.branch() + "/" + LocalDate.now(), null, blocked, why.substring(0, Math.min(why.length(), 250)));
             }
         }
         long id;
@@ -414,7 +415,7 @@ class HandoverController {
         } catch (org.springframework.dao.DataAccessException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Drawer limits are not set up yet. An administrator has to run database/migrations/V007_drawer_controls.sql.");
         }
-        AuditLog.write(jdbc, null, p.username(), "drawer.limit", "drawer", new Drawer(row.event(), row.number()).label(), null, max.toPlainString(), null);
+        AuditLog.write(jdbc, p.username(), "drawer.limit", "drawer", new Drawer(row.event(), row.number()).label(), null, max.toPlainString(), null);
         return limitRows(auth);
     }
 
@@ -448,7 +449,7 @@ class HandoverController {
         } catch (org.springframework.dao.DataAccessException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Drawer counts are not set up yet. An administrator has to run database/migrations/V007_drawer_controls.sql.");
         }
-        AuditLog.write(jdbc, null, p.username(), "drawer.close", "drawer", d.label(), null, "expected " + expected.toPlainString() + ", counted " + counted.toPlainString() + ", difference " + variance.toPlainString(), reason);
+        AuditLog.write(jdbc, p.username(), "drawer.close", "drawer", d.label(), null, "expected " + expected.toPlainString() + ", counted " + counted.toPlainString() + ", difference " + variance.toPlainString(), reason);
         return new CloseResult(expected, counted, variance, now.format(DateTimeFormatter.ofPattern("HH:mm")));
     }
 
@@ -660,6 +661,7 @@ class HandoverController {
         int branch = encoder.branch();
         int module = 4;
         // Control numbers run on across years for each transfer type, so take the next after the highest. The lock keeps two people from taking the same one.
+        PostingPeriods.requireOpen(jdbc, branch, day);
         long ctl = db.nextControlNumber(branch, module, trCode, day.getYear());
         String explanation = ((amount.signum() == 0 ? "Cheque transfer: " : "Cash transfer: ") + from.label() + " to " + to.label() + (remarks == null ? "" : " - " + remarks));
         explanation = explanation.substring(0, Math.min(explanation.length(), 200));
@@ -712,7 +714,7 @@ class HandoverController {
             jdbc.update("INSERT INTO denomdtl (DENOMSUMID, DENOMTYPEID, QTY) VALUES (?, ?, ?)", denomSum, typeId, counts.getOrDefault(typeId, 0));
 
         balances.changed();
-        AuditLog.write(jdbc, null, (toUser != null ? toUser : poster).username(), "cash.transfer.post", "transsum", branch + "/" + day.getYear() + "/" + module + "/" + trCode + "/" + ctl, null, from.label() + " -> " + to.label() + " " + amount.toPlainString() + (cheques.signum() > 0 ? " + cheques " + cheques.toPlainString() : "") + " (handover " + handoverId + ")", null);
+        AuditLog.write(jdbc, (toUser != null ? toUser : poster).username(), "cash.transfer.post", "transsum", branch + "/" + day.getYear() + "/" + module + "/" + trCode + "/" + ctl, null, from.label() + " -> " + to.label() + " " + amount.toPlainString() + (cheques.signum() > 0 ? " + cheques " + cheques.toPlainString() : "") + " (handover " + handoverId + ")", null);
         return ctl;
     }
 

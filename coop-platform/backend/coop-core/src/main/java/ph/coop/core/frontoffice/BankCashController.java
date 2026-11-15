@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -132,6 +133,7 @@ class BankCashController {
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
             LocalDate day = now.toLocalDate();
             int year = day.getYear();
+            PostingPeriods.requireOpen(jdbc, branch, day);
             long ctl = db.nextControlNumber(branch, MODULE, code, year);
             String docNo = SharePaymentRules.documentNo(null, ctl);
             String explanation = ((in ? "CIB-" : "BW ") + bank.name() + (req.remarks() == null || req.remarks().isBlank() ? "" : " " + req.remarks().trim()));
@@ -161,7 +163,7 @@ class BankCashController {
             for (int typeId : faces.keySet()) jdbc.update("INSERT INTO denomdtl (DENOMSUMID, DENOMTYPEID, QTY) VALUES (?, ?, ?)", denomSum, typeId, counts.getOrDefault(typeId, 0));
             }
             balances.changed();
-            AuditLog.write(jdbc, stamp, auth.getName(), in ? "bank.deposit.post" : "bank.withdrawal.post", "transsum", branch + "/" + year + "/" + MODULE + "/" + code + "/" + ctl, null, bank.name() + " " + amount.toPlainString() + (cheques ? " (cheques)" : "") + " doc " + docNo, null);
+            AuditLog.write(jdbc, auth.getName(), in ? "bank.deposit.post" : "bank.withdrawal.post", "transsum", branch + "/" + year + "/" + MODULE + "/" + code + "/" + ctl, null, bank.name() + " " + amount.toPlainString() + (cheques ? " (cheques)" : "") + " doc " + docNo, null);
             return new Posted(year, ctl, docNo, bank.name(), amount, in ? vaultBefore.subtract(amount) : vaultBefore.add(amount));
         });
     }

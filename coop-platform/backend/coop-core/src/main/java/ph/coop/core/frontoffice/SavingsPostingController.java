@@ -57,10 +57,12 @@ class SavingsPostingController {
     private final MemberLedgerPoster poster;
     private final TransactionTemplate tx;
     private final ph.coop.core.member.KycGate kyc;
+    private final DrawerBalances drawers;
 
     SavingsPostingController(JdbcTemplate jdbc, Db db, FrontOfficeAccess access, MemberLedgerPoster poster, PlatformTransactionManager txManager,
-                             ph.coop.core.member.KycGate kyc) {
+                             ph.coop.core.member.KycGate kyc, DrawerBalances drawers) {
         this.kyc = kyc;
+        this.drawers = drawers;
         this.jdbc = jdbc;
         this.db = db;
         this.access = access;
@@ -85,7 +87,7 @@ class SavingsPostingController {
         return tx.execute((st) -> {
             Account a = poster.account(Master.SAVINGS, p.branch(), req.clientId(), req.typeCode(), req.refNo());
             Client c = poster.client(p.branch(), req.clientId());
-            List<String> problems = SavingsRules.checkDeposit(amount, a.status(), c.status());
+            List<String> problems = SavingsRules.checkDeposit(amount, a.status(), c.status(), a.balance(), a.maxBalance());
             if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
             Posted r = poster.post(new Entry(Master.SAVINGS, Direction.IN, p.branch(), req.clientId(), req.typeCode(), req.refNo(), amount,
                 req.explanation(), req.receiptNo(), req.confirmDuplicate(), poster.cheques(req.cheques(), req.confirmDuplicate())), p, a, auth.getName());
@@ -142,7 +144,7 @@ class SavingsPostingController {
 
             for (long[] o : spent) {
                 jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", r.branch() + "/" + r.year() + "/2/23/" + r.controlNo(), o[0]);
-                AuditLog.write(jdbc, null, auth.getName(), "savings.withdrawal.override.used", "fo_override", String.valueOf(o[0]), null, "allowed by user " + o[1] + " for " + r.branch() + "/" + r.year() + "/2/23/" + r.controlNo() + " amount " + amount.toPlainString(), null);
+                AuditLog.write(jdbc, auth.getName(), "savings.withdrawal.override.used", "fo_override", String.valueOf(o[0]), null, "allowed by user " + o[1] + " for " + r.branch() + "/" + r.year() + "/2/23/" + r.controlNo() + " amount " + amount.toPlainString(), null);
             }
             return receipt("WITHDRAWAL", r, req, c, a, amount, a.balance().subtract(amount), p);
         });
@@ -160,7 +162,13 @@ class SavingsPostingController {
 
     private SavingsRules.Check rulesFor(BigDecimal amount, Account a, Client c, Person p) {
         BigDecimal limit = p.disbursementLimit().min(p.maxWithdrawal());
-        return SavingsRules.checkWithdrawal(amount, a.status(), a.balance(), a.held(), a.minBalance(), c.status(), limit);
+        return SavingsRules.checkWithdrawal(amount, a.status(), a.balance(), a.held(), a.minBalance(), c.status(), limit, drawerCash(p));
+    }
+
+    /** Cash in the person's own drawer now; none when they have no drawer (posting refuses them anyway). */
+    private BigDecimal drawerCash(Person p) {
+        List<Integer> events = HandoverController.eventsOf(p.head(), p.assignment());
+        return events.isEmpty() || p.number() <= 0 ? BigDecimal.ZERO : drawers.of(p.branch(), new HandoverRules.Drawer(events.get(0), p.number()));
     }
 
     /** The exact text of a request for this withdrawal; the same text is used to ask, to look up the answer, and to spend it. */

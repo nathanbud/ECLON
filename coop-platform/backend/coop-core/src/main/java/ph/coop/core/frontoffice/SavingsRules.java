@@ -46,9 +46,21 @@ final class SavingsRules {
     }
 
     static List<String> checkDeposit(BigDecimal amount, int accountStatus, int clientStatus) {
+        return checkDeposit(amount, accountStatus, clientStatus, null, null);
+    }
+
+    /** The old system's way of writing no limit on a type. */
+    private static final BigDecimal NO_LIMIT = new BigDecimal("999999999.00");
+
+    /** @param maxBalance the most the savings type lets an account hold (null, zero or 999,999,999.00 for no limit) */
+    static List<String> checkDeposit(BigDecimal amount, int accountStatus, int clientStatus, BigDecimal balance, BigDecimal maxBalance) {
         List<String> p = new ArrayList<>();
         amountProblems(amount, p);
         accountProblems(accountStatus, clientStatus, "take deposits", p);
+        if (p.isEmpty() && balance != null && maxBalance != null && maxBalance.signum() > 0 && maxBalance.compareTo(NO_LIMIT) < 0 && balance.add(amount).compareTo(maxBalance) > 0) {
+            BigDecimal room = maxBalance.subtract(balance).max(BigDecimal.ZERO);
+            p.add("This kind of savings account can hold at most " + money(maxBalance) + ". The most that can be deposited now is " + money(room) + ".");
+        }
         return p;
     }
 
@@ -56,8 +68,10 @@ final class SavingsRules {
      * @param held       total of the account's holds
      * @param minBalance the account's minimum balance (null or zero for none)
      * @param limit      the smaller of the person's disbursement limit and maximum withdrawal
+     * @param drawerCash cash in the teller's own drawer now (the withdrawal is paid out of it); null counts as an empty drawer
      */
-    static Check checkWithdrawal(BigDecimal amount, int accountStatus, BigDecimal balance, BigDecimal held, BigDecimal minBalance, int clientStatus, BigDecimal limit) {
+    static Check checkWithdrawal(BigDecimal amount, int accountStatus, BigDecimal balance, BigDecimal held, BigDecimal minBalance, int clientStatus, BigDecimal limit,
+                                 BigDecimal drawerCash) {
         List<String> problems = new ArrayList<>();
         List<Need> needs = new ArrayList<>();
         amountProblems(amount, problems);
@@ -73,6 +87,10 @@ final class SavingsRules {
             if (minBalance != null && minBalance.signum() > 0 && after.compareTo(minBalance) < 0) {
                 needs.add(new Need(MIN_BALANCE, "the balance after the withdrawal (" + money(after) + ") is below the minimum balance of " + money(minBalance), minBalance));
             }
+        }
+        BigDecimal cash = drawerCash == null ? BigDecimal.ZERO : drawerCash;
+        if (amount.compareTo(cash) > 0) {
+            problems.add("Your drawer holds " + money(cash) + ", less than the " + money(amount) + " to pay out. Ask the head cashier for cash first (Cash Handover).");
         }
         if (limit != null && amount.compareTo(limit) > 0) {
             needs.add(new Need(DISBURSEMENT_LIMIT, "the amount is over the cashier's withdrawal limit of " + money(limit), limit));

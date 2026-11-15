@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -226,7 +227,7 @@ class PenaltyWaiverController {
         int n = jdbc.update("UPDATE ecis_fo_override SET status = ?, decided_by = ?, decided_at = ?, note = ? WHERE id = ? AND status = 'PENDING'",
             d.approve() ? "APPROVED" : "REJECTED", p.id(), Timestamp.valueOf(LocalDateTime.now(clock)), note, id);
         if (n == 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "This request has already been decided.");
-        AuditLog.write(jdbc, null, auth.getName(), d.approve() ? "fo.override.approve" : "fo.override.reject", "fo_override", String.valueOf(id), null, KIND + " " + row.get(0)[2], note);
+        AuditLog.write(jdbc, auth.getName(), d.approve() ? "fo.override.approve" : "fo.override.reject", "fo_override", String.valueOf(id), null, KIND + " " + row.get(0)[2], note);
         return Map.of("status", d.approve() ? "APPROVED" : "REJECTED");
     }
 
@@ -250,6 +251,7 @@ class PenaltyWaiverController {
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
             LocalDate day = now.toLocalDate();
             int year = day.getYear();
+            PostingPeriods.requireOpen(jdbc, p.branch(), day);
             long ctl = db.nextControlNumber(p.branch(), 1, 1, year);
             String docNo = SharePaymentRules.documentNo(null, ctl);
             String explanation = "PENALTY WAIVED " + req.reason().trim();
@@ -273,7 +275,7 @@ class PenaltyWaiverController {
             poster.writeLedgerRow(p.branch(), req.clientId(), new MemberLine(CLASS_LOANS, req.typeCode(), req.refNo(), WAIVED, 99, loanAccount, amount.negate()), day, 1, ctl, docNo, null, null);
             String ref = p.branch() + "/" + year + "/1/1/" + ctl;
             jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", ref, found.get(0)[0]);
-            AuditLog.write(jdbc, stamp, auth.getName(), "loan.penalty.waive", "transsum", ref, null, "loan " + req.typeCode() + "/" + req.refNo() + " client " + req.clientId() + " waived " + amount.toPlainString() + " to " + req.expenseAccount()
+            AuditLog.write(jdbc, auth.getName(), "loan.penalty.waive", "transsum", ref, null, "loan " + req.typeCode() + "/" + req.refNo() + " client " + req.clientId() + " waived " + amount.toPlainString() + " to " + req.expenseAccount()
                     + ", approved by user " + approver, req.reason().trim());
             return new Posted(year, ctl, docNo, amount);
         });

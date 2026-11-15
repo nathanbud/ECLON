@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
@@ -256,6 +257,7 @@ class TimeDepositClosureController {
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
             LocalDate day = now.toLocalDate();
             int year = day.getYear();
+            PostingPeriods.requireOpen(jdbc, branch, day);
             long ctl = db.nextControlNumber(branch, MODULE, CODE, year);
             String docNo = SharePaymentRules.documentNo(null, ctl);
             String text = req.explanation() == null || req.explanation().isBlank() ? "LOCK IN INTEREST WITHDRAWAL" : req.explanation().trim();
@@ -273,7 +275,7 @@ class TimeDepositClosureController {
             Integer payable = payableAccount(branch, req.clientId());
             jdbc.update(LINE, branch, year, MODULE, CODE, ctl, seq[0]++, p.dept(), poster.glAccount(branch, PAYABLE, 1, PRINCIPAL, ACTIVE), req.clientId(), PAYABLE, 1, payable, PRINCIPAL, ACTIVE, day.toString(),
                 q.amount().negate(), p.id(), PENDING);
-            AuditLog.write(jdbc, Timestamp.valueOf(now), auth.getName(), "td.interest.encode", "transsum", branch + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl, null, "client " + req.clientId() + " certificate " + req.typeCode() + "/" + req.refNo() + " interest " + q.amount().toPlainString()
+            AuditLog.write(jdbc, auth.getName(), "td.interest.encode", "transsum", branch + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl, null, "client " + req.clientId() + " certificate " + req.typeCode() + "/" + req.refNo() + " interest " + q.amount().toPlainString()
                     + " from accrual " + q.fromAccrual().toPlainString() + " expense " + q.expense().toPlainString() + " doc " + docNo, null);
             return new Encoded(branch, year, ctl, docNo, "INTEREST", req.clientId(), q.clientName(), q.amount(), null, null, q.amount());
         });
@@ -300,6 +302,7 @@ class TimeDepositClosureController {
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
             LocalDate day = now.toLocalDate();
             int year = day.getYear();
+            PostingPeriods.requireOpen(jdbc, branch, day);
             long ctl = db.nextControlNumber(branch, MODULE, CODE, year);
             String docNo = SharePaymentRules.documentNo(null, ctl);
             String text = req.explanation() == null || req.explanation().isBlank()
@@ -344,7 +347,7 @@ class TimeDepositClosureController {
                 toPayable = q.due();
                 line.accept(new Object[] {PAYABLE, 1, payable, PRINCIPAL, payableGl, ACTIVE}, toPayable.negate());
             }
-            AuditLog.write(jdbc, Timestamp.valueOf(now), auth.getName(), q.preterm() ? "td.pretermination.encode" : renew ? "td.renewal.encode" : "td.payout.encode", "transsum", branch + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl, null, "client " + req.clientId() + " certificate " + req.typeCode() + "/" + req.refNo() + " principal " + q.principal().toPlainString() + " interest " + q.interest().toPlainString()
+            AuditLog.write(jdbc, auth.getName(), q.preterm() ? "td.pretermination.encode" : renew ? "td.renewal.encode" : "td.payout.encode", "transsum", branch + "/" + year + "/" + MODULE + "/" + CODE + "/" + ctl, null, "client " + req.clientId() + " certificate " + req.typeCode() + "/" + req.refNo() + " principal " + q.principal().toPlainString() + " interest " + q.interest().toPlainString()
                     + (q.lockIn() ? " lock in years " + q.interestYears() : "") + (renew ? " new certificate " + nt + "/" + newRef + " " + q.newPrincipal().toPlainString() : "") + " doc " + docNo, null);
             return new Encoded(branch, year, ctl, docNo, q.mode(), req.clientId(), q.clientName(), q.due(), newRef, q.newPrincipal(), toPayable);
         });

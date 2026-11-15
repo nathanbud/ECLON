@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -153,6 +154,7 @@ class TimeDepositAccrualController {
         List<Integer> wanted = in.types() == null || in.types().isEmpty() ? g.types() : in.types();
         if (!g.types().containsAll(wanted)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Those types do not belong to this kind of accrual.");
         return tx.execute((st) -> {
+            PostingPeriods.requireOpen(jdbc, p.branch(), to);
             Set<Integer> done = encodedTypes(p.branch(), to);
             for (int t : wanted) if (done.contains(t)) throw new ResponseStatusException(HttpStatus.CONFLICT, typeName(t) + " already has an accrual voucher dated " + to + ", so it cannot be run again.");
             Plan plan = run.plan(p.branch(), g, to);
@@ -309,6 +311,6 @@ class TimeDepositAccrualController {
     }
 
     private void audit(Authentication auth, String action, Person p, String entity, String detail) {
-        AuditLog.write(jdbc, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, "transsum", p.branch() + "/" + MODULE + "/" + CODE + "/" + entity, null, detail, null);
+        AuditLog.write(jdbc, auth.getName(), action, "transsum", p.branch() + "/" + MODULE + "/" + CODE + "/" + entity, null, detail, null);
     }
 }

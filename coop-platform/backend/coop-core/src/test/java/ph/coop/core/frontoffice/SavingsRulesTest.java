@@ -12,7 +12,7 @@ class SavingsRulesTest {
     private static BigDecimal d(String s) { return new BigDecimal(s); }
 
     private static Check withdraw(String amount, int status, String balance, String held, String min, int client, String limit) {
-        return SavingsRules.checkWithdrawal(d(amount), status, d(balance), d(held), min == null ? null : d(min), client, d(limit));
+        return SavingsRules.checkWithdrawal(d(amount), status, d(balance), d(held), min == null ? null : d(min), client, d(limit), d("1000000"));
     }
 
     @Test
@@ -81,10 +81,30 @@ class SavingsRulesTest {
     }
 
     @Test
+    void aWithdrawalCannotPayOutMoreThanTheTellersDrawerHolds() {
+        assertTrue(SavingsRules.checkWithdrawal(d("1000"), 15, d("5000"), d("0"), null, 1, d("50000"), d("1000")).problems().isEmpty(), "exactly what the drawer holds");
+        var shortDrawer = SavingsRules.checkWithdrawal(d("1000"), 15, d("5000"), d("0"), null, 1, d("50000"), d("999.99")).problems();
+        assertEquals(1, shortDrawer.size());
+        assertTrue(shortDrawer.get(0).contains("999.99") && shortDrawer.get(0).contains("Cash Handover"), shortDrawer.get(0));
+        assertEquals(1, SavingsRules.checkWithdrawal(d("1"), 15, d("5000"), d("0"), null, 1, d("50000"), null).problems().size(), "no drawer figure counts as empty");
+    }
+
+    @Test
     void refusesDormantClosedAndBadClients() {
         assertTrue(withdraw("10", 16, "5000", "0", "500", 1, "50000").problems().get(0).contains("dormant"));
         assertTrue(withdraw("10", 17, "5000", "0", "500", 1, "50000").problems().get(0).contains("closed"));
         assertEquals(1, withdraw("10", 15, "5000", "0", "500", 99, "50000").problems().size());
-        assertEquals(1, SavingsRules.checkWithdrawal(null, 15, d("5000"), d("0"), d("500"), 1, d("50000")).problems().size());
+        assertEquals(1, SavingsRules.checkWithdrawal(null, 15, d("5000"), d("0"), d("500"), 1, d("50000"), d("1000000")).problems().size());
+    }
+
+    @Test void aDepositCannotTakeTheBalanceOverTheTypesMaximum() {
+        assertTrue(SavingsRules.checkDeposit(new BigDecimal("500"), 15, 1, new BigDecimal("9500"), new BigDecimal("10000")).isEmpty());
+        var over = SavingsRules.checkDeposit(new BigDecimal("500.01"), 15, 1, new BigDecimal("9500"), new BigDecimal("10000"));
+        assertEquals(1, over.size());
+        assertTrue(over.get(0).contains("10000.00") && over.get(0).contains("500.00"), over.get(0));
+        // no limit: empty, zero, or the old system's 999,999,999.00
+        assertTrue(SavingsRules.checkDeposit(new BigDecimal("5000000"), 15, 1, new BigDecimal("999999990"), new BigDecimal("999999999.00")).isEmpty());
+        assertTrue(SavingsRules.checkDeposit(new BigDecimal("500"), 15, 1, new BigDecimal("9500"), null).isEmpty());
+        assertTrue(SavingsRules.checkDeposit(new BigDecimal("500"), 15, 1, new BigDecimal("9500"), BigDecimal.ZERO).isEmpty());
     }
 }

@@ -149,7 +149,7 @@ class VoucherPayoutController {
             String ref = r.branch() + "/" + r.year() + "/2/24/" + r.controlNo();
             for (long[] o : spent) {
                 jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", ref, o[0]);
-                AuditLog.write(jdbc, null, auth.getName(), "voucher.payout.override.used", "fo_override", String.valueOf(o[0]), null, "allowed by user " + o[1] + " for " + ref + " amount " + amount.toPlainString(), null);
+                AuditLog.write(jdbc, auth.getName(), "voucher.payout.override.used", "fo_override", String.valueOf(o[0]), null, "allowed by user " + o[1] + " for " + ref + " amount " + amount.toPlainString(), null);
             }
             return new Receipt(r.branch(), r.year(), r.controlNo(), r.documentNo(), r.date().toString(), req.clientId(), c.payable().client(), req.refNo(), amount, p.name());
         });
