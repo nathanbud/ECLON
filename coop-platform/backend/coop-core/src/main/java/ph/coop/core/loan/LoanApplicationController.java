@@ -47,7 +47,9 @@ public class LoanApplicationController {
     public record Setup(String termUnit, String principalPayment, String interestPayment, String basedOn, String diminish, BigDecimal penaltyRate, Integer yearDays, boolean collateralRequired, String unsupported) {}
 
     /** An open loan of the member that the new loan could pay off, with today's suggested interest. */
-    public record PayoffOption(int typeCode, String typeName, int refNo, int status, BigDecimal outstanding, BigDecimal interestDue, long daysPastDue) {}
+    /** nextDueDate: the next instalment not yet paid; pastDueSince: the oldest unpaid instalment when the loan is late (else null). */
+    public record PayoffOption(int typeCode, String typeName, int refNo, int status, BigDecimal outstanding, BigDecimal interestDue, long daysPastDue,
+                               LocalDate nextDueDate, LocalDate pastDueSince) {}
 
     /** What is taken from the new loan to pay off an earlier loan of the member: its principal, interest and penalty (the penalty is typed; the formula is not known). */
     public record Payoff(int typeCode, int refNo, BigDecimal principal, BigDecimal interest, BigDecimal penalty) {}
@@ -507,7 +509,7 @@ public class LoanApplicationController {
             int t = num(l, "t"), r = num(l, "r");
             book.terms(branch, clientId, t, r).filter((x) -> x.outstanding().signum() > 0).ifPresent((x) -> {
                 LoanBook.Quote q = book.quote(branch, clientId, t, r, x, today);
-                out.add(new PayoffOption(t, x.type(), r, x.status(), x.outstanding(), q.interestDue(), q.daysPastDue()));
+                out.add(new PayoffOption(t, x.type(), r, x.status(), x.outstanding(), q.interestDue(), q.daysPastDue(), q.nextDueDate(), q.pastDueSince()));
             });
         }
         return out;

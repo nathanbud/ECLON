@@ -26,7 +26,8 @@ public class LoanBook {
      * suggestedPenalty is what the penalty formula gives (zero when the loan is not late beyond its grace period); it is null when the loan's
      * penalty mode is not one the formula was fitted to, so the cashier has to type the figure. See {@link LoanRules#penalty}.
      */
-    public record Quote(Terms terms, LocalDate asOf, int days, BigDecimal interestDue, BigDecimal payoff, BigDecimal pastDuePrincipal, long daysPastDue, BigDecimal suggestedPenalty) {}
+    public record Quote(Terms terms, LocalDate asOf, int days, BigDecimal interestDue, BigDecimal payoff, BigDecimal pastDuePrincipal, long daysPastDue, BigDecimal suggestedPenalty,
+                        LocalDate nextDueDate, LocalDate pastDueSince) {}
 
     private final JdbcTemplate jdbc;
 
@@ -60,8 +61,10 @@ public class LoanBook {
             (rs) -> { dues.add(new Due(rs.getDate(1).toLocalDate(), rs.getBigDecimal(2), rs.getBigDecimal(3))); }, branch, clientId, CLASS_LOANS, typeCode, refNo);
         BigDecimal paid = t.amount().subtract(t.outstanding()).max(BigDecimal.ZERO);
         Arrears a = LoanRules.arrears(dues, paid, asOf);
+        Due next = t.outstanding().signum() > 0 ? LoanRules.nextDue(dues, paid, asOf) : null;
         int days = (int) Math.max(0, java.time.temporal.ChronoUnit.DAYS.between(t.interestPaidTo(), asOf));
-        return new Quote(t, asOf, days, interest, t.outstanding().add(interest), a.pastDuePrincipal(), a.daysPastDue(), suggestedPenalty(branch, clientId, typeCode, refNo, t, dues, paid, a, asOf));
+        return new Quote(t, asOf, days, interest, t.outstanding().add(interest), a.pastDuePrincipal(), a.daysPastDue(), suggestedPenalty(branch, clientId, typeCode, refNo, t, dues, paid, a, asOf),
+            next == null ? null : next.date(), a.pastDuePrincipal().signum() > 0 ? a.oldestUnpaidDate() : null);
     }
 
     /** Penalty mode 4 at the loan's own yearly rate is the only kind the formula was checked against (documentation/loan-posting-map.md). */

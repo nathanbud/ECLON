@@ -11,7 +11,7 @@ const t: Pick<LoanAppTemplate, 'payoffs' | 'deductions'> = {
     { id: 1, description: 'Service fee', behavior: 1, formula: null, needsMemberAccount: false, hasMemberAccount: false },
     { id: 2, description: 'Share capital', behavior: 1, formula: null, needsMemberAccount: true, hasMemberAccount: true },
   ],
-  payoffs: [{ typeCode: 48, typeName: 'Back to back Loan', refNo: 7, status: 11, outstanding: 2000, interestDue: 50, daysPastDue: 0 }],
+  payoffs: [{ typeCode: 48, typeName: 'Back to back Loan', refNo: 7, status: 11, outstanding: 2000, interestDue: 50, daysPastDue: 0, nextDueDate: '2026-12-15', pastDueSince: null }],
 } as Pick<LoanAppTemplate, 'payoffs' | 'deductions'>
 
 function Form() {
@@ -40,6 +40,16 @@ describe('Deductions and pay off', () => {
     // what was typed stays when going back
     await userEvent.click(within(group).getByRole('tab', { name: /^Deductions/ }))
     expect((screen.getByRole('textbox', { name: 'Service fee' }) as HTMLInputElement).value).toMatch(/^250(\.00)?$/)
+  })
+
+  it('shows each earlier loan with its balance and due date, and how late it is when it is', async () => {
+    const late = { ...t.payoffs[0], refNo: 8, outstanding: 1234.5, daysPastDue: 12, pastDueSince: '2026-11-04', nextDueDate: '2026-12-04' }
+    render(<AppThemeProvider><LoanDeductionFields t={{ ...t, payoffs: [t.payoffs[0], late] }} amount={10000} ded={{}} setDed={() => {}} paid={{}} setPaid={() => {}} /></AppThemeProvider>)
+    await userEvent.click(screen.getByRole('tab', { name: /Pay off/ }))
+    expect(screen.getByLabelText('Balance 2,000.00')).toBeInTheDocument()
+    expect(screen.getByLabelText('Due date 12/15/2026')).toBeInTheDocument()
+    expect(screen.getByLabelText('Balance 1,234.50')).toBeInTheDocument()
+    expect(screen.getByLabelText('Due date 11/04/2026, 12 days late')).toHaveTextContent('11/04/202612 days late')
   })
 
   it('says when there is nothing to pay off', async () => {

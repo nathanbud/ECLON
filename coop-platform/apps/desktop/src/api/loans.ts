@@ -71,7 +71,7 @@ export interface LoanAppTemplate {
   typeCode: number; typeName: string; terms: number; termUnit: number; paymentMode: number; interestRate: number; hasVouchersPayable: boolean; nextRefNo: number
   deductions: { id: number; description: string; behavior: number; formula: string | null; needsMemberAccount: boolean; hasMemberAccount: boolean }[]
   purposes: { id: number; name: string }[]; collateralTypes: { id: number; name: string }[]
-  payoffs: { typeCode: number; typeName: string | null; refNo: number; status: number; outstanding: number; interestDue: number; daysPastDue: number }[]
+  payoffs: { typeCode: number; typeName: string | null; refNo: number; status: number; outstanding: number; interestDue: number; daysPastDue: number; nextDueDate: string | null; pastDueSince: string | null }[]
   setup: { termUnit: string | null; principalPayment: string | null; interestPayment: string | null; basedOn: string | null; diminish: string | null; penaltyRate: number | null; yearDays: number | null; collateralRequired: boolean; unsupported: string | null }
 }
 export interface LoanAppIn {
