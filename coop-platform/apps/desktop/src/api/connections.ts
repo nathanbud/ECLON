@@ -1,4 +1,4 @@
-import { getJson, send } from './http'
+import { getJson, send, errorFrom } from './http'
 import { apiUrl } from './server'
 
 // Which database the server works on: everyone may see the names, a SUPERADMIN manages them (Settings > Database connection).
@@ -29,7 +29,7 @@ export interface ConnectionProbe { reachable: boolean; usable: boolean; warnings
 export async function getPublicConnections(serverUrl?: string): Promise<PublicConnections> {
   const path = '/api/public/connections'
   const res = await fetch(serverUrl === undefined ? apiUrl(path) : serverUrl.replace(/\/+$/, '') + path, { cache: 'no-store', signal: AbortSignal.timeout(4000) })
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await errorFrom(res))
   return res.json()
 }
 

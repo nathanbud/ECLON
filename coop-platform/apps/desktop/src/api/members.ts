@@ -1,4 +1,4 @@
-import { getJson, http, send } from './http'
+import { getJson, http, send, errorFrom } from './http'
 
 export interface Member {
   id: { branchCode: number; clientId: number }
@@ -60,7 +60,7 @@ export async function searchMembers(q: string, page: number, size: number, inclu
   const params = new URLSearchParams({ q, page: String(page), size: String(size) })
   if (includeInactive) params.set('includeInactive', 'true')
   const res = await http(`/api/members?${params}`)
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await errorFrom(res))
   return res.json()
 }
 
@@ -68,13 +68,13 @@ export async function searchMembers(q: string, page: number, size: number, inclu
 export async function streetSuggestions(barangay: string, city: string, province: string): Promise<string[]> {
   const params = new URLSearchParams({ barangay, city, province })
   const res = await http(`/api/members/address-streets?${params}`)
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await errorFrom(res))
   return res.json()
 }
 
 export async function getMember(branchCode: number, clientId: number): Promise<Member> {
   const res = await http(`/api/members/${branchCode}/${clientId}`)
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await errorFrom(res))
   return res.json()
 }
 
@@ -83,7 +83,7 @@ export type Lookups = Record<string, Record<string, string>>
 
 export async function getLookups(): Promise<Lookups> {
   const res = await http('/api/lookups')
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await errorFrom(res))
   return res.json()
 }
 
@@ -91,7 +91,7 @@ export async function getLookups(): Promise<Lookups> {
 export async function getMemberImage(kind: 'photo' | 'signature', branchCode: number, clientId: number): Promise<string | null> {
   const res = await http(`/api/members/${branchCode}/${clientId}/${kind}`)
   if (res.status === 404) return null
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await errorFrom(res))
   return URL.createObjectURL(await res.blob())
 }
 
@@ -166,7 +166,7 @@ export const submitChange = (branchCode: number, clientId: number, body: { chang
 export async function getPendingChange(branchCode: number, clientId: number): Promise<Change | null> {
   const res = await http(`/api/members/${branchCode}/${clientId}/changes/pending`)
   if (res.status === 204) return null
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await errorFrom(res))
   return res.json()
 }
 
@@ -216,11 +216,7 @@ async function uploadMemberImage(kind: 'photo' | 'signature', branchCode: number
   const body = new FormData()
   body.append('file', picture, kind === 'photo' ? 'photo.jpg' : 'signature.jpg')
   const res = await http(`/api/members/${branchCode}/${clientId}/${kind}`, { method: 'POST', body })
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`
-    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status text */ }
-    throw new Error(message)
-  }
+  if (!res.ok) throw new Error(await errorFrom(res))
 }
 
 export const uploadMemberPhoto = (branchCode: number, clientId: number, photo: Blob) => uploadMemberImage('photo', branchCode, clientId, photo)
@@ -273,29 +269,21 @@ export const saveKyc = (b: number, c: number, body: KycInput) => send<Kyc>('PUT'
 export async function getKycScan(b: number, c: number): Promise<string | null> {
   const res = await http(`${kycUrl(b, c)}/id-scan`)
   if (res.status === 404) return null
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await errorFrom(res))
   return URL.createObjectURL(await res.blob())
 }
 export async function uploadKycScan(b: number, c: number, file: Blob): Promise<void> {
   const body = new FormData()
   body.append('file', file, 'id-scan.jpg')
   const res = await http(`${kycUrl(b, c)}/id-scan`, { method: 'POST', body })
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`
-    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status text */ }
-    throw new Error(message)
-  }
+  if (!res.ok) throw new Error(await errorFrom(res))
 }
 
 async function sendFile<T>(url: string, file: File): Promise<T> {
   const body = new FormData()
   body.append('file', file, file.name)
   const res = await http(url, { method: 'POST', body })
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`
-    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status text */ }
-    throw new Error(message)
-  }
+  if (!res.ok) throw new Error(await errorFrom(res))
   return res.json() as Promise<T>
 }
 export const previewMemberImport = (file: File) => sendFile<ImportPreview>('/api/member-imports/preview', file)
@@ -306,7 +294,7 @@ export const rejectMemberImport = (id: number, note: string) => send<ImportBatch
 export const withdrawMemberImport = (id: number) => send<ImportBatch>('POST', `/api/member-imports/${id}/withdraw`, {})
 export async function downloadMemberImportTemplate(kind: 'xlsx' | 'csv' = 'xlsx'): Promise<void> {
   const res = await http(kind === 'xlsx' ? '/api/member-imports/template' : '/api/member-imports/template.csv')
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await errorFrom(res))
   const url = URL.createObjectURL(await res.blob())
   const a = document.createElement('a')
   a.href = url

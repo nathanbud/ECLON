@@ -1,4 +1,4 @@
-import { getJson, http, send } from './http'
+import { getJson, http, send, errorFrom } from './http'
 
 export interface Account {
   id: { branchCode: number; code: string }
@@ -12,7 +12,7 @@ export interface Account {
 
 export async function listAccounts(branchCode: number): Promise<Account[]> {
   const res = await http(`/api/accounts?branchCode=${branchCode}`)
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await errorFrom(res))
   return res.json()
 }
 
@@ -33,10 +33,17 @@ export interface TrialBalance {
   balanced: boolean
 }
 
+export interface Branch { code: number; name: string | null }
+export const listBranches = () => getJson<Branch[]>('/api/branches')
+
+/** Accounts that take postings (detail, switched on), by number or name; for the account pickers. */
+export const searchPostingAccounts = (branchCode: number, q: string) =>
+  getJson<{ code: string; description: string }[]>(`/api/accounts/search?branchCode=${branchCode}&q=${encodeURIComponent(q)}`)
+
 export async function getTrialBalance(branchCode: number, from: string, to: string): Promise<TrialBalance> {
   const params = new URLSearchParams({ branchCode: String(branchCode), from, to })
   const res = await http(`/api/trial-balance?${params}`)
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await errorFrom(res))
   return res.json()
 }
 
@@ -62,6 +69,45 @@ export const createJournal = (body: { branchCode: number; reference: string; jou
   send<JournalSummary>('POST', '/api/journals', body)
 export const journalStep = (id: number, step: 'submit' | 'approve' | 'post') => send<JournalSummary>('POST', `/api/journals/${id}/${step}`)
 export const reverseJournal = (id: number, reason: string) => send<JournalSummary>('POST', `/api/journals/${id}/reverse`, { reason })
+
+// ---- year-end close -------------------------------------------------------------------------------------------------
+
+export interface YearEndDepartment { dept: number; income: number; expenses: number; surplus: number; lines: number }
+export interface YearEndClose {
+  id: number
+  branchCode: number
+  year: number
+  status: 'PREPARED' | 'POSTED' | 'CANCELLED'
+  surplus: number
+  lineCount: number
+  preparedBy: string
+  preparedAt: string
+  decidedBy: string | null
+  decidedAt: string | null
+  reason: string | null
+  controlNo: number | null
+}
+export interface YearEndPreview {
+  branchCode: number
+  year: number
+  closingDate: string
+  surplusAccount: string
+  income: number
+  expenses: number
+  surplus: number
+  lineCount: number
+  departments: YearEndDepartment[]
+  problems: string[]
+  waiting: YearEndClose | null
+}
+
+export const listYearEndCloses = (branchCode: number) =>
+  send<{ lastClosedYear: number | null; closes: YearEndClose[] }>('GET', `/api/year-end-close?branchCode=${branchCode}`)
+export const previewYearEndClose = (branchCode: number, year: number) =>
+  send<YearEndPreview>('GET', `/api/year-end-close/preview?branchCode=${branchCode}&year=${year}`)
+export const prepareYearEndClose = (branchCode: number, year: number) => send<YearEndClose>('POST', '/api/year-end-close', { branchCode, year })
+export const postYearEndClose = (id: number) => send<YearEndClose>('POST', `/api/year-end-close/${id}/post`)
+export const cancelYearEndClose = (id: number, reason: string) => send<YearEndClose>('POST', `/api/year-end-close/${id}/cancel`, { reason })
 
 export type PeriodStatus = 'OPEN' | 'SOFT_CLOSED' | 'CLOSED' | 'LOCKED'
 export interface AccountingPeriod { id: number; branchCode: number; name: string; startDate: string; endDate: string; status: PeriodStatus }
@@ -128,3 +174,81 @@ export const getChart = () => getJson<ChartAccount[]>(CHART)
 export const getChartUsage = (code: string) => getJson<ChartUsage>(`${CHART}/${encodeURIComponent(code)}/usage`)
 export const createChartAccount = (f: ChartForm) => send<ChartAccount>('POST', CHART, f)
 export const updateChartAccount = (code: string, f: ChartForm) => send<ChartAccount>('PUT', `${CHART}/${encodeURIComponent(code)}`, f)
+
+// ---- chart of accounts: uploading a list (advanced mode, administrators) --------------------------------------------
+
+export interface ChartImportRow { line: number; code: string; name: string; state: 'NEW' | 'EXISTS' | 'PROBLEM'; note: string | null }
+export interface ChartImportPreview { fileName: string; total: number; ready: number; existing: number; errors: number; ignoredColumns: string[]; rows: ChartImportRow[] }
+export interface ChartImportDone { fileName: string; added: number; existing: number; leftOut: number }
+
+async function sendChartFile<T>(url: string, file: File, fields: Record<string, string> = {}): Promise<T> {
+  const body = new FormData()
+  body.append('file', file, file.name)
+  for (const [k, v] of Object.entries(fields)) body.append(k, v)
+  const res = await http(url, { method: 'POST', body })
+  if (!res.ok) throw new Error(await errorFrom(res))
+  return res.json() as Promise<T>
+}
+export const previewChartImport = (file: File) => sendChartFile<ChartImportPreview>(`${CHART}/import/preview`, file)
+export const uploadChartImport = (file: File, reason: string, skipErrors: boolean) =>
+  sendChartFile<ChartImportDone>(`${CHART}/import`, file, { reason, skipErrors: String(skipErrors) })
+export async function downloadChartImportTemplate(kind: 'xlsx' | 'csv' = 'xlsx'): Promise<void> {
+  const res = await http(kind === 'xlsx' ? `${CHART}/import/template` : `${CHART}/import/template.csv`)
+  if (!res.ok) throw new Error(await errorFrom(res))
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `chart-of-accounts-template.${kind}`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ---- account types outside loans: savings, time deposit, share capital, receivable and payable types (administrators) ----
+
+export interface AccountType {
+  classId: number; code: number; name: string | null; fullName: string | null; priority: number | null; interestRate: number | null; minBalance: number | null
+  maxBalance: number | null; dormantAfterMonths: number | null; disabled: boolean; accounts: number | null; links: number
+}
+export type AccountTypeField = 'interestRate' | 'minBalance' | 'maxBalance' | 'dormantAfterMonths'
+
+export interface AccountTypeClass { id: number; name: string; managed: 'EDIT' | 'LOAN_SETUP' | 'CASH'; fields: AccountTypeField[]; types: AccountType[] }
+export interface AccountTypeLink { event: number; what: string; number: number; statusName: string | null; account: string | null; accountName: string | null; accountActive: boolean; removable: boolean }
+export interface AccountTypeForm {
+  name: string; fullName: string; priority: number | null; interestRate: number | null; minBalance: number | null; maxBalance: number | null; dormantAfterMonths: number | null
+  disabled: boolean; reason: string
+}
+
+const TYPES = '/api/admin/account-types'
+export const getAccountTypes = () => getJson<AccountTypeClass[]>(TYPES)
+export const updateAccountType = (cls: number, code: number, f: AccountTypeForm) => send<AccountType>('PUT', `${TYPES}/${cls}/${code}`, f)
+export const createAccountType = (cls: number, copyFrom: number, f: AccountTypeForm) => send<AccountType>('POST', `${TYPES}/${cls}?copyFrom=${copyFrom}`, f)
+export const getAccountTypeLinks = (cls: number, code: number) => getJson<AccountTypeLink[]>(`${TYPES}/${cls}/${code}/accounts`)
+export const changeAccountTypeLink = (cls: number, code: number, event: number, number: number, account: string, reason: string) =>
+  send<AccountTypeLink[]>('PUT', `${TYPES}/${cls}/${code}/accounts`, { event, number, account, reason })
+export interface AccountTypeLinkOptions { events: { id: number; name: string }[]; statuses: { id: number; name: string }[] }
+export const getAccountTypeLinkOptions = (cls: number) => getJson<AccountTypeLinkOptions>(`${TYPES}/${cls}/link-options`)
+export const addAccountTypeLink = (cls: number, code: number, event: number, number: number, account: string, reason: string) =>
+  send<AccountTypeLink[]>('POST', `${TYPES}/${cls}/${code}/accounts`, { event, number, account, reason })
+export const removeAccountTypeLink = (cls: number, code: number, event: number, number: number, reason: string) =>
+  send<AccountTypeLink[]>('DELETE', `${TYPES}/${cls}/${code}/accounts?event=${event}&number=${number}&reason=${encodeURIComponent(reason)}`)
+export interface AccountTypeDeleteCheck { deletable: boolean; problems: string[]; links: number }
+/** Whether a type may be deleted: only one nothing ever used (no accounts, entries or settings point at it). */
+export const checkAccountTypeDelete = (cls: number, code: number) => getJson<AccountTypeDeleteCheck>(`${TYPES}/${cls}/${code}/delete-check`)
+export const deleteAccountType = (cls: number, code: number, reason: string) =>
+  send<{ deleted: boolean; name: string | null; links: number }>('DELETE', `${TYPES}/${cls}/${code}?reason=${encodeURIComponent(reason)}`)
+export const createFirstAccountType = (cls: number, f: { name: string; fullName: string; account: string; reason: string }) => send<AccountType>('POST', `${TYPES}/${cls}/first`, f)
+
+export interface CashDrawer { event: number; kind: 'Cashier' | 'Teller'; number: number; account: string | null; accountName: string | null; heldBy: string[] }
+export const getCashDrawers = () => getJson<CashDrawer[]>(`${TYPES}/cash/drawers`)
+export const addCashDrawer = (event: number, number: number, reason: string) => send<CashDrawer[]>('POST', `${TYPES}/cash/drawers`, { event, number, reason })
+
+// ---- dormant savings accounts ----------------------------------------------------------------------------------------
+
+export interface DormancyRow { clientId: number; clientName: string; typeCode: number; typeName: string | null; refNo: number; accountNo: string | null; opened: string | null; lastActivity: string | null; balance: number }
+export interface DormancyReview { asOf: string; types: { typeCode: number; typeName: string | null; months: number | null }[]; rows: DormancyRow[]; more: boolean }
+export interface DormancyKey { clientId: number; typeCode: number; refNo: number }
+const DORMANCY = '/api/savings-dormancy'
+export const getDormancyReview = () => getJson<DormancyReview>(`${DORMANCY}/review`)
+export const markDormant = (accounts: DormancyKey[], reason: string) => send<{ marked: number; skipped: string[] }>('POST', `${DORMANCY}/mark`, { accounts, reason })
+export const findDormant = (q: string) => getJson<DormancyRow[]>(`${DORMANCY}/dormant?q=${encodeURIComponent(q)}`)
+export const reactivateDormant = (k: DormancyKey, reason: string) => send<DormancyRow>('POST', `${DORMANCY}/reactivate`, { ...k, reason })

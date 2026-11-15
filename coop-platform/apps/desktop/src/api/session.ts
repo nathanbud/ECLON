@@ -1,4 +1,4 @@
-import { currentCredentials, http, send, setCredentials } from './http'
+import { currentCredentials, getJson, http, send, setCredentials } from './http'
 import { apiUrl } from './server'
 
 export interface Me {
@@ -10,6 +10,8 @@ export interface Me {
   admin: boolean
   /** Signed in with a temporary password: nothing else opens until it is replaced. */
   mustChangePassword: boolean
+  /** The person's own branch; screens start on it. */
+  branchCode?: number
 }
 
 export async function signIn(username: string, password: string): Promise<Me> {
@@ -47,6 +49,15 @@ export function currentPassword(): string | null {
 export const changeOwnPassword = (current: string, next: string) => send<void>('POST', '/api/me/password', { current, next })
 
 /** The signed-in person, or null when there is no saved sign-in or the server no longer accepts it. */
+/** What the signed-in person may do, in the words of Settings > Users; with {@code since} only a fingerprint comes back when nothing changed. */
+export interface MyAccess {
+  fingerprint: string
+  changed: boolean
+  items: { key: string; group: string; label: string; value: string }[] | null
+  lastChange: { by: string; at: string | null } | null
+}
+export const getMyAccess = (since?: string) => getJson<MyAccess>(`/api/me/access${since ? `?since=${encodeURIComponent(since)}` : ''}`)
+
 export async function restoreSession(): Promise<Me | null> {
   if (!currentCredentials()) return null
   const res = await http('/api/me')

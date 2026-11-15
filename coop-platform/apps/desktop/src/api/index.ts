@@ -1,5 +1,5 @@
 // The server calls, by topic. Import from './api' as before; each topic lives in its own file.
-export { SIGNED_OUT, adoptCredentials, currentCredentials, signOut } from './http'
+export { SIGNED_OUT, adoptCredentials, currentCredentials, signOut, takeSignOutReason } from './http'
 export * from './accounting'
 export * from './backup'
 export * from './connections'

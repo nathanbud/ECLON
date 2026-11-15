@@ -6,11 +6,13 @@ import { installArrowNavigation } from './arrowNavigation'
 import { adoptSessionFromMainWindow, LOAN_APP_ROUTE, LOAN_SETUP_ROUTE, revealThisWindow } from './detachedWindow'
 import LoanApplicationWindow from './LoanApplicationWindow'
 import LoanSetupWindow from './LoanSetupWindow'
+import CloseOnEscape from './nav/CloseOnEscape'
 import { SessionGate } from './session'
 import { AppThemeProvider } from './theme'
+import { Notices, noticeMutationCache } from './ui/notices'
 
 installArrowNavigation()
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({ mutationCache: noticeMutationCache() })
 
 const isSetup = window.location.hash.startsWith(LOAN_SETUP_ROUTE)
 const detached = isSetup || window.location.hash.startsWith(LOAN_APP_ROUTE)
@@ -22,7 +24,8 @@ if (detached) document.documentElement.dataset.win = 'pre'
     <StrictMode>
       <QueryClientProvider client={queryClient}>
         <AppThemeProvider>
-          {detached ? <SessionGate>{isSetup ? <LoanSetupWindow /> : <LoanApplicationWindow />}</SessionGate> : <App />}
+          {detached ? <SessionGate>{isSetup ? <LoanSetupWindow /> : <LoanApplicationWindow />}<CloseOnEscape what={isSetup ? 'Loan Setup' : 'loan application'} /></SessionGate> : <App />}
+          <Notices />
         </AppThemeProvider>
       </QueryClientProvider>
     </StrictMode>,

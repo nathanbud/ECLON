@@ -1,5 +1,5 @@
 import { type FoOverride } from './frontOffice'
-import { getJson, http, send } from './http'
+import { getJson, http, send, errorFrom } from './http'
 
 // ---- share capital (read-only) -------------------------------------------------------------------------------------
 
@@ -214,11 +214,7 @@ export const getDividendStatement = (b: DividendReq, clientId: number) => send<D
 /** The distribution register as a CSV file, handed to the browser as a download. Resolves to the file name. */
 export async function downloadDividendRegister(b: DividendReq): Promise<string> {
   const res = await http('/api/front-office/dividends/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`
-    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status message */ }
-    throw new Error(message)
-  }
+  if (!res.ok) throw new Error(await errorFrom(res))
   const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'distribution-register.csv'
   const url = URL.createObjectURL(await res.blob())
   const a = document.createElement('a')

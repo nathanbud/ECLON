@@ -1,4 +1,4 @@
-import { getJson, http, send } from './http'
+import { getJson, http, send, errorFrom } from './http'
 
 // ---- data privacy (administrators and data protection officers) ---------------------------------------------------
 
@@ -25,11 +25,7 @@ export const erasePrivacyBiometrics = (id: number) => send<Row>('POST', `/api/pr
 /** Fetches the member data package with the sign-in and hands it to the browser as a download. */
 export async function downloadMemberPackage(id: number, ref: string): Promise<void> {
   const res = await http(`/api/privacy/requests/${id}/package`)
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`
-    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status message */ }
-    throw new Error(message)
-  }
+  if (!res.ok) throw new Error(await errorFrom(res))
   const url = URL.createObjectURL(await res.blob())
   const a = document.createElement('a')
   a.href = url

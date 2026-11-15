@@ -1,4 +1,4 @@
-import { getJson, http, send } from './http'
+import { getJson, http, send, errorFrom } from './http'
 import { apiUrl } from './server'
 
 // ---- reports (guide phase 20) ---------------------------------------------------------------------------------------------
@@ -28,9 +28,7 @@ export const listDocuments = (p: { entityType?: string; entityId?: string; q?: s
 }
 export const getDocument = (id: number) => getJson<DocDetail>(`/api/documents/${id}`)
 async function failure(res: Response): Promise<never> {
-  let message = `Request failed (${res.status})`
-  try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the generic message */ }
-  throw new Error(message)
+  throw new Error(await errorFrom(res))
 }
 /** Attaches a file to a record (fields), or, with {@code versionOf}, replaces that document with a new version. */
 export async function uploadDocument(file: File, fields: Record<string, string>, versionOf?: number): Promise<DocInfo> {
@@ -83,7 +81,7 @@ export interface Branding { coopName: string | null; tagline: string | null; has
 /** Read before anyone has signed in, so no sign-in is sent. */
 export async function getBranding(): Promise<Branding> {
   const res = await fetch(apiUrl('/api/public/branding'), { cache: 'no-store' })
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) throw new Error(await errorFrom(res))
   return res.json()
 }
 export const setBrandingText = (coopName: string, tagline: string) => send<Branding>('PUT', '/api/admin/branding', { coopName, tagline })
@@ -92,10 +90,6 @@ export async function uploadBrandingLogo(file: File): Promise<Branding> {
   const body = new FormData()
   body.append('file', file, file.name)
   const res = await http('/api/admin/branding/logo', { method: 'POST', body })
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`
-    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status text */ }
-    throw new Error(message)
-  }
+  if (!res.ok) throw new Error(await errorFrom(res))
   return res.json()
 }

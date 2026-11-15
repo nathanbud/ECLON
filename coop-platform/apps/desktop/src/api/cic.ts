@@ -1,4 +1,4 @@
-import { getJson, http, send } from './http'
+import { getJson, http, send, errorFrom } from './http'
 
 export type CicStatus = 'DRAFT' | 'GENERATED' | 'VALIDATED' | 'APPROVED' | 'SUBMITTED' | 'RESULT' | 'RECONCILED'
 
@@ -32,11 +32,7 @@ export const listCicFindings = (id: number, record?: number) => getJson<CicFindi
 /** Fetches the batch's file with the sign-in and hands it to the browser as a download. Resolves to the file name the server chose (PREVIEW_ before approval). */
 export async function downloadCicFile(id: number): Promise<string> {
   const res = await http(`/api/cic/batches/${id}/file`)
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`
-    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status message */ }
-    throw new Error(message)
-  }
+  if (!res.ok) throw new Error(await errorFrom(res))
   const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? `cic-${id}.txt`
   const url = URL.createObjectURL(await res.blob())
   const a = document.createElement('a')

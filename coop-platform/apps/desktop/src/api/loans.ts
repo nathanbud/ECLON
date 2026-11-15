@@ -1,5 +1,5 @@
 import { type ChequeIn } from './deposits'
-import { getJson, http, send } from './http'
+import { getJson, http, send, errorFrom } from './http'
 
 // ---- loans (read-only) ---------------------------------------------------------------------------------------------
 
@@ -80,17 +80,26 @@ export interface LoanAppIn {
   payoffs: { typeCode: number; refNo: number; principal: number; interest: number; penalty: number }[]
   coMakerHolds: { clientId: number; amount: number; slc: number; slt: number; refNo: number }[]
 }
-export interface LoanAppCreated { applicationId: number; documentNo: string; refNo: number; firstDue: string; maturity: string; totalInterest: number; totalDeductions: number; netProceeds: number; scheduleRows: number }
+export interface LoanAppCreated { applicationId: number; documentNo: string; refNo: number; firstDue: string; maturity: string; totalInterest: number; totalDeductions: number; netProceeds: number; scheduleRows: number
+  /** Saved by someone who may do Profiling only: someone who may do Deduction fills in the deductions before it can be verified. */
+  waitingForDeductions: boolean }
 export interface LoanTypeOption { code: number; name: string; terms: number | null; rate: number | null; loans: number; available: boolean }
 export const getLoanTypes = (b: number, c: number) => getJson<LoanTypeOption[]>(`/api/members/${b}/${c}/loan-applications/types`)
 export interface CoMakerAccount { slc: number; slt: number; refNo: number; type: string | null; balance: number; held: number; available: number; preferred: boolean }
 export const getCoMakerAccounts = (b: number, c: number, comaker: number) => getJson<CoMakerAccount[]>(`/api/members/${b}/${c}/loan-applications/comaker-accounts?comaker=${comaker}`)
 export const getLoanAppTemplate = (b: number, c: number, type: number) => getJson<LoanAppTemplate>(`/api/members/${b}/${c}/loan-applications/template?type=${type}`)
+/** The Deduction step of an application saved without it. */
+export const saveLoanDeductions = (b: number, c: number, applicationId: number, body: { deductions: { id: number; amount: number }[]; payoffs: { typeCode: number; refNo: number; principal: number; interest: number; penalty: number }[] }) =>
+  send<{ applicationId: number; totalDeductions: number; netProceeds: number }>('POST', `/api/members/${b}/${c}/loan-applications/${applicationId}/deductions`, body)
 export const createLoanApplication = (b: number, c: number, body: LoanAppIn) => send<LoanAppCreated>('POST', `/api/members/${b}/${c}/loan-applications`, body)
 
-export interface LoanApplicationItem { id: number; documentNo: string; clientId: number; clientName: string | null; typeCode: number; typeName: string | null; refNo: number; amount: number; terms: number; status: number; statusName: string; encodedByName: string | null; date: string; voucherYear: number | null; voucherControlNo: number | null; branchCode: number }
+export interface LoanApplicationItem { id: number; documentNo: string; clientId: number; clientName: string | null; typeCode: number; typeName: string | null; refNo: number; amount: number; terms: number; status: number; statusName: string; encodedByName: string | null; date: string; voucherYear: number | null; voucherControlNo: number | null; branchCode: number; waitingForDeductions: boolean }
 export interface CoMakerHoldSaved { clientId: number; name: string | null; amount: number; slc: number; slt: number; refNo: number; accountType: string | null; placed: boolean }
 export interface LoanApplicationDetail { item: LoanApplicationItem; lines: { account: string | null; description: string; amount: number }[]; totalDeductions: number; netProceeds: number; problems: string[]; coMakerHolds: CoMakerHoldSaved[] }
+/** canAdd is 1 · Profiling, canDeduct 2 · Deduction. */
+export interface LoanAppPermissions { canAdd: boolean; canVerify: boolean; canApprove: boolean; canDeduct: boolean }
+/** The signed-in person's loan application flags from the old system (Settings > Users). */
+export const getLoanAppPermissions = () => getJson<LoanAppPermissions>('/api/loan-applications/permissions')
 export const getLoanApplications = () => getJson<LoanApplicationItem[]>('/api/loan-applications/pending')
 export const getLoanApplication = (id: number) => getJson<LoanApplicationDetail>(`/api/loan-applications/${id}`)
 export const verifyLoanApplication = (id: number) => send<LoanApplicationItem>('POST', `/api/loan-applications/${id}/verify`)
@@ -181,11 +190,7 @@ export const decidePenaltyWaiver = (id: number, approve: boolean, note: string) 
  */
 export async function downloadLoanWorksheet(branchCode: number, clientId: number, typeCode: number, refNo: number, asOf: string, kind: 'pdf' | 'xlsx'): Promise<string> {
   const res = await http(`/api/members/${branchCode}/${clientId}/loans/${typeCode}/${refNo}/worksheet/${kind}?asOf=${encodeURIComponent(asOf)}`)
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`
-    try { const j = await res.json(); if (j.message) message = j.message } catch { /* keep the status message */ }
-    throw new Error(message)
-  }
+  if (!res.ok) throw new Error(await errorFrom(res))
   const name = `loan-worksheet-12${String(typeCode).padStart(2, '0')}-${String(refNo).padStart(8, '0')}-${asOf}.${kind}`
   const url = URL.createObjectURL(await res.blob())
   const a = document.createElement('a')
@@ -195,3 +200,22 @@ export async function downloadLoanWorksheet(branchCode: number, clientId: number
   URL.revokeObjectURL(url)
   return name
 }
+
+// ---- loan type deductions: the lines an application of the type starts with (administrators) -------------------------
+
+export type LoanDeductionKind = 'MEMBER_ACCOUNT' | 'LOAN_CHARGE' | 'CHART_ACCOUNT'
+export interface LoanDeduction {
+  id: number; description: string; order: number; kind: LoanDeductionKind | 'NET_PROCEEDS' | 'OTHER'; classId: number | null; typeCode: number | null; event: number | null
+  account: string | null; target: string; formula: string | null; hidePrinting: boolean; editableTarget: boolean; removable: boolean
+}
+export interface LoanDeductionForm {
+  description: string; order: number; kind: LoanDeductionKind | null; classId: number | null; typeCode: number | null; event: number | null; account: string | null
+  hidePrinting: boolean; reason: string
+}
+export interface LoanDeductionOptions { memberTypes: { classId: number; typeCode: number; name: string }[]; charges: { event: number; name: string }[] }
+const deductionsOf = (code: number) => `${SETUP}/types/${code}/deductions`
+export const getLoanDeductions = (code: number) => getJson<LoanDeduction[]>(deductionsOf(code))
+export const getLoanDeductionOptions = (code: number) => getJson<LoanDeductionOptions>(`${deductionsOf(code)}/options`)
+export const addLoanDeduction = (code: number, f: LoanDeductionForm) => send<LoanDeduction[]>('POST', deductionsOf(code), f)
+export const changeLoanDeduction = (code: number, id: number, f: LoanDeductionForm) => send<LoanDeduction[]>('PUT', `${deductionsOf(code)}/${id}`, f)
+export const removeLoanDeduction = (code: number, id: number, reason: string) => send<LoanDeduction[]>('DELETE', `${deductionsOf(code)}/${id}?reason=${encodeURIComponent(reason)}`)
