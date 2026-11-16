@@ -1,18 +1,16 @@
 import {
-  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, GlobalStyles, IconButton, Skeleton, Step, StepButton, Stepper, TextField, ToggleButton, ToggleButtonGroup, Typography,
+  Alert, Box, Button, Dialog, DialogActions, DialogContent, GlobalStyles, IconButton, Skeleton, Step, StepButton, Stepper, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiPlus, FiTrash2 } from 'react-icons/fi'
 import {
-  approveDividend, downloadDividendRegister, encodeDividend, getDividendStatement, getDividendVouchers, postDividend, previewDividend,
-  type DividendMemberAmounts, type DividendReq, type DividendStatement, type DividendStatutory, type DividendVoucher,
+  downloadDividendRegister, getDistributionSettings, getDividendStatement, prepareDistribution, previewDividend,
+  type DividendMemberAmounts, type DividendReq, type DividendStatement, type DividendStatutory,
 } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
-import { ConfirmButton } from './ui/dialogs'
 
-const statusColor = (s: DividendVoucher['status']) => (s === 'POSTED' ? 'success' : s === 'APPROVED' ? 'info' : 'warning')
 const pct = (n: number) => `${Number(n.toFixed(6))}%`
 
 /** One line per member: "client no, mutual benefit, hospitalization"; a blank or dash keeps the standard amount. */
@@ -67,8 +65,9 @@ function StatementDialog({ s, onClose }: { s: DividendStatement | null; onClose:
  * the general assembly allocated, and the rates are worked out (allocation / total average share-month, allocation / total qualified patronage). The screen shows the figures and
  * what they reconcile to, then encodes the vouchers; another person approves and a third posts them. The register and each member's statement can be taken from the figures.
  */
-export function DividendPanel() {
+export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => void } = {}) {
   const qc = useQueryClient()
+  const settings = useQuery({ queryKey: ['distribution-settings'], queryFn: getDistributionSettings, retry: false, staleTime: 60_000 })
   const year = new Date().getFullYear()
   const [method, setMethod] = useState<'rates' | 'allocation'>('rates')
   const [cutoff, setCutoff] = useState(`${year}-02-21`)
@@ -113,12 +112,11 @@ export function DividendPanel() {
     return { ...base, iscAllocation: isc, prAllocation: pr, netSurplus: Number(netSurplus), statutory, approvalRef: resolution.trim() }
   }
   const preview = useQuery({ queryKey: ['dividend-preview', asked], queryFn: () => previewDividend(asked!), enabled: !!asked, retry: false, staleTime: Infinity })
-  const vouchers = useQuery({ queryKey: ['dividend-vouchers', asked?.cutoff], queryFn: () => getDividendVouchers(asked!.cutoff), enabled: !!asked, retry: false, refetchInterval: 20_000 })
-  const refresh = () => { void qc.invalidateQueries({ queryKey: ['dividend-preview'] }); void qc.invalidateQueries({ queryKey: ['dividend-vouchers'] }) }
-  const encode = useMutation({ meta: { done: 'Dividend vouchers made. They now wait for approval.' }, mutationFn: () => encodeDividend(asked!), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
-  const act = useMutation({ meta: { done: (_, v) => ((v as { kind: string }).kind === 'approve' ? 'Voucher approved. Someone else can now post it.' : 'Dividend voucher posted.') },
-    mutationFn: (v: { kind: 'approve' | 'post'; r: DividendVoucher }) => (v.kind === 'approve' ? approveDividend : postDividend)(v.r.year, v.r.controlNo),
-    onSuccess: () => { setError(null); refresh() },
+  // Stores the figures as a distribution for review; vouchers are made only once someone else approves it (Distributions).
+  const prepare = useMutation({
+    meta: { done: 'Distribution prepared and stored. Submit it for review in Distributions.' },
+    mutationFn: () => prepareDistribution(asked!),
+    onSuccess: (r) => { setError(null); void qc.invalidateQueries({ queryKey: ['distributions'] }); onPrepared?.(r.batch.id) },
     onError: (e) => setError((e as Error).message),
   })
   const register = useMutation({ mutationFn: () => downloadDividendRegister(asked!), onError: (e) => setError((e as Error).message) })
@@ -148,10 +146,16 @@ export function DividendPanel() {
         <>
           {label('Step 1: identify the dividend and the patronage refund')}
           <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
-            Interest on share capital is worked from each member&apos;s average month-end share capital in the year before the cut-off; the patronage refund from the loan interest, service fees and charges they paid that year.
-            Choose how the rates are set, then identify them. Nothing is encoded yet.
+            Interest on share capital is worked from each member&apos;s average month-end share capital in the year before the cut-off; the patronage refund from what they paid on their loans that year
+            (the loan charges and who takes part are in Settings). Choose how the rates are set, then identify them. Nothing is stored yet.
           </Typography>
-          <ToggleButtonGroup exclusive size="small" value={method} onChange={(_, v) => { if (v) { setMethod(v); setAsked(null) } }} aria-label="How the rates are set" sx={{ mb: 1.5 }}>
+          <ToggleButtonGroup exclusive size="small" value={method} aria-label="How the rates are set" sx={{ mb: 1.5 }}
+            onChange={(_, v) => {
+              if (!v) return
+              setMethod(v); setAsked(null)
+              // the statutory funds start from the settings; they can still be changed for the year
+              if (v === 'allocation' && funds.length === 0 && settings.data) setFunds(settings.data.funds.filter((f) => f.active).map((f) => ({ name: f.name, percent: String(f.percent) })))
+            }}>
             <ToggleButton value="rates" sx={{ textTransform: 'none' }}>Type the rates</ToggleButton>
             <ToggleButton value="allocation" sx={{ textTransform: 'none' }}>From the approved allocation</ToggleButton>
           </ToggleButtonGroup>
@@ -166,8 +170,8 @@ export function DividendPanel() {
             <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '5px', p: 1.5, mb: 1.5 }}>
               {label('Net surplus and allocation')}
               <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">
-                Enter the approved net surplus, the statutory funds set aside from it (name and percent as the Cooperative Code, the CDA rules and your bylaws require; none are built in),
-                and the amounts the general assembly allocated. Interest on share capital and patronage refund are then spread over the members.
+                Enter the approved net surplus, the statutory funds set aside from it (they start from Settings; name and percent as the Cooperative Code, the CDA rules and your bylaws
+                require; none are built in), and the amounts the general assembly allocated. Interest on share capital and patronage refund are then spread over the members.
               </Typography>
               <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 1 }}>
                 <TextField size="small" label="Net surplus" value={netSurplus} onChange={num(setNetSurplus)} sx={{ width: 190 }} />
@@ -268,32 +272,16 @@ export function DividendPanel() {
           </Box>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2 }}>
             <Button onClick={() => setStep(1)}>Back</Button>
-            {!p.alreadyEncoded && <Button variant="contained" disabled={encode.isPending || p.controls.length > 0 || splitEdited} onClick={() => encode.mutate()}>Encode {p.vouchers} vouchers</Button>}
+            {!p.alreadyEncoded && <Button variant="contained" disabled={prepare.isPending || p.controls.length > 0 || splitEdited} onClick={() => prepare.mutate()}>{prepare.isPending ? 'Storing…' : 'Prepare for review'}</Button>}
             {splitEdited && <Typography sx={{ fontSize: 12 }} color="text.secondary">Apply the allocation first.</Typography>}
           </Box>
-          {p.alreadyEncoded && <Alert severity="info" sx={{ mb: 1 }}>{p.year + 1} already has dividend vouchers, so it cannot be encoded again.</Alert>}
+          <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">
+            Preparing stores every member&apos;s figures as a distribution of {p.year}. Someone else reviews and approves it; only then are the vouchers made, from exactly these figures. Preparing the year again replaces a version not yet approved.
+          </Typography>
+          {p.alreadyEncoded && <Alert severity="info" sx={{ mb: 1 }}>{p.year + 1} already has dividend vouchers, so it cannot be prepared again.</Alert>}
         </>
       )}
 
-      {(vouchers.data ?? []).length > 0 && (
-        <Box sx={{ mt: 1 }}>
-          {label('Vouchers of this year')}
-          {vouchers.data!.map((v) => (
-            <Box key={`${v.year}-${v.controlNo}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider' }}>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ fontSize: 13 }}>{v.documentNo} · {money(v.total)}</Typography>
-                <Typography sx={{ fontSize: 12 }} color="text.secondary">{v.lines.toLocaleString()} lines</Typography>
-              </Box>
-              <Chip size="small" variant="outlined" color={statusColor(v.status)} label={v.status === 'WAITING FOR APPROVAL' ? 'Waiting for approval' : v.status === 'APPROVED' ? 'Approved' : 'Posted'} />
-              {v.status === 'WAITING FOR APPROVAL' && <Button size="small" variant="contained" disabled={act.isPending} onClick={() => act.mutate({ kind: 'approve', r: v })}>Approve</Button>}
-              {v.status === 'APPROVED' && (
-                <ConfirmButton size="small" variant="contained" color="success" disabled={act.isPending} onConfirm={() => act.mutate({ kind: 'post', r: v })} title={`Post dividend voucher ${v.documentNo}?`}
-                  message={<>It credits <b>{money(v.total)}</b> to members’ accounts in {v.lines.toLocaleString()} lines. A posted voucher cannot be edited.</>}>Post</ConfirmButton>
-              )}
-            </Box>
-          ))}
-        </Box>
-      )}
     </Box>
   )
 }

@@ -37,10 +37,10 @@ import ph.coop.core.frontoffice.MemberLedgerPoster.Person;
 
 /**
  * The annual "Dividend and Patronage Refund Transaction (Computer Generated)" (module 6 type 54; documentation/dividend-map.md). Preview is read only.
- * Encoding writes the vouchers the old system writes (up to 7,000 member lines each, one debit of the fund account 20126 per voucher) with every line tagged 2;
- * a second person approves and a third posts them, which writes the member ledger rows and the general ledger lines dated the cut-off.
- * The rates and the mutual benefit and hospitalization amounts are typed by the accountant. A year that already has dividend vouchers cannot be encoded again.
- * There is no single-person exemption for this run.
+ * The year is first prepared, reviewed and approved as a stored distribution (DistributionController); encoding then writes exactly its stored credits as the
+ * vouchers the old system writes (up to 7,000 member lines each, one debit of the fund account 20126 per voucher) with every line tagged 2; a second person
+ * approves and a third posts them, which writes the member ledger rows and the general ledger lines dated the cut-off. A year that already has dividend vouchers
+ * cannot be encoded again. There is no single-person exemption for this run.
  */
 @RestController
 @RequestMapping("/api/front-office/dividends")
@@ -74,6 +74,9 @@ class DividendController {
 
     record VoucherRow(int year, long controlNo, String documentNo, int lines, BigDecimal total, int encodedBy, Integer approvedBy, String status) {}
 
+    /** Encode the vouchers of an approved distribution. */
+    record EncodeIn(Long batchId) {}
+
     private final FrontOfficeAccess access;
 
     private final ph.coop.core.businessday.BusinessDay businessDay;
@@ -84,7 +87,11 @@ class DividendController {
     private final Clock clock;
     private final Db db;
 
-    DividendController(FrontOfficeAccess access, MemberLedgerPoster poster, DividendRun run, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, ph.coop.core.businessday.BusinessDay businessDay) {
+    private final DistributionStore store;
+
+    DividendController(FrontOfficeAccess access, MemberLedgerPoster poster, DividendRun run, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, ph.coop.core.businessday.BusinessDay businessDay,
+                       DistributionStore store) {
+        this.store = store;
 
         this.businessDay = businessDay;
         this.access = access;
@@ -162,7 +169,7 @@ class DividendController {
      * The control that a distribution may not exceed what was approved: with allocations, the dividend may not be more than the interest on share capital allocation, nor the refund
      * more than the patronage refund allocation, beyond what rounding each member to the centavo can add (half a centavo a member).
      */
-    private static List<String> overAllocation(Plan plan, BigDecimal dividend, BigDecimal refund) {
+    static List<String> overAllocation(Plan plan, BigDecimal dividend, BigDecimal refund) {
         List<String> out = new ArrayList<>();
         Params pa = plan.params();
         if (!pa.fromAllocation()) return out;
@@ -172,28 +179,33 @@ class DividendController {
         return out;
     }
 
-    /** Writes the vouchers of a year that has none yet, every line waiting (tag 2), encoded by the caller. */
+    /**
+     * Writes the vouchers of an approved distribution (DistributionController), from its stored credits, every line waiting (tag 2), encoded by the caller. The
+     * year may have no dividend vouchers yet. The distribution becomes ENCODED with the voucher numbers.
+     */
     @PostMapping("/encode")
-    List<VoucherRow> encode(@RequestBody Request in, Authentication auth) {
+    List<VoucherRow> encode(@RequestBody EncodeIn in, Authentication auth) {
         Perms perms = access.of(auth);
         requireNew(perms);
         Person p = poster.person(auth.getName());
         if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so the vouchers cannot be encoded.");
-        LocalDate cutoff = cutoff(in.cutoff());
+        if (in == null || in.batchId() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose the approved distribution to encode.");
         return tx.execute((st) -> {
+            DistributionStore.Batch b = store.find(in.batchId(), p.branch(), true);
+            if (b == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no such distribution.");
+            if (!"APPROVED".equals(b.status())) throw new ResponseStatusException(HttpStatus.CONFLICT, "Only an approved distribution can be encoded; this one is " + b.status().toLowerCase() + ".");
+            LocalDate cutoff = b.cutoff();
             PostingPeriods.requireOpen(jdbc, p.branch(), cutoff);
             // a run posts on its own period-end date, but only while the branch has a business day open
             businessDay.requireStarted(p.branch());
             if (vouchersOf(p.branch(), cutoff) > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Dividend vouchers already exist for " + cutoff.getYear() + ", so it cannot be run again.");
-            Plan plan = plan(p.branch(), cutoff, in.params());
-            if (plan.credits().isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "No member earns a dividend or refund with these rates.");
-            Summary check = summary(plan, false);
-            if (!check.controls().isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, String.join(" ", check.controls()));
+            List<Credit> all = store.credits(b.id());
+            if (all.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "This distribution credits no one.");
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
             int year = cutoff.getYear();
             List<VoucherRow> out = new ArrayList<>();
             Map<String, String> glCache = new HashMap<>();
-            List<Credit> all = plan.credits();
+            String explanation = explanation(cutoff, b.dividendRate(), b.patronageRate(), "ALLOCATION".equals(b.method()) ? b.approvalRef() : null);
             for (int from = 0; from < all.size(); from += CHUNK) {
                 List<Credit> part = all.subList(from, Math.min(all.size(), from + CHUNK));
                 long ctl = db.nextControlNumber(p.branch(), MODULE, CODE, year);
@@ -202,7 +214,7 @@ class DividendController {
                         INSERT INTO transsum (TR_BRCODE, TR_YEAR, TR_MODULE, TR_CODE, TR_CTLNO, TR_DOCNO, TR_DATE, TR_TIME, BATCH_NO, EXPLANATION, IS_FO, DATETIMEADDED)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
                         """, p.branch(), year, MODULE, CODE, ctl, docNo, cutoff.toString(), now.format(DateTimeFormatter.ofPattern("HH:mm:ss")), cutoff.format(DateTimeFormatter.BASIC_ISO_DATE),
-                    explanation(plan), Timestamp.valueOf(now));
+                    explanation, Timestamp.valueOf(now));
                 String sql = """
                         INSERT INTO transdt (DTTR_BRCODE, DTTR_YEAR, DTTR_MODULE, DTTR_CODE, DTTR_CTLNO, DTSEQ_NO, DTDEPT, DTACCT_CODE, ClientIDDT, DTSLC_CODE, DTSLT_CODE, DTREF_NO,
                           DTSLE_CODE, DTCTS_NUM, DTSL_DATE, DTADJ_FLAG, DTCOCI_TYPE, DTAMT, DTENCDBY, DTUPD_TAG, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
@@ -220,23 +232,21 @@ class DividendController {
                 jdbc.batchUpdate(sql, rows);
                 out.add(new VoucherRow(year, ctl, docNo, rows.size(), sum, p.id(), null, "WAITING FOR APPROVAL"));
             }
-            audit(auth, "dividend.encode", p, cutoff.toString(), out.size() + " vouchers, " + plan.members().size() + " members, " + plan.held().size() + " held back; dividend "
-                + plan.dividendRate().toPlainString() + "% patronage " + plan.patronageRate().toPlainString() + "% mutual benefit " + (in.mutualBenefit() == null ? "0" : in.mutualBenefit().toPlainString())
-                + " hospitalization " + (in.hospitalization() == null ? "0" : in.hospitalization().toPlainString()) + ", " + (in.overrides() == null ? 0 : in.overrides().size()) + " member overrides"
-                + (plan.params().fromAllocation() ? "; from allocations: net surplus " + plan.params().netSurplus().toPlainString() + ", interest on share capital " + (plan.params().iscAllocation() == null ? "0" : plan.params().iscAllocation().toPlainString())
-                    + ", patronage refund " + (plan.params().prAllocation() == null ? "0" : plan.params().prAllocation().toPlainString()) + ", resolution " + plan.params().approvalRef() : ""));
+            store.markEncoded(b.id(), auth.getName(), now, year, out.get(0).controlNo(), out.get(out.size() - 1).controlNo());
+            audit(auth, "dividend.encode", p, cutoff.toString(), "distribution " + b.id() + " (" + b.year() + "): " + out.size() + " vouchers, " + b.members() + " members, total "
+                + b.total().toPlainString() + "; dividend " + b.dividendRate().toPlainString() + "% patronage " + b.patronageRate().toPlainString() + "%");
             return out;
         });
     }
 
-    private String explanation(Plan plan) {
+    private String explanation(LocalDate cutoff, BigDecimal dividendRate, BigDecimal patronageRate, String approvalRef) {
         DateTimeFormatter f = DateTimeFormatter.ofPattern("MM/dd/yyyy");
         String fund = jdbc.queryForList("SELECT COADesc FROM coa WHERE COAID = ?", String.class, DividendRun.FUND_ACCOUNT).stream().findFirst().orElse("");
-        return "Dividend and Patronage Refund Transaction (Computer Generated)\nTransactions Cut-Off: " + plan.cutoff().format(f)
+        return "Dividend and Patronage Refund Transaction (Computer Generated)\nTransactions Cut-Off: " + cutoff.format(f)
             + "\nInt. on Share Capital Fund GL Acct: " + DividendRun.FUND_ACCOUNT + " - " + fund
             + "\nPatronage Refund Fund GL Acct: " + DividendRun.FUND_ACCOUNT + " - " + fund
-            + "\nDividend Rate: " + plan.dividendRate().toPlainString() + "% Patronage Refund Rate: " + plan.patronageRate().toPlainString() + "%"
-            + (plan.params().fromAllocation() ? "\nAllocation approved by: " + plan.params().approvalRef() : "");
+            + "\nDividend Rate: " + dividendRate.toPlainString() + "% Patronage Refund Rate: " + patronageRate.toPlainString() + "%"
+            + (approvalRef != null ? "\nAllocation approved by: " + approvalRef : "");
     }
 
     private Map<Integer, String> names(int branch) {

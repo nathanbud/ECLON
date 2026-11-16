@@ -205,7 +205,6 @@ export interface DividendSummary {
 export interface DividendStatement { clientId: number; name: string | null; year: number; averageShareMonth: number; dividendRate: number; dividend: number; qualifiedPatronage: number; patronageRate: number; refund: number; total: number }
 export interface DividendVoucher { year: number; controlNo: number; documentNo: string; lines: number; total: number; encodedBy: number; approvedBy: number | null; status: 'WAITING FOR APPROVAL' | 'APPROVED' | 'POSTED' }
 export const previewDividend = (b: DividendReq) => send<DividendSummary>('POST', '/api/front-office/dividends/preview', b)
-export const encodeDividend = (b: DividendReq) => send<DividendVoucher[]>('POST', '/api/front-office/dividends/encode', b)
 export const getDividendVouchers = (cutoff: string) => getJson<DividendVoucher[]>(`/api/front-office/dividends/vouchers?cutoff=${cutoff}`)
 export const approveDividend = (year: number, controlNo: number) => send<DividendVoucher>('POST', `/api/front-office/dividends/${year}/${controlNo}/approve`)
 export const postDividend = (year: number, controlNo: number) => send<DividendVoucher>('POST', `/api/front-office/dividends/${year}/${controlNo}/post`)

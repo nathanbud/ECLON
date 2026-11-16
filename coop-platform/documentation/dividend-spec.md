@@ -28,10 +28,32 @@ The spec's two worked samples (10% of 100,000 = 10,000 and 30% of 50,000 = 15,00
 * **Combined member distribution statement** (section 8): enter a member number, Member statement, Print.
 * **Reconciliation**: the panel shows allocated, distributed and difference for each of the two, and the figures it spread them over.
 
+## Stored distributions, review and approval (built 2026-11-16; PostgreSQL `V029` applied, MySQL `V066` not)
+Spec sections 4, 5, 6 and 11. Accounting > Dividends has three parts: **Prepare**, **Distributions** and **Settings** (`DividendsPage`, `DividendPanel`, `Distributions.tsx`).
+* **Prepare** works the year out (as before) and, instead of encoding, stores it as a distribution (`DistributionController`, `POST /api/front-office/dividends/distributions`):
+  `ecis_distribution_batch` (the year, method, net surplus, available, allocations, resolution, rates, insurance amounts, totals, the settings used in words,
+  who prepared, submitted, decided and encoded, and when), with insert-only rows: `ecis_distribution_batch_fund` (statutory funds as applied),
+  `ecis_distribution_member` (each member's average share-month, qualified patronage, interest, refund, total and split), `ecis_distribution_credit`
+  (the credits the vouchers will carry), `ecis_distribution_held` (left out: no account to credit, or not eligible, with the reason) and
+  `ecis_distribution_patronage` (qualified patronage by loan event).
+* **Steps**: DRAFT -> SUBMITTED (`/submit`) -> APPROVED by someone other than the preparer (`/approve`, optional note) -> ENCODED (`/encode {batchId}`, the
+  vouchers are written from exactly the stored credits); `/reject` with a reason from draft, submitted or approved. Preparing the year again replaces a version
+  not yet approved (kept as SUPERSEDED with `superseded_by`); an approved or encoded one, or vouchers already made for the year, stop it. The voucher approve
+  and post steps (a second and a third person) are unchanged. Every step is audited (`dividend.distribution.*`, `dividend.encode`, `dividend.report`).
+* **Settings** (`ecis_distribution_policy`, `ecis_distribution_fund`; `GET /settings`, `PUT /settings/policy` and `/settings/funds`, administrators, reason):
+  the loan events whose payments are qualified patronage (from `sle_type`, default 23, 24, 31 as the old run), the member statuses that take part, the member
+  types earning interest on share capital and those earning a refund (each "every" by default), a minimum average share-month, and the statutory funds
+  (none built in). `DividendRun.Policy`; `Policy.OLD_SYSTEM` is the default and keeps `DividendRunRealDataTest` matching the real 2026 run.
+* **Reports** (`GET /distributions/{id}/report/{kind}`, read from what was stored, printable): `net-surplus` (revenues, expenses and net surplus per the books
+  for the year, against the approved net surplus), `funds` (statutory fund allocation), `isc` and `pr` (summaries, patronage by loan event, members by amount
+  band), `ledger` (the entries the vouchers carry or carried, by account, with each voucher's status), `audit` (who did what, every version of the year, and the
+  reconciliation: members, credits, voucher debits and what is posted). Also the register (`/register.csv`) and each member's statement (`/statement`).
+* Tested by `DividendRunTest` (the whole flow, the settings, every report, the register and a statement, rolled back), `DividendRunRealDataTest`,
+  `DividendRunRulesTest`, `Distributions.test.tsx`.
+
 ## Not built
-* **Stored annual history** (spec section 5 tables such as `net_surplus`, `distribution_batches`, `member_isc`): the vouchers (module 6 type 54) and the audit rows are the record; the net surplus, statutory funds and resolution are kept in the audit row and the voucher explanation, not in tables of their own, and monthly share capital balances are computed from the ledger when needed.
-* **Appropriation entries** (spec section 9: debit appropriation, credit payable, then pay): the old system, and so this app, credits the members directly from the fund account 20126 in one voucher; the statutory funds are not posted by this screen.
-* **Reports not built**: annual net surplus report, statutory fund allocation report, ISC and PR summaries as separate pages, general ledger posting report, audit and reconciliation report; the Member role seeing their own statement.
-* **Qualified patronage** is the loan interest, service fees and event 24 charges paid (what the old run used); the spec's filing fees and "earned versus billed" distinction are not separated.
-* **Eligibility rules and rates by member type** are not configurable.
+* **Appropriation entries** (spec section 9: debit appropriation, credit payable, then pay): the old system, and so this app, credits the members directly from the
+  fund account 20126 in one voucher; the statutory funds are not posted by this screen. Needs the accountant's chart of accounts before it is built.
+* **The Member role seeing their own statement**: there is no member sign-in yet.
+* **Filing fees** as patronage: they are deducted at loan release (`loandeduc`), not in the loan ledger events the settings choose from.
 * **Transferred share capital** is not shown apart from other movements.

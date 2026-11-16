@@ -55,8 +55,27 @@ public class DividendRun {
     public record Member(int clientId, BigDecimal dividend, BigDecimal refund, BigDecimal total, BigDecimal mutualBenefit, BigDecimal hospitalization, BigDecimal rest,
                          BigDecimal averageShareMonth, BigDecimal qualifiedPatronage) {}
 
+    /**
+     * Who takes part and what counts, from the settings (ecis_distribution_policy). {@code patronageEvents}: the loan ledger events whose payments are qualified
+     * patronage. A null set means everyone: {@code eligibleStatuses} (member statuses that take part at all), {@code iscTypes} (member types earning interest on
+     * share capital), {@code prTypes} (member types earning a patronage refund). Below {@code minAverageShare} average share-month, no interest on share capital.
+     */
+    public record Policy(List<Integer> patronageEvents, java.util.Set<Integer> eligibleStatuses, java.util.Set<Integer> iscTypes, java.util.Set<Integer> prTypes, BigDecimal minAverageShare) {
+        /** What the old system did in its 2026 run: loan interest paid (23), interest earned (24) and service fees (31); everyone with something to receive. */
+        public static final Policy OLD_SYSTEM = new Policy(List.of(23, 24, 31), null, null, null, BigDecimal.ZERO);
+
+        boolean filters() {
+            return eligibleStatuses != null || iscTypes != null || prTypes != null;
+        }
+    }
+
+    /**
+     * The run. {@code excluded}: members the settings leave out, with what they would have received at these rates. {@code patronageByEvent}: the qualified patronage
+     * of the members who earn a refund, by loan event, and {@code patronageMembers} how many paid each.
+     */
     public record Plan(LocalDate cutoff, int year, Params params, List<Member> members, List<Credit> credits, List<Held> held,
-                       BigDecimal totalAverageShareMonth, BigDecimal totalQualifiedPatronage, BigDecimal dividendRate, BigDecimal patronageRate) {}
+                       BigDecimal totalAverageShareMonth, BigDecimal totalQualifiedPatronage, BigDecimal dividendRate, BigDecimal patronageRate,
+                       Policy policy, List<Held> excluded, Map<Integer, BigDecimal> patronageByEvent, Map<Integer, Integer> patronageMembers) {}
 
     private final JdbcTemplate jdbc;
 
@@ -162,6 +181,10 @@ public class DividendRun {
     }
 
     public Plan plan(int branch, LocalDate cutoff, Params params) {
+        return plan(branch, cutoff, params, Policy.OLD_SYSTEM);
+    }
+
+    public Plan plan(int branch, LocalDate cutoff, Params params, Policy policy) {
         List<String> bad = problems(params);
         if (!bad.isEmpty()) throw new IllegalArgumentException(String.join(" ", bad));
         int year = periodYear(cutoff);
@@ -176,10 +199,26 @@ public class DividendRun {
                 SELECT SL_CLIENTID, TR_DATE, -AMT FROM sldtl WHERE SL_BRCODE = ? AND SLC_CODE = 31 AND SLT_CODE = ? AND SLE_CODE = 11 AND TR_DATE >= ? AND TR_DATE <= ?
                 """, rs -> { moves.computeIfAbsent(rs.getInt(1), k -> new ArrayList<>()).add(new Movement(rs.getDate(2).toLocalDate(), rs.getBigDecimal(3))); },
             branch, SHARE_CAPITAL_TYPE, jan1, dec31);
+        // qualified patronage: what each member paid on their loans in the year, for the loan events the settings count, kept by event
         Map<Integer, BigDecimal> paid = new HashMap<>();
-        jdbc.query("""
-                SELECT SL_CLIENTID, -SUM(AMT) FROM sldtl WHERE SL_BRCODE = ? AND SLC_CODE = 12 AND SLE_CODE IN (23, 31, 24) AND TR_DATE >= ? AND TR_DATE <= ? GROUP BY SL_CLIENTID
-                """, rs -> { paid.put(rs.getInt(1), rs.getBigDecimal(2)); }, branch, jan1, dec31);
+        Map<Integer, Map<Integer, BigDecimal>> paidByEvent = new HashMap<>();
+        List<Integer> events = policy.patronageEvents() == null ? List.of() : policy.patronageEvents();
+        if (!events.isEmpty()) {
+            List<Object> args = new ArrayList<>(List.of(branch, jan1, dec31));
+            args.addAll(events);
+            jdbc.query("SELECT SL_CLIENTID, SLE_CODE, -SUM(AMT) FROM sldtl WHERE SL_BRCODE = ? AND SLC_CODE = 12 AND TR_DATE >= ? AND TR_DATE <= ? AND SLE_CODE IN ("
+                    + String.join(", ", java.util.Collections.nCopies(events.size(), "?")) + ") GROUP BY SL_CLIENTID, SLE_CODE",
+                rs -> {
+                    paid.merge(rs.getInt(1), rs.getBigDecimal(3), BigDecimal::add);
+                    paidByEvent.computeIfAbsent(rs.getInt(1), k -> new HashMap<>()).merge(rs.getInt(2), rs.getBigDecimal(3), BigDecimal::add);
+                }, args.toArray());
+        }
+        // each member's status and type, only when the settings choose by them
+        Map<Integer, int[]> kind = new HashMap<>();
+        if (policy.filters()) {
+            jdbc.query("SELECT ClientID, COALESCE(AccountStatus, 0), COALESCE(ClientType, 0) FROM client WHERE ClientIDBrCode = ?",
+                rs -> { kind.put(rs.getInt(1), new int[] {rs.getInt(2), rs.getInt(3)}); }, branch);
+        }
 
         // each member's first account of the kinds that can be credited
         Map<Integer, int[]> savings = new HashMap<>(), shares = new HashMap<>(), mutual = new HashMap<>(), hospital = new HashMap<>();
@@ -198,15 +237,27 @@ public class DividendRun {
         ids.addAll(moves.keySet());
         ids.addAll(paid.keySet());
 
-        // Each member's twelve month-end balances added up, and what they paid in qualifying loan charges. The averages and the totals of both are what the rates are worked from.
+        // Each member's twelve month-end balances added up, and what they paid in qualifying loan charges; who may earn each. The averages and the totals over the
+        // members who may earn are what the rates are worked from.
         Map<Integer, BigDecimal> monthEnds = new HashMap<>();
+        Map<Integer, String> iscOut = new HashMap<>(), prOut = new HashMap<>();
+        BigDecimal minAverage = policy.minAverageShare() == null ? BigDecimal.ZERO : policy.minAverageShare();
         BigDecimal totalSums = BigDecimal.ZERO, totalPatronage = BigDecimal.ZERO;
         for (int client : ids) {
             BigDecimal sum = sumOfMonthEnds(opening.getOrDefault(client, BigDecimal.ZERO), moves.getOrDefault(client, List.of()), year);
             monthEnds.put(client, sum);
-            if (sum.signum() > 0) totalSums = totalSums.add(sum);
+            int[] k = kind.get(client);
+            String whole = policy.eligibleStatuses() != null && (k == null || !policy.eligibleStatuses().contains(k[0])) ? "member status " + (k == null ? "unknown" : k[0]) + " does not take part" : null;
+            String isc = whole != null ? whole
+                : policy.iscTypes() != null && (k == null || !policy.iscTypes().contains(k[1])) ? "member type " + (k == null ? "unknown" : k[1]) + " earns no interest on share capital"
+                : minAverage.signum() > 0 && sum.divide(new BigDecimal("12"), 2, RoundingMode.HALF_UP).compareTo(minAverage) < 0 ? "average share-month below " + minAverage.toPlainString() : null;
+            String pr = whole != null ? whole
+                : policy.prTypes() != null && (k == null || !policy.prTypes().contains(k[1])) ? "member type " + (k == null ? "unknown" : k[1]) + " earns no patronage refund" : null;
+            if (isc != null) iscOut.put(client, isc);
+            if (pr != null) prOut.put(client, pr);
+            if (isc == null && sum.signum() > 0) totalSums = totalSums.add(sum);
             BigDecimal pa = paid.getOrDefault(client, BigDecimal.ZERO);
-            if (pa.signum() > 0) totalPatronage = totalPatronage.add(pa);
+            if (pr == null && pa.signum() > 0) totalPatronage = totalPatronage.add(pa);
         }
         BigDecimal totalAverage = totalSums.divide(new BigDecimal("12"), 2, RoundingMode.HALF_UP);
         BigDecimal dividendRate = params.fromAllocation() ? rateFor(params.iscAllocation(), totalAverage) : params.dividendRate();
@@ -218,9 +269,19 @@ public class DividendRun {
         List<Member> members = new ArrayList<>();
         List<Credit> credits = new ArrayList<>();
         List<Held> held = new ArrayList<>();
+        List<Held> excluded = new ArrayList<>();
+        Map<Integer, BigDecimal> byEvent = new java.util.TreeMap<>();
+        Map<Integer, Integer> eventMembers = new java.util.TreeMap<>();
         for (int client : ids) {
-            BigDecimal div = dividend(monthEnds.get(client), dividendRate);
-            BigDecimal ref = refund(paid.getOrDefault(client, BigDecimal.ZERO), patronageRate);
+            BigDecimal wouldDiv = dividend(monthEnds.get(client), dividendRate);
+            BigDecimal wouldRef = refund(paid.getOrDefault(client, BigDecimal.ZERO), patronageRate);
+            BigDecimal div = iscOut.containsKey(client) ? BigDecimal.ZERO : wouldDiv;
+            BigDecimal ref = prOut.containsKey(client) ? BigDecimal.ZERO : wouldRef;
+            BigDecimal lost = wouldDiv.subtract(div).max(BigDecimal.ZERO).add(wouldRef.subtract(ref).max(BigDecimal.ZERO));
+            if (lost.signum() > 0) {
+                String why = iscOut.containsKey(client) && wouldDiv.signum() > 0 ? iscOut.get(client) : prOut.get(client);
+                excluded.add(new Held(client, lost, why));
+            }
             BigDecimal total = div.add(ref);
             if (total.signum() <= 0) continue;
             MemberAmounts o = over.get(client);
@@ -234,10 +295,16 @@ public class DividendRun {
                 continue;
             }
             members.add(new Member(client, div, ref, total, s[0], s[1], s[2], monthEnds.get(client).divide(new BigDecimal("12"), 2, RoundingMode.HALF_UP), paid.getOrDefault(client, BigDecimal.ZERO)));
+            if (ref.signum() > 0) {
+                for (Map.Entry<Integer, BigDecimal> e : paidByEvent.getOrDefault(client, Map.of()).entrySet()) {
+                    byEvent.merge(e.getKey(), e.getValue(), BigDecimal::add);
+                    if (e.getValue().signum() != 0) eventMembers.merge(e.getKey(), 1, Integer::sum);
+                }
+            }
             if (s[0].signum() > 0) { int[] a = first(mutual, client); credits.add(new Credit(client, 29, a[0], a[1], "MUTUAL_BENEFIT", s[0])); }
             if (s[1].signum() > 0) { int[] a = first(hospital, client); credits.add(new Credit(client, 29, a[0], a[1], "HOSPITALIZATION", s[1])); }
             if (s[2].signum() > 0) credits.add(new Credit(client, toSavings ? 22 : 31, home[0], home[1], toSavings ? "SAVINGS" : "SHARE_CAPITAL", s[2]));
         }
-        return new Plan(cutoff, year, params, members, credits, held, totalAverage, totalPatronage, dividendRate, patronageRate);
+        return new Plan(cutoff, year, params, members, credits, held, totalAverage, totalPatronage, dividendRate, patronageRate, policy, excluded, byEvent, eventMembers);
     }
 }
