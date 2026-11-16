@@ -74,12 +74,16 @@ class HandoverController {
     private static final String[] LEDGER_TABLES = {"transsum", "transdt", "gltrans", "denomsum", "denomdtl", "ecis_cash_handover"};
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final Db db;
     private final FrontOfficeAccess access;
     private final TransactionTemplate tx;
     private final DrawerBalances balances;
 
-    HandoverController(JdbcTemplate jdbc, Db db, FrontOfficeAccess access, PlatformTransactionManager txManager, DrawerBalances balances) {
+    HandoverController(JdbcTemplate jdbc, Db db, FrontOfficeAccess access, PlatformTransactionManager txManager, DrawerBalances balances, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.db = db;
         this.access = access;
@@ -152,7 +156,7 @@ class HandoverController {
         try {
             jdbc.query("SELECT event, number, closed_at, variance FROM ecis_drawer_close WHERE branch_code = ? AND tr_date = ? ORDER BY id",
                 (rs) -> { m.put(new Drawer(rs.getInt(1), rs.getInt(2)), new Object[] {rs.getTimestamp(3).toLocalDateTime().format(DateTimeFormatter.ofPattern("HH:mm")), rs.getBigDecimal(4)}); },
-                branch, LocalDate.now().toString());
+                branch, businessDay.today(branch).toString());
         } catch (org.springframework.dao.DataAccessException e) {
             // drawer controls are not set up yet: nothing counted
         }
@@ -192,7 +196,7 @@ class HandoverController {
                 SELECT DISTINCT x.DTCTS_NUM FROM transsum t
                 JOIN transdt x ON t.TR_BRCODE = x.DTTR_BRCODE AND t.TR_YEAR = x.DTTR_YEAR AND t.TR_MODULE = x.DTTR_MODULE AND t.TR_CODE = x.DTTR_CODE AND t.TR_CTLNO = x.DTTR_CTLNO
                 WHERE t.TR_BRCODE = ? AND t.TR_YEAR = ? AND t.TR_DATE = ? AND x.DTSLC_CODE = 11 AND x.DTSLT_CODE = 1 AND x.DTSLE_CODE = ?
-                """, (rs, i) -> rs.getInt(1), branch, LocalDate.now().getYear(), LocalDate.now().toString(), HandoverRules.TELLER);
+                """, (rs, i) -> rs.getInt(1), branch, businessDay.today(branch).getYear(), businessDay.today(branch).toString(), HandoverRules.TELLER);
         Map<Drawer, Object[]> closed = closesToday(branch);
         List<String> notClosed = active.stream().map((n) -> new Drawer(HandoverRules.TELLER, n)).filter((d) -> !closed.containsKey(d)).map(Drawer::label).toList();
         return DrawerRules.notReadyToClose(waiting == null ? 0 : waiting, notClosed);
@@ -282,7 +286,7 @@ class HandoverController {
             where.append("(h.to_event = ? AND h.to_number = ?) OR (h.from_event = ? AND h.from_number = ?)");
             args.add(d.event()); args.add(d.number()); args.add(d.event()); args.add(d.number());
         }
-        args.add(LocalDate.now().toString());
+        args.add(businessDay.today(p.branch()).toString());
         List<Handover> all = jdbc.query("""
                 SELECT h.id, h.tr_code, h.from_event, h.from_number, h.to_event, h.to_number, h.amount, h.status, h.issued_by, a.AccessUserName, h.issued_at,
                   h.remarks, h.counted, h.note, h.tr_ctlno, """ + chequeExpr("h") + """
@@ -359,7 +363,7 @@ class HandoverController {
             if (blocked != null) {
                 String why = req.overrideReason() == null ? "" : req.overrideReason().trim();
                 if (why.length() < 5) throw new ResponseStatusException(HttpStatus.CONFLICT, blocked);
-                AuditLog.write(jdbc, p.username(), "eod.override", "cash_handover", p.branch() + "/" + LocalDate.now(), null, blocked, why.substring(0, Math.min(why.length(), 250)));
+                AuditLog.write(jdbc, p.username(), "eod.override", "cash_handover", p.branch() + "/" + businessDay.today(p.branch()), null, blocked, why.substring(0, Math.min(why.length(), 250)));
             }
         }
         long id;
@@ -380,7 +384,7 @@ class HandoverController {
             if (HandoverRules.postsAtOnce(from, to)) {
                 long ctl = postToLedger(p, from.isVault() ? null : p, to.isVault() ? null : p, p, from, to, reqAmount, cheques, counts, remarks, trCode, newId);
                 jdbc.update("UPDATE ecis_cash_handover SET status = 'POSTED', settled_by = ?, settled_at = ?, counted = ?, tr_year = ?, tr_ctlno = ? WHERE id = ? AND status = 'PENDING'",
-                    p.id(), Timestamp.valueOf(LocalDateTime.now()), reqAmount, LocalDate.now().getYear(), ctl, newId);
+                    p.id(), Timestamp.valueOf(LocalDateTime.now()), reqAmount, businessDay.postingDate(p.branch()).getYear(), ctl, newId);
             }
             return newId;
         });
@@ -443,9 +447,11 @@ class HandoverController {
         counts.entrySet().stream().filter((e) -> e.getValue() > 0).forEach((e) -> json.append(json.length() > 1 ? "," : "").append('"').append(e.getKey()).append("\":").append(e.getValue()));
         json.append('}');
         LocalDateTime now = LocalDateTime.now();
+        // the count belongs to the business day it closes, which End Day checks
+        LocalDate countDay = businessDay.postingDate(p.branch());
         try {
             jdbc.update("INSERT INTO ecis_drawer_close (branch_code, tr_date, event, number, closed_by, expected, counted, variance, counts, reason, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                p.branch(), now.toLocalDate().toString(), d.event(), d.number(), p.id(), expected, counted, variance, json.toString(), reason, Timestamp.valueOf(now));
+                p.branch(), java.sql.Date.valueOf(countDay), d.event(), d.number(), p.id(), expected, counted, variance, json.toString(), reason, Timestamp.valueOf(now));
         } catch (org.springframework.dao.DataAccessException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Drawer counts are not set up yet. An administrator has to run database/migrations/V007_drawer_controls.sql.");
         }
@@ -528,7 +534,7 @@ class HandoverController {
             int trCode = ((Number) h.get("tr_code")).intValue();
             long ctl = postToLedger(giver, giver, p, giver, from, to, amount, chequesGiven, counts, (String) h.get("remarks"), trCode, id);
             jdbc.update("UPDATE ecis_cash_handover SET status = 'POSTED', settled_by = ?, settled_at = ?, counted = ?, tr_year = ?, tr_ctlno = ? WHERE id = ? AND status = 'PENDING'",
-                p.id(), Timestamp.valueOf(LocalDateTime.now()), counted, LocalDate.now().getYear(), ctl, id);
+                p.id(), Timestamp.valueOf(LocalDateTime.now()), counted, businessDay.postingDate(giver.branch()).getYear(), ctl, id);
         });
         return one(id, p);
     }
@@ -657,8 +663,8 @@ class HandoverController {
     private long postToLedger(Person encoder, Person fromUser, Person toUser, Person poster, Drawer from, Drawer to, BigDecimal amount, BigDecimal cheques,
                               Map<Integer, Integer> counts, String remarks, int trCode, long handoverId) {
         LocalDateTime now = LocalDateTime.now();
-        LocalDate day = now.toLocalDate();
         int branch = encoder.branch();
+        LocalDate day = businessDay.postingDate(branch);
         int module = 4;
         // Control numbers run on across years for each transfer type, so take the next after the highest. The lock keeps two people from taking the same one.
         PostingPeriods.requireOpen(jdbc, branch, day);

@@ -4,6 +4,7 @@ import { openLoanApplicationWindow, openLoanSetupWindow, serveDetachedWindows } 
 import AccountsPage from './AccountsPage'
 import AccountTypesPage from './AccountTypesPage'
 import SavingsDormancyPage from './SavingsDormancyPage'
+import BusinessDayPage from './BusinessDayPage'
 import ApprovalsPage from './ApprovalsPage'
 import ClientProfilePage from './ClientProfilePage'
 import type { Id } from './clients'
@@ -48,7 +49,7 @@ import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
 const titles: Record<View, string> = {
-  home: 'Coop Platform', loans: 'Loan Module', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Waiting for you', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports', documents: 'Documents', workflows: 'Approval workflows', membershippolicy: 'Membership policy', documentation: 'Documentation', branding: 'Sign-in screen', connections: 'Database connection', backup: 'Backup', privacy: 'Data privacy', cic: 'CIC submission', dividends: 'Dividends', kycreview: 'KYC review', accounttypes: 'Account Types', dormancy: 'Savings Dormancy',
+  home: 'Coop Platform', loans: 'Loan Module', members: 'Client Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', approvals: 'Waiting for you', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports', documents: 'Documents', workflows: 'Approval workflows', membershippolicy: 'Membership policy', documentation: 'Documentation', branding: 'Sign-in screen', connections: 'Database connection', backup: 'Backup', privacy: 'Data privacy', cic: 'CIC submission', dividends: 'Dividends', kycreview: 'KYC review', accounttypes: 'Account Types', dormancy: 'Savings Dormancy', businessday: 'Business Day',
 }
 
 /** Where the person is: a screen, and the tab inside it when the menu or the search named one. */
@@ -191,6 +192,7 @@ function Signed() {
             {view === 'accounts' && <AccountsPage />}
             {view === 'accounttypes' && <AccountTypesPage />}
             {view === 'dormancy' && <SavingsDormancyPage />}
+            {view === 'businessday' && <BusinessDayPage />}
             {view === 'accounting' && <AccountingPage key={tab ?? ''} initialTab={tab} />}
             {view === 'approvals' && <ApprovalsPage onOpenClient={openClient} onOpen={navigate} />}
             {view === 'users' && <UsersPage />}
@@ -201,7 +203,7 @@ function Signed() {
             {view === 'loansetup' && <LoanSetupPage key="types" />}
             {view === 'amortization' && <LoanSetupPage key="amortization" initialTab="amortization" />}
             {view === 'settings' && <SettingsPage onOpen={(v) => navigate(v, undefined, true)} />}
-            {view === 'frontoffice' && <FrontOfficePage />}
+            {view === 'frontoffice' && <FrontOfficePage onBusinessDay={() => navigate('businessday')} />}
             {view === 'loans' && <LoanModulePage />}
             {view === 'procurement' && <ProcurementPage key={tab ?? ''} initialTab={tab} />}
             {view === 'inventory' && <InventoryPage key={tab ?? ''} initialTab={tab} />}

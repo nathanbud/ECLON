@@ -82,6 +82,7 @@ export const SCREENS: Screen[] = [
   { id: 'kycreview', label: 'KYC review', note: 'Members whose KYC is missing, incomplete, expired or due for review', domain: 'members', icon: <FiUserCheck />, view: 'kycreview', who: 'memberrecords', tile: true, keywords: 'kyc know your customer id expired review aml anti money laundering' },
 
   // teller and cash
+  { id: 'businessday', label: 'Business Day', note: 'Start Day and End Day: the date postings carry, and the end-of-day checks', domain: 'teller', icon: <FiCalendar />, view: 'businessday', who: 'anyone', tile: true, keywords: 'start day end day open close business date eod sod end of day beginning of day cut-off' },
   { id: 'frontoffice', label: 'Front Office', note: 'Deposits, withdrawals, payments and the teller’s day', domain: 'teller', icon: <FiDollarSign />, view: 'frontoffice', who: 'anyone', tile: true, keywords: 'teller cash receipt disburse withdrawal deposit encashment cheque clearing drawer' },
 
   // loans

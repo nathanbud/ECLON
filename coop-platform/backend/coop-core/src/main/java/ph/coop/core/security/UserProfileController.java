@@ -103,6 +103,10 @@ class UserProfileController {
             b("Back-date front office", "AccessCanBackDateFO"), b("Back-date back office", "AccessCanBackDateBO"), b("Future-date back office", "AccessCanFutureDateBO"),
             b("Encode PDC (front office)", "AccessCanEncodePDCFO"), b("Encode PDC", "AccessCanEncodePDC_FO"), b("Encode COCI (front office)", "AccessCanEncodeCOCI_FO"),
             b("View front office cash and COCI", "AccessCanViewFOCashCOCI")));
+        // The business day (Front Office > Business Day, BusinessDayController): postings carry the open day's date and wait while none is open.
+        transactions.put("Business day", List.of(
+            b("Start Day", "AccessStartDay", "Open the branch's business day in the morning. Nothing can be posted until it is open, and everything posted carries its date."),
+            b("End Day", "AccessEndDay", "Close the business day once every drawer is counted, hand-offs are settled and the day balances, or close it anyway with a reason.")));
         transactions.put("Areas and limits", List.of(
             b("Front office", "AccessCanAccessFrontOffice"), b("Back office", "AccessCanAccessBackOffice"),
             m("Disbursement limit", "AccessDisbursementLimit"), m("Disbursement limit (other)", "AccessDisbLimit"), m("Max withdrawal", "AccessMaxWithdrawal")));

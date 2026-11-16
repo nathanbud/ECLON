@@ -43,6 +43,8 @@ class ShareWithdrawalController {
     record Encoded(int branchCode, int year, long controlNo, String documentNo, int clientId, String clientName, BigDecimal amount, BigDecimal availableAfter) {}
 
     private final FrontOfficeAccess access;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final MemberLedgerPoster poster;
     private final JdbcTemplate jdbc;
     private final Db db;
@@ -51,7 +53,9 @@ class ShareWithdrawalController {
     private final ph.coop.core.member.KycGate kyc;
 
     ShareWithdrawalController(FrontOfficeAccess access, MemberLedgerPoster poster, JdbcTemplate jdbc, Db db, Clock clock, PlatformTransactionManager txm,
-                              ph.coop.core.member.KycGate kyc) {
+                              ph.coop.core.member.KycGate kyc, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.kyc = kyc;
         this.access = access;
         this.poster = poster;
@@ -90,7 +94,7 @@ class ShareWithdrawalController {
             String payableGl = poster.glAccount(branch, PAYABLE, 1, PRINCIPAL, payableStatus);
 
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
-            LocalDate day = now.toLocalDate();
+            LocalDate day = businessDay.postingDate(branch);
             int year = day.getYear();
             PostingPeriods.requireOpen(jdbc, branch, day);
             long ctl = db.nextControlNumber(branch, MODULE, ShareWithdrawalRules.CASH_VOUCHER, year);

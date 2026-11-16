@@ -68,6 +68,8 @@ class TimeDepositClosureController {
     private record Cert(int status, BigDecimal rate, int termDays, LocalDate maturity, String certificate, String type, BigDecimal balance, BigDecimal accrued, boolean hasLedger, LocalDate placed) {}
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final Db db;
     private final Clock clock;
     private final FrontOfficeAccess access;
@@ -76,7 +78,9 @@ class TimeDepositClosureController {
     private final ph.coop.core.member.KycGate kyc;
 
     TimeDepositClosureController(JdbcTemplate jdbc, Db db, Clock clock, FrontOfficeAccess access, MemberLedgerPoster poster, PlatformTransactionManager txm,
-                                 ph.coop.core.member.KycGate kyc) {
+                                 ph.coop.core.member.KycGate kyc, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.kyc = kyc;
         this.jdbc = jdbc;
         this.db = db;
@@ -137,7 +141,7 @@ class TimeDepositClosureController {
     }
 
     private Quote build(Person p, Request r) {
-        LocalDate today = LocalDate.now(clock);
+        LocalDate today = businessDay.today(p.branch());
         Cert c = cert(p.branch(), r);
         Client client = poster.client(p.branch(), r.clientId());
         boolean renew = "RENEW".equalsIgnoreCase(r.mode());
@@ -222,7 +226,7 @@ class TimeDepositClosureController {
     }
 
     private InterestQuote interestBuild(Person p, InterestRequest r) {
-        LocalDate today = LocalDate.now(clock);
+        LocalDate today = businessDay.today(p.branch());
         Request asClosure = new Request(r.clientId(), r.typeCode(), r.refNo(), "PAYOUT", null, null, null, null, null);
         Cert c = cert(p.branch(), asClosure);
         Client client = poster.client(p.branch(), r.clientId());
@@ -255,7 +259,7 @@ class TimeDepositClosureController {
             if (!q.problems().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", q.problems()));
             int branch = p.branch();
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
-            LocalDate day = now.toLocalDate();
+            LocalDate day = businessDay.postingDate(branch);
             int year = day.getYear();
             PostingPeriods.requireOpen(jdbc, branch, day);
             long ctl = db.nextControlNumber(branch, MODULE, CODE, year);
@@ -300,7 +304,7 @@ class TimeDepositClosureController {
             boolean renew = "RENEW".equals(q.mode());
             int branch = p.branch();
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
-            LocalDate day = now.toLocalDate();
+            LocalDate day = businessDay.postingDate(branch);
             int year = day.getYear();
             PostingPeriods.requireOpen(jdbc, branch, day);
             long ctl = db.nextControlNumber(branch, MODULE, CODE, year);

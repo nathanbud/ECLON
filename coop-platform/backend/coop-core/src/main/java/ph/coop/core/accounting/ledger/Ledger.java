@@ -19,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;
 import ph.coop.core.connection.OnConnectionSwitch;
+import ph.coop.core.businessday.BusinessDay;
 import ph.coop.core.db.Db;
 
 /**
@@ -37,12 +38,14 @@ public class Ledger implements OnConnectionSwitch {
     private final JdbcTemplate jdbc;
     private final Db db;
     private final Clock clock;
+    private final BusinessDay businessDay;
     private volatile Boolean keysKept;
 
-    public Ledger(JdbcTemplate jdbc, Db db, Clock clock) {
+    public Ledger(JdbcTemplate jdbc, Db db, Clock clock, BusinessDay businessDay) {
         this.jdbc = jdbc;
         this.db = db;
         this.clock = clock;
+        this.businessDay = businessDay;
     }
 
     @Override
@@ -139,7 +142,8 @@ public class Ledger implements OnConnectionSwitch {
         CashVoucher.Teller p = v.teller();
         boolean in = v.receipt();
         LocalDateTime now = LocalDateTime.now(clock).withNano(0);
-        LocalDate day = now.toLocalDate();
+        // dated on the branch's open business day (refused while none is open); the time stamps stay the real moment
+        LocalDate day = businessDay.postingDate(branch);
         int year = day.getYear();
 
         PostingPeriods.requireOpen(jdbc, branch, day);

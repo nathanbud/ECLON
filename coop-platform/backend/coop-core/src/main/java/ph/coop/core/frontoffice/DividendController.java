@@ -75,6 +75,8 @@ class DividendController {
     record VoucherRow(int year, long controlNo, String documentNo, int lines, BigDecimal total, int encodedBy, Integer approvedBy, String status) {}
 
     private final FrontOfficeAccess access;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final MemberLedgerPoster poster;
     private final DividendRun run;
     private final JdbcTemplate jdbc;
@@ -82,7 +84,9 @@ class DividendController {
     private final Clock clock;
     private final Db db;
 
-    DividendController(FrontOfficeAccess access, MemberLedgerPoster poster, DividendRun run, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db) {
+    DividendController(FrontOfficeAccess access, MemberLedgerPoster poster, DividendRun run, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.access = access;
         this.poster = poster;
         this.run = run;
@@ -178,6 +182,8 @@ class DividendController {
         LocalDate cutoff = cutoff(in.cutoff());
         return tx.execute((st) -> {
             PostingPeriods.requireOpen(jdbc, p.branch(), cutoff);
+            // a run posts on its own period-end date, but only while the branch has a business day open
+            businessDay.requireStarted(p.branch());
             if (vouchersOf(p.branch(), cutoff) > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Dividend vouchers already exist for " + cutoff.getYear() + ", so it cannot be run again.");
             Plan plan = plan(p.branch(), cutoff, in.params());
             if (plan.credits().isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "No member earns a dividend or refund with these rates.");
@@ -334,6 +340,7 @@ class DividendController {
         Perms perms = access.of(auth);
         requireNew(perms);
         Person p = poster.person(auth.getName());
+        businessDay.requireStarted(p.branch());
         return tx.execute((st) -> {
             List<Line> lines = lines(p.branch(), year, controlNo, true);
             List<String> problems = problems(lines);

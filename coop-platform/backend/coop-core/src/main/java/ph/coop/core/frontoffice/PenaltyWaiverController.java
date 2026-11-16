@@ -68,13 +68,17 @@ class PenaltyWaiverController {
     record Decision(boolean approve, String note) {}
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final Db db;
     private final Clock clock;
     private final MemberLedgerPoster poster;
     private final ph.coop.core.loan.LoanBook book;
     private final TransactionTemplate tx;
 
-    PenaltyWaiverController(JdbcTemplate jdbc, Db db, Clock clock, MemberLedgerPoster poster, ph.coop.core.loan.LoanBook book, PlatformTransactionManager txm) {
+    PenaltyWaiverController(JdbcTemplate jdbc, Db db, Clock clock, MemberLedgerPoster poster, ph.coop.core.loan.LoanBook book, PlatformTransactionManager txm, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.db = db;
         this.clock = clock;
@@ -174,7 +178,7 @@ class PenaltyWaiverController {
     private BigDecimal suggestion(Person p, Request r) {
         try {
             var t = book.terms(p.branch(), r.clientId(), r.typeCode(), r.refNo());
-            return t.isEmpty() ? null : book.quote(p.branch(), r.clientId(), r.typeCode(), r.refNo(), t.get(), LocalDate.now(clock)).suggestedPenalty();
+            return t.isEmpty() ? null : book.quote(p.branch(), r.clientId(), r.typeCode(), r.refNo(), t.get(), businessDay.today(p.branch())).suggestedPenalty();
         } catch (RuntimeException e) {
             return null; // the suggestion is only a guide here
         }
@@ -249,7 +253,7 @@ class PenaltyWaiverController {
             long approver = found.get(0)[1];
             BigDecimal amount = req.amount().setScale(2, java.math.RoundingMode.HALF_UP);
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
-            LocalDate day = now.toLocalDate();
+            LocalDate day = businessDay.postingDate(p.branch());
             int year = day.getYear();
             PostingPeriods.requireOpen(jdbc, p.branch(), day);
             long ctl = db.nextControlNumber(p.branch(), 1, 1, year);

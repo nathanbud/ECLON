@@ -76,6 +76,8 @@ public class LoanApplicationWorkflowController {
     private record Prepared(Item item, int encoder, int dept, int loanStatus, int netRef, List<VLine> lines, BigDecimal deductions, BigDecimal net, List<String> problems) {}
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final TransactionTemplate tx;
     private final Clock clock;
     private final Db db;
@@ -86,7 +88,9 @@ public class LoanApplicationWorkflowController {
     private final FrontOfficeAccess frontOffice;
 
     LoanApplicationWorkflowController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, SingleHandGrants single, LoanBook book, CoMakerHolds holds, LoanSteps steps,
-                                      FrontOfficeAccess frontOffice) {
+                                      FrontOfficeAccess frontOffice, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.steps = steps;
         this.frontOffice = frontOffice;
         this.book = book;
@@ -211,7 +215,7 @@ public class LoanApplicationWorkflowController {
                 if (!verifiers.isEmpty() && verifiers.get(0).equalsIgnoreCase(auth.getName())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You verified this application, so someone else must approve it.");
             }
             LocalDateTime now = LocalDateTime.now(clock);
-            LocalDate day = now.toLocalDate();
+            LocalDate day = businessDay.postingDate(s.branch());
             int year = day.getYear();
             PostingPeriods.requireOpen(jdbc, s.branch(), day);
             long ctl = db.nextControlNumber(s.branch(), MODULE, VOUCHER, year);
@@ -263,7 +267,7 @@ public class LoanApplicationWorkflowController {
                     if (posted != null && posted > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "The release voucher is already posted, so the application cannot be cancelled.");
                 }
             }
-            jdbc.update("UPDATE loanapp SET STATUSID = 5, APPRV_DATE = ?, APPRVBY = ? WHERE BR_CODE = ? AND ID = ? AND STATUSID = ?", LocalDate.now(clock).toString(), s.id(), s.branch(), id, status);
+            jdbc.update("UPDATE loanapp SET STATUSID = 5, APPRV_DATE = ?, APPRVBY = ? WHERE BR_CODE = ? AND ID = ? AND STATUSID = ?", businessDay.today(s.branch()).toString(), s.id(), s.branch(), id, status);
             audit(auth, "loan.application.cancel", s.branch(), id, in.reason().trim());
             return jdbc.query(itemSql() + " WHERE a.BR_CODE = ? AND a.ID = ?", (rs, i) -> item(rs), s.branch(), id).get(0);
         });
@@ -284,7 +288,7 @@ public class LoanApplicationWorkflowController {
             int status = p.item().status();
             if (status != NEW && status != VERIFIED) throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a new or verified application can be disapproved.");
             if (p.encoder() == s.id() && !single.has(auth.getName())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You encoded this application, so someone else must disapprove it.");
-            jdbc.update("UPDATE loanapp SET STATUSID = 4, APPRV_DATE = ?, APPRVBY = ? WHERE BR_CODE = ? AND ID = ? AND STATUSID = ?", LocalDate.now(clock).toString(), s.id(), s.branch(), id, status);
+            jdbc.update("UPDATE loanapp SET STATUSID = 4, APPRV_DATE = ?, APPRVBY = ? WHERE BR_CODE = ? AND ID = ? AND STATUSID = ?", businessDay.today(s.branch()).toString(), s.id(), s.branch(), id, status);
             audit(auth, "loan.application.disapprove", s.branch(), id, in.reason().trim());
             return jdbc.query(itemSql() + " WHERE a.BR_CODE = ? AND a.ID = ?", (rs, i) -> item(rs), s.branch(), id).get(0);
         });

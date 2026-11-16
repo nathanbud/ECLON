@@ -9,6 +9,7 @@ import GlobalSearch from './GlobalSearch'
 import { signOut } from './api'
 import { useInboxCount } from './nav/SideNav'
 import { VoiceControl, type Handled } from './voice/VoiceControl'
+import { BusinessDayChip } from './BusinessDayChip'
 import { useMe } from './session'
 import { tileFill, useThemeMode, type ThemeMode } from './theme'
 import { ToolbarSlotTarget, useHasMenu } from './toolbarSlot'
@@ -127,6 +128,7 @@ export default function TopBar({ title, onHome, onNavigate, onOpenClient, onMenu
 
       {/* Right: clock, theme, session and window controls. */}
       <Box {...drag} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5, minWidth: 0 }}>
+        <BusinessDayChip onOpen={() => onNavigate('businessday')} />
         <Clock />
         {onVoice && <VoiceControl handle={onVoice} />}
         <Tooltip title={`Theme: ${mode} (switch to ${next})`}>

@@ -54,6 +54,8 @@ class ChequeReturnController {
     private record Found(Candidate c, int branch) {}
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final Db db;
     private final Clock clock;
     private final MemberLedgerPoster poster;
@@ -63,7 +65,9 @@ class ChequeReturnController {
     private final TransactionTemplate tx;
 
     ChequeReturnController(JdbcTemplate jdbc, Db db, Clock clock, MemberLedgerPoster poster, BankCashController banks, OverrideController overrides, DrawerBalances balances,
-                           PlatformTransactionManager txm) {
+                           PlatformTransactionManager txm, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.db = db;
         this.clock = clock;
@@ -239,7 +243,7 @@ class ChequeReturnController {
 
             MemberLedgerPoster.Account acct = poster.account(Master.SAVINGS, p.branch(), c.clientId(), c.typeCode(), c.refNo());
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
-            LocalDate day = now.toLocalDate();
+            LocalDate day = businessDay.postingDate(p.branch());
             int year = day.getYear();
             PostingPeriods.requireOpen(jdbc, p.branch(), day);
             long ctl = db.nextControlNumber(p.branch(), 1, 1, year);

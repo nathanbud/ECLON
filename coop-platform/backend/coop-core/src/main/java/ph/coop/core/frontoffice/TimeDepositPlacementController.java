@@ -60,6 +60,8 @@ class TimeDepositPlacementController {
                    int termDays, BigDecimal ratePercent, BigDecimal amount, BigDecimal fee, BigDecimal total, String cashier) {}
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final Db db;
     private final Clock clock;
     private final FrontOfficeAccess access;
@@ -67,7 +69,9 @@ class TimeDepositPlacementController {
     private final OverrideController overrides;
     private final TransactionTemplate tx;
 
-    TimeDepositPlacementController(JdbcTemplate jdbc, Db db, Clock clock, FrontOfficeAccess access, MemberLedgerPoster poster, OverrideController overrides, PlatformTransactionManager txm) {
+    TimeDepositPlacementController(JdbcTemplate jdbc, Db db, Clock clock, FrontOfficeAccess access, MemberLedgerPoster poster, OverrideController overrides, PlatformTransactionManager txm, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.db = db;
         this.clock = clock;
@@ -145,7 +149,7 @@ class TimeDepositPlacementController {
         TermRates known = x.terms().get(req.termDays());
         boolean needs = problems.isEmpty() && TimeDepositPlacementRules.rateNeedsApproval(req.ratePercent(), known);
         String approval = needs ? approvalStatus(x.p(), req) : "NOT_NEEDED";
-        LocalDate maturity = req.termDays() > 0 ? TimeDepositPlacementRules.maturity(LocalDate.now(clock), req.termDays()) : null;
+        LocalDate maturity = req.termDays() > 0 ? TimeDepositPlacementRules.maturity(businessDay.today(x.p().branch()), req.termDays()) : null;
         BigDecimal estimate = problems.isEmpty() ? TimeDepositRules.termInterest(amount, req.ratePercent(), req.termDays()) : null;
         boolean ready = problems.isEmpty() && (!needs || "APPROVED".equals(approval));
         return new Check(problems, maturity, estimate, fee, total, needs ? rateDescription(req) : null, approval, ready);
@@ -189,7 +193,7 @@ class TimeDepositPlacementController {
             BigDecimal amount = req.amount().setScale(2, RoundingMode.HALF_UP);
             BigDecimal fee = c.fee();
             List<ChequeRules.Cheque> cheques = poster.cheques(req.cheques(), req.confirmDuplicate());
-            LocalDate day = LocalDate.now(clock);
+            LocalDate day = businessDay.postingDate(p.branch());
 
             // the next certificate number of this type; the lock keeps two cashiers from taking the same one
             List<Integer> top = jdbc.queryForList("SELECT TDREF_NO FROM td WHERE TDBR_CODE = ? AND TDSLC_CODE = ? AND TDSLT_CODE = ? ORDER BY TDREF_NO DESC LIMIT 1 FOR UPDATE",

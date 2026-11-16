@@ -44,6 +44,8 @@ class LoanReleaseController {
     record Detail(Voucher voucher, List<Line> lines, List<String> problems) {}
 
     private final FrontOfficeAccess access;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final MemberLedgerPoster poster;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
@@ -51,7 +53,9 @@ class LoanReleaseController {
     private final SingleHandGrants single;
     private final ph.coop.core.loan.CoMakerHolds coMakerHolds;
 
-    LoanReleaseController(FrontOfficeAccess access, MemberLedgerPoster poster, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, SingleHandGrants single, ph.coop.core.loan.CoMakerHolds coMakerHolds) {
+    LoanReleaseController(FrontOfficeAccess access, MemberLedgerPoster poster, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, SingleHandGrants single, ph.coop.core.loan.CoMakerHolds coMakerHolds, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.single = single;
         this.coMakerHolds = coMakerHolds;
         this.access = access;
@@ -115,7 +119,8 @@ class LoanReleaseController {
             if ((v.approvedBy() == p.id() || v.encodedBy() == p.id()) && !single.has(auth.getName())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "The person who encoded or approved a release voucher cannot post it.");
             }
-            LocalDate day = LocalDate.now(clock);
+            LocalDate day = businessDay.postingDate(p.branch());
+            ph.coop.core.accounting.close.PostingPeriods.requireOpen(jdbc, p.branch(), day);
             Timestamp stamp = Timestamp.valueOf(LocalDateTime.now(clock).withNano(0));
             int updated = jdbc.update("UPDATE transdt SET DTPOSTBY = ?, DTUPD_TAG = ? WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTTR_CTLNO = ? AND DTUPD_TAG = ?",
                 p.id(), POSTED, p.branch(), year, MODULE, CODE, controlNo, PENDING);

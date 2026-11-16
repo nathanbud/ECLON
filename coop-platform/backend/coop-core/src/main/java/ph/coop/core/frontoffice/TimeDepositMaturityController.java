@@ -34,10 +34,14 @@ class TimeDepositMaturityController {
     record Notices(LocalDate asOf, int days, List<Notice> notices, int overdue, int maturingSoon, BigDecimal totalBalance) {}
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final Clock clock;
     private final FrontOfficeAccess access;
 
-    TimeDepositMaturityController(JdbcTemplate jdbc, Clock clock, FrontOfficeAccess access) {
+    TimeDepositMaturityController(JdbcTemplate jdbc, Clock clock, FrontOfficeAccess access, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.clock = clock;
         this.access = access;
@@ -59,7 +63,7 @@ class TimeDepositMaturityController {
     Notices maturities(@RequestParam(defaultValue = "30") int days, Authentication auth) {
         int branch = branch(auth);
         if (days < 0 || days > 365) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ask for 0 to 365 days ahead.");
-        LocalDate today = LocalDate.now(clock);
+        LocalDate today = businessDay.today(branch);
         List<Notice> all = jdbc.query("""
                 SELECT * FROM (
                   SELECT d.ClientIDTD AS cid, COALESCE(NULLIF(k.AccountName, ''), CONCAT_WS(', ', k.LName, k.FName)) AS cname, d.TDSLT_CODE AS slt, t.SLTypeM_DESC AS tname, d.TDREF_NO AS ref,

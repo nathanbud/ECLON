@@ -63,6 +63,8 @@ class LoanPaymentController {
     static final String PENALTY_KIND = "LOAN_PENALTY";
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final Db db;
     private final FrontOfficeAccess access;
     private final MemberLedgerPoster poster;
@@ -70,7 +72,9 @@ class LoanPaymentController {
     private final TransactionTemplate tx;
     private final java.time.Clock clock;
 
-    LoanPaymentController(JdbcTemplate jdbc, Db db, FrontOfficeAccess access, MemberLedgerPoster poster, LoanBook book, PlatformTransactionManager txManager, java.time.Clock clock) {
+    LoanPaymentController(JdbcTemplate jdbc, Db db, FrontOfficeAccess access, MemberLedgerPoster poster, LoanBook book, PlatformTransactionManager txManager, java.time.Clock clock, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.db = db;
         this.clock = clock;
@@ -87,7 +91,7 @@ class LoanPaymentController {
         access.requireNew(perms, SharePaymentRules.CASH_RECEIPT);
         Person p = poster.person(auth.getName());
         BigDecimal amount = req.amount() == null || req.amount().stripTrailingZeros().scale() > 2 ? null : req.amount().setScale(2, java.math.RoundingMode.UNNECESSARY);
-        return breakdown(p, req, amount, poster.client(p.branch(), req.clientId()), LocalDate.now(clock));
+        return breakdown(p, req, amount, poster.client(p.branch(), req.clientId()), businessDay.today(p.branch()));
     }
 
     @PostMapping
@@ -100,7 +104,7 @@ class LoanPaymentController {
         BigDecimal amount = req.amount().setScale(2, java.math.RoundingMode.UNNECESSARY);
         return tx.execute((st) -> {
             Client c = poster.client(p.branch(), req.clientId());
-            LocalDate today = LocalDate.now(clock);
+            LocalDate today = businessDay.postingDate(p.branch());
             Breakdown b = breakdown(p, req, amount, c, today);
             if (!b.problems().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", b.problems()));
             LoanBook.Terms t = book.terms(p.branch(), req.clientId(), req.typeCode(), req.refNo()).orElseThrow();

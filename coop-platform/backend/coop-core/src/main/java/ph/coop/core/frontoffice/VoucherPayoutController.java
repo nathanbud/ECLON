@@ -52,6 +52,8 @@ class VoucherPayoutController {
     record Receipt(int branchCode, int year, long controlNo, String documentNo, String date, int clientId, String clientName, int refNo, BigDecimal amount, String cashier) {}
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final Db db;
     private final Clock clock;
     private final FrontOfficeAccess access;
@@ -59,7 +61,9 @@ class VoucherPayoutController {
     private final DrawerBalances balances;
     private final TransactionTemplate tx;
 
-    VoucherPayoutController(JdbcTemplate jdbc, Db db, Clock clock, FrontOfficeAccess access, MemberLedgerPoster poster, DrawerBalances balances, PlatformTransactionManager txm) {
+    VoucherPayoutController(JdbcTemplate jdbc, Db db, Clock clock, FrontOfficeAccess access, MemberLedgerPoster poster, DrawerBalances balances, PlatformTransactionManager txm, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.db = db;
         this.clock = clock;

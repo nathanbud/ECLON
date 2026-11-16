@@ -48,6 +48,8 @@ class BankCashController {
     record Posted(int year, long controlNo, String documentNo, String bank, BigDecimal amount, BigDecimal vaultAfter) {}
 
     private final FrontOfficeAccess access;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final MemberLedgerPoster poster;
     private final JdbcTemplate jdbc;
     private final Db db;
@@ -55,7 +57,9 @@ class BankCashController {
     private final DrawerBalances balances;
     private final TransactionTemplate tx;
 
-    BankCashController(FrontOfficeAccess access, MemberLedgerPoster poster, JdbcTemplate jdbc, Db db, Clock clock, DrawerBalances balances, PlatformTransactionManager txm) {
+    BankCashController(FrontOfficeAccess access, MemberLedgerPoster poster, JdbcTemplate jdbc, Db db, Clock clock, DrawerBalances balances, PlatformTransactionManager txm, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.access = access;
         this.poster = poster;
         this.jdbc = jdbc;
@@ -131,7 +135,7 @@ class BankCashController {
                 if (book.compareTo(amount) < 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The ledger shows only " + book.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + " in " + bank.name() + ".");
             }
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
-            LocalDate day = now.toLocalDate();
+            LocalDate day = businessDay.postingDate(branch);
             int year = day.getYear();
             PostingPeriods.requireOpen(jdbc, branch, day);
             long ctl = db.nextControlNumber(branch, MODULE, code, year);

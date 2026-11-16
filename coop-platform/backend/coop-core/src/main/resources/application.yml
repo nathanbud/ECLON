@@ -33,6 +33,10 @@ coop:
   dev-auth:
     username: ${DEV_API_USER}
     password: ${DEV_API_PASSWORD}
+  business-day:
+    # Teller and front-office postings carry the branch's open business date (Front Office > Business Day: Start Day, End Day) and are refused
+    # while no day is open. Off only for the backend tests (src/test/resources/config/application.yml).
+    required: ${COOP_BUSINESS_DAY_REQUIRED:true}
   edit:
     # Member editing writes to the legacy client table. Off unless COOP_EDIT_ENABLED=true, and even then only
     # when the audit table exists. Run the app as a limited database user, not root, before turning it on.

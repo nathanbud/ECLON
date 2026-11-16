@@ -5,10 +5,11 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FiChevronLeft, FiChevronRight, FiCopy, FiEdit2, FiPlus, FiPrinter, FiSave, FiSearch, FiTrash2, FiX } from 'react-icons/fi'
+import PassbookPanel from './PassbookPanel'
 import {
   createFoDraft, deleteFoDraft, getFoDraft, getFoDuplicates, getFoSetup, getFoTellerTotals, getFoTransaction, getLookups, listFoTransactions, updateFoDraft,
   type FoClientAccount, type FoColumn, type FoDraftPayload, type FoDraftRow, type FoSetup, type FoSummary,
-  getTdMaturityCount,
+  getTdMaturityCount, getBusinessDayStatus,
 } from './api'
 import CashHandoverPanel from './CashHandoverPanel'
 import { BankCashPanel } from './BankCashPanel'
@@ -209,7 +210,22 @@ function Count({ n }: { n: number }) {
   )
 }
 
-export default function FrontOfficePage() {
+/** Says so above the transactions while no business day is open (nothing can be posted), or while the open one is not today. */
+function BusinessDayNotice({ onOpen }: { onOpen?: () => void }) {
+  const q = useQuery({ queryKey: ['business-day-status'], queryFn: getBusinessDayStatus, refetchInterval: 60_000, retry: false, staleTime: 15_000 })
+  const s = q.data
+  if (!s || !s.inUse) return null
+  const action = onOpen && <Button color="inherit" size="small" onClick={onOpen}>Business Day</Button>
+  if (!s.openDate) {
+    return <Alert severity="warning" sx={{ flexShrink: 0 }} action={action}>No business day is open, so nothing can be posted. Someone with the Start Day right starts it in Business Day.</Alert>
+  }
+  if (s.openDate !== s.calendarDate) {
+    return <Alert severity="info" sx={{ flexShrink: 0 }} action={action}>Postings are dated on the open business day, {s.openWords}, not today. End Day closes it.</Alert>
+  }
+  return null
+}
+
+export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () => void } = {}) {
   const qc = useQueryClient()
   const me = useMe()
   const { data: setup, error, isLoading } = useQuery({ queryKey: ['fo-setup'], queryFn: getFoSetup, staleTime: 5 * 60_000 })
@@ -554,6 +570,8 @@ export default function FrontOfficePage() {
       <Snackbar open={!!notice} autoHideDuration={3500} onClose={() => setNotice(null)} message={notice} />
       <ReceiptDialog detail={txn.data} user={me.username} open={receipt} onClose={() => setReceipt(false)} />
 
+      <BusinessDayNotice onOpen={onBusinessDay} />
+
       {/* Areas of work, and (only where an area has several) the kinds inside it */}
       <Box sx={(t) => ({ flexShrink: 0, ...glass(t) })}>
         <Tabs
@@ -637,7 +655,7 @@ export default function FrontOfficePage() {
           : tab === 'accounts'
           ? <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}><SavingsTellerPanel setup={setup} /></Box>
           : tab === 'passbook'
-          ? <Typography sx={{ p: 4, textAlign: 'center' }} color="text.secondary">Passbook printing is coming soon.</Typography>
+          ? <PassbookPanel />
           : txn.isLoading && shown.kind === 'txn'
             ? <Skeleton variant="rounded" sx={{ flex: 1 }} />
             : txn.error

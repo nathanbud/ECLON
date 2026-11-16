@@ -65,10 +65,14 @@ class MemberLedgerPoster {
     private static final int PRINCIPAL = 11;
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final java.time.Clock clock;
     private final Ledger ledger;
 
-    MemberLedgerPoster(JdbcTemplate jdbc, java.time.Clock clock, Ledger ledger) {
+    MemberLedgerPoster(JdbcTemplate jdbc, java.time.Clock clock, Ledger ledger, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.clock = clock;
         this.ledger = ledger;

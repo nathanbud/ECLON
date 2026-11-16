@@ -1,0 +1,5 @@
+# Test-only settings, layered over src/main/resources/application.yml (Spring Boot reads classpath:/config/ after classpath:/).
+coop:
+  # The tests post through the real code on the server's own date; the business day's own tests (BusinessDayTest) switch it back on.
+  business-day:
+    required: false

@@ -59,6 +59,8 @@ class TimeDepositAccrualController {
     record VoucherRow(int year, long controlNo, String documentNo, int typeCode, int lines, BigDecimal total, int encodedBy, Integer approvedBy, String status) {}
 
     private final FrontOfficeAccess access;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final MemberLedgerPoster poster;
     private final TimeDepositAccrualRun run;
     private final JdbcTemplate jdbc;
@@ -66,7 +68,9 @@ class TimeDepositAccrualController {
     private final Clock clock;
     private final Db db;
 
-    TimeDepositAccrualController(FrontOfficeAccess access, MemberLedgerPoster poster, TimeDepositAccrualRun run, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db) {
+    TimeDepositAccrualController(FrontOfficeAccess access, MemberLedgerPoster poster, TimeDepositAccrualRun run, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.access = access;
         this.poster = poster;
         this.run = run;
@@ -155,6 +159,8 @@ class TimeDepositAccrualController {
         if (!g.types().containsAll(wanted)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Those types do not belong to this kind of accrual.");
         return tx.execute((st) -> {
             PostingPeriods.requireOpen(jdbc, p.branch(), to);
+            // a run posts on its own period-end date, but only while the branch has a business day open
+            businessDay.requireStarted(p.branch());
             Set<Integer> done = encodedTypes(p.branch(), to);
             for (int t : wanted) if (done.contains(t)) throw new ResponseStatusException(HttpStatus.CONFLICT, typeName(t) + " already has an accrual voucher dated " + to + ", so it cannot be run again.");
             Plan plan = run.plan(p.branch(), g, to);
@@ -276,6 +282,7 @@ class TimeDepositAccrualController {
         Perms perms = access.of(auth);
         requireNew(perms);
         Person p = poster.person(auth.getName());
+        businessDay.requireStarted(p.branch());
         return tx.execute((st) -> {
             List<Line> lines = lines(p.branch(), year, controlNo, true);
             List<String> problems = problems(lines);
