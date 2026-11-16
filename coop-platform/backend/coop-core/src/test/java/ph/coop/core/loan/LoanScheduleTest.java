@@ -57,4 +57,50 @@ class LoanScheduleTest {
         assertThrows(IllegalArgumentException.class, () -> LoanSchedule.diminishing(bd("1000"), 6, 2, bd("10"), LocalDate.of(2026, 1, 1)));
         assertThrows(IllegalArgumentException.class, () -> LoanSchedule.diminishing(bd("1000"), 4, LoanSchedule.QUARTERLY, bd("10"), LocalDate.of(2026, 1, 1)));
     }
+
+    // ---- annuity: expected rows are copied from real `amortsched` rows ----
+
+    @Test
+    void annuityWithThirtyDayMonthsMatchesARealSalaryLoan() {
+        List<LoanSchedule.Row> r = LoanSchedule.annuity(bd("80000.00"), 12, LoanSchedule.MONTHLY, bd("10"), LocalDate.of(2026, 3, 18), true);
+        assertEquals(13, r.size());
+        assertEquals(new LoanSchedule.Row(LocalDate.of(2026, 4, 18), bd("6370.65"), bd("657.53"), bd("73629.35")), r.get(1));
+        assertEquals(new LoanSchedule.Row(LocalDate.of(2026, 5, 18), bd("6423.01"), bd("605.17"), bd("67206.34")), r.get(2));
+        assertEquals(new LoanSchedule.Row(LocalDate.of(2027, 3, 18), bd("6970.82"), bd("57.29"), bd("0.00")), r.get(12));
+    }
+
+    @Test
+    void annuityPaysTheSameAmountEveryTimeExceptTheLast() {
+        List<LoanSchedule.Row> r = LoanSchedule.annuity(bd("2500000.00"), 120, LoanSchedule.MONTHLY, bd("10"), LocalDate.of(2019, 6, 17), true);
+        assertEquals(new LoanSchedule.Row(LocalDate.of(2019, 7, 17), bd("12300.38"), bd("20547.95"), bd("2487699.62")), r.get(1));
+        assertEquals(bd("12401.48"), r.get(2).principalDue());
+        BigDecimal level = r.get(1).principalDue().add(r.get(1).interestDue());
+        for (int i = 2; i < 120; i++) {
+            BigDecimal total = r.get(i).principalDue().add(r.get(i).interestDue());
+            assertEquals(0, level.subtract(total).abs().compareTo(new BigDecimal("0.01")) <= 0 ? 0 : 1, "payment " + i);
+        }
+        assertEquals(bd("0.00"), r.get(120).principalBalance());
+    }
+
+    @Test
+    void annuityWithRealDaysCountsTheDaysBetweenDueDates() {
+        List<LoanSchedule.Row> r = LoanSchedule.annuity(bd("500000.00"), 120, LoanSchedule.MONTHLY, bd("10"), LocalDate.of(2023, 7, 28), false);
+        assertEquals(new LoanSchedule.Row(LocalDate.of(2023, 8, 28), bd("2323.09"), bd("4246.58"), bd("497676.91")), r.get(1));
+        assertEquals(new LoanSchedule.Row(LocalDate.of(2023, 9, 28), bd("2342.83"), bd("4226.84"), bd("495334.08")), r.get(2));
+        assertEquals(new LoanSchedule.Row(LocalDate.of(2023, 10, 28), bd("2498.43"), bd("4071.24"), bd("492835.65")), r.get(3));
+    }
+
+    @Test
+    void annuityLumpSumIsOnePaymentOfPrincipalAndInterest() {
+        List<LoanSchedule.Row> r = LoanSchedule.annuity(bd("100000.00"), 6, LoanSchedule.LUMP_SUM, bd("10"), LocalDate.of(2026, 1, 15), true);
+        assertEquals(2, r.size());
+        assertEquals(bd("100000.00"), r.get(1).principalDue());
+        assertEquals(bd("4931.51"), r.get(1).interestDue());
+    }
+
+    @Test
+    void annuityRefusesUnmappedModes() {
+        assertThrows(IllegalArgumentException.class, () -> LoanSchedule.annuity(bd("1000"), 6, 2, bd("10"), LocalDate.of(2026, 1, 1), true));
+        assertThrows(IllegalArgumentException.class, () -> LoanSchedule.annuity(bd("1000"), 4, LoanSchedule.QUARTERLY, bd("10"), LocalDate.of(2026, 1, 1), true));
+    }
 }

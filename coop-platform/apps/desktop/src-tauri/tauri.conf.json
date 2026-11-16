@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Coop Platform",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "ph.coop.platform",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -15,7 +15,7 @@
         "title": "Coop Platform",
         "width": 1100,
         "minWidth": 900,
-        "height": 700,
+        "height": 720,
         "minHeight": 600,
         "resizable": true,
         "decorations": false,
@@ -28,7 +28,22 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "msi"],
+    "publisher": "NSK Tech",
+    "copyright": "Copyright © 2026 NSK Tech",
+    "category": "Business",
+    "shortDescription": "Coop Platform",
+    "longDescription": "Enterprise Cooperative Information System: membership, share capital, savings, loans, teller, accounting and more.",
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "nsis": {
+        "installMode": "perMachine",
+        "displayLanguageSelector": false
+      },
+      "wix": {
+        "upgradeCode": "5e8a3205-667b-499c-a0d9-522b6fd2f87d"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

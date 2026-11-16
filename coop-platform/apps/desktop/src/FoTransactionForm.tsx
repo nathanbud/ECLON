@@ -7,6 +7,9 @@ import { FiPlus, FiTrash2 } from 'react-icons/fi'
 import { getFoClientAccounts, searchFoAccounts, searchMembers, type FoAllocation, type FoCash, type FoClientAccount, type FoCheque, type FoSetup, type FoTypeInfo } from './api'
 import { displayName, memberNo } from './clients'
 import { glass } from './glass'
+import MoneyField from './MoneyField'
+import { AccountPicker, type PickedAccount } from './ui/AccountPicker'
+import { money } from './ui/format'
 
 // ---- the form's data ----------------------------------------------------------------------------------------------
 
@@ -45,11 +48,11 @@ export const formTotals = (lines: FoLineState[]) => {
   const credit = lines.reduce((a, l) => a + num(l.credit), 0)
   return { debit, credit, difference: Math.round((debit - credit) * 100) / 100 }
 }
-export const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+export { money }
 
 // ---- small inputs -------------------------------------------------------------------------------------------------
 
-const box = { '& .MuiOutlinedInput-root': { fontSize: 14 }, '& .MuiInputLabel-root': { fontSize: 13 } } as const
+const box = { '& .MuiOutlinedInput-root': { fontSize: 13 }, '& .MuiInputLabel-root': { fontSize: 13 } } as const
 
 /** A text input that is read-only when the form is not being edited. */
 function Text({ label, value, onChange, editing, type, width, align, multiline }: {
@@ -67,54 +70,17 @@ function Text({ label, value, onChange, editing, type, width, align, multiline }
 
 function Amount({ value, onChange, label, onEnter }: { value: string; onChange: (v: string) => void; label: string; onEnter?: () => void }) {
   return (
-    <TextField
-      value={value} onChange={(e) => onChange(e.target.value.replace(/[^0-9.,]/g, ''))} size="small" placeholder="0.00"
+    <MoneyField
+      value={value} onValueChange={onChange} size="small" placeholder="0.00"
       onKeyDown={(e) => { if (e.key === 'Enter' && onEnter) { e.preventDefault(); onEnter() } }}
-      slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-label': label, style: { textAlign: 'right' } } }} sx={{ ...box, width: 130 }}
+      slotProps={{ htmlInput: { 'aria-label': label } }} sx={{ ...box, width: 130 }}
     />
   )
-}
-
-const RECENT_KEY = 'coop.foRecentAccounts'
-type Account = { code: string; description: string }
-const readRecent = (): Account[] => {
-  try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') } catch { return [] }
-}
-const remember = (a: Account) => {
-  try { localStorage.setItem(RECENT_KEY, JSON.stringify([a, ...readRecent().filter((x) => x.code !== a.code)].slice(0, 8))) } catch { /* storage unavailable */ }
 }
 
 /** Searches the chart of accounts as you type. With nothing typed it offers the accounts you used last. */
-function AccountPicker({ code, desc, onPick, label, autoFocus }: { code: string; desc: string; onPick: (a: Account | null) => void; label: string; autoFocus?: boolean }) {
-  const [input, setInput] = useState('')
-  const [q, setQ] = useState('')
-  useEffect(() => {
-    const t = setTimeout(() => setQ(input.trim()), 200)
-    return () => clearTimeout(t)
-  }, [input])
-  const { data } = useQuery({ queryKey: ['fo-accounts', q], queryFn: () => searchFoAccounts(q), enabled: q.length >= 1, staleTime: 60_000 })
-  const value = code ? { code, description: desc } : null
-  const options = q.length >= 1 ? data ?? [] : readRecent()
-  return (
-    <Autocomplete
-      size="small" options={options} value={value} filterOptions={(o) => o} autoHighlight openOnFocus
-      getOptionLabel={(o) => o.code} isOptionEqualToValue={(a, b) => a.code === b.code}
-      groupBy={() => (q.length >= 1 ? 'Accounts' : 'Recently used')}
-      onChange={(_, v) => { if (v) remember(v); onPick(v) }} onInputChange={(_, v, reason) => { if (reason === 'input') setInput(v) }}
-      noOptionsText="Type an account code or name"
-      renderOption={(props, o) => {
-        const { key, ...rest } = props as typeof props & { key: string }
-        return (
-          <Box component="li" key={key} {...rest} sx={{ display: 'flex', gap: 1.5 }}>
-            <Typography sx={{ fontSize: 13.5, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{o.code}</Typography>
-            <Typography noWrap sx={{ fontSize: 13 }} color="text.secondary">{o.description}</Typography>
-          </Box>
-        )
-      }}
-      renderInput={(params) => <TextField {...params} autoFocus={autoFocus} placeholder="Account" slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps.htmlInput, 'aria-label': label } }} sx={box} />}
-      sx={{ width: 150 }} slotProps={{ popper: { style: { minWidth: 320 } } }}
-    />
-  )
+function FoAccountPicker(p: { code: string; desc: string; onPick: (a: PickedAccount | null) => void; label: string; autoFocus?: boolean }) {
+  return <AccountPicker {...p} search={searchFoAccounts} recentKey="coop.foRecentAccounts" sx={box} />
 }
 
 /** Finds a client by name or member ID. */
@@ -170,10 +136,10 @@ function QuickEntry({ clientId, side, onAdd, cashName }: { clientId: number | nu
               {accounts.map((a) => <MenuItem key={`${a.slc}-${a.slt}-${a.refNo}`} value={`${a.slc}-${a.slt}-${a.refNo}`}>{a.type}{a.number ? ` · ${a.number}` : ` · ${a.refNo}`}</MenuItem>)}
             </TextField>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-              <TextField
-                label="Amount" size="small" fullWidth value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.,]/g, ''))}
+              <MoneyField
+                label="Amount" size="small" fullWidth value={amount} onValueChange={setAmount}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
-                slotProps={{ inputLabel: { shrink: true }, htmlInput: { inputMode: 'decimal', style: { textAlign: 'right' } } }} sx={box} placeholder="0.00"
+                slotProps={{ inputLabel: { shrink: true } }} sx={box} placeholder="0.00"
               />
               <Button variant="contained" size="small" disabled={!ready} onClick={add} sx={{ whiteSpace: 'nowrap', height: 40 }}>Add entries</Button>
             </Box>
@@ -275,8 +241,8 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
               const a = extras.allocations.find((x) => x.label === label)?.amount ?? 0
               return (
                 <Box key={label} sx={{ display: 'contents' }}>
-                  <Typography sx={{ fontSize: 13.5 }}>{label}</Typography>
-                  <Typography sx={{ fontSize: 13.5, fontVariantNumeric: 'tabular-nums', textAlign: 'right', opacity: a ? 1 : 0.4 }}>{a ? money(a) : '—'}</Typography>
+                  <Typography sx={{ fontSize: 13 }}>{label}</Typography>
+                  <Typography sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', textAlign: 'right', opacity: a ? 1 : 0.4 }}>{a ? money(a) : '—'}</Typography>
                 </Box>
               )
             })}
@@ -292,12 +258,12 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
       {/* Right: the entries */}
       <Box sx={(t) => ({ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, ...glass(t) })}>
         <Box sx={{ display: 'flex', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={panel} onChange={(_, v) => setPanel(v)} aria-label="Transaction details" sx={{ flex: 1, minHeight: 40, '& .MuiTab-root': { minHeight: 40, fontSize: 13.5 } }}>
+          <Tabs value={panel} onChange={(_, v) => setPanel(v)} aria-label="Transaction details" sx={{ flex: 1, minHeight: 40, '& .MuiTab-root': { minHeight: 40, fontSize: 13 } }}>
             <Tab label="GL/SL Entries" /><Tab label={`COCI Details${extras.cheques.length ? ` (${extras.cheques.length})` : ''}`} /><Tab label="Cash Denomination" />
           </Tabs>
           <Box sx={{ px: 2, textAlign: 'right' }}>
             <Typography sx={{ fontSize: 11 }} color="text.secondary">Total</Typography>
-            <Typography sx={{ fontSize: 18, fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{money(totals.debit)}</Typography>
+            <Typography sx={{ fontSize: 17, fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{money(totals.debit)}</Typography>
           </Box>
         </Box>
 
@@ -318,7 +284,7 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
                     <TableCell sx={{ minWidth: 160 }}>{l.accountDesc || (editing ? '' : '—')}</TableCell>
                     <TableCell>
                       {editing
-                        ? <AccountPicker code={l.accountCode} desc={l.accountDesc} label={`Entry ${i + 1} account`} autoFocus={l.key === focusKey} onPick={(a) => setLine(l.key, { accountCode: a?.code ?? '', accountDesc: a?.description ?? '' })} />
+                        ? <FoAccountPicker code={l.accountCode} desc={l.accountDesc} label={`Entry ${i + 1} account`} autoFocus={l.key === focusKey} onPick={(a) => setLine(l.key, { accountCode: a?.code ?? '', accountDesc: a?.description ?? '' })} />
                         : l.accountCode}
                     </TableCell>
                     <TableCell>
@@ -363,7 +329,7 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
 
           {panel === 1 && (
             extras.cheques.length === 0
-              ? <Typography sx={{ p: 2.5, fontSize: 13.5 }} color="text.secondary">{editing ? 'Cheque details are not part of drafts yet.' : 'This transaction has no cheques.'}</Typography>
+              ? <Typography sx={{ p: 2.5, fontSize: 13 }} color="text.secondary">{editing ? 'Cheque details are not part of drafts yet.' : 'This transaction has no cheques.'}</Typography>
               : (
                 <Table size="small" stickyHeader aria-label="Cheques">
                   <TableHead><TableRow><TableCell>#</TableCell><TableCell>Type</TableCell><TableCell>Cheque no.</TableCell><TableCell>Bank</TableCell><TableCell>Cheque date</TableCell><TableCell>Payee</TableCell><TableCell align="right">Amount</TableCell><TableCell>Cleared</TableCell></TableRow></TableHead>
@@ -401,7 +367,7 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
                 </Table>
               )
               : extras.cash.length === 0
-                ? <Typography sx={{ p: 2.5, fontSize: 13.5 }} color="text.secondary">No cash denominations were recorded for this transaction.</Typography>
+                ? <Typography sx={{ p: 2.5, fontSize: 13 }} color="text.secondary">No cash denominations were recorded for this transaction.</Typography>
                 : (
                   <Table size="small" stickyHeader aria-label="Cash denominations">
                     <TableHead><TableRow><TableCell>Denomination</TableCell><TableCell align="right">Count</TableCell><TableCell align="right">Amount</TableCell></TableRow></TableHead>
@@ -433,11 +399,11 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
               )}
             </Box>
           )}
-          <Typography sx={{ fontSize: 13.5, color: balanced ? 'text.primary' : 'error.main' }}>
+          <Typography sx={{ fontSize: 13, color: balanced ? 'text.primary' : 'error.main' }}>
             Difference: <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(totals.difference)}</b>{!balanced && ' (debits and credits do not match)'}
           </Typography>
-          <Typography sx={{ fontSize: 13.5 }}>Debit: <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(totals.debit)}</b></Typography>
-          <Typography sx={{ fontSize: 13.5 }}>Credit: <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(totals.credit)}</b></Typography>
+          <Typography sx={{ fontSize: 13 }}>Debit: <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(totals.debit)}</b></Typography>
+          <Typography sx={{ fontSize: 13 }}>Credit: <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(totals.credit)}</b></Typography>
         </Box>
       </Box>
     </Box>

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/lookups")
-public class LookupController {
+public class LookupController implements ph.coop.core.connection.OnConnectionSwitch {
 
     // lookup name -> {table, id column, description column}; fixed strings, never built from user input.
     private static final Map<String, String[]> SOURCES = Map.ofEntries(
@@ -38,6 +38,7 @@ public class LookupController {
         Map.entry("restrik", new String[] {"restrik", "RestrikID", "RestrikDesc"}),
         Map.entry("branch", new String[] {"branches", "BranchesID", "BranchesDesc"}),
         Map.entry("user", new String[] {"access", "AccessID", "AccessUserName"}),
+        Map.entry("relation", new String[] {"relation", "RelationID", "RelationDesc"}),
         Map.entry("billType", new String[] {"billtype", "BillTypeID", "BillTypeDesc"}),
         Map.entry("billStatus", new String[] {"billstat", "BillStatID", "BillStatDesc"}));
 
@@ -46,6 +47,12 @@ public class LookupController {
 
     LookupController(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
+    }
+
+    /** The lists belong to the database that was read, so a switch to another one starts them again. */
+    @Override
+    public void connectionSwitched() {
+        cache = null;
     }
 
     @GetMapping

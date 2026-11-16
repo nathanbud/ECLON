@@ -1,6 +1,8 @@
 package ph.coop.core.loan;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.accounting.close.PostingPeriods;
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.db.Db;
+import ph.coop.core.frontoffice.FrontOfficeAccess;
 
 /**
  * Verify and approve a loan application (statuses New 1, Verified 2, Approved 3). Approving creates the release voucher the way the old system
@@ -35,16 +38,36 @@ public class LoanApplicationWorkflowController {
 
     private static final int LOAN_CLASS = 12, NEW = 1, VERIFIED = 2, APPROVED = 3, MODULE = 2, VOUCHER = 21, PENDING = 2;
 
+    /**
+     * An application as the lists show it. For an approved one, approvedOn is the day it was approved and releaseStatus where its release voucher
+     * stands (WAITING FOR APPROVAL, APPROVED, POSTED; null when the voucher is not found), with releasedOn the day it was posted. All three are null
+     * before approval.
+     */
     public record Item(long id, String documentNo, int clientId, String clientName, int typeCode, String typeName, int refNo, BigDecimal amount, int terms, int status, String statusName,
-                String encodedByName, String date) {}
+                String encodedByName, String date, Integer voucherYear, Long voucherControlNo, int branchCode, boolean waitingForDeductions,
+                String approvedOn, String releaseStatus, String releasedOn) {
+
+        Item withRelease(String release, String on) {
+            return new Item(id, documentNo, clientId, clientName, typeCode, typeName, refNo, amount, terms, status, statusName, encodedByName, date, voucherYear,
+                voucherControlNo, branchCode, waitingForDeductions, approvedOn, release, on);
+        }
+    }
+
+    /** Approved applications stay on the waiting list this many days after approval while their release is not posted. */
+    static final int RELEASE_WAIT_DAYS = 60;
+    /** Released applications stay on the list this many days after the release was posted. */
+    static final int RELEASED_SHOWN_DAYS = 30;
 
     record Row(String account, String description, BigDecimal amount) {}
 
-    record Detail(Item item, List<Row> lines, BigDecimal totalDeductions, BigDecimal netProceeds, List<String> problems) {}
+    record Detail(Item item, List<Row> lines, BigDecimal totalDeductions, BigDecimal netProceeds, List<String> problems, List<CoMakerHolds.Saved> coMakerHolds) {}
 
     public record Approved(long applicationId, int year, long voucherControlNo, String voucherDocumentNo) {}
 
-    private record Staff(int id, int branch, boolean canAdd, boolean canVerify, boolean canApprove) {}
+    /** canAdd is "1 · Profiling", canDeduct "2 · Deduction". */
+    private record Staff(int id, int branch, boolean canAdd, boolean canVerify, boolean canApprove, boolean canDeduct) {
+        boolean anyStep() { return canAdd || canDeduct || canVerify || canApprove; }
+    }
 
     public record Reason(String reason) {}
 
@@ -53,14 +76,25 @@ public class LoanApplicationWorkflowController {
     private record Prepared(Item item, int encoder, int dept, int loanStatus, int netRef, List<VLine> lines, BigDecimal deductions, BigDecimal net, List<String> problems) {}
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final TransactionTemplate tx;
     private final Clock clock;
     private final Db db;
     private final SingleHandGrants single;
     private final LoanBook book;
+    private final CoMakerHolds holds;
+    private final LoanSteps steps;
+    private final FrontOfficeAccess frontOffice;
 
-    LoanApplicationWorkflowController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, SingleHandGrants single, LoanBook book) {
+    LoanApplicationWorkflowController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, SingleHandGrants single, LoanBook book, CoMakerHolds holds, LoanSteps steps,
+                                      FrontOfficeAccess frontOffice, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
+        this.steps = steps;
+        this.frontOffice = frontOffice;
         this.book = book;
+        this.holds = holds;
         this.jdbc = jdbc;
         this.tx = new TransactionTemplate(txm);
         this.clock = clock;
@@ -70,33 +104,85 @@ public class LoanApplicationWorkflowController {
 
     private static final String ITEM_SQL = """
             SELECT a.ID, a.DOC_NO, a.CLIENTID, CONCAT_WS(' ', k.LName, k.FName), a.SLT_CODE, t.SLTypeM_DESC, a.REF_NO, l.LoanPAMT, l.LoanTERMS, a.STATUSID, a.TR_DATE,
-                   (SELECT CONCAT_WS(' ', e.AccessFName, e.AccessLName) FROM access e WHERE e.AccessBR_CODE = a.BR_CODE AND e.AccessID = a.ENCDBY)
+                   (SELECT CONCAT_WS(' ', e.AccessFName, e.AccessLName) FROM access e WHERE e.AccessBR_CODE = a.BR_CODE AND e.AccessID = a.ENCDBY),
+                   a.TR_CTLNO, a.APPRV_DATE, a.BR_CODE, %s
             FROM loanapp a
             JOIN loan l ON l.LoanBR_CODE = a.BR_CODE AND l.LoanSLC_CODE = a.SLC_CODE AND l.LoanSLT_CODE = a.SLT_CODE AND l.LoanREF_NO = a.REF_NO
             LEFT JOIN client k ON k.ClientIDBrCode = a.BR_CODE AND k.ClientID = a.CLIENTID
             LEFT JOIN sltype t ON t.SLTypeBR_CODE = a.BR_CODE AND t.SLTypeSLC_CODE = a.SLC_CODE AND t.SLTypeSLT_CODE = a.SLT_CODE
             """;
 
+    /** The item query, with "waiting for deductions" from the step table where this database has it. */
+    private String itemSql() {
+        return ITEM_SQL.formatted(steps.waitingSql("a"));
+    }
+
     private static Item item(java.sql.ResultSet rs) throws java.sql.SQLException {
         int st = rs.getInt(10);
+        // The release voucher's number is set when the application is approved; it was dated that day, which gives its year.
+        Number ctl = st == APPROVED ? (Number) rs.getObject(13) : null;
         return new Item(rs.getLong(1), rs.getString(2), rs.getInt(3), rs.getString(4), rs.getInt(5), rs.getString(6), rs.getInt(7), rs.getBigDecimal(8), rs.getInt(9), st,
-            st == NEW ? "New" : st == VERIFIED ? "Verified" : st == APPROVED ? "Approved" : "Status " + st, rs.getString(12), String.valueOf(rs.getDate(11)));
+            st == NEW ? "New" : st == VERIFIED ? "Verified" : st == APPROVED ? "Approved" : "Status " + st, rs.getString(12), String.valueOf(rs.getDate(11)),
+            ctl == null ? null : rs.getDate(14).toLocalDate().getYear(), ctl == null ? null : ctl.longValue(), rs.getInt(15), rs.getInt(16) > 0,
+            st == APPROVED && rs.getDate(14) != null ? rs.getDate(14).toLocalDate().toString() : null, null, null);
+    }
+
+    /**
+     * Adds where the release stands to an approved application: read from its release voucher (the lines' update tag and approver, as the Disburse
+     * screen reads them) and, once posted, the day from the loan's own release row in the member ledger (class 12, event 11, written by that voucher).
+     * Read only; both reads use the tables' primary keys.
+     */
+    private Item release(Item it) {
+        if (it.status() != APPROVED || it.voucherYear() == null || it.voucherControlNo() == null) return it;
+        List<Object[]> v = jdbc.query("""
+                SELECT COUNT(*), MIN(DTUPD_TAG), MAX(DTAPPRVBY) FROM transdt
+                WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTTR_CTLNO = ?
+                """, (rs, i) -> new Object[] {rs.getInt(1), rs.getInt(2), rs.getObject(3)}, it.branchCode(), it.voucherYear(), MODULE, VOUCHER, it.voucherControlNo());
+        if (v.isEmpty() || (int) v.get(0)[0] == 0) return it;
+        if ((int) v.get(0)[1] == PENDING) return it.withRelease(v.get(0)[2] == null ? "WAITING FOR APPROVAL" : "APPROVED", null);
+        List<java.sql.Date> on = jdbc.queryForList("""
+                SELECT MIN(TR_DATE) FROM sldtl
+                WHERE SL_BRCODE = ? AND SL_CLIENTID = ? AND SLC_CODE = ? AND SLT_CODE = ? AND REF_NO = ? AND SLE_CODE = 11 AND TR_CODE = ? AND TR_CTLNO = ?
+                """, java.sql.Date.class, it.branchCode(), it.clientId(), LOAN_CLASS, it.typeCode(), it.refNo(), VOUCHER, it.voucherControlNo());
+        return it.withRelease("POSTED", on.isEmpty() || on.get(0) == null ? null : on.get(0).toLocalDate().toString());
     }
 
     /** Applications waiting to be verified or approved. */
+    /**
+     * What the signed-in person may do with loan applications (the old system's flags in access), so the form can say so before anything is typed.
+     * canRelease is 5 · Loan Release: New on the Cash Voucher (type 21), which approving and posting the release voucher checks.
+     */
+    public record Permissions(boolean canAdd, boolean canVerify, boolean canApprove, boolean canDeduct, boolean canRelease) {}
+
+    @GetMapping("/permissions")
+    public Permissions permissions(Authentication auth) {
+        Staff s = staff(auth.getName());
+        return new Permissions(s.canAdd(), s.canVerify(), s.canApprove(), s.canDeduct(), frontOffice.mayCreate(auth, VOUCHER));
+    }
+
     @GetMapping("/pending")
     List<Item> pending(Authentication auth) {
         Staff s = staff(auth.getName());
-        if (!s.canVerify() && !s.canApprove()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not verify or approve loan applications.");
-        return jdbc.query(ITEM_SQL + " WHERE a.BR_CODE = ? AND a.STATUSID IN (?, ?) ORDER BY a.ID DESC LIMIT 200", (rs, i) -> item(rs), s.branch(), NEW, VERIFIED);
+        if (!s.anyStep()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not work on loan applications.");
+        List<Item> out = new ArrayList<>(jdbc.query(itemSql() + " WHERE a.BR_CODE = ? AND a.STATUSID IN (?, ?) ORDER BY a.ID DESC LIMIT 200", (rs, i) -> item(rs), s.branch(), NEW, VERIFIED));
+        // then the approved ones on their way to release: waiting in Front Office, or released in the last RELEASED_SHOWN_DAYS days
+        LocalDate today = LocalDate.now(clock);
+        LocalDate releasedSince = today.minusDays(RELEASED_SHOWN_DAYS);
+        for (Item it : jdbc.query(itemSql() + " WHERE a.BR_CODE = ? AND a.STATUSID = ? AND a.APPRV_DATE >= ? ORDER BY a.ID DESC LIMIT 200",
+                (rs, i) -> item(rs), s.branch(), APPROVED, java.sql.Date.valueOf(today.minusDays(RELEASE_WAIT_DAYS)))) {
+            Item r = release(it);
+            boolean released = "POSTED".equals(r.releaseStatus());
+            if (!released || (r.releasedOn() != null && !LocalDate.parse(r.releasedOn()).isBefore(releasedSince))) out.add(r);
+        }
+        return out;
     }
 
     @GetMapping("/{id}")
     Detail detail(@PathVariable long id, Authentication auth) {
         Staff s = staff(auth.getName());
-        if (!s.canVerify() && !s.canApprove()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not verify or approve loan applications.");
+        if (!s.anyStep()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not work on loan applications.");
         Prepared p = prepare(s.branch(), id, false);
-        return new Detail(p.item(), rows(p), p.deductions(), p.net(), p.problems());
+        return new Detail(release(p.item()), rows(p), p.deductions(), p.net(), p.problems(), holds.forApplication(s.branch(), id));
     }
 
     @PostMapping("/{id}/verify")
@@ -106,10 +192,11 @@ public class LoanApplicationWorkflowController {
         return tx.execute((st) -> {
             Prepared p = prepare(s.branch(), id, true);
             if (p.item().status() != NEW) throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a new application can be verified.");
+            if (p.item().waitingForDeductions()) throw new ResponseStatusException(HttpStatus.CONFLICT, "This application is waiting for its deductions. Someone who may do the Deduction step fills them in first.");
             if (p.encoder() == s.id() && !single.has(auth.getName())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You encoded this application, so someone else must verify it.");
             jdbc.update("UPDATE loanapp SET STATUSID = ? WHERE BR_CODE = ? AND ID = ? AND STATUSID = ?", VERIFIED, s.branch(), id, NEW);
             audit(auth, "loan.application.verify", s.branch(), id, "verified");
-            return jdbc.query(ITEM_SQL + " WHERE a.BR_CODE = ? AND a.ID = ?", (rs, i) -> item(rs), s.branch(), id).get(0);
+            return jdbc.query(itemSql() + " WHERE a.BR_CODE = ? AND a.ID = ?", (rs, i) -> item(rs), s.branch(), id).get(0);
         });
     }
 
@@ -120,6 +207,7 @@ public class LoanApplicationWorkflowController {
         return tx.execute((st) -> {
             Prepared p = prepare(s.branch(), id, true);
             if (p.item().status() != NEW && p.item().status() != VERIFIED) throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a new or verified application can be approved.");
+            if (p.item().waitingForDeductions()) throw new ResponseStatusException(HttpStatus.CONFLICT, "This application is waiting for its deductions. Someone who may do the Deduction step fills them in first.");
             if (!p.problems().isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, String.join(" ", p.problems()));
             if (!single.has(auth.getName())) {
                 if (p.encoder() == s.id()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You encoded this application, so someone else must approve it.");
@@ -127,8 +215,9 @@ public class LoanApplicationWorkflowController {
                 if (!verifiers.isEmpty() && verifiers.get(0).equalsIgnoreCase(auth.getName())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You verified this application, so someone else must approve it.");
             }
             LocalDateTime now = LocalDateTime.now(clock);
-            LocalDate day = now.toLocalDate();
+            LocalDate day = businessDay.postingDate(s.branch());
             int year = day.getYear();
+            PostingPeriods.requireOpen(jdbc, s.branch(), day);
             long ctl = db.nextControlNumber(s.branch(), MODULE, VOUCHER, year);
             String docNo = String.format("%08d", ctl);
             String explanation = "per Approved " + p.item().typeName() + " of " + upperName(s.branch(), p.item().clientId());
@@ -178,9 +267,9 @@ public class LoanApplicationWorkflowController {
                     if (posted != null && posted > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "The release voucher is already posted, so the application cannot be cancelled.");
                 }
             }
-            jdbc.update("UPDATE loanapp SET STATUSID = 5, APPRV_DATE = ?, APPRVBY = ? WHERE BR_CODE = ? AND ID = ? AND STATUSID = ?", LocalDate.now(clock).toString(), s.id(), s.branch(), id, status);
+            jdbc.update("UPDATE loanapp SET STATUSID = 5, APPRV_DATE = ?, APPRVBY = ? WHERE BR_CODE = ? AND ID = ? AND STATUSID = ?", businessDay.today(s.branch()).toString(), s.id(), s.branch(), id, status);
             audit(auth, "loan.application.cancel", s.branch(), id, in.reason().trim());
-            return jdbc.query(ITEM_SQL + " WHERE a.BR_CODE = ? AND a.ID = ?", (rs, i) -> item(rs), s.branch(), id).get(0);
+            return jdbc.query(itemSql() + " WHERE a.BR_CODE = ? AND a.ID = ?", (rs, i) -> item(rs), s.branch(), id).get(0);
         });
     }
 
@@ -199,9 +288,9 @@ public class LoanApplicationWorkflowController {
             int status = p.item().status();
             if (status != NEW && status != VERIFIED) throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a new or verified application can be disapproved.");
             if (p.encoder() == s.id() && !single.has(auth.getName())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You encoded this application, so someone else must disapprove it.");
-            jdbc.update("UPDATE loanapp SET STATUSID = 4, APPRV_DATE = ?, APPRVBY = ? WHERE BR_CODE = ? AND ID = ? AND STATUSID = ?", LocalDate.now(clock).toString(), s.id(), s.branch(), id, status);
+            jdbc.update("UPDATE loanapp SET STATUSID = 4, APPRV_DATE = ?, APPRVBY = ? WHERE BR_CODE = ? AND ID = ? AND STATUSID = ?", businessDay.today(s.branch()).toString(), s.id(), s.branch(), id, status);
             audit(auth, "loan.application.disapprove", s.branch(), id, in.reason().trim());
-            return jdbc.query(ITEM_SQL + " WHERE a.BR_CODE = ? AND a.ID = ?", (rs, i) -> item(rs), s.branch(), id).get(0);
+            return jdbc.query(itemSql() + " WHERE a.BR_CODE = ? AND a.ID = ?", (rs, i) -> item(rs), s.branch(), id).get(0);
         });
     }
 
@@ -214,7 +303,9 @@ public class LoanApplicationWorkflowController {
     }
 
     private Prepared prepare(int branch, long id, boolean lock) {
-        List<Item> found = jdbc.query(ITEM_SQL + " WHERE a.BR_CODE = ? AND a.ID = ?" + (lock ? " FOR UPDATE" : ""), (rs, i) -> item(rs), branch, id);
+        // locked on its own: PostgreSQL does not lock through the outer joins of ITEM_SQL
+        if (lock) jdbc.queryForList("SELECT ID FROM loanapp WHERE BR_CODE = ? AND ID = ? FOR UPDATE", Long.class, branch, id);
+        List<Item> found = jdbc.query(itemSql() + " WHERE a.BR_CODE = ? AND a.ID = ?", (rs, i) -> item(rs), branch, id);
         if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such loan application.");
         Item it = found.get(0);
         Map<String, Object> a = jdbc.queryForMap("SELECT ENCDBY, COALESCE(DEPT, 1) DEPT, NPREF_NO FROM loanapp WHERE BR_CODE = ? AND ID = ?", branch, id);
@@ -283,14 +374,14 @@ public class LoanApplicationWorkflowController {
     }
 
     private Staff staff(String username) {
-        List<Staff> r = jdbc.query("SELECT AccessID, AccessBR_CODE, COALESCE(AccessCanAddLoanApplication, 0), COALESCE(AccessCanVerifyLoanApplication, 0), COALESCE(AccessCanApproveLoanApplication, 0) FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1",
-            (rs, i) -> new Staff(rs.getInt(1), rs.getInt(2), rs.getInt(3) == 1, rs.getInt(4) == 1, rs.getInt(5) == 1), username);
+        List<Staff> r = jdbc.query("SELECT AccessID, AccessBR_CODE, COALESCE(AccessCanAddLoanApplication, 0), COALESCE(AccessCanVerifyLoanApplication, 0), COALESCE(AccessCanApproveLoanApplication, 0), "
+                + steps.deductionFlagSql("") + " FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1",
+            (rs, i) -> new Staff(rs.getInt(1), rs.getInt(2), rs.getInt(3) == 1, rs.getInt(4) == 1, rs.getInt(5) == 1, rs.getInt(6) == 1), username);
         if (r.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is not a staff account.");
         return r.get(0);
     }
 
     private void audit(Authentication auth, String action, int branch, long id, String detail) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'loanapp', ?, ?)",
-            Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, branch + "/" + id, detail);
+        AuditLog.write(jdbc, auth.getName(), action, "loanapp", branch + "/" + id, null, detail, null);
     }
 }

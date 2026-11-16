@@ -1,7 +1,7 @@
 :root {
   --text: #6b6375;
   --text-h: #08060d;
-  --bg: #fff;
+  --bg: #F3F4F6;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
   --accent: #aa3bff;
@@ -108,4 +108,15 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+}
+
+/* Printing a report or a receipt: leave out the app bar and the controls. */
+@media print {
+  .no-print, .MuiAppBar-root { display: none !important; }
+}
+
+/* The sign-in screen's panels settle in with a small rise. */
+@keyframes signInRise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }

@@ -1,6 +1,8 @@
 package ph.coop.core.frontoffice;
 
-import ph.coop.core.db.Db;
+
+import ph.coop.core.accounting.close.PostingPeriods;
+import ph.coop.core.audit.AuditLog;import ph.coop.core.db.Db;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -41,7 +43,7 @@ class HandoverController {
 
     /** limit is the most cash the drawer should hold (null for none); closedAt and variance describe today's count, when there was one. */
     record DrawerInfo(int event, int number, String label, String who, BigDecimal balance, BigDecimal pendingIn, BigDecimal pendingOut,
-                      BigDecimal limit, String closedAt, BigDecimal variance, boolean head) {}
+                      BigDecimal limit, String closedAt, BigDecimal variance, boolean head, BigDecimal cheques) {}
 
     record LimitRow(int event, int number, BigDecimal maxCash) {}
 
@@ -53,24 +55,35 @@ class HandoverController {
     record Pulse(int incoming, long latestId, String latestFrom, BigDecimal latestAmount, int disputed, int overrides) {}
 
     record Handover(long id, int trCode, String from, String to, BigDecimal amount, String status, String issuedBy, String issuedAt,
-                    String remarks, BigDecimal counted, String note, Long ctlNo, boolean incoming, boolean outgoing) {}
+                    String remarks, BigDecimal counted, String note, Long ctlNo, boolean incoming, boolean outgoing, BigDecimal cheques) {}
 
     record Mine(boolean ready, String notReady, List<DrawerInfo> drawers, boolean headCashier, List<Handover> incoming, List<Handover> outgoing, List<Handover> today) {}
 
     /** requestKey is made once per attempt by the screen, so a repeated click or a retry cannot post twice; overrideReason is needed to return cash to the vault before the day is ready to close. */
-    record Issue(int fromEvent, int toEvent, Integer toNumber, BigDecimal amount, Map<Integer, Integer> counts, String remarks, String requestKey, String overrideReason) {}
+    record Issue(int fromEvent, int toEvent, Integer toNumber, BigDecimal amount, Map<Integer, Integer> counts, String remarks, String requestKey, String overrideReason, BigDecimal cheques) {
+        Issue(int fromEvent, int toEvent, Integer toNumber, BigDecimal amount, Map<Integer, Integer> counts, String remarks, String requestKey, String overrideReason) {
+            this(fromEvent, toEvent, toNumber, amount, counts, remarks, requestKey, overrideReason, null);
+        }
+    }
 
-    record Count(Map<Integer, Integer> counts) {}
+    /** cheques is the cheque total the receiver says they were given; empty means none. */
+    record Count(Map<Integer, Integer> counts, BigDecimal cheques) {
+        Count(Map<Integer, Integer> counts) { this(counts, null); }
+    }
 
     private static final String[] LEDGER_TABLES = {"transsum", "transdt", "gltrans", "denomsum", "denomdtl", "ecis_cash_handover"};
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final Db db;
     private final FrontOfficeAccess access;
     private final TransactionTemplate tx;
     private final DrawerBalances balances;
 
-    HandoverController(JdbcTemplate jdbc, Db db, FrontOfficeAccess access, PlatformTransactionManager txManager, DrawerBalances balances) {
+    HandoverController(JdbcTemplate jdbc, Db db, FrontOfficeAccess access, PlatformTransactionManager txManager, DrawerBalances balances, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.db = db;
         this.access = access;
@@ -143,11 +156,33 @@ class HandoverController {
         try {
             jdbc.query("SELECT event, number, closed_at, variance FROM ecis_drawer_close WHERE branch_code = ? AND tr_date = ? ORDER BY id",
                 (rs) -> { m.put(new Drawer(rs.getInt(1), rs.getInt(2)), new Object[] {rs.getTimestamp(3).toLocalDateTime().format(DateTimeFormatter.ofPattern("HH:mm")), rs.getBigDecimal(4)}); },
-                branch, LocalDate.now().toString());
+                branch, businessDay.today(branch).toString());
         } catch (org.springframework.dao.DataAccessException e) {
             // drawer controls are not set up yet: nothing counted
         }
         return m;
+    }
+
+    /** Cheques travel with the cash on the same transfer; the column comes from V025. */
+    private boolean hasChequeColumn() {
+        return db.columnExists("ecis_cash_handover", "cheque_amount");
+    }
+
+    /** SQL for the cheque total of a hand-off row (zero when V025 has not been run). */
+    private String chequeExpr(String alias) {
+        return hasChequeColumn() ? "COALESCE(" + alias + ".cheque_amount, 0)" : "0";
+    }
+
+    /** Cheques given by a drawer that the receiver has not accepted yet. */
+    private BigDecimal pendingCheques(int branch, Drawer d) {
+        if (!hasChequeColumn()) return BigDecimal.ZERO;
+        BigDecimal v = jdbc.queryForObject("SELECT COALESCE(SUM(cheque_amount), 0) FROM ecis_cash_handover WHERE branch_code = ? AND status = 'PENDING' AND from_event = ? AND from_number = ?",
+            BigDecimal.class, branch, d.event(), d.number());
+        return v == null ? BigDecimal.ZERO : v;
+    }
+
+    private static BigDecimal chequesOrZero(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v.setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     private boolean hasRequestKey() {
@@ -161,7 +196,7 @@ class HandoverController {
                 SELECT DISTINCT x.DTCTS_NUM FROM transsum t
                 JOIN transdt x ON t.TR_BRCODE = x.DTTR_BRCODE AND t.TR_YEAR = x.DTTR_YEAR AND t.TR_MODULE = x.DTTR_MODULE AND t.TR_CODE = x.DTTR_CODE AND t.TR_CTLNO = x.DTTR_CTLNO
                 WHERE t.TR_BRCODE = ? AND t.TR_YEAR = ? AND t.TR_DATE = ? AND x.DTSLC_CODE = 11 AND x.DTSLT_CODE = 1 AND x.DTSLE_CODE = ?
-                """, (rs, i) -> rs.getInt(1), branch, LocalDate.now().getYear(), LocalDate.now().toString(), HandoverRules.TELLER);
+                """, (rs, i) -> rs.getInt(1), branch, businessDay.today(branch).getYear(), businessDay.today(branch).toString(), HandoverRules.TELLER);
         Map<Drawer, Object[]> closed = closesToday(branch);
         List<String> notClosed = active.stream().map((n) -> new Drawer(HandoverRules.TELLER, n)).filter((d) -> !closed.containsKey(d)).map(Drawer::label).toList();
         return DrawerRules.notReadyToClose(waiting == null ? 0 : waiting, notClosed);
@@ -206,6 +241,7 @@ class HandoverController {
 
         boolean ready = notReady() == null;
         Map<Drawer, BigDecimal> all = p.head() ? balances.all(p.branch()) : Map.of();
+        Map<Drawer, BigDecimal> allCheques = p.head() ? balances.allCheques(p.branch()) : Map.of();
         Map<Integer, Map<Integer, BigDecimal>> lim = limits(p.branch());
         Map<Drawer, Object[]> closed = p.head() ? closesToday(p.branch()) : Map.of();
         List<DrawerInfo> out = new ArrayList<>();
@@ -216,7 +252,7 @@ class HandoverController {
                 p.head() ? all.getOrDefault(d, BigDecimal.ZERO) : null,
                 p.head() ? pending(p.branch(), d, false, ready) : null, p.head() ? pending(p.branch(), d, true, ready) : null,
                 d.isVault() ? null : limitOf(lim, d), c == null ? null : (String) c[0], c == null ? null : (BigDecimal) c[1],
-                d.event() == HandoverRules.CASHIER && headNumbers.contains(d.number())));
+                d.event() == HandoverRules.CASHIER && headNumbers.contains(d.number()), p.head() ? allCheques.getOrDefault(d, BigDecimal.ZERO) : null));
         }
         return out;
     }
@@ -231,11 +267,12 @@ class HandoverController {
         List<DrawerInfo> infos = new ArrayList<>();
         Map<Integer, Map<Integer, BigDecimal>> lim = limits(p.branch());
         Map<Drawer, Object[]> closed = closesToday(p.branch());
+        Map<Drawer, BigDecimal> cheques = balances.allCheques(p.branch());
         for (Drawer d : mine) {
             Object[] c = closed.get(d);
             infos.add(new DrawerInfo(d.event(), d.number(), d.label(), p.name(), cashBalance(p.branch(), d), notReady == null ? pending(p.branch(), d, false, true) : BigDecimal.ZERO,
                 notReady == null ? pending(p.branch(), d, true, true) : BigDecimal.ZERO, limitOf(lim, d), c == null ? null : (String) c[0], c == null ? null : (BigDecimal) c[1],
-                d.event() == HandoverRules.CASHIER && p.head()));
+                d.event() == HandoverRules.CASHIER && p.head(), cheques.getOrDefault(d, BigDecimal.ZERO)));
         }
         if (notReady != null && !db.tableExists("ecis_cash_handover"))
             return new Mine(false, notReady, infos, p.head(), List.of(), List.of(), List.of());
@@ -249,10 +286,11 @@ class HandoverController {
             where.append("(h.to_event = ? AND h.to_number = ?) OR (h.from_event = ? AND h.from_number = ?)");
             args.add(d.event()); args.add(d.number()); args.add(d.event()); args.add(d.number());
         }
-        args.add(LocalDate.now().toString());
+        args.add(businessDay.today(p.branch()).toString());
         List<Handover> all = jdbc.query("""
                 SELECT h.id, h.tr_code, h.from_event, h.from_number, h.to_event, h.to_number, h.amount, h.status, h.issued_by, a.AccessUserName, h.issued_at,
-                  h.remarks, h.counted, h.note, h.tr_ctlno
+                  h.remarks, h.counted, h.note, h.tr_ctlno, """ + chequeExpr("h") + """
+
                 FROM ecis_cash_handover h LEFT JOIN access a ON a.AccessID = h.issued_by
                 WHERE h.branch_code = ? AND (""" + where + """
                 ) AND (h.status IN ('PENDING', 'DISPUTED') OR DATE(h.issued_at) = ?)
@@ -264,10 +302,10 @@ class HandoverController {
                 boolean incoming = mine.contains(to);
                 boolean outgoing = mine.contains(from);
                 Handover base = new Handover(rs.getLong(1), rs.getInt(2), from.label(), to.label(), rs.getBigDecimal(7), rs.getString(8), rs.getString(10),
-                    rs.getTimestamp(11).toLocalDateTime().format(DateTimeFormatter.ofPattern("HH:mm")), rs.getString(12), rs.getBigDecimal(13), rs.getString(14), null, incoming, outgoing);
+                    rs.getTimestamp(11).toLocalDateTime().format(DateTimeFormatter.ofPattern("HH:mm")), rs.getString(12), rs.getBigDecimal(13), rs.getString(14), null, incoming, outgoing, chequesOrZero(rs.getBigDecimal(16)));
                 long ctl = rs.getLong(15);
                 return rs.wasNull() ? base : new Handover(base.id(), base.trCode(), base.from(), base.to(), base.amount(), base.status(), base.issuedBy(), base.issuedAt(),
-                    base.remarks(), base.counted(), base.note(), ctl, incoming, outgoing);
+                    base.remarks(), base.counted(), base.note(), ctl, incoming, outgoing, base.cheques());
             }, args.toArray());
         List<Handover> incoming = all.stream().filter((h) -> h.incoming() && h.status().equals("PENDING")).toList();
         List<Handover> outgoing = all.stream().filter((h) -> h.outgoing() && (h.status().equals("PENDING") || h.status().equals("DISPUTED"))).toList();
@@ -294,14 +332,21 @@ class HandoverController {
         access.requireNew(perms, trCode);
 
         Map<Integer, Integer> counts = req.counts() == null ? Map.of() : req.counts();
-        List<String> problems = HandoverRules.check(from, to, req.amount(), counts, denomValues(), p.head());
+        BigDecimal cheques = chequesOrZero(req.cheques());
+        List<String> problems = HandoverRules.check(from, to, req.amount(), counts, denomValues(), p.head(), cheques);
         if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
+        if (cheques.signum() > 0 && !hasChequeColumn())
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Handing over cheques is not set up yet. An administrator has to run database/migrations/V025_cheque_handover.sql.");
+        BigDecimal cash = req.amount() == null ? BigDecimal.ZERO : req.amount();
         if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so the transfer cannot be posted.");
 
         if (!from.isVault()) {
             BigDecimal free = cashBalance(p.branch(), from).subtract(pending(p.branch(), from, true, true));
-            if (req.amount().compareTo(free) > 0)
+            if (cash.compareTo(free) > 0)
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Your drawer has " + free.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + " free to give. That is less than the amount.");
+            BigDecimal freeCheques = cheques.signum() == 0 ? BigDecimal.ZERO : balances.chequesOf(p.branch(), from).subtract(pendingCheques(p.branch(), from));
+            if (cheques.signum() > 0 && cheques.compareTo(freeCheques) > 0)
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Your drawer holds " + freeCheques.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + " in cheques free to give. That is less than the cheques entered.");
         }
         String remarks = req.remarks() == null || req.remarks().isBlank() ? null : req.remarks().trim().substring(0, Math.min(req.remarks().trim().length(), 200));
 
@@ -318,13 +363,12 @@ class HandoverController {
             if (blocked != null) {
                 String why = req.overrideReason() == null ? "" : req.overrideReason().trim();
                 if (why.length() < 5) throw new ResponseStatusException(HttpStatus.CONFLICT, blocked);
-                jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value, reason) VALUES (NOW(), ?, 'eod.override', 'cash_handover', ?, ?, ?)",
-                    p.username(), p.branch() + "/" + LocalDate.now(), blocked, why.substring(0, Math.min(why.length(), 250)));
+                AuditLog.write(jdbc, p.username(), "eod.override", "cash_handover", p.branch() + "/" + businessDay.today(p.branch()), null, blocked, why.substring(0, Math.min(why.length(), 250)));
             }
         }
         long id;
         try {
-            id = issueAndPost(p, trCode, from, to, req.amount(), counts, remarks, key);
+            id = issueAndPost(p, trCode, from, to, cash, cheques, counts, remarks, key);
         } catch (org.springframework.dao.DuplicateKeyException e) {
             List<Long> same = key == null ? List.of() : jdbc.query("SELECT id FROM ecis_cash_handover WHERE request_key = ?", (rs, i) -> rs.getLong(1), key);
             if (same.isEmpty()) throw e;
@@ -333,14 +377,14 @@ class HandoverController {
         return one(id, p);
     }
 
-    private long issueAndPost(Person p, int trCode, Drawer from, Drawer to, BigDecimal amount, Map<Integer, Integer> counts, String remarks, String key) {
+    private long issueAndPost(Person p, int trCode, Drawer from, Drawer to, BigDecimal amount, BigDecimal cheques, Map<Integer, Integer> counts, String remarks, String key) {
         BigDecimal reqAmount = amount;
         long id = tx.execute((st) -> {
-            long newId = insertHandover(p, trCode, from, to, reqAmount, counts, remarks, key);
+            long newId = insertHandover(p, trCode, from, to, reqAmount, cheques, counts, remarks, key);
             if (HandoverRules.postsAtOnce(from, to)) {
-                long ctl = postToLedger(p, from.isVault() ? null : p, to.isVault() ? null : p, p, from, to, reqAmount, counts, remarks, trCode, newId);
+                long ctl = postToLedger(p, from.isVault() ? null : p, to.isVault() ? null : p, p, from, to, reqAmount, cheques, counts, remarks, trCode, newId);
                 jdbc.update("UPDATE ecis_cash_handover SET status = 'POSTED', settled_by = ?, settled_at = ?, counted = ?, tr_year = ?, tr_ctlno = ? WHERE id = ? AND status = 'PENDING'",
-                    p.id(), Timestamp.valueOf(LocalDateTime.now()), reqAmount, LocalDate.now().getYear(), ctl, newId);
+                    p.id(), Timestamp.valueOf(LocalDateTime.now()), reqAmount, businessDay.postingDate(p.branch()).getYear(), ctl, newId);
             }
             return newId;
         });
@@ -375,8 +419,7 @@ class HandoverController {
         } catch (org.springframework.dao.DataAccessException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Drawer limits are not set up yet. An administrator has to run database/migrations/V007_drawer_controls.sql.");
         }
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (NOW(), ?, 'drawer.limit', 'drawer', ?, ?)",
-            p.username(), new Drawer(row.event(), row.number()).label(), max.toPlainString());
+        AuditLog.write(jdbc, p.username(), "drawer.limit", "drawer", new Drawer(row.event(), row.number()).label(), null, max.toPlainString(), null);
         return limitRows(auth);
     }
 
@@ -404,14 +447,15 @@ class HandoverController {
         counts.entrySet().stream().filter((e) -> e.getValue() > 0).forEach((e) -> json.append(json.length() > 1 ? "," : "").append('"').append(e.getKey()).append("\":").append(e.getValue()));
         json.append('}');
         LocalDateTime now = LocalDateTime.now();
+        // the count belongs to the business day it closes, which End Day checks
+        LocalDate countDay = businessDay.postingDate(p.branch());
         try {
             jdbc.update("INSERT INTO ecis_drawer_close (branch_code, tr_date, event, number, closed_by, expected, counted, variance, counts, reason, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                p.branch(), now.toLocalDate().toString(), d.event(), d.number(), p.id(), expected, counted, variance, json.toString(), reason, Timestamp.valueOf(now));
+                p.branch(), java.sql.Date.valueOf(countDay), d.event(), d.number(), p.id(), expected, counted, variance, json.toString(), reason, Timestamp.valueOf(now));
         } catch (org.springframework.dao.DataAccessException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Drawer counts are not set up yet. An administrator has to run database/migrations/V007_drawer_controls.sql.");
         }
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value, reason) VALUES (NOW(), ?, 'drawer.close', 'drawer', ?, ?, ?)",
-            p.username(), d.label(), "expected " + expected.toPlainString() + ", counted " + counted.toPlainString() + ", difference " + variance.toPlainString(), reason);
+        AuditLog.write(jdbc, p.username(), "drawer.close", "drawer", d.label(), null, "expected " + expected.toPlainString() + ", counted " + counted.toPlainString() + ", difference " + variance.toPlainString(), reason);
         return new CloseResult(expected, counted, variance, now.format(DateTimeFormatter.ofPattern("HH:mm")));
     }
 
@@ -468,6 +512,7 @@ class HandoverController {
         for (Map.Entry<Integer, Integer> e : counts.entrySet())
             if (!faces.containsKey(e.getKey()) || e.getValue() < 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The count has a note or coin that is not valid.");
         BigDecimal counted = HandoverRules.total(counts, faces);
+        BigDecimal chequesSeen = chequesOrZero(body.cheques());
 
         tx.executeWithoutResult((st) -> {
             Map<String, Object> h = jdbc.queryForMap("SELECT * FROM ecis_cash_handover WHERE id = ? AND branch_code = ? FOR UPDATE", id, p.branch());
@@ -476,16 +521,20 @@ class HandoverController {
             Drawer to = new Drawer(((Number) h.get("to_event")).intValue(), ((Number) h.get("to_number")).intValue());
             if (!drawersOf(p).contains(to)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This cash is for " + to.label() + ", not for you.");
             BigDecimal amount = (BigDecimal) h.get("amount");
-            if (counted.compareTo(amount) != 0) {
+            BigDecimal chequesGiven = chequesOrZero((BigDecimal) h.get("cheque_amount"));
+            if (counted.compareTo(amount) != 0 || chequesSeen.compareTo(chequesGiven) != 0) {
+                String note = counted.compareTo(amount) != 0
+                    ? "Counted " + counted.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + " instead of " + amount.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString()
+                    : "Cheques received " + chequesSeen.toPlainString() + " instead of " + chequesGiven.toPlainString();
                 jdbc.update("UPDATE ecis_cash_handover SET status = 'DISPUTED', settled_by = ?, settled_at = ?, counted = ?, note = ? WHERE id = ? AND status = 'PENDING'",
-                    p.id(), Timestamp.valueOf(LocalDateTime.now()), counted, "Counted " + counted.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + " instead of " + amount.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString(), id);
+                    p.id(), Timestamp.valueOf(LocalDateTime.now()), counted, note, id);
                 return;
             }
             Person giver = personById(((Number) h.get("issued_by")).intValue());
             int trCode = ((Number) h.get("tr_code")).intValue();
-            long ctl = postToLedger(giver, giver, p, giver, from, to, amount, counts, (String) h.get("remarks"), trCode, id);
+            long ctl = postToLedger(giver, giver, p, giver, from, to, amount, chequesGiven, counts, (String) h.get("remarks"), trCode, id);
             jdbc.update("UPDATE ecis_cash_handover SET status = 'POSTED', settled_by = ?, settled_at = ?, counted = ?, tr_year = ?, tr_ctlno = ? WHERE id = ? AND status = 'PENDING'",
-                p.id(), Timestamp.valueOf(LocalDateTime.now()), counted, LocalDate.now().getYear(), ctl, id);
+                p.id(), Timestamp.valueOf(LocalDateTime.now()), counted, businessDay.postingDate(giver.branch()).getYear(), ctl, id);
         });
         return one(id, p);
     }
@@ -588,19 +637,21 @@ class HandoverController {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "The person who gave this cash no longer exists."));
     }
 
-    private long insertHandover(Person p, int trCode, Drawer from, Drawer to, BigDecimal amount, Map<Integer, Integer> counts, String remarks, String requestKey) {
+    private long insertHandover(Person p, int trCode, Drawer from, Drawer to, BigDecimal amount, BigDecimal cheques, Map<Integer, Integer> counts, String remarks, String requestKey) {
         StringBuilder json = new StringBuilder("{");
         counts.entrySet().stream().filter((e) -> e.getValue() > 0).forEach((e) -> json.append(json.length() > 1 ? "," : "").append('"').append(e.getKey()).append("\":").append(e.getValue()));
         json.append('}');
+        boolean withCheques = cheques.signum() > 0;
         String sql = """
                 INSERT INTO ecis_cash_handover (branch_code, tr_code, from_event, from_number, to_event, to_number, amount, denominations, remarks, status, issued_by, issued_at"""
-                + (requestKey == null ? "" : ", request_key") + """
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?""" + (requestKey == null ? "" : ", ?") + ")";
+                + (requestKey == null ? "" : ", request_key") + (withCheques ? ", cheque_amount" : "") + """
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?""" + (requestKey == null ? "" : ", ?") + (withCheques ? ", ?" : "") + ")";
         List<Object> args = new java.util.ArrayList<>(List.of(p.branch(), trCode, from.event(), from.number(), to.event(), to.number(), amount, json.toString()));
         args.add(remarks);
         args.add(p.id());
         args.add(Timestamp.valueOf(LocalDateTime.now()));
         if (requestKey != null) args.add(requestKey);
+        if (withCheques) args.add(cheques);
         return db.insertReturningId(sql, "id", args.toArray());
     }
 
@@ -609,15 +660,16 @@ class HandoverController {
      * credit and the receiver's debit, both on cash on hand), the matching lines in gltrans, and who gave and received with the
      * count by note and coin in denomsum and denomdtl. Must run inside a transaction. Returns the new control number.
      */
-    private long postToLedger(Person encoder, Person fromUser, Person toUser, Person poster, Drawer from, Drawer to, BigDecimal amount,
+    private long postToLedger(Person encoder, Person fromUser, Person toUser, Person poster, Drawer from, Drawer to, BigDecimal amount, BigDecimal cheques,
                               Map<Integer, Integer> counts, String remarks, int trCode, long handoverId) {
         LocalDateTime now = LocalDateTime.now();
-        LocalDate day = now.toLocalDate();
         int branch = encoder.branch();
+        LocalDate day = businessDay.postingDate(branch);
         int module = 4;
         // Control numbers run on across years for each transfer type, so take the next after the highest. The lock keeps two people from taking the same one.
+        PostingPeriods.requireOpen(jdbc, branch, day);
         long ctl = db.nextControlNumber(branch, module, trCode, day.getYear());
-        String explanation = ("Cash transfer: " + from.label() + " to " + to.label() + (remarks == null ? "" : " - " + remarks));
+        String explanation = ((amount.signum() == 0 ? "Cheque transfer: " : "Cash transfer: ") + from.label() + " to " + to.label() + (remarks == null ? "" : " - " + remarks));
         explanation = explanation.substring(0, Math.min(explanation.length(), 200));
 
         jdbc.update("""
@@ -629,24 +681,37 @@ class HandoverController {
 
         // The receiving person is recorded as the approver; the old window leaves it empty when the head cashier moves cash to or from the vault.
         Integer approver = toUser == null || toUser.id() == encoder.id() ? null : toUser.id();
-        BigDecimal[] amounts = {amount.negate(), amount};
-        Drawer[] side = {from, to};
-        Drawer[] other = {to, from};
-        for (int seq = 0; seq < 2; seq++) {
-            String acct = HandoverRules.account(side[seq].event());
+        // The cash pair comes first, then the cheque pair on the cheque accounts (sub-ledger type 3), as the old window wrote them.
+        // Cheques only: just the cheque pair, from sequence 0.
+        List<Object[]> pairs = new ArrayList<>();
+        if (amount.signum() > 0) pairs.add(new Object[] {amount, 1});
+        if (cheques.signum() > 0) pairs.add(new Object[] {cheques, 3});
+        int seqNo = 0;
+        for (Object[] pair : pairs) {
+          BigDecimal pairAmount = (BigDecimal) pair[0];
+          int slt = (Integer) pair[1];
+          BigDecimal[] amounts = {pairAmount.negate(), pairAmount};
+          Drawer[] side = {from, to};
+          Drawer[] other = {to, from};
+          for (int k = 0; k < 2; k++) {
+            int seq = seqNo++;
+            String acct = slt == 3 ? HandoverRules.chequeAccount(side[k].event()) : HandoverRules.account(side[k].event());
+            int event = slt == 3 ? HandoverRules.chequeEvent(side[k].event()) : side[k].event();
+            int event2 = slt == 3 ? HandoverRules.chequeEvent(other[k].event()) : other[k].event();
             jdbc.update("""
                     INSERT INTO transdt (DTTR_BRCODE, DTTR_YEAR, DTTR_MODULE, DTTR_CODE, DTTR_CTLNO, DTSEQ_NO, DTDEPT, DTACCT_CODE, DTSLC_CODE, DTSLT_CODE, DTREF_NO,
                       DTSLE_CODE, DTCTS_NUM, DTCOCI_TYPE, DTAMT, DTENCDBY, DTAPPRVBY, DTPOSTBY, DTUPD_TAG, DTSLE_CODE2, DTCTS_NUM2, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 11, 1, 1, ?, ?, 1, ?, ?, ?, ?, 1, ?, ?, 0, 0, 0)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 11, ?, 1, ?, ?, 1, ?, ?, ?, ?, 1, ?, ?, 0, 0, 0)
                     """,
-                branch, day.getYear(), module, trCode, ctl, seq, encoder.dept(), acct, side[seq].event(), side[seq].number(), amounts[seq],
-                encoder.id(), approver, poster.id(), other[seq].event(), other[seq].number());
+                branch, day.getYear(), module, trCode, ctl, seq, encoder.dept(), acct, slt, event, side[k].number(), amounts[k],
+                encoder.id(), approver, poster.id(), event2, other[k].number());
             jdbc.update("""
                     INSERT INTO gltrans (GLTransBR_CODE, GLTransACCT_CODE, GLTransTR_DATE, GLTransTR_CODE, GLTransDEPT, GLTransDR_AMT, GLTransCR_AMT,
                       GLTransDR_BALB4, GLTransCR_BALB4, GLTransSUM_BALB4, GLTransSYNC, GLTransLASTUPDATED)
                     VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 1, ?)
                     """,
-                branch, acct, day.toString(), trCode, encoder.dept(), seq == 1 ? amount : BigDecimal.ZERO, seq == 0 ? amount.negate() : BigDecimal.ZERO, Timestamp.valueOf(now.withNano(0)));
+                branch, acct, day.toString(), trCode, encoder.dept(), k == 1 ? pairAmount : BigDecimal.ZERO, k == 0 ? pairAmount.negate() : BigDecimal.ZERO, Timestamp.valueOf(now.withNano(0)));
+          }
         }
 
         long denomSum = db.insertReturningId("INSERT INTO denomsum (BR_CODE, TR_CODE, TR_CTLNO, FROM_USERID, TO_USERID) VALUES (?, ?, ?, ?, ?)", "ID",
@@ -655,23 +720,22 @@ class HandoverController {
             jdbc.update("INSERT INTO denomdtl (DENOMSUMID, DENOMTYPEID, QTY) VALUES (?, ?, ?)", denomSum, typeId, counts.getOrDefault(typeId, 0));
 
         balances.changed();
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (NOW(), ?, 'cash.transfer.post', 'transsum', ?, ?)",
-            (toUser != null ? toUser : poster).username(), branch + "/" + day.getYear() + "/" + module + "/" + trCode + "/" + ctl,
-            from.label() + " -> " + to.label() + " " + amount.toPlainString() + " (handover " + handoverId + ")");
+        AuditLog.write(jdbc, (toUser != null ? toUser : poster).username(), "cash.transfer.post", "transsum", branch + "/" + day.getYear() + "/" + module + "/" + trCode + "/" + ctl, null, from.label() + " -> " + to.label() + " " + amount.toPlainString() + (cheques.signum() > 0 ? " + cheques " + cheques.toPlainString() : "") + " (handover " + handoverId + ")", null);
         return ctl;
     }
 
     private Handover one(long id, Person viewer) {
         return jdbc.queryForObject("""
-                SELECT h.id, h.tr_code, h.from_event, h.from_number, h.to_event, h.to_number, h.amount, h.status, a.AccessUserName, h.issued_at, h.remarks, h.counted, h.note, h.tr_ctlno
+                SELECT h.id, h.tr_code, h.from_event, h.from_number, h.to_event, h.to_number, h.amount, h.status, a.AccessUserName, h.issued_at, h.remarks, h.counted, h.note, h.tr_ctlno, """ + chequeExpr("h") + """
+
                 FROM ecis_cash_handover h LEFT JOIN access a ON a.AccessID = h.issued_by WHERE h.id = ?
                 """,
             (rs, i) -> {
                 Handover base = new Handover(rs.getLong(1), rs.getInt(2), new Drawer(rs.getInt(3), rs.getInt(4)).label(), new Drawer(rs.getInt(5), rs.getInt(6)).label(), rs.getBigDecimal(7), rs.getString(8),
-                    rs.getString(9), rs.getTimestamp(10).toLocalDateTime().format(DateTimeFormatter.ofPattern("HH:mm")), rs.getString(11), rs.getBigDecimal(12), rs.getString(13), null, false, false);
+                    rs.getString(9), rs.getTimestamp(10).toLocalDateTime().format(DateTimeFormatter.ofPattern("HH:mm")), rs.getString(11), rs.getBigDecimal(12), rs.getString(13), null, false, false, chequesOrZero(rs.getBigDecimal(15)));
                 long ctl = rs.getLong(14);
                 return rs.wasNull() ? base : new Handover(base.id(), base.trCode(), base.from(), base.to(), base.amount(), base.status(), base.issuedBy(), base.issuedAt(),
-                    base.remarks(), base.counted(), base.note(), ctl, false, false);
+                    base.remarks(), base.counted(), base.note(), ctl, false, false, base.cheques());
             }, id);
     }
 }

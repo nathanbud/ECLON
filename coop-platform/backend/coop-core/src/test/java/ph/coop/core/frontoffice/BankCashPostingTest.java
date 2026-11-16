@@ -67,7 +67,7 @@ class BankCashPostingTest {
     }
 
     private BigDecimal gl(String account, int code) {
-        return jdbc.queryForObject("SELECT COALESCE(SUM(GLTransDR_AMT) + SUM(GLTransCR_AMT), 0) FROM gltrans WHERE GLTransBR_CODE = 1 AND GLTransACCT_CODE = ? AND GLTransTR_CODE = ? AND GLTransTR_DATE = CURDATE()",
+        return jdbc.queryForObject("SELECT COALESCE(SUM(GLTransDR_AMT) + SUM(GLTransCR_AMT), 0) FROM gltrans WHERE GLTransBR_CODE = 1 AND GLTransACCT_CODE = ? AND GLTransTR_CODE = ? AND GLTransTR_DATE = CURRENT_DATE",
             BigDecimal.class, account, code);
     }
 
@@ -102,6 +102,27 @@ class BankCashPostingTest {
         assertEquals(0, amount.compareTo((BigDecimal) w.get(0).get("DTAMT")), "the vault is debited");
         assertEquals(0, amount.negate().compareTo((BigDecimal) w.get(1).get("DTAMT")), "the bank is credited");
         assertEquals(0, BigDecimal.ZERO.compareTo(gl(bank.ledgerAccount(), 33).add(gl(bank.ledgerAccount(), 35))));
+    }
+
+    @Test
+    void aDepositOfChequesTakesThemFromTheVaultsChequeAccountWithNoCount() {
+        BigDecimal vaultCheques = jdbc.queryForObject("SELECT COALESCE(SUM(DTAMT), 0) FROM transdt WHERE DTTR_BRCODE = 1 AND DTSLC_CODE = 11 AND DTSLT_CODE = 3 AND DTSLE_CODE = 51", BigDecimal.class);
+        assumeTrue(vaultCheques.compareTo(new BigDecimal("100")) >= 0, "the vault holds no cheques in this database");
+        BigDecimal amount = new BigDecimal("100.00");
+        Posted dep = bankCash.deposit(new Request(bank.bankId(), amount, Map.of(), "itest cheques", true), head);
+        List<Map<String, Object>> dt = jdbc.queryForList("SELECT * FROM transdt WHERE DTTR_BRCODE = 1 AND DTTR_YEAR = ? AND DTTR_MODULE = 5 AND DTTR_CODE = 33 AND DTTR_CTLNO = ? ORDER BY DTSEQ_NO", dep.year(), dep.controlNo());
+        assertEquals(2, dt.size());
+        assertEquals("100111", dt.get(0).get("DTACCT_CODE"));
+        assertEquals(3, ((Number) dt.get(0).get("DTSLT_CODE")).intValue());
+        assertEquals(51, ((Number) dt.get(0).get("DTSLE_CODE")).intValue());
+        assertEquals(99, ((Number) dt.get(0).get("DTCTS_NUM")).intValue());
+        assertEquals(0, amount.negate().compareTo((BigDecimal) dt.get(0).get("DTAMT")), "the vault's cheques go down");
+        assertEquals(bank.ledgerAccount(), dt.get(1).get("DTACCT_CODE"));
+        assertEquals(0, amount.compareTo((BigDecimal) dt.get(1).get("DTAMT")), "the bank is debited");
+        Integer counts = jdbc.queryForObject("SELECT COUNT(*) FROM denomsum WHERE BR_CODE = 1 AND TR_CODE = 33 AND TR_CTLNO = ?", Integer.class, dep.controlNo());
+        assertEquals(0, counts, "cheque deposits have no count by note and coin");
+        assertThrows(ResponseStatusException.class, () -> bankCash.deposit(new Request(bank.bankId(), vaultCheques.add(BigDecimal.ONE), Map.of(), null, true), head));
+        assertThrows(ResponseStatusException.class, () -> bankCash.withdraw(new Request(bank.bankId(), amount, Map.of(), null, true), head));
     }
 
     @Test

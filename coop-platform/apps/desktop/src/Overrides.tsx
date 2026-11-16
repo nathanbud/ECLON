@@ -26,7 +26,7 @@ export function OverridesCard() {
       {rows.map((o) => (
         <Box key={o.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75, borderTop: '1px solid', borderColor: 'divider' }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 14 }}>{o.description}</Typography>
+            <Typography sx={{ fontSize: 13 }}>{o.description}</Typography>
             <Typography sx={{ fontSize: 12 }} color="text.secondary">
               {o.requestedBy} · {o.requestedAt} · {money(o.amount)}{o.limitAmount ? ` against a limit of ${money(o.limitAmount)}` : ''}
             </Typography>
@@ -69,7 +69,7 @@ export function OverrideAsk({ draftId, amount, limit, summary }: { draftId: numb
       {o && <Chip size="small" variant="outlined" color={o.status === 'APPROVED' ? 'success' : o.status === 'REJECTED' ? 'error' : 'warning'}
         label={o.status === 'APPROVED' ? `Approved by ${o.decidedBy}` : o.status === 'REJECTED' ? `Rejected by ${o.decidedBy}${o.note ? `: ${o.note}` : ''}` : 'Waiting for a supervisor'} />}
       {(!o || o.status === 'REJECTED') && <Button size="small" variant="outlined" disabled={ask.isPending} onClick={() => ask.mutate()}>{ask.isPending ? 'Asking…' : 'Ask a supervisor'}</Button>}
-      {error && <Typography sx={{ fontSize: 12.5 }} color="error">{error}</Typography>}
+      {error && <Typography sx={{ fontSize: 12 }} color="error">{error}</Typography>}
     </Box>
   )
 }

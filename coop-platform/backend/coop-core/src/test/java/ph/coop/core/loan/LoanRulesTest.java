@@ -117,4 +117,18 @@ class LoanRulesTest {
         assertNull(LoanRules.nextDue(DUES, BigDecimal.ZERO, LocalDate.of(2026, 7, 1)), "nothing left after the last date");
         assertTrue(LoanRules.arrears(DUES, d("12000"), LocalDate.of(2026, 7, 1)).pastDuePrincipal().signum() == 0);
     }
+
+    @Test
+    void thePenaltyIsTheUnpaidInstalmentTimesTheRateTimesTheDaysLate() {
+        LocalDate asOf = LocalDate.of(2026, 4, 20);
+        // nothing paid: March's 3,100 is 41 days late and April's 3,075 is 10 days late
+        assertEquals(0, d("155.69").compareTo(LoanRules.penalty(DUES, BigDecimal.ZERO, d("36"), asOf)));
+        // March paid in full (principal and interest): only April counts
+        assertEquals(0, d("30.33").compareTo(LoanRules.penalty(DUES, d("3100"), d("36"), asOf)));
+        // part of April paid as well: the rest of April counts
+        assertEquals(0, d("25.40").compareTo(LoanRules.penalty(DUES, d("3600"), d("36"), asOf)));
+        // instalments not yet due and the release row carry no penalty
+        assertEquals(0, BigDecimal.ZERO.compareTo(LoanRules.penalty(DUES, d("6175"), d("36"), asOf)));
+        assertEquals(0, BigDecimal.ZERO.compareTo(LoanRules.penalty(DUES, BigDecimal.ZERO, d("36"), LocalDate.of(2026, 2, 28))));
+    }
 }

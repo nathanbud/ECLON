@@ -37,6 +37,9 @@ class SavingsLedgerPostingTest {
 
     @Autowired SavingsPostingController savings;
     @Autowired JdbcTemplate jdbc;
+    @Autowired ph.coop.core.member.MembershipPolicyController policy;
+    @Autowired ph.coop.core.member.KycGate kyc;
+    @Autowired DrawerBalances drawers;
 
     private String teller;
     private int tellerId, tellerNumber, dept;
@@ -60,13 +63,13 @@ class SavingsLedgerPostingTest {
         tellerNumber = ((Number) t.get(0).get("AccessTellerNumber")).intValue();
         dept = ((Number) t.get(0).get("AccessDepartment")).intValue();
         List<Map<String, Object>> a = jdbc.queryForList("""
-                SELECT s.ClientIDSD AS client, s.SDSLT_CODE AS typ, s.SDREF_NO AS ref, s.SDMIN_BAL AS minb,
+                SELECT * FROM (SELECT s.ClientIDSD AS client, s.SDSLT_CODE AS typ, s.SDREF_NO AS ref, s.SDMIN_BAL AS minb,
                        (SELECT -SUM(d.AMT) FROM sldtl d WHERE d.SL_BRCODE = 1 AND d.SL_CLIENTID = s.ClientIDSD AND d.SLC_CODE = 22 AND d.SLT_CODE = s.SDSLT_CODE AND d.REF_NO = s.SDREF_NO AND d.SLE_CODE = 11) AS bal
                 FROM sd s JOIN client c ON c.ClientIDBrCode = s.SDBR_CODE AND c.ClientID = s.ClientIDSD AND c.AccountStatus = 1
                 JOIN glcontrol g ON g.GLControlBR_CODE = s.SDBR_CODE AND g.GLControlSLC_CODE = 22 AND g.GLControlSLT_CODE = s.SDSLT_CODE AND g.GLControlSLE_CODE = 11 AND g.GLControlCTS_NUM = 15
                 WHERE s.SDBR_CODE = 1 AND s.SDSLC_CODE = 22 AND s.SDSTATUS = 15 AND s.SDSLT_CODE = 1 AND s.SDMIN_BAL >= 500
-                  AND NOT EXISTS (SELECT 1 FROM hold h WHERE h.HBR_CODE = 1 AND h.ClientIDH = s.ClientIDSD AND h.HSLC_CODE = 22 AND h.HSLT_CODE = s.SDSLT_CODE AND h.HREF_NO = s.SDREF_NO)
-                HAVING bal BETWEEN 2000 AND 40000 ORDER BY s.ClientIDSD DESC LIMIT 1
+                  AND NOT EXISTS (SELECT 1 FROM hold h WHERE h.HBR_CODE = 1 AND h.ClientIDH = s.ClientIDSD AND h.HSLC_CODE = 22 AND h.HSLT_CODE = s.SDSLT_CODE AND h.HREF_NO = s.SDREF_NO)) z
+                WHERE bal BETWEEN 2000 AND 40000 ORDER BY client DESC LIMIT 1
                 """);
         assumeTrue(!a.isEmpty(), "no active savings account with a minimum balance and 2,000 to 40,000 in it");
         client = ((Number) a.get(0).get("client")).intValue();
@@ -77,6 +80,60 @@ class SavingsLedgerPostingTest {
     }
 
     private Authentication as(String name) { return new TestingAuthenticationToken(name, null); }
+
+    /** Puts cash in the teller's drawer with a real deposit to another member's savings, so the drawer can cover a withdrawal. */
+    private void fundDrawer(BigDecimal amount) {
+        List<Map<String, Object>> o = jdbc.queryForList("""
+                SELECT s.ClientIDSD AS client, s.SDSLT_CODE AS typ, s.SDREF_NO AS ref FROM sd s JOIN client c ON c.ClientIDBrCode = s.SDBR_CODE AND c.ClientID = s.ClientIDSD AND c.AccountStatus = 1
+                WHERE s.SDBR_CODE = 1 AND s.SDSLC_CODE = 22 AND s.SDSTATUS = 15 AND s.SDSLT_CODE = 1 AND s.ClientIDSD <> ? ORDER BY s.ClientIDSD DESC LIMIT 1
+                """, client);
+        assumeTrue(!o.isEmpty(), "no other active savings account to take the cash in");
+        savings.deposit(new Request(((Number) o.get(0).get("client")).intValue(), ((Number) o.get(0).get("typ")).intValue(), ((Number) o.get(0).get("ref")).intValue(),
+            amount, "itest cash in", null, true), as(teller));
+    }
+
+    /** Puts today's date in an accounting period with this status (rolled back with the rest). */
+    private void todaysPeriodIs(String status) {
+        LocalDate today = LocalDate.now();
+        int n = jdbc.update("UPDATE ecis_accounting_period SET status = ? WHERE branch_code = 1 AND ? BETWEEN start_date AND end_date", status, today);
+        if (n == 0) {
+            jdbc.update("INSERT INTO ecis_accounting_period (branch_code, name, start_date, end_date, status, updated_by, updated_at) VALUES (1, 'ITEST today', ?, ?, ?, 'itest', ?)",
+                today, today, status, java.time.LocalDateTime.now());
+        }
+    }
+
+    @Test
+    void aDepositIsRefusedWhileTodaysAccountingPeriodIsNotOpen() {
+        Integer before = jdbc.queryForObject("SELECT COUNT(*) FROM transsum WHERE TR_BRCODE = 1 AND TR_YEAR = ?", Integer.class, LocalDate.now().getYear());
+        for (String status : List.of("SOFT_CLOSED", "CLOSED", "LOCKED")) {
+            todaysPeriodIs(status);
+            ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> savings.deposit(req("100.00"), as(teller)));
+            assertEquals(409, e.getStatusCode().value());
+            assertTrue(e.getReason().contains("nothing can be posted dated " + LocalDate.now()), e.getReason());
+        }
+        assertEquals(before, jdbc.queryForObject("SELECT COUNT(*) FROM transsum WHERE TR_BRCODE = 1 AND TR_YEAR = ?", Integer.class, LocalDate.now().getYear()),
+            "nothing was written");
+        todaysPeriodIs("OPEN");
+        assertTrue(savings.deposit(req("100.00"), as(teller)).controlNo() > 0, "posted again once the period is open");
+    }
+
+    @Test
+    void postingDatesInAClosedYearOrAClosedPeriodAreRefusedAndDaysWithoutAPeriodAreNot() {
+        Integer last = jdbc.queryForObject("SELECT MAX(TR_YEAR) FROM transsum WHERE TR_BRCODE = 1 AND TR_MODULE = 1 AND TR_CODE = 99", Integer.class);
+        assumeTrue(last != null, "no year was ever closed");
+        String closedYear = ph.coop.core.accounting.close.PostingPeriods.problem(jdbc, 1, LocalDate.of(last, 6, 30));
+        assertTrue(closedYear != null && closedYear.contains("year-end close"), closedYear);
+        LocalDate free = LocalDate.of(2098, 3, 3);
+        assertEquals(null, ph.coop.core.accounting.close.PostingPeriods.problem(jdbc, 1, free));
+        jdbc.update("INSERT INTO ecis_accounting_period (branch_code, name, start_date, end_date, status, updated_by, updated_at) VALUES (1, 'ITEST 2098-03', ?, ?, 'SOFT_CLOSED', 'itest', ?)",
+            LocalDate.of(2098, 3, 1), LocalDate.of(2098, 3, 31), java.time.LocalDateTime.now());
+        String soft = ph.coop.core.accounting.close.PostingPeriods.problem(jdbc, 1, free);
+        assertTrue(soft != null && soft.contains("ITEST 2098-03 is soft closed") && soft.contains("reopen"), soft);
+    }
+
+    private BigDecimal drawerCash() {
+        return drawers.of(1, new HandoverRules.Drawer(53, tellerNumber));
+    }
 
     private BigDecimal balanceNow() {
         return jdbc.queryForObject("SELECT COALESCE(-SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 22 AND SLT_CODE = ? AND REF_NO = ? AND SLE_CODE = 11", BigDecimal.class, client, type, ref);
@@ -100,11 +157,34 @@ class SavingsLedgerPostingTest {
     }
 
     @Test
+    void theSamePressSentTwicePostsOnce() {
+        org.springframework.mock.web.MockHttpServletRequest http = new org.springframework.mock.web.MockHttpServletRequest();
+        http.addHeader(ph.coop.core.accounting.ledger.RequestKeys.HEADER, "itest-" + java.util.UUID.randomUUID());
+        org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(new org.springframework.web.context.request.ServletRequestAttributes(http));
+        try {
+            Receipt first = savings.deposit(req("150.00"), as(teller));
+            // the answer was lost and the screen sends it again, even with "post it anyway" set: nothing more is written
+            Request again = new Request(client, type, ref, new BigDecimal("150.00"), "itest", null, true);
+            ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> savings.deposit(again, as(teller)));
+            assertEquals(409, e.getStatusCode().value());
+            assertTrue(e.getReason().contains(first.documentNo()), e.getReason());
+            Integer after = jdbc.queryForObject("SELECT COUNT(*) FROM transsum WHERE TR_BRCODE = 1 AND TR_YEAR = ? AND TR_MODULE = 3 AND TR_CODE = 10 AND TR_CTLNO > ? AND TR_CLIENTID = ?",
+                Integer.class, first.year(), first.controlNo(), client);
+            assertEquals(0, after);
+        } finally {
+            org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Test
     void aDepositPostsTheSameRowsTheOldCashReceiptWrote() {
         BigDecimal cashBefore = glNet("10003", 10), savBefore = glNet("2010101", 10);
         Integer seqBefore = jdbc.queryForObject("SELECT COALESCE(MAX(SEQNO), 0) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 22 AND SLT_CODE = ? AND REF_NO = ?", Integer.class, client, type, ref);
 
+        long gl0 = ph.coop.core.accounting.ledger.LedgerSnapshot.glMark(jdbc);
         Receipt r = savings.deposit(req("800.25"), as(teller));
+        ph.coop.core.accounting.ledger.LedgerSnapshot.assertMatches("savings-deposit", ph.coop.core.accounting.ledger.LedgerSnapshot.voucherShape(jdbc, 1, r.year(), 3, 10, r.controlNo(), gl0,
+            ph.coop.core.accounting.ledger.LedgerSnapshot.teller(r.controlNo(), r.documentNo(), tellerId, tellerNumber, dept, client, type, ref)));
 
         assertEquals("DEPOSIT", r.kind());
         assertEquals(0, balance.add(new BigDecimal("800.25")).compareTo(r.balanceAfter()));
@@ -142,6 +222,7 @@ class SavingsLedgerPostingTest {
 
     @Test
     void aWithdrawalPostsTheSameRowsTheOldDepositWithdrawalWrote() {
+        fundDrawer(new BigDecimal("100.00"));
         BigDecimal cashBefore = glNet("10003", 23), savBefore = glNet("2010101", 23);
         Integer seqBefore = jdbc.queryForObject("SELECT COALESCE(MAX(SEQNO), 0) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 22 AND SLT_CODE = ? AND REF_NO = ?", Integer.class, client, type, ref);
         BigDecimal amount = new BigDecimal("100.00"); // leaves at least the minimum: the balance is at least 2,000
@@ -150,7 +231,10 @@ class SavingsLedgerPostingTest {
         Check c = savings.check(req("100.00"), as(teller));
         assertTrue(c.ready() && c.needs().isEmpty() && c.problems().isEmpty());
 
+        long gl0 = ph.coop.core.accounting.ledger.LedgerSnapshot.glMark(jdbc);
         Receipt r = savings.withdraw(req("100.00"), as(teller));
+        ph.coop.core.accounting.ledger.LedgerSnapshot.assertMatches("savings-withdrawal", ph.coop.core.accounting.ledger.LedgerSnapshot.voucherShape(jdbc, 1, r.year(), 2, 23, r.controlNo(), gl0,
+            ph.coop.core.accounting.ledger.LedgerSnapshot.teller(r.controlNo(), r.documentNo(), tellerId, tellerNumber, dept, client, type, ref)));
 
         assertEquals("WITHDRAWAL", r.kind());
         assertEquals(0, balance.subtract(amount).compareTo(balanceNow()));
@@ -177,8 +261,43 @@ class SavingsLedgerPostingTest {
     }
 
     @Test
+    void aWithdrawalLargerThanTheCashInTheTellersDrawerIsRefused() {
+        BigDecimal cash = drawerCash();
+        BigDecimal amount = cash.max(BigDecimal.ZERO).add(new BigDecimal("0.01"));
+        assumeTrue(balance.subtract(amount).compareTo(min) >= 0, "the teller's drawer already holds more than this account can pay out");
+
+        Check c = savings.check(req(amount.toPlainString()), as(teller));
+        assertFalse(c.ready());
+        assertTrue(c.problems().stream().anyMatch((p) -> p.contains("Your drawer holds")), "the teller is told why: " + c.problems());
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> savings.withdraw(req(amount.toPlainString()), as(teller)));
+        assertEquals(400, e.getStatusCode().value());
+        assertTrue(e.getReason().contains("Your drawer holds"));
+        assertEquals(0, balance.compareTo(balanceNow()), "nothing was posted");
+
+        fundDrawer(amount);
+        assertTrue(savings.check(req(amount.toPlainString()), as(teller)).ready(), "with the cash in the drawer it goes through");
+    }
+
+    @Test
+    void withTheKycPolicyOnAMemberWithoutAKycRecordCannotWithdraw() {
+        assumeTrue(kyc.status(1, client, LocalDate.now()) == ph.coop.core.member.KycRules.Status.NONE, "the member already has a KYC record");
+        var admin = new TestingAuthenticationToken("admin", "x", "ROLE_ADMIN");
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(admin);
+        policy.set(new ph.coop.core.member.MembershipPolicyController.Change(null, true, "itest"), admin);
+        BigDecimal before = balanceNow();
+
+        Check c = savings.check(req("100.00"), as(teller));
+        assertFalse(c.ready());
+        assertTrue(c.problems().stream().anyMatch((p) -> p.contains("no KYC record")), "the teller is told why: " + c.problems());
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> savings.withdraw(req("100.00"), as(teller)));
+        assertTrue(e.getReason().contains("no KYC record"));
+        assertEquals(0, before.compareTo(balanceNow()), "nothing was posted");
+    }
+
+    @Test
     void aWithdrawalUnderTheMinimumNeedsAnApprovalThatCanBeSpentOnce() {
         String amount = balance.subtract(new BigDecimal("100")).toPlainString(); // leaves 100, below the minimum of at least 500
+        fundDrawer(balance);
         Check c = savings.check(req(amount), as(teller));
         assertEquals(1, c.needs().size());
         assertEquals("SAV_MIN_BALANCE", c.needs().get(0).kind());
@@ -193,6 +312,7 @@ class SavingsLedgerPostingTest {
     @Test
     void anApprovedOverrideLetsItThroughOnceAndIsMarkedUsed() {
         String amount = balance.subtract(new BigDecimal("100")).toPlainString();
+        fundDrawer(balance);
         Check c = savings.check(req(amount), as(teller));
         long ov = approvedOverride(c, amount);
         assertEquals("APPROVED", savings.check(req(amount), as(teller)).needs().get(0).status());

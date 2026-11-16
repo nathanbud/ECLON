@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +22,7 @@ import ph.coop.core.deposit.SavingsInterest.Movement;
  */
 @SpringBootTest(properties = {"DEV_API_USER=itest", "DEV_API_PASSWORD=itest-unused", "coop.drawer-snapshot.on-start=false"})
 @EnabledIfEnvironmentVariable(named = "DB_PASSWORD", matches = ".+")
+@Tag("realdata")
 class SavingsInterestRealDataTest {
 
     static final LocalDate FROM = LocalDate.of(2026, 1, 1), TO = LocalDate.of(2026, 3, 31);

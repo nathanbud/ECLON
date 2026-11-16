@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.accounting.journal.JournalController.LineIn;
 import ph.coop.core.accounting.journal.JournalController.NewJournal;
+import static ph.coop.core.accounting.ledger.LedgerSnapshot.ph;
 
 /**
  * Posts a real journal through the real code and checks the General Journal it writes into the legacy ledger
@@ -126,8 +127,32 @@ class JournalPostingTest {
         assertEquals(1, audit);
     }
 
+    /** Characterization: every row a posted journal writes, column for column (see documentation/design/posting-engine.md). */
+    @Test
+    void aPostedJournalWritesExactlyTheseRows() {
+        long id = newJournal("ITEST-GOLD", new BigDecimal("12.34"));
+        journals.submit(id, as(maker));
+        journals.approve(id, as(checker));
+        journals.post(id, as(checker));
+        long ctl = ((Number) jdbc.queryForMap("SELECT tr_ctlno FROM ecis_journal WHERE id = ?", id).get("tr_ctlno")).longValue();
+        int dept = jdbc.queryForObject("SELECT COALESCE(AccessDepartment, 0) FROM access WHERE AccessID = ?", Integer.class, makerId);
+        String snap = ph.coop.core.accounting.ledger.LedgerSnapshot.take(jdbc,
+            new ph.coop.core.accounting.ledger.LedgerSnapshot.Where(branch, YEAR, 1, 1, ctl, DAY, 1, List.of("50105", "2010201")),
+            List.of(ph("ctl", ctl, "tr_ctlno", "dttr_ctlno"), ph("docNo", String.format("*%07d", ctl), "tr_docno"), ph("maker", makerId, "dtencdby"),
+                ph("checker", checkerId, "dtapprvby", "dtpostby"), ph("dept", dept, "dtdept", "gltransdept")));
+        ph.coop.core.accounting.ledger.LedgerSnapshot.assertMatches("journal", snap);
+    }
+
     @Test
     void aReversalPostsAsASecondJournalAndNetsToZero() {
+        // The reversal is dated today, so an open period must cover today. The database may have none (it depends on the month), so add one
+        // for this month if needed; the test is transactional, so it is rolled back.
+        LocalDate today = LocalDate.now();
+        Integer covering = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_accounting_period WHERE branch_code = ? AND start_date <= ? AND end_date >= ?",
+                Integer.class, branch, today, today);
+        if (covering == null || covering == 0) {
+            periods.create(new PeriodController.NewPeriod(branch, "ITEST this month", today.withDayOfMonth(1), today.withDayOfMonth(today.lengthOfMonth())), as(maker));
+        }
         long id = newJournal("ITEST-2", new BigDecimal("5.50"));
         journals.submit(id, as(maker));
         journals.approve(id, as(checker));

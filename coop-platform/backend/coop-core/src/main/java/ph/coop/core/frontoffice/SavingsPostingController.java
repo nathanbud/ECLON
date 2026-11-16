@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -35,7 +36,12 @@ import ph.coop.core.frontoffice.SavingsRules.Need;
 @RequestMapping("/api/front-office/savings")
 class SavingsPostingController {
 
-    record Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate) {}
+    /** cheques (deposits only) is the part of the amount paid by cheque; the rest is cash. */
+    record Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate, java.util.List<ChequeRules.Input> cheques) {
+        Request(int clientId, int typeCode, int refNo, BigDecimal amount, String explanation, String receiptNo, boolean confirmDuplicate) {
+            this(clientId, typeCode, refNo, amount, explanation, receiptNo, confirmDuplicate, null);
+        }
+    }
 
     /** status is NONE, PENDING, APPROVED or REJECTED for this very withdrawal; description is what to send when asking. */
     record NeedStatus(String kind, String title, String description, BigDecimal amount, BigDecimal limit, String status) {}
@@ -50,8 +56,13 @@ class SavingsPostingController {
     private final FrontOfficeAccess access;
     private final MemberLedgerPoster poster;
     private final TransactionTemplate tx;
+    private final ph.coop.core.member.KycGate kyc;
+    private final DrawerBalances drawers;
 
-    SavingsPostingController(JdbcTemplate jdbc, Db db, FrontOfficeAccess access, MemberLedgerPoster poster, PlatformTransactionManager txManager) {
+    SavingsPostingController(JdbcTemplate jdbc, Db db, FrontOfficeAccess access, MemberLedgerPoster poster, PlatformTransactionManager txManager,
+                             ph.coop.core.member.KycGate kyc, DrawerBalances drawers) {
+        this.kyc = kyc;
+        this.drawers = drawers;
         this.jdbc = jdbc;
         this.db = db;
         this.access = access;
@@ -76,10 +87,10 @@ class SavingsPostingController {
         return tx.execute((st) -> {
             Account a = poster.account(Master.SAVINGS, p.branch(), req.clientId(), req.typeCode(), req.refNo());
             Client c = poster.client(p.branch(), req.clientId());
-            List<String> problems = SavingsRules.checkDeposit(amount, a.status(), c.status());
+            List<String> problems = SavingsRules.checkDeposit(amount, a.status(), c.status(), a.balance(), a.maxBalance());
             if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
             Posted r = poster.post(new Entry(Master.SAVINGS, Direction.IN, p.branch(), req.clientId(), req.typeCode(), req.refNo(), amount,
-                req.explanation(), req.receiptNo(), req.confirmDuplicate()), p, a, auth.getName());
+                req.explanation(), req.receiptNo(), req.confirmDuplicate(), poster.cheques(req.cheques(), req.confirmDuplicate())), p, a, auth.getName());
             return receipt("DEPOSIT", r, req, c, a, amount, a.balance().add(amount), p);
         });
     }
@@ -96,10 +107,11 @@ class SavingsPostingController {
         Account a = poster.account(Master.SAVINGS, p.branch(), req.clientId(), req.typeCode(), req.refNo());
         Client c = poster.client(p.branch(), req.clientId());
         SavingsRules.Check rules = rulesFor(amount, a, c, p);
+        List<String> problems = withKyc(rules.problems(), p.branch(), req.clientId());
         List<NeedStatus> needs = new ArrayList<>();
         for (Need n : rules.needs()) needs.add(statusOf(n, req, a, amount, p));
-        boolean ready = rules.problems().isEmpty() && needs.stream().allMatch((n) -> "APPROVED".equals(n.status()));
-        return new Check(rules.problems(), needs, ready);
+        boolean ready = problems.isEmpty() && needs.stream().allMatch((n) -> "APPROVED".equals(n.status()));
+        return new Check(problems, needs, ready);
     }
 
     @PostMapping("/withdrawals")
@@ -112,7 +124,8 @@ class SavingsPostingController {
             Account a = poster.account(Master.SAVINGS, p.branch(), req.clientId(), req.typeCode(), req.refNo());
             Client c = poster.client(p.branch(), req.clientId());
             SavingsRules.Check rules = rulesFor(amount, a, c, p);
-            if (!rules.problems().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", rules.problems()));
+            List<String> problems = withKyc(rules.problems(), p.branch(), req.clientId());
+            if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
 
             // every rule the old system let a supervisor allow needs its own approval, spent here and nowhere else
             List<long[]> spent = new ArrayList<>();
@@ -131,8 +144,7 @@ class SavingsPostingController {
 
             for (long[] o : spent) {
                 jdbc.update("UPDATE ecis_fo_override SET used_ref = ? WHERE id = ?", r.branch() + "/" + r.year() + "/2/23/" + r.controlNo(), o[0]);
-                jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (NOW(), ?, 'savings.withdrawal.override.used', 'fo_override', ?, ?)",
-                    auth.getName(), String.valueOf(o[0]), "allowed by user " + o[1] + " for " + r.branch() + "/" + r.year() + "/2/23/" + r.controlNo() + " amount " + amount.toPlainString());
+                AuditLog.write(jdbc, auth.getName(), "savings.withdrawal.override.used", "fo_override", String.valueOf(o[0]), null, "allowed by user " + o[1] + " for " + r.branch() + "/" + r.year() + "/2/23/" + r.controlNo() + " amount " + amount.toPlainString(), null);
             }
             return receipt("WITHDRAWAL", r, req, c, a, amount, a.balance().subtract(amount), p);
         });
@@ -140,9 +152,23 @@ class SavingsPostingController {
 
     // ---- helpers ------------------------------------------------------------------------------------------------
 
+    /** The withdrawal rules' problems, plus the KYC one when the cooperative requires KYC for withdrawals. */
+    private List<String> withKyc(List<String> problems, int branch, int clientId) {
+        List<String> out = new ArrayList<>(problems);
+        String k = kyc.withdrawalProblem(branch, clientId, java.time.LocalDate.now());
+        if (k != null) out.add(k);
+        return out;
+    }
+
     private SavingsRules.Check rulesFor(BigDecimal amount, Account a, Client c, Person p) {
         BigDecimal limit = p.disbursementLimit().min(p.maxWithdrawal());
-        return SavingsRules.checkWithdrawal(amount, a.status(), a.balance(), a.held(), a.minBalance(), c.status(), limit);
+        return SavingsRules.checkWithdrawal(amount, a.status(), a.balance(), a.held(), a.minBalance(), c.status(), limit, drawerCash(p));
+    }
+
+    /** Cash in the person's own drawer now; none when they have no drawer (posting refuses them anyway). */
+    private BigDecimal drawerCash(Person p) {
+        List<Integer> events = HandoverController.eventsOf(p.head(), p.assignment());
+        return events.isEmpty() || p.number() <= 0 ? BigDecimal.ZERO : drawers.of(p.branch(), new HandoverRules.Drawer(events.get(0), p.number()));
     }
 
     /** The exact text of a request for this withdrawal; the same text is used to ask, to look up the answer, and to spend it. */

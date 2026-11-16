@@ -1,4 +1,5 @@
-import { Box, IconButton, Tooltip, Typography } from '@mui/material'
+import { LIGHT } from './glass'
+import { Badge, Box, IconButton, Tooltip, Typography } from '@mui/material'
 import { useEffect, useState } from 'react'
 import { FiChevronRight, FiHome, FiMoon, FiMonitor, FiPower, FiSun } from 'react-icons/fi'
 import { VscChromeClose, VscChromeMaximize, VscChromeMinimize, VscChromeRestore } from 'react-icons/vsc'
@@ -6,6 +7,9 @@ import type { Id } from './clients'
 import type { View } from './Dashboard'
 import GlobalSearch from './GlobalSearch'
 import { signOut } from './api'
+import { useInboxCount } from './nav/SideNav'
+import { VoiceControl, type Handled } from './voice/VoiceControl'
+import { BusinessDayChip } from './BusinessDayChip'
 import { useMe } from './session'
 import { tileFill, useThemeMode, type ThemeMode } from './theme'
 import { ToolbarSlotTarget, useHasMenu } from './toolbarSlot'
@@ -17,7 +21,7 @@ const icons = { light: <FiSun />, dark: <FiMoon />, system: <FiMonitor /> }
 const drag = { 'data-tauri-drag-region': '' }
 
 // Toolbar icons are flat and square-cornered, like a code editor's title bar.
-const flatIcon = { borderRadius: '5px', p: 0.5, fontSize: 16, color: 'inherit', opacity: 0.8, '&:hover': { opacity: 1 }, '&.Mui-disabled': { opacity: 0.4, color: 'inherit' } } as const
+const flatIcon = { flexShrink: 0, borderRadius: '5px', p: 0.5, fontSize: 15, color: 'inherit', opacity: 0.8, '&:hover': { opacity: 1 }, '&.Mui-disabled': { opacity: 0.4, color: 'inherit' } } as const
 
 const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
@@ -39,9 +43,8 @@ function Clock() {
   }, [])
   return (
     <Typography component="time" dateTime={now.toISOString()} {...drag}
-      sx={{ fontSize: 12, fontWeight: 400, opacity: 0.65, fontVariantNumeric: 'tabular-nums', mr: 1, whiteSpace: 'nowrap' }}>
-      {now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-      {' · '}
+      sx={{ fontSize: 12, fontWeight: 400, opacity: 0.65, fontVariantNumeric: 'tabular-nums', mr: 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
+      <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>{now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}{' · '}</Box>
       {now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
     </Typography>
   )
@@ -82,12 +85,15 @@ export function WindowControls() {
   )
 }
 
-export default function TopBar({ title, onHome, onNavigate, onOpenClient }: {
-  title: string; onHome?: () => void; onNavigate: (v: View) => void; onOpenClient: (id: Id) => void
+export default function TopBar({ title, onHome, onNavigate, onOpenClient, onMenu, menuOpen, onVoice }: {
+  title: string; onHome?: () => void; onNavigate: (v: View, tab?: string) => void; onOpenClient: (id: Id) => void; onMenu: () => void; menuOpen: boolean
+  /** Carries out a spoken sentence; without it there is no microphone button. */
+  onVoice?: (heard: string) => Handled
 }) {
   const { mode, setMode } = useThemeMode()
   const hasMenu = useHasMenu()
   const me = useMe()
+  const waiting = useInboxCount()
   const next = order[(order.indexOf(mode) + 1) % order.length]
   return (
     <Box component="header" {...drag} sx={(t) => ({
@@ -95,16 +101,22 @@ export default function TopBar({ title, onHome, onNavigate, onOpenClient }: {
       gridTemplateColumns: 'minmax(0, 1fr) minmax(160px, 340px) minmax(0, 1fr)',
       userSelect: 'none', color: t.palette.mode === 'dark' ? '#CCCCCC' : '#4D4D4D',
       backdropFilter: 'saturate(180%) blur(20px)',
-      backgroundColor: t.palette.mode === 'dark' ? 'rgba(28,28,30,0.72)' : 'rgba(255,255,255,0.72)',
+      backgroundColor: t.palette.mode === 'dark' ? 'rgba(28,28,30,0.72)' : LIGHT.bar,
       borderBottom: `1px solid ${t.palette.divider}`,
     })}>
       {/* Left: brand, then the current screen (or its menu), level with the window controls like a native title bar. */}
       <Box {...drag} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-        <Logo />
+        {/* The logo is the menu button: it opens and closes the menu of screens. */}
+        <Tooltip title="Menu (M)">
+          <IconButton aria-label={waiting ? `Menu, ${waiting} waiting for you` : 'Menu'} aria-haspopup="true" aria-expanded={menuOpen} aria-keyshortcuts="M" onClick={onMenu} size="small"
+            sx={(t) => ({ borderRadius: '5px', p: 0.5, mr: 0.25, bgcolor: menuOpen ? t.palette.action.selected : 'transparent', '&:hover': { bgcolor: t.palette.action.hover } })}>
+            <Badge color="error" variant={waiting ? 'dot' : undefined} invisible={!waiting} overlap="circular" sx={{ '& .MuiBadge-badge': { right: -1, top: -1 } }}><Logo /></Badge>
+          </IconButton>
+        </Tooltip>
         {onHome && (
           <>
             <Box aria-hidden sx={{ display: 'flex', color: 'text.disabled', fontSize: 13 }}><FiChevronRight /></Box>
-            <Tooltip title="Home"><IconButton aria-label="Home" onClick={onHome} size="small" sx={flatIcon}><FiHome /></IconButton></Tooltip>
+            <Tooltip title="Home (H)"><IconButton aria-label="Home" aria-keyshortcuts="H" onClick={onHome} size="small" sx={flatIcon}><FiHome /></IconButton></Tooltip>
             {!hasMenu && <Typography {...drag} noWrap sx={{ fontSize: 13, fontWeight: 400, color: 'inherit', opacity: 0.8 }}>{title}</Typography>}
           </>
         )}
@@ -116,13 +128,15 @@ export default function TopBar({ title, onHome, onNavigate, onOpenClient }: {
 
       {/* Right: clock, theme, session and window controls. */}
       <Box {...drag} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5, minWidth: 0 }}>
+        <BusinessDayChip onOpen={() => onNavigate('businessday')} />
         <Clock />
+        {onVoice && <VoiceControl handle={onVoice} />}
         <Tooltip title={`Theme: ${mode} (switch to ${next})`}>
           <IconButton aria-label={`Theme ${mode}, switch to ${next}`} onClick={() => setMode(next)} size="small" sx={flatIcon}>{icons[mode]}</IconButton>
         </Tooltip>
         <Typography {...drag} noWrap sx={{ fontSize: 12, opacity: 0.8, display: { xs: 'none', md: 'block' }, maxWidth: 160 }}>{me.name}</Typography>
         <Tooltip title={`Sign out (${me.name})`}>
-          <IconButton aria-label={`Sign out ${me.name}`} size="small" sx={flatIcon} onClick={signOut}><FiPower /></IconButton>
+          <IconButton aria-label={`Sign out ${me.name}`} size="small" sx={flatIcon} onClick={() => signOut()}><FiPower /></IconButton>
         </Tooltip>
         <WindowControls />
       </Box>

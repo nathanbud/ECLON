@@ -30,4 +30,4 @@ This is the same voucher the loan release uses (`loan-posting-map.md`), without 
 
 * Whether the old system has a minimum capital that must stay, or closes the account (status 17) when it is emptied. The data has 525 debits but the app does not change `sc.SCSTATUS`.
 * Withdrawals combined with savings in one voucher (as in the example) are not built; each voucher here has one share line.
-* Paying the member in cash out of vouchers payable.
+* (Built since: paying the member in cash out of vouchers payable, see voucher-payout-map.md.)

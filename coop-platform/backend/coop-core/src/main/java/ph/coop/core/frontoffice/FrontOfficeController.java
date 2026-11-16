@@ -64,9 +64,13 @@ class FrontOfficeController {
     private static final int MAX_ROWS = 200;
 
     private final JdbcTemplate jdbc;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final FrontOfficeAccess access;
 
-    FrontOfficeController(JdbcTemplate jdbc, FrontOfficeAccess access) {
+    FrontOfficeController(JdbcTemplate jdbc, FrontOfficeAccess access, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.access = access;
     }
@@ -84,7 +88,7 @@ class FrontOfficeController {
         List<Object[]> own = jdbc.query("SELECT AccessMaxWithdrawal, AccessDisbursementLimit, AccessDepartment FROM access WHERE AccessUserName = ? LIMIT 1",
             (rs, i) -> new Object[] {rs.getBigDecimal(1), rs.getBigDecimal(2), rs.getObject(3)}, auth.getName());
         Object[] o = own.isEmpty() ? new Object[] {null, null, null} : own.get(0);
-        return new Setup(auth.getName(), LocalDate.now().toString(), p.access(), p.branch(), tabs, denoms,
+        return new Setup(auth.getName(), businessDay.today(p.branch()).toString(), p.access(), p.branch(), tabs, denoms,
             (BigDecimal) o[0], (BigDecimal) o[1], o[2] == null ? null : ((Number) o[2]).intValue(), TELLER_CASH_ACCOUNT, cashAccountName(p.branch()));
     }
 
@@ -95,7 +99,7 @@ class FrontOfficeController {
         String text = q.trim().replace("%", "").replace("_", "");
         return jdbc.query("""
                 SELECT COAID, COADesc FROM coa
-                WHERE COABR_CODE = ? AND COALESCE(COAisdisabled, 0) = 0 AND (COAID LIKE ? OR COADesc LIKE ?)
+                WHERE COABR_CODE = ? AND COALESCE(COAisdisabled, 0) = 0 AND (COAID LIKE ? OR LOWER(COADesc) LIKE LOWER(?))
                 ORDER BY COAID LIMIT 30
                 """,
             (rs, i) -> new Account(rs.getString(1), rs.getString(2)), p.branch(), text + "%", "%" + text + "%");
@@ -123,7 +127,7 @@ class FrontOfficeController {
                 args.add(Long.parseLong(text));
                 args.add(Long.parseLong(text));
             } else {
-                sql.append(" AND (t.EXPLANATION LIKE ? OR t.CLIENTNAME LIKE ? OR c.LName LIKE ? OR c.FName LIKE ? OR t.TR_DOCNO LIKE ?)");
+                sql.append(" AND (LOWER(t.EXPLANATION) LIKE LOWER(?) OR LOWER(t.CLIENTNAME) LIKE LOWER(?) OR LOWER(c.LName) LIKE LOWER(?) OR LOWER(c.FName) LIKE LOWER(?) OR LOWER(t.TR_DOCNO) LIKE LOWER(?))");
                 for (int i = 0; i < 5; i++) args.add("%" + text + "%");
             }
         }

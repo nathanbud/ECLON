@@ -1,14 +1,38 @@
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
-import { getLoanProfile } from './api'
+import { downloadLoanWorksheet, getLoanProfile } from './api'
+import { moneyOr } from './ui/format'
 
-const money = (n: number | null | undefined) => (n == null ? '' : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+const money = (n: number | null | undefined) => moneyOr(n, '')
 
 /** One read-only field, laid out like the old screen's boxes. */
 function F({ label, value, align, bold }: { label: string; value: ReactNode; align?: 'right'; bold?: boolean }) {
   return (
     <TextField size="small" label={label} value={value ?? ''} fullWidth slotProps={{ input: { readOnly: true }, htmlInput: { style: { textAlign: align, fontVariantNumeric: 'tabular-nums', fontWeight: bold ? 700 : undefined } } }} />
+  )
+}
+
+/** The Interest and Penalty Computation Worksheet as of a date, saved as a PDF or an Excel file. */
+function WorksheetActions({ branchCode, clientId, typeCode, refNo }: { branchCode: number; clientId: number; typeCode: number; refNo: number }) {
+  const today = new Date().toISOString().slice(0, 10)
+  const [asOf, setAsOf] = useState(today)
+  const [busy, setBusy] = useState<'pdf' | 'xlsx' | null>(null)
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null)
+  const run = (kind: 'pdf' | 'xlsx') => {
+    setBusy(kind)
+    setNote(null)
+    downloadLoanWorksheet(branchCode, clientId, typeCode, refNo, asOf, kind)
+      .then((name) => setNote({ ok: true, text: `Saved ${name}` }), (e: Error) => setNote({ ok: false, text: e.message }))
+      .finally(() => setBusy(null))
+  }
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+      <TextField size="small" type="date" label="Worksheet as of" value={asOf} onChange={(e) => setAsOf(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today } }} />
+      <Button size="small" disabled={!asOf || busy !== null} onClick={() => run('pdf')}>{busy === 'pdf' ? 'Making PDF…' : 'Worksheet PDF'}</Button>
+      <Button size="small" disabled={!asOf || busy !== null} onClick={() => run('xlsx')}>{busy === 'xlsx' ? 'Making Excel…' : 'Worksheet Excel'}</Button>
+      {note && <Typography role="status" sx={{ fontSize: 12 }} color={note.ok ? 'success.main' : 'error.main'}>{note.text}</Typography>}
+    </Box>
   )
 }
 
@@ -129,7 +153,11 @@ export default function LoanProfileDialog({ branchCode, clientId, typeCode, refN
           </Box>
         )}
       </DialogContent>
-      <DialogActions><Button onClick={onClose}>Close</Button></DialogActions>
+      <DialogActions sx={{ px: 3, flexWrap: 'wrap', gap: 1 }}>
+        <WorksheetActions branchCode={branchCode} clientId={clientId} typeCode={typeCode} refNo={refNo} />
+        <Box sx={{ flex: 1 }} />
+        <Button onClick={onClose}>Close</Button>
+      </DialogActions>
     </Dialog>
   )
 }

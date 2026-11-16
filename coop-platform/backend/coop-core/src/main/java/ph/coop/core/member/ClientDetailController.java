@@ -51,19 +51,18 @@ class ClientDetailController {
         var tabs = new LinkedHashMap<String, LinkedHashMap<String, List<Spec>>>();
 
         var business = new LinkedHashMap<String, List<Spec>>();
+        business.put("Work & income", List.of(t("Profession", "Profession"), m("Monthly income", "BusinessIncome")));
         business.put("Employment", List.of(
             t("Employer / business", "BusName"), t("Nature of business", "BusNature"), t("Job title", "BusJobTitle"),
             l("Employment status", "BusStatus", "busStatus"), l("Level", "BusLevel", "busLevel"),
             d("Date hired", "BusDateHired"), y("In business since", "BusSince"), t("Employees", "BusNumEmployees"),
             t("Employee code", "EmpCode"), t("Employee no.", "EMPNO"), t("Employee ID", "BusEmpID")));
         business.put("Income", List.of(
-            m("Business income", "BusinessIncome"), m("Meal allowance", "MealAllowance"),
-            t("Other source of income", "BusOtherSourceOfIncome"), t("Profession", "BusProfession"), t("Occupation", "BusOccupation")));
+            m("Meal allowance", "MealAllowance"),
+            t("Other source of income", "BusOtherSourceOfIncome"), t("Business profession", "BusProfession"), t("Occupation", "BusOccupation")));
         business.put("Business address", List.of(
             t("Street", "BusAddStreet"), t("Barangay", "BusAddBarangay"), t("City / Municipality", "BusAddCity"),
             t("Province", "BusAddProvince"), t("Zip code", "BusAddZipCode"), t("Business phone", "EmpBusTelNum")));
-        business.put("DepEd", List.of(
-            t("Region code", "DepEdRegionCode"), t("Division code", "DepEdDivisionCode"), t("Station code", "DepEdStationCode")));
         tabs.put("business", business);
 
         var education = new LinkedHashMap<String, List<Spec>>();
@@ -105,7 +104,7 @@ class ClientDetailController {
         groups.put("Groups", List.of(
             l("Group", "Grouping", "grouping"), l("Area", "Geographical", "geo"), l("Sector", "Sectoral", "sector"),
             t("Occupation code", "Occupational"), l("Department", "ClientDEPT", "department"), l("Office", "RestrikID", "restrik"),
-            t("Collector no.", "Collector"), t("Recruiter no.", "RecruiterID")));
+            t("Collector no.", "Collector"), t("Recruiter no.", "RecruiterID"), l("DOSRI tag", "DOSRITag", "dosriTag"), l("Health care", "IsIncludeHealthCare", "yesNo")));
         tabs.put("groups", groups);
 
         var closed = new LinkedHashMap<String, List<Spec>>();
@@ -154,11 +153,13 @@ class ClientDetailController {
             t("Account name", "AccountName"), t("First name", "FName"), t("Middle name", "MName"), t("Last name", "LName"), t("Suffix", "SName"),
             d("Date of birth", "DateOfBirth"), l("Gender", "Gender", "gender"), l("Civil status", "CivilStatus", "civilStatus"),
             l("Religion", "ReligionID", "religion"), t("Mobile", "CellNum"), t("Email", "EmailAddress"),
-            t("Street", "ResAddStreet"), t("Barangay", "ResAddBarangay"), t("City / Municipality", "ResAddCity"),
+            t("House / Unit / Block & Lot no.", "ResAddHouseNo"), t("Street", "ResAddStreet"), t("Subdivision / Village / Building", "ResAddSubdivision"),
+            t("Barangay", "ResAddBarangay"), t("City / Municipality", "ResAddCity"),
             t("Province", "ResAddProvince"), t("Zip code", "ResAddZipCode"), y("Living here since", "ResSince"),
             l("Residence type", "ResType", "residenceType"), l("Mailing address", "MailingAddress", "mailingAddress"),
-            t("Provincial street", "ProvAddStreet"), t("Provincial barangay", "ProvAddBarangay"),
-            t("Provincial city", "ProvAddCity"), t("Provincial province", "ProvAddProvince"),
+            t("Provincial house / unit / block & lot no.", "ProvAddHouseNo"), t("Provincial street", "ProvAddStreet"),
+            t("Provincial subdivision / village / building", "ProvAddSubdivision"), t("Provincial barangay", "ProvAddBarangay"),
+            t("Provincial city", "ProvAddCity"), t("Provincial province", "ProvAddProvince"), t("Provincial zip code", "ProvAddZipCode"),
             t("Profession", "Profession"),
             m("Monthly income", "BusinessIncome"), l("Health care", "IsIncludeHealthCare", "yesNo"),
             l("Client type", "ClientType", "clientType"), l("Account type", "AccountType", "accountType"),
@@ -205,15 +206,22 @@ class ClientDetailController {
             return row;
         }, branchCode, clientId);
         if (rows.isEmpty()) return ResponseEntity.notFound().build();
-        Map<String, String> row = rows.get(0);
+        return ResponseEntity.ok(sectionsOf(rows.get(0)));
+    }
 
+    private Map<String, List<Section>> sectionsOf(Map<String, String> row) {
         Map<String, List<Section>> out = new LinkedHashMap<>();
         TABS.forEach((tab, sections) -> {
             List<Section> list = new ArrayList<>();
             sections.forEach((title, specs) -> list.add(new Section(title, specs.stream().map((s) -> field(s, row.get(s.column()))).toList())));
             out.put(tab, list);
         });
-        return ResponseEntity.ok(out);
+        return out;
+    }
+
+    /** The same tabs and fields as a member's details, all empty: the form a new member's registration is filled in on. */
+    Map<String, List<Section>> blankDetails() {
+        return sectionsOf(new LinkedHashMap<>());
     }
 
     record HistoryEntry(String at, String user, String activity, String info, String from, String to) {}

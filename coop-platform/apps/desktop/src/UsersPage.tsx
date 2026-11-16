@@ -1,13 +1,15 @@
 import {
-  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, InputAdornment, Skeleton,
+  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, InputAdornment, Skeleton,
   Snackbar, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
 } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { FiLock, FiSearch } from 'react-icons/fi'
-import { grantRole, grantSingleHand, listSingleHand, listUsers, revokeRole, revokeSingleHand, setUserPassword, type AdminUser } from './api'
+import { grantRole, grantSingleHand, listLockedUsers, listSingleHand, listUsers, revokeRole, revokeSingleHand, unlockUser, type AdminUser } from './api'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
+import PasswordChip from './PasswordChip'
+import TemporaryPasswordDialog from './TemporaryPasswordDialog'
 import UserProfileDialog from './UserProfileDialog'
 
 const OFFICER = 'MEMBERSHIP_OFFICER'
@@ -51,56 +53,6 @@ function AloneDialog({ user, onClose, onDone }: { user: AdminUser | null; onClos
     </Dialog>
   )
 }
-const MIN_PASSWORD = 8
-
-/** Sets a person's password. Nothing typed here is shown again or stored in plain text. */
-function PasswordDialog({ user, onClose, onDone }: { user: AdminUser | null; onClose: () => void; onDone: (message: string) => void }) {
-  const [password, setPassword] = useState('')
-  const [again, setAgain] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const tooShort = password.length > 0 && password.length < MIN_PASSWORD
-  const mismatch = again.length > 0 && again !== password
-  const ready = password.length >= MIN_PASSWORD && password === again
-
-  const submit = async () => {
-    if (!user || !ready) return
-    setBusy(true)
-    setError(null)
-    try {
-      await setUserPassword(user.username, password)
-      onDone(`Password set for ${user.username}`)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Dialog open={!!user} onClose={busy ? undefined : onClose} fullWidth maxWidth="xs" aria-labelledby="password-title"
-      slotProps={{ transition: { onExited: () => { setPassword(''); setAgain(''); setError(null) } } }}>
-      <DialogTitle id="password-title">Set password</DialogTitle>
-      <form onSubmit={(e) => { e.preventDefault(); void submit() }}>
-        <DialogContent>
-          <DialogContentText sx={{ mb: 2 }}>
-            For <strong>{user?.username}</strong>{user?.name ? ` (${user.name})` : ''}. They sign in to this app with it. It does not change their old iAccs password.
-          </DialogContentText>
-          <TextField label="New password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} fullWidth autoFocus
-            autoComplete="new-password" error={tooShort} helperText={tooShort ? `At least ${MIN_PASSWORD} characters` : ' '} />
-          <TextField label="Type it again" type="password" value={again} onChange={(e) => setAgain(e.target.value)} fullWidth
-            autoComplete="new-password" error={mismatch} helperText={mismatch ? 'The two do not match' : ' '} sx={{ mt: 0.5 }} />
-          {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button type="submit" variant="contained" disabled={!ready || busy}>{busy ? 'Saving…' : 'Set password'}</Button>
-        </DialogActions>
-      </form>
-    </Dialog>
-  )
-}
 
 /** Administrators: who can sign in, their app passwords, and who is a Membership Officer. */
 export default function UsersPage() {
@@ -116,6 +68,11 @@ export default function UsersPage() {
 
   const { data, error: loadError, isLoading } = useQuery({ queryKey: ['users'], queryFn: listUsers, enabled: me.admin })
   const single = useQuery({ queryKey: ['single-hand'], queryFn: listSingleHand, enabled: me.admin })
+  const locked = useQuery({ queryKey: ['locked-users'], queryFn: listLockedUsers, enabled: me.admin, refetchInterval: 20_000 })
+  const isLocked = (name: string) => (locked.data ?? []).some((l) => l.username === name.toLowerCase())
+  const unlock = async (u: AdminUser) => {
+    try { await unlockUser(u.username); setNotice(`${u.username} can sign in again`); void qc.invalidateQueries({ queryKey: ['locked-users'] }) } catch (e) { setNotice((e as Error).message) }
+  }
   const grants = useMemo(() => new Map((single.data ?? []).map((g) => [g.username.toLowerCase(), g])), [single.data])
   const rows = useMemo(() => {
     const f = filter.trim().toLowerCase()
@@ -156,7 +113,7 @@ export default function UsersPage() {
       <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
         <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Users</Typography>
         <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
-          People come from the iAccs user list. Select a person to see their account setup, give them a password for this app, and choose who is a Membership Officer.
+          Select a person to see their account setup, issue them a temporary password, and choose who is a Membership Officer.
         </Typography>
 
         {!me.admin && <Alert severity="info">Only administrators can manage users.</Alert>}
@@ -174,7 +131,7 @@ export default function UsersPage() {
                   <TableHead>
                     <TableRow>
                       <TableCell>User</TableCell><TableCell>Level</TableCell><TableCell>Can edit clients</TableCell>
-                      <TableCell>App password</TableCell><TableCell align="center">Membership Officer</TableCell><TableCell align="center">Loans alone</TableCell>
+                      <TableCell>Password</TableCell><TableCell align="center">Membership Officer</TableCell><TableCell align="center">Loans alone</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -185,16 +142,17 @@ export default function UsersPage() {
                         aria-label={`Open ${u.username}'s account setup`}
                       >
                         <TableCell>
-                          <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{u.username}</Typography>
+                          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{u.username}</Typography>
                           <Typography sx={{ fontSize: 12 }} color="text.secondary">{u.name || '—'}{u.enabled ? '' : ' · disabled'}</Typography>
                         </TableCell>
                         <TableCell>{u.level ?? '—'}</TableCell>
                         <TableCell>{u.canEdit ? 'Yes' : 'No'}</TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Chip size="small" variant="outlined" color={u.hasPassword ? 'success' : 'default'} label={u.hasPassword ? 'Set' : 'Not set'} />
+                            <PasswordChip u={u} />
+                            {isLocked(u.username) && <Button size="small" color="warning" onClick={() => void unlock(u)}>Locked: unlock</Button>}
                             <Button size="small" startIcon={<FiLock />} disabled={!u.enabled} onClick={() => setTarget(u)}>
-                              {u.hasPassword ? 'Reset' : 'Set'}
+                              {u.passwordState === 'NONE' ? 'Issue' : 'Reissue'}
                             </Button>
                           </Box>
                         </TableCell>
@@ -227,9 +185,9 @@ export default function UsersPage() {
       </Box>
 
       <UserProfileDialog user={profile} onClose={() => setProfile(null)} onSetPassword={setTarget} onToggleOfficer={(u, on) => void toggleOfficer(u, on)} onNotice={setNotice} busy={busyUser !== null} />
-      <PasswordDialog
+      <TemporaryPasswordDialog
         user={target} onClose={() => setTarget(null)}
-        onDone={(m) => { setTarget(null); setNotice(m); void qc.invalidateQueries({ queryKey: ['users'] }); void qc.invalidateQueries({ queryKey: ['user-profile'] }) }}
+        onIssued={(u) => { setNotice(`Temporary password issued for ${u.username}`); void qc.invalidateQueries({ queryKey: ['users'] }); void qc.invalidateQueries({ queryKey: ['user-profile'] }) }}
       />
       <AloneDialog user={alone} onClose={() => setAlone(null)} onDone={(m) => { setAlone(null); setNotice(m); void qc.invalidateQueries({ queryKey: ['single-hand'] }) }} />
       <Snackbar open={!!notice} autoHideDuration={3500} onClose={() => setNotice(null)} message={notice} />

@@ -10,6 +10,7 @@ import {
 import { money } from './FoTransactionForm'
 import { CountGrid, countTotal, toNumbers, type Counts } from './CountGrid'
 import { glass } from './glass'
+import MoneyField from './MoneyField'
 
 const VAULT = 50
 const label = (t: string) => (
@@ -92,6 +93,8 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
   const [sure, setSure] = useState(false)
   const [accepting, setAccepting] = useState<FoHandover | null>(null)
   const [accCounts, setAccCounts] = useState<Counts>({})
+  const [chequeText, setChequeText] = useState('')
+  const [accCheques, setAccCheques] = useState('')
   const [slipId, setSlipId] = useState<number | null>(null)
   // One key per attempt: sent with the request so a repeated click or a retry cannot post the same hand-off twice.
   const keyRef = useRef<string>(crypto.randomUUID())
@@ -117,6 +120,7 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
   const toDrawer = toOptions.find((d) => `${d.event}:${d.number}` === to) ?? (toOptions.length === 1 ? toOptions[0] : undefined)
 
   const amount = countTotal(setup, counts)
+  const chequeTotal = Number(chequeText.replace(/,/g, '')) || 0
   const own = myDrawers.find((d) => d.event === from)
   const free = own ? (own.balance ?? 0) - (own.pendingOut ?? 0) : null
   const toVault = toDrawer?.event === VAULT
@@ -128,19 +132,19 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
   const give = useMutation({
     mutationFn: (overrideReason?: string) => issueFoHandover({
       fromEvent: from ?? 0, toEvent: toDrawer?.event ?? 0, toNumber: toDrawer?.number ?? null, amount, counts: toNumbers(counts), remarks,
-      requestKey: keyRef.current, overrideReason,
+      requestKey: keyRef.current, overrideReason, cheques: chequeTotal > 0 ? chequeTotal : undefined,
     }),
     onSuccess: (h) => {
-      setError(null); setCounts({}); setRemarks(''); setNeedReason(null); setReason(''); keyRef.current = crypto.randomUUID(); refresh()
+      setError(null); setCounts({}); setChequeText(''); setRemarks(''); setNeedReason(null); setReason(''); keyRef.current = crypto.randomUUID(); refresh()
       onNotice(h.status === 'POSTED' ? `Posted. Control no. ${h.ctlNo}.` : `Sent to ${h.to}. It is posted when they count it.`)
     },
     // Returning cash to the vault before the day is ready asks the head cashier for a reason instead of just failing.
     onError: (e) => { const m = (e as Error).message; if (m.startsWith('Not ready to close:')) setNeedReason(m); else fail(e) },
   })
   const accept = useMutation({
-    mutationFn: (h: FoHandover) => acceptFoHandover(h.id, toNumbers(accCounts)),
+    mutationFn: (h: FoHandover) => acceptFoHandover(h.id, toNumbers(accCounts), h.cheques > 0 ? Number(accCheques.replace(/,/g, '')) || 0 : undefined),
     onSuccess: (h) => {
-      setError(null); setAccepting(null); setAccCounts({}); refresh()
+      setError(null); setAccepting(null); setAccCounts({}); setAccCheques(''); refresh()
       onNotice(h.status === 'POSTED' ? `Accepted and posted. Control no. ${h.ctlNo}.` : 'The count did not match, so nothing was posted. The giver has been told.')
     },
     onError: fail,
@@ -164,7 +168,7 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
   }
   const defaultOf = (event: number) => limits.data?.find((l) => l.event === event && l.number === 0)?.maxCash ?? 0
   const headDrawer = (drawers.data ?? []).find((d) => d.head)
-  const problem = !toDrawer ? 'Choose who to give the cash to.' : amount <= 0 ? 'Count the notes and coins to give.' : free !== null && from !== VAULT && amount > free ? `You only have ${money(free)} free to give.` : null
+  const problem = !toDrawer ? 'Choose who to give the cash to.' : amount <= 0 && chequeTotal <= 0 ? 'Count the notes and coins to give, or enter the cheques.' : free !== null && from !== VAULT && amount > free ? `You only have ${money(free)} free to give.` : null
 
   return (
     <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: 'minmax(380px, 560px) minmax(0, 1fr)', flex: 1, minHeight: 0 }}>
@@ -186,6 +190,7 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
                     <Typography sx={{ fontSize: 12 }} color="text.secondary">Waiting: {money(d.pendingIn ?? 0)} to receive, {money(d.pendingOut ?? 0)} given</Typography>
                   )}
                   {d.limit != null && <Typography sx={{ fontSize: 12 }} color="text.secondary">Limit {money(d.limit)}</Typography>}
+                  {(d.cheques ?? 0) !== 0 && <Typography sx={{ fontSize: 12 }} color="text.secondary">Cheques held {money(d.cheques ?? 0)}</Typography>}
                 </Box>
               ))}
             </Box>
@@ -208,7 +213,7 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
           <Box sx={(t) => ({ p: 1.5, ...glass(t) })}>
             {label(from === VAULT ? 'Take cash from the vault' : 'Give cash')}
             <Box sx={{ display: 'flex', gap: 1, mb: 1.25, flexWrap: 'wrap' }}>
-              <TextField select size="small" label="From" value={from ?? ''} onChange={(e) => { setFromEvent(Number(e.target.value)); setTo('') }} sx={{ minWidth: 170 }}>
+              <TextField select size="small" label="From" value={from ?? ''} onChange={(e) => { setFromEvent(Number(e.target.value)); setTo(''); setChequeText('') }} sx={{ minWidth: 170 }}>
                 {fromOptions.map((o) => <MenuItem key={o.event} value={o.event}>{o.text}</MenuItem>)}
               </TextField>
               <TextField select size="small" label="To" value={toDrawer ? `${toDrawer.event}:${toDrawer.number}` : ''} onChange={(e) => setTo(e.target.value)} sx={{ minWidth: 260, flex: 1 }}>
@@ -216,14 +221,18 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
               </TextField>
             </Box>
             <CountGrid setup={setup} counts={counts} onChange={setCounts} onSubmit={() => { if (!problem && !give.isPending) submit() }} />
+            {from !== VAULT && (
+              <MoneyField size="small" label="Cheques given (total amount)" value={chequeText} onValueChange={(v) => setChequeText(v)} sx={{ mt: 1.25, width: 260 }}
+                helperText={own && (own.cheques ?? 0) > 0 ? `Cheques held ${money(own.cheques ?? 0)}. They move as an amount, together with the cash.` : 'Cheques move as an amount, together with the cash.'} />
+            )}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1.25, flexWrap: 'wrap' }}>
-              <Typography sx={{ fontSize: 13.5 }}>Total <b style={{ fontSize: 17, fontVariantNumeric: 'tabular-nums' }}>{money(amount)}</b></Typography>
-              {free !== null && from !== VAULT && <Typography sx={{ fontSize: 12.5 }} color="text.secondary">free to give {money(free)}</Typography>}
+              <Typography sx={{ fontSize: 13 }}>Total <b style={{ fontSize: 17, fontVariantNumeric: 'tabular-nums' }}>{money(amount)}</b>{chequeTotal > 0 && <> + cheques <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(chequeTotal)}</b></>}</Typography>
+              {free !== null && from !== VAULT && <Typography sx={{ fontSize: 12 }} color="text.secondary">free to give {money(free)}</Typography>}
               <Box sx={{ flex: 1 }} />
               <TextField size="small" label="Remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} sx={{ width: 200 }} slotProps={{ htmlInput: { maxLength: 150 } }} />
               <Button variant="contained" disabled={!!problem || give.isPending} onClick={submit}>{give.isPending ? 'Sending…' : atOnce ? 'Post' : 'Send'}</Button>
             </Box>
-            {problem && amount > 0 && <Typography sx={{ fontSize: 12.5, mt: 0.5 }} color="error">{problem}</Typography>}
+            {problem && (amount > 0 || chequeTotal > 0) && <Typography sx={{ fontSize: 12, mt: 0.5 }} color="error">{problem}</Typography>}
             <Typography sx={{ fontSize: 12, mt: 0.75 }} color="text.secondary">
               {atOnce ? 'Moves to or from the vault are posted to the ledger straight away.' : 'The receiver counts it first. It is posted to the ledger when their count agrees.'}
             </Typography>
@@ -264,7 +273,7 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
                         )}
                       </TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{(d.pendingIn ?? 0) + (d.pendingOut ?? 0) > 0 ? money((d.pendingIn ?? 0) + (d.pendingOut ?? 0)) : ''}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap', fontSize: 12.5 }}>
+                      <TableCell sx={{ whiteSpace: 'nowrap', fontSize: 12 }}>
                         {d.closedAt == null ? (d.event === VAULT ? '' : '—')
                           : <span style={{ color: d.variance ? 'inherit' : undefined }}>{d.closedAt}{d.variance ? ` · ${d.variance < 0 ? 'short' : 'over'} ${money(Math.abs(d.variance))}` : ' ✓'}</span>}
                       </TableCell>
@@ -284,11 +293,11 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
         {/* Waiting for me */}
         <Box sx={(t) => ({ p: 1.5, ...glass(t) })}>
           {label('Waiting for you to count')}
-          {(mine.data?.incoming ?? []).length === 0 && <Typography sx={{ fontSize: 13.5 }} color="text.secondary">Nothing to receive.</Typography>}
+          {(mine.data?.incoming ?? []).length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing to receive.</Typography>}
           {(mine.data?.incoming ?? []).map((h) => (
             <Box key={h.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75, borderTop: '1px solid', borderColor: 'divider' }}>
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ fontSize: 14 }}>{h.from} · <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.amount)}</b></Typography>
+                <Typography sx={{ fontSize: 13 }}>{h.from} · <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.amount)}</b>{h.cheques > 0 && <> + cheques <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.cheques)}</b></>}</Typography>
                 <Typography sx={{ fontSize: 12 }} color="text.secondary">{h.issuedAt} by {h.issuedBy}{h.remarks ? ` · ${h.remarks}` : ''}</Typography>
               </Box>
               <Button size="small" variant="contained" onClick={() => { setAccepting(h); setAccCounts({}) }}>Count</Button>
@@ -304,7 +313,7 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
             {(mine.data?.outgoing ?? []).map((h) => (
               <Box key={h.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75, borderTop: '1px solid', borderColor: 'divider' }}>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 14 }}>{h.to} · <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.amount)}</b></Typography>
+                  <Typography sx={{ fontSize: 13 }}>{h.to} · <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.amount)}</b>{h.cheques > 0 && <> + cheques <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.cheques)}</b></>}</Typography>
                   <Typography sx={{ fontSize: 12 }} color={h.status === 'DISPUTED' ? 'error' : 'text.secondary'}>{h.status === 'DISPUTED' ? h.note : `Sent ${h.issuedAt}`}</Typography>
                 </Box>
                 <Chip size="small" color={statusColor(h.status)} variant="outlined" label={h.status === 'DISPUTED' ? 'Count differs' : 'Waiting'} />
@@ -323,7 +332,7 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
               {(mine.data?.today ?? []).map((h) => (
                 <TableRow key={h.id}>
                   <TableCell sx={{ fontVariantNumeric: 'tabular-nums' }}>{h.issuedAt}</TableCell><TableCell>{h.from}</TableCell><TableCell>{h.to}</TableCell>
-                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.amount)}</TableCell>
+                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(h.amount)}{h.cheques > 0 && <Typography component="div" sx={{ fontSize: 11 }} color="text.secondary">+ cheques {money(h.cheques)}</Typography>}</TableCell>
                   <TableCell><Chip size="small" variant="outlined" color={statusColor(h.status)} label={h.status === 'POSTED' ? `Posted ${h.ctlNo ?? ''}` : h.status.charAt(0) + h.status.slice(1).toLowerCase()} /></TableCell>
                   <TableCell align="right"><Button size="small" aria-label={`Slip for ${h.from} to ${h.to}`} onClick={() => setSlipId(h.id)}>Slip</Button></TableCell>
                 </TableRow>
@@ -341,9 +350,9 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
         <DialogTitle>Cash limit</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 1.5 }}>The most cash for {limitFor?.label}. Tellers over it are asked to give the excess to the head cashier. Leave empty or 0 for no limit.</DialogContentText>
-          <TextField
-            autoFocus fullWidth size="small" label="Limit" value={limitFor?.value ?? ''} slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-            onChange={(e) => setLimitFor((l) => (l ? { ...l, value: e.target.value.replace(/[^0-9.,]/g, '') } : l))}
+          <MoneyField
+            autoFocus fullWidth size="small" label="Limit" value={limitFor?.value ?? ''}
+            onValueChange={(v) => setLimitFor((l) => (l ? { ...l, value: v } : l))}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void saveLimit() } }}
           />
         </DialogContent>
@@ -367,8 +376,9 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
       <Dialog open={!!accepting} onClose={() => setAccepting(null)} maxWidth="sm" fullWidth>
         <DialogTitle>Count the cash from {accepting?.from}</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ mb: 1.5 }}>Given: <b>{money(accepting?.amount ?? 0)}</b>. Count the notes and coins you received.</DialogContentText>
+          <DialogContentText sx={{ mb: 1.5 }}>Given: <b>{money(accepting?.amount ?? 0)}</b>{(accepting?.cheques ?? 0) > 0 && <> and cheques <b>{money(accepting?.cheques ?? 0)}</b></>}. Count the notes and coins you received{(accepting?.cheques ?? 0) > 0 ? ', and add up the cheques' : ''}.</DialogContentText>
           <CountGrid setup={setup} counts={accCounts} onChange={setAccCounts} />
+          {(accepting?.cheques ?? 0) > 0 && <MoneyField size="small" label="Cheques received (total amount)" value={accCheques} onValueChange={(v) => setAccCheques(v)} sx={{ mt: 1.25, width: 260 }} />}
           {(() => {
             const c = countTotal(setup, accCounts)
             const diff = Math.round((c - (accepting?.amount ?? 0)) * 100) / 100
@@ -381,7 +391,7 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAccepting(null)}>Not now</Button>
-          <Button variant="contained" disabled={accept.isPending || countTotal(setup, accCounts) === 0} onClick={() => accepting && accept.mutate(accepting)}>
+          <Button variant="contained" disabled={accept.isPending || (countTotal(setup, accCounts) === 0 && !((accepting?.cheques ?? 0) > 0 && accCheques.trim() !== ''))} onClick={() => accepting && accept.mutate(accepting)}>
             {accept.isPending ? 'Posting…' : 'Accept and post'}
           </Button>
         </DialogActions>
@@ -392,7 +402,7 @@ export default function CashHandoverPanel({ setup, onNotice }: { setup: FoSetup;
         <DialogTitle>Post to the ledger?</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {from === VAULT ? 'Take' : 'Return'} <b>{money(amount)}</b> {from === VAULT ? 'from the vault to' : 'to'} {toDrawer ? (toDrawer.event === VAULT ? 'the vault' : toDrawer.label) : ''}. This is posted straight away and cannot be edited afterwards.
+            {from === VAULT ? 'Take' : 'Return'} <b>{money(amount)}</b>{chequeTotal > 0 && <> and cheques <b>{money(chequeTotal)}</b></>} {from === VAULT ? 'from the vault to' : 'to'} {toDrawer ? (toDrawer.event === VAULT ? 'the vault' : toDrawer.label) : ''}. This is posted straight away and cannot be edited afterwards.
           </DialogContentText>
         </DialogContent>
         <DialogActions>

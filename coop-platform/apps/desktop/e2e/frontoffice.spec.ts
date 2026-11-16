@@ -21,6 +21,7 @@ async function openFrontOffice(page: Page) {
 
 async function openHandover(page: Page) {
   await openFrontOffice(page)
+  await page.getByRole('tab', { name: 'Cash', exact: true }).click()
   await page.getByRole('tab', { name: /Cash Handover/ }).click()
   await expect(page.getByText('My drawer')).toBeVisible()
 }
@@ -29,7 +30,11 @@ test.describe('front office', () => {
   test('opens from the dashboard with the expected tabs', async ({ page }) => {
     await signIn(page)
     await openFrontOffice(page)
-    for (const name of ['Summary', 'Receipt', 'Withdrawal', 'Cash Handover', 'Bank Trans']) {
+    for (const name of ['Teller', 'Summary', 'Cash']) {
+      await expect(page.getByRole('tab', { name: new RegExp('^' + name) })).toBeVisible()
+    }
+    await page.getByRole('tab', { name: 'Cash', exact: true }).click()
+    for (const name of ['Disburse', 'Cash Handover', 'Bank Trans']) {
       await expect(page.getByRole('tab', { name: new RegExp('^' + name) })).toBeVisible()
     }
     // The old separate Transfer From / Transfer To tabs are now one.
@@ -39,13 +44,12 @@ test.describe('front office', () => {
   test('Ctrl+number switches tabs', async ({ page }) => {
     await signIn(page)
     await openFrontOffice(page)
-    const labels = await page.getByRole('tab').allInnerTexts()
-    const index = labels.findIndex((l) => l.includes('Cash Handover'))
+    const labels = await page.getByRole('tablist', { name: 'Transaction kinds' }).getByRole('tab').allInnerTexts()
+    const index = labels.findIndex((l) => l.trim() === 'Cash')
     expect(index).toBeGreaterThanOrEqual(0)
-    expect(index).toBeLessThan(9)
     await page.keyboard.press(`Control+${index + 1}`)
-    await expect(page.getByRole('tab', { name: /Cash Handover/ })).toHaveAttribute('aria-selected', 'true')
-    await page.keyboard.press('Control+1')
+    await expect(page.getByRole('tab', { name: 'Cash', exact: true })).toHaveAttribute('aria-selected', 'true')
+    await page.keyboard.press('Control+3')
     await expect(page.getByRole('tab', { name: /Summary/ })).toHaveAttribute('aria-selected', 'true')
   })
 

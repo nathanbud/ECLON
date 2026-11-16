@@ -17,7 +17,7 @@ person (the head cashier, no approver), `DTUPD_TAG` 1, `DTCOCI_TYPE` 1:
   Examples: BPI-LTB 36 -> `10020209`, LBP-LTB 37 -> `10020216`, PNB-BC 52 -> `10020224`, BDO-Pangasinan 31 -> `10020104` (event 61).
 * `gltrans`: one line per account, type 33 or 35. A cash count by note and coin is stored in `denomsum` / `denomdtl` (deposit: `TO_USERID` the head cashier; withdrawal: `FROM_USERID`).
 * Explanations read "CIB-<bank> <note>" for deposits and "BW <bank> <note>" for withdrawals.
-* About 500 of the 800 deposits take the money not from the vault but from `100111` (checks and collections on hand, event 51) and carry no cash count. Those are **not built**.
+* About 500 of the 800 deposits (497 in 2026) take cheques instead: the same two lines, but seq 0 is on `100111` (checks and collections on hand) with **sub-ledger type 3**, event 51, number 99, and there is no `denomsum` and no `transck` row. The app builds these (`cheques: true` on the deposit request): the vault's cheque balance must cover the amount, and cash and cheques are never mixed on one deposit (all 497 have exactly two lines).
 
 ## What the app does
 
@@ -25,6 +25,17 @@ person (the head cashier, no approver), `DTUPD_TAG` 1, `DTCOCI_TYPE` 1:
 Deposit: counts must add up to the amount and the vault must hold it. Withdrawal: the ledger balance of the bank account must cover it. Control number from `Db.nextControlNumber`.
 Test: `BankCashPostingTest` (posts, compares, rolls back).
 
+## Bank interest and bank charges (mapped 2026-10-28, nothing to build)
+
+The old system has **no transaction type of its own** for them. Nothing outside types 33 and 35 touches a bank ledger account (class 11, type 2) except General Journals (module 1, types 1 and 6), vouchers (2/21, 2/22) and receipts (3/10) that are about something else.
+The accountant records both at month end inside a General Journal (module 1, type 1) whose explanation begins "Bank Reconciliation" (about 70 from June 2025 to March 2026, for example 2026 nos. 12818 and 13309, up to 46 lines each, encoded by one accountant and posted by another):
+
+* **Interest on deposits and investments**: debit the bank account (`1002xxxx`), credit **440501** "Int.income from deposit/investment". Interest on a term placement goes in two steps: credit `101901` "Interest receivables" for what was accrued and 440501 for the rest.
+* **Bank charges**: rare, about 10 lines in the period, debit **50317** "Taxes, fees and charges" (11,655.00 in all), credit the bank account.
+* **The rest of the same journals**: unidentified deposits and transfers booked to "Other payable - <bank>" (`20134xx`), cheques on hand (100111), error corrections.
+
+The app's journals (`/api/journals`, creator, approver and poster, posted as a legacy General Journal) already take these lines, so a separate write path would only repeat them. Use a journal with the reconciliation's outstanding items as the guide.
+
 ## Not built
 
-Deposits of checks and collections (event 51), bank charges and interest, check clearing, a screen for it (the endpoints exist).
+Cheque (`transck`) clearing from the bank statement.

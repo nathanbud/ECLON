@@ -1,6 +1,8 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.accounting.close.PostingPeriods;
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -41,13 +43,20 @@ class ShareWithdrawalController {
     record Encoded(int branchCode, int year, long controlNo, String documentNo, int clientId, String clientName, BigDecimal amount, BigDecimal availableAfter) {}
 
     private final FrontOfficeAccess access;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final MemberLedgerPoster poster;
     private final JdbcTemplate jdbc;
     private final Db db;
     private final Clock clock;
     private final TransactionTemplate tx;
+    private final ph.coop.core.member.KycGate kyc;
 
-    ShareWithdrawalController(FrontOfficeAccess access, MemberLedgerPoster poster, JdbcTemplate jdbc, Db db, Clock clock, PlatformTransactionManager txm) {
+    ShareWithdrawalController(FrontOfficeAccess access, MemberLedgerPoster poster, JdbcTemplate jdbc, Db db, Clock clock, PlatformTransactionManager txm,
+                              ph.coop.core.member.KycGate kyc, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
+        this.kyc = kyc;
         this.access = access;
         this.poster = poster;
         this.jdbc = jdbc;
@@ -73,7 +82,9 @@ class ShareWithdrawalController {
                     SELECT COALESCE(SUM(DTAMT), 0) FROM transdt WHERE DTTR_BRCODE = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTUPD_TAG = ? AND DTAMT > 0
                       AND ClientIDDT = ? AND DTSLC_CODE = ? AND DTSLT_CODE = ? AND DTREF_NO = ? AND DTSLE_CODE = ?
                     """, BigDecimal.class, branch, MODULE, ShareWithdrawalRules.CASH_VOUCHER, PENDING, req.clientId(), SHARE, req.typeCode(), req.refNo(), PRINCIPAL);
-            var problems = ShareWithdrawalRules.check(amount, a.status(), a.balance(), pending, c.status());
+            var problems = new java.util.ArrayList<>(ShareWithdrawalRules.check(amount, a.status(), a.balance(), a.held(), pending, c.status()));
+            String kycProblem = kyc.withdrawalProblem(branch, req.clientId(), LocalDate.now(clock));
+            if (kycProblem != null) problems.add(kycProblem);
             if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
             List<Integer> payable = jdbc.queryForList("SELECT MREF_NO FROM slmastersum WHERE MBR_CODE = ? AND MCLIENTID = ? AND MSLC_CODE = ? AND MSLT_CODE = 1 ORDER BY MREF_NO DESC LIMIT 1",
                 Integer.class, branch, req.clientId(), PAYABLE);
@@ -83,8 +94,9 @@ class ShareWithdrawalController {
             String payableGl = poster.glAccount(branch, PAYABLE, 1, PRINCIPAL, payableStatus);
 
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
-            LocalDate day = now.toLocalDate();
+            LocalDate day = businessDay.postingDate(branch);
             int year = day.getYear();
+            PostingPeriods.requireOpen(jdbc, branch, day);
             long ctl = db.nextControlNumber(branch, MODULE, ShareWithdrawalRules.CASH_VOUCHER, year);
             String docNo = SharePaymentRules.documentNo(null, ctl);
             String explanation = req.explanation() == null || req.explanation().isBlank() ? "SC WITHDRAWAL" : req.explanation().trim();
@@ -103,10 +115,8 @@ class ShareWithdrawalController {
                 req.refNo(), PRINCIPAL, a.status(), day.toString(), amount, p.id(), PENDING);
             jdbc.update(sql, branch, year, MODULE, ShareWithdrawalRules.CASH_VOUCHER, ctl, 1, p.dept(), payableGl, req.clientId(), PAYABLE, 1,
                 payable.get(0), PRINCIPAL, payableStatus, day.toString(), amount.negate(), p.id(), PENDING);
-            jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, 'share.withdrawal.encode', 'transsum', ?, ?)",
-                Timestamp.valueOf(now), auth.getName(), branch + "/" + year + "/" + MODULE + "/" + ShareWithdrawalRules.CASH_VOUCHER + "/" + ctl,
-                "client " + req.clientId() + " type " + req.typeCode() + " ref " + req.refNo() + " amount " + amount.toPlainString() + " doc " + docNo);
-            return new Encoded(branch, year, ctl, docNo, req.clientId(), c.name(), amount, a.balance().subtract(pending).subtract(amount));
+            AuditLog.write(jdbc, auth.getName(), "share.withdrawal.encode", "transsum", branch + "/" + year + "/" + MODULE + "/" + ShareWithdrawalRules.CASH_VOUCHER + "/" + ctl, null, "client " + req.clientId() + " type " + req.typeCode() + " ref " + req.refNo() + " amount " + amount.toPlainString() + " doc " + docNo, null);
+            return new Encoded(branch, year, ctl, docNo, req.clientId(), c.name(), amount, a.balance().subtract(a.held()).subtract(pending).subtract(amount));
         });
     }
 }

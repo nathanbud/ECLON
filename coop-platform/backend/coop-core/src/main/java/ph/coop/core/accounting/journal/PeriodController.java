@@ -1,6 +1,7 @@
 package ph.coop.core.accounting.journal;
 
-import java.time.LocalDate;
+
+import ph.coop.core.audit.AuditLog;import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -93,7 +94,6 @@ class PeriodController {
     }
 
     private void audit(Authentication auth, String action, long id, String prev, String next) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, prev_value, new_value, reason) VALUES (?,?,?,?,?,?,?,NULL)",
-                LocalDateTime.now(), auth.getName(), action, "accounting_period", String.valueOf(id), prev, next);
+        AuditLog.write(jdbc, auth.getName(), action, "accounting_period", String.valueOf(id), prev, next, null);
     }
 }

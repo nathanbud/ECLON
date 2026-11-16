@@ -4,8 +4,11 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { getTrialBalance } from './api'
+import { money } from './ui/format'
+import { useMe } from './session'
+import { BranchSelect } from './ui/BranchSelect'
+import { Loading } from './ui/Loading'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 function monthStart() {
   const d = new Date()
@@ -13,10 +16,10 @@ function monthStart() {
 }
 
 export default function TrialBalancePage() {
-  const [branch, setBranch] = useState('1')
+  const me = useMe()
+  const [branchCode, setBranchCode] = useState(me.branchCode ?? 1)
   const [from, setFrom] = useState(monthStart())
   const [to, setTo] = useState(new Date().toLocaleDateString('en-CA'))
-  const branchCode = Number(branch)
 
   const { data, error, isFetching } = useQuery({
     queryKey: ['trial-balance', branchCode, from, to],
@@ -26,10 +29,11 @@ export default function TrialBalancePage() {
 
   return (
     <Container sx={{ py: 3 }}>
-      <TextField label="Branch code" value={branch} onChange={(e) => setBranch(e.target.value)} sx={{ mr: 2, mb: 2, width: 140 }} />
+      <BranchSelect value={branchCode} onChange={setBranchCode} sx={{ mr: 2, mb: 2 }} />
       <TextField label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ mr: 2, mb: 2 }} />
       <TextField label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ mb: 2 }} />
       {error && <Alert severity="error" sx={{ mb: 2 }}>{(error as Error).message}</Alert>}
+      {isFetching && !data && <Loading what="the trial balance" />}
       {data && (
         <Alert severity={data.balanced ? 'success' : 'warning'} sx={{ mb: 2 }}>
           {data.balanced ? 'Debits equal credits.' : `Out of balance by ${money(Math.abs(data.totalDebit - data.totalCredit))}.`}

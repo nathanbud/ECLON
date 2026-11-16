@@ -17,7 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
  * "can access front office" flag on {@code access}, and the find/new flags per transaction type on {@code access_trans}.
  */
 @Component
-class FrontOfficeAccess {
+public class FrontOfficeAccess {
 
     /** One tab of the window and the transaction types it handles (the Summary tab has none of its own). */
     record TabDef(String key, String label, List<Integer> types) {}
@@ -32,9 +32,13 @@ class FrontOfficeAccess {
         new TabDef("otc", "OTC Voucher", List.of(30)),
         new TabDef("handover", "Cash Handover", List.of(31, 32)),
         new TabDef("bank", "Bank Trans", List.of(33, 35)),
+        new TabDef("accounts", "Member Accounts", List.of()),
         new TabDef("passbook", "Passbook", List.of()),
         new TabDef("sales", "Sales Receipt", List.of(41)),
-        new TabDef("salesReturn", "Sales Return", List.of(42)));
+        new TabDef("salesReturn", "Sales Return", List.of(42)),
+        new TabDef("tdmaturity", "TD Maturities", List.of()),
+        new TabDef("tdaccrual", "TD Accruals", List.of()),
+        new TabDef("dividend", "Dividends", List.of()));
 
     /** Every type the window handles. */
     static final Set<Integer> ALL_TYPES = TABS.stream().flatMap((t) -> t.types().stream()).collect(Collectors.toUnmodifiableSet());
@@ -60,6 +64,11 @@ class FrontOfficeAccess {
         jdbc.query("SELECT TR_CODE, CAN_FIND, CAN_NEW FROM access_trans WHERE BR_CODE = ? AND USERID = ?",
             (rs) -> { byType.put(rs.getInt(1), new boolean[] {rs.getInt(2) == 1, rs.getInt(3) == 1}); }, r[0], r[1]);
         return new Perms(r[2] == 1, false, r[0], r[1], byType);
+    }
+
+    /** Whether the person may create this type of transaction (New on it), for screens outside the front office that say who may do what. */
+    public boolean mayCreate(Authentication auth, int type) {
+        return ALL_TYPES.contains(type) && of(auth).canNew(type);
     }
 
     /** The types in this list that the person may look up. */

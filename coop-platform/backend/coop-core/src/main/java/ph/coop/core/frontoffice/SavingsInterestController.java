@@ -1,6 +1,8 @@
 package ph.coop.core.frontoffice;
 
-import java.math.BigDecimal;
+
+import ph.coop.core.accounting.close.PostingPeriods;
+import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -55,6 +57,8 @@ class SavingsInterestController {
     record VoucherRow(int year, long controlNo, String documentNo, int typeCode, int lines, BigDecimal total, int encodedBy, Integer approvedBy, String status) {}
 
     private final FrontOfficeAccess access;
+
+    private final ph.coop.core.businessday.BusinessDay businessDay;
     private final MemberLedgerPoster poster;
     private final SavingsInterestRun run;
     private final JdbcTemplate jdbc;
@@ -62,7 +66,9 @@ class SavingsInterestController {
     private final Clock clock;
     private final Db db;
 
-    SavingsInterestController(FrontOfficeAccess access, MemberLedgerPoster poster, SavingsInterestRun run, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db) {
+    SavingsInterestController(FrontOfficeAccess access, MemberLedgerPoster poster, SavingsInterestRun run, JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, ph.coop.core.businessday.BusinessDay businessDay) {
+
+        this.businessDay = businessDay;
         this.access = access;
         this.poster = poster;
         this.run = run;
@@ -132,6 +138,9 @@ class SavingsInterestController {
         Person p = poster.person(auth.getName());
         LocalDate to = quarterEnd(in.quarterEnd());
         return tx.execute((st) -> {
+            PostingPeriods.requireOpen(jdbc, p.branch(), to);
+            // a run posts on its own period-end date, but only while the branch has a business day open
+            businessDay.requireStarted(p.branch());
             if (vouchersOf(p.branch(), to) > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Interest vouchers already exist for this quarter, so it cannot be run again.");
             Plan plan = run.plan(p.branch(), to);
             if (plan.credits().isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "No account earns interest for this quarter.");
@@ -251,6 +260,7 @@ class SavingsInterestController {
         Perms perms = access.of(auth);
         requireNew(perms);
         Person p = poster.person(auth.getName());
+        businessDay.requireStarted(p.branch());
         return tx.execute((st) -> {
             List<Line> lines = lines(p.branch(), year, controlNo, true);
             List<String> problems = problems(lines);
@@ -286,7 +296,6 @@ class SavingsInterestController {
     }
 
     private void audit(Authentication auth, String action, Person p, String entity, String detail) {
-        jdbc.update("INSERT INTO ecis_audit_log (at, username, action, entity, entity_id, new_value) VALUES (?, ?, ?, 'transsum', ?, ?)",
-            Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)), auth.getName(), action, p.branch() + "/" + MODULE + "/" + CODE + "/" + entity, detail);
+        AuditLog.write(jdbc, auth.getName(), action, "transsum", p.branch() + "/" + MODULE + "/" + CODE + "/" + entity, null, detail, null);
     }
 }

@@ -3,41 +3,52 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiPlus, FiTrash2 } from 'react-icons/fi'
 import {
-  createJournal, createPeriod, getFinancialCondition, getJournal, getOperations, journalStep, listJournals, listPeriods, reverseJournal, setPeriodStatus,
+  createJournal, createPeriod, searchPostingAccounts, getFinancialCondition, getJournal, getOperations, journalStep, listJournals, listPeriods, reverseJournal, setPeriodStatus,
   type JournalLineIn, type JournalSummary, type PeriodStatus, type StatementSection,
 } from './api'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
 import BanksTab from './BanksTab'
+import MemosTab from './MemosTab'
+import PenaltyWaiversTab from './PenaltyWaiversTab'
 import TrialBalancePage from './TrialBalancePage'
+import { AccountPicker } from './ui/AccountPicker'
+import { BranchSelect } from './ui/BranchSelect'
+import YearEndCloseTab from './YearEndCloseTab'
+import MoneyField from './MoneyField'
+import { money } from './ui/format'
+import { ConfirmButton } from './ui/dialogs'
+import { labelOf } from './ui/labels'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const today = () => new Date().toLocaleDateString('en-CA')
 const yearStart = () => `${new Date().getFullYear()}-01-01`
 
 /** Reports and bookkeeping: trial balance for everyone; statements, journals and periods for accountants and administrators. */
-export default function AccountingPage() {
+export default function AccountingPage({ initialTab }: { initialTab?: string }) {
   const me = useMe()
   const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
-  const [tab, setTab] = useState(0)
-  const tabs = ['Trial balance', ...(accountant ? ['Statements', 'Journals', 'Periods', 'Banks'] : [])]
-  const [branch, setBranch] = useState('1')
-  const branchCode = Number(branch)
-  const ok = Number.isInteger(branchCode) && branchCode > 0
+  const tabs = ['Trial balance', ...(accountant ? ['Statements', 'Journals', 'Memos', 'Periods', 'Banks', 'Penalty waivers', 'Year-end close'] : [])]
+  // a tab named by the side menu or the search opens first
+  const [tab, setTab] = useState(() => Math.max(0, tabs.indexOf(initialTab ?? '')))
+  const [branchCode, setBranchCode] = useState(me.branchCode ?? 1)
+  const ok = branchCode > 0
 
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
         <Stack direction="row" spacing={2} sx={{ mb: 1, alignItems: "center" }}>
           <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', flex: 1 }}>Accounting</Typography>
-          {tab > 0 && <TextField size="small" label="Branch code" value={branch} onChange={(e) => setBranch(e.target.value)} sx={{ width: 130 }} />}
+          {tab > 0 && <BranchSelect value={branchCode} onChange={setBranchCode} />}
         </Stack>
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>{tabs.map((t) => <Tab key={t} label={t} />)}</Tabs>
         {tab === 0 && <Box sx={{ mx: -3, mt: -3 }}><TrialBalancePage /></Box>}
         {tab === 1 && ok && <Statements branchCode={branchCode} />}
         {tab === 2 && ok && <Journals branchCode={branchCode} />}
-        {tab === 3 && ok && <Periods branchCode={branchCode} />}
-        {tab === 4 && ok && <BanksTab branchCode={branchCode} />}
+        {tab === 3 && ok && <MemosTab branchCode={branchCode} />}
+        {tab === 4 && ok && <Periods branchCode={branchCode} />}
+        {tab === 5 && ok && <BanksTab branchCode={branchCode} />}
+        {tab === 6 && <PenaltyWaiversTab />}
+        {tab === 7 && ok && <YearEndCloseTab branchCode={branchCode} />}
       </Box>
     </Box>
   )
@@ -171,7 +182,7 @@ function Journals({ branchCode }: { branchCode: number }) {
                   <TableCell>{j.journalDate}</TableCell>
                   <TableCell>{j.description}</TableCell>
                   <TableCell align="right">{money(j.total)}</TableCell>
-                  <TableCell><Chip size="small" label={j.status.replace('_', ' ')} color={statusColor[j.status]} /></TableCell>
+                  <TableCell><Chip size="small" label={labelOf(j.status)} color={statusColor[j.status]} /></TableCell>
                   <TableCell>{j.createdBy}</TableCell>
                 </TableRow>
               ))}
@@ -185,8 +196,8 @@ function Journals({ branchCode }: { branchCode: number }) {
   )
 }
 
-interface DraftLine { account: string; debit: string; credit: string }
-const blankLine = (): DraftLine => ({ account: '', debit: '', credit: '' })
+interface DraftLine { account: string; accountName: string; debit: string; credit: string }
+const blankLine = (): DraftLine => ({ account: '', accountName: '', debit: '', credit: '' })
 
 function NewJournal({ branchCode, onClose, onDone }: { branchCode: number; onClose: () => void; onDone: () => void }) {
   const [reference, setReference] = useState('')
@@ -197,7 +208,7 @@ function NewJournal({ branchCode, onClose, onDone }: { branchCode: number; onClo
   const dr = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0)
   const cr = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0)
   const balanced = dr === cr && dr > 0
-  const m = useMutation({
+  const m = useMutation({ meta: { done: 'Journal saved as a draft.' },
     mutationFn: () => createJournal({
       branchCode, reference: reference.trim(), journalDate: date, description,
       lines: lines.filter((l) => l.account.trim()).map<JournalLineIn>((l) => ({ accountCode: l.account.trim(), debit: Number(l.debit) || 0, credit: Number(l.credit) || 0 })),
@@ -215,9 +226,11 @@ function NewJournal({ branchCode, onClose, onDone }: { branchCode: number; onClo
         </Stack>
         {lines.map((l, i) => (
           <Stack key={i} direction="row" spacing={1} sx={{ mb: 1 }}>
-            <TextField size="small" label="Account" value={l.account} onChange={(e) => set(i, 'account', e.target.value)} sx={{ width: 160 }} />
-            <TextField size="small" label="Debit" type="number" value={l.debit} onChange={(e) => set(i, 'debit', e.target.value)} sx={{ flex: 1 }} />
-            <TextField size="small" label="Credit" type="number" value={l.credit} onChange={(e) => set(i, 'credit', e.target.value)} sx={{ flex: 1 }} />
+            <AccountPicker code={l.account} desc={l.accountName} label={`Line ${i + 1} account`} width={260} placeholder="Account number or name"
+              search={(q) => searchPostingAccounts(branchCode, q)} recentKey="coop.journalRecentAccounts"
+              onPick={(a) => setLines((ls) => ls.map((x, j) => (j === i ? { ...x, account: a?.code ?? '', accountName: a?.description ?? '' } : x)))} />
+            <MoneyField size="small" label="Debit" value={l.debit} onValueChange={(v) => set(i, 'debit', v)} sx={{ flex: 1 }} />
+            <MoneyField size="small" label="Credit" value={l.credit} onValueChange={(v) => set(i, 'credit', v)} sx={{ flex: 1 }} />
             <IconButton aria-label="Remove line" disabled={lines.length <= 2} onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}><FiTrash2 /></IconButton>
           </Stack>
         ))}
@@ -241,14 +254,14 @@ function JournalView({ id, user, onClose, onChanged }: { id: number; user: strin
   const [reason, setReason] = useState('')
   const [reversing, setReversing] = useState(false)
   const done = () => { qc.invalidateQueries({ queryKey: ['journal', id] }); onChanged() }
-  const step = useMutation({ mutationFn: (s: 'submit' | 'approve' | 'post') => journalStep(id, s), onSuccess: done })
-  const rev = useMutation({ mutationFn: () => reverseJournal(id, reason), onSuccess: () => { setReversing(false); setReason(''); done() } })
+  const step = useMutation({ meta: { done: (_, s) => ({ submit: 'Journal sent for review.', approve: 'Approved. Someone else can now post it.', post: 'Journal posted to the ledger.' } as Record<string, string>)[s as string] ?? null }, mutationFn: (s: 'submit' | 'approve' | 'post') => journalStep(id, s), onSuccess: done })
+  const rev = useMutation({ meta: { done: 'Reversal draft made. It goes through review and approval like any journal.' }, mutationFn: () => reverseJournal(id, reason), onSuccess: () => { setReversing(false); setReason(''); done() } })
   const s = data?.summary
   const error = (step.error ?? rev.error) as Error | null
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
-        {s?.reference ?? 'Journal'} {s && <Chip size="small" sx={{ ml: 1 }} label={s.status.replace('_', ' ')} color={statusColor[s.status]} />}
+        {s?.reference ?? 'Journal'} {s && <Chip size="small" sx={{ ml: 1 }} label={labelOf(s.status)} color={statusColor[s.status]} />}
       </DialogTitle>
       <DialogContent>
         {s && (
@@ -276,7 +289,10 @@ function JournalView({ id, user, onClose, onChanged }: { id: number; user: strin
         <Button onClick={onClose}>Close</Button>
         {s?.status === 'DRAFT' && <Button variant="contained" disabled={step.isPending} onClick={() => step.mutate('submit')}>Submit for review</Button>}
         {s?.status === 'FOR_REVIEW' && s.createdBy !== user && <Button variant="contained" disabled={step.isPending} onClick={() => step.mutate('approve')}>Approve</Button>}
-        {s?.status === 'APPROVED' && <Button variant="contained" disabled={step.isPending} onClick={() => step.mutate('post')}>Post</Button>}
+        {s?.status === 'APPROVED' && (
+          <ConfirmButton variant="contained" disabled={step.isPending} onConfirm={() => step.mutate('post')} title={`Post journal ${s.reference}?`}
+            message={<>It writes <b>{money(s.total)}</b> to the general ledger, dated {s.journalDate}. A posted journal cannot be edited; a mistake is corrected with a reversal.</>}>Post</ConfirmButton>
+        )}
         {s?.status === 'POSTED' && !reversing && <Button color="warning" onClick={() => setReversing(true)}>Reverse...</Button>}
         {s?.status === 'POSTED' && reversing && <Button color="warning" variant="contained" disabled={rev.isPending || !reason.trim()} onClick={() => rev.mutate()}>Create reversal draft</Button>}
       </DialogActions>
@@ -295,11 +311,11 @@ function Periods({ branchCode }: { branchCode: number }) {
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const refresh = () => qc.invalidateQueries({ queryKey: ['periods'] })
-  const add = useMutation({
+  const add = useMutation({ meta: { done: 'Period added.' },
     mutationFn: () => createPeriod({ branchCode, name: name.trim(), startDate: start, endDate: end }),
     onSuccess: () => { setName(''); setStart(''); setEnd(''); refresh() },
   })
-  const move = useMutation({ mutationFn: (v: { id: number; status: PeriodStatus }) => setPeriodStatus(v.id, v.status), onSuccess: refresh })
+  const move = useMutation({ meta: { done: (_, v) => ({ OPEN: 'Period reopened.', SOFT_CLOSED: 'Period closed for review.', CLOSED: 'Period closed.', LOCKED: 'Period locked.' } as Record<string, string>)[(v as { status: string }).status] ?? null }, mutationFn: (v: { id: number; status: PeriodStatus }) => setPeriodStatus(v.id, v.status), onSuccess: refresh })
   const error = (list.error ?? add.error ?? move.error) as Error | null
   return (
     <Box>
@@ -325,10 +341,19 @@ function Periods({ branchCode }: { branchCode: number }) {
                     <TableCell>{p.name}</TableCell>
                     <TableCell>{p.startDate}</TableCell>
                     <TableCell>{p.endDate}</TableCell>
-                    <TableCell><Chip size="small" label={p.status.replace('_', ' ')} color={p.status === 'OPEN' ? 'success' : 'default'} /></TableCell>
+                    <TableCell><Chip size="small" label={labelOf(p.status)} color={p.status === 'OPEN' ? 'success' : 'default'} /></TableCell>
                     <TableCell align="right">
                       {p.status === 'SOFT_CLOSED' && <Button size="small" onClick={() => move.mutate({ id: p.id, status: 'OPEN' })}>Reopen</Button>}
-                      {next && <Button size="small" disabled={move.isPending} onClick={() => move.mutate({ id: p.id, status: next })}>{next.replace('_', ' ').toLowerCase()}</Button>}
+                      {next === 'SOFT_CLOSED' && <Button size="small" disabled={move.isPending} onClick={() => move.mutate({ id: p.id, status: next })}>Soft close</Button>}
+                      {(next === 'CLOSED' || next === 'LOCKED') && (
+                        <ConfirmButton size="small" color="warning" disabled={move.isPending} onConfirm={() => move.mutate({ id: p.id, status: next })}
+                          title={next === 'CLOSED' ? `Close ${p.name}?` : `Lock ${p.name}?`} confirmLabel={next === 'CLOSED' ? 'Close the period' : 'Lock the period'}
+                          message={next === 'CLOSED'
+                            ? <>Nothing can be posted dated {p.startDate} to {p.endDate} any more: no journals, memos or teller transactions. A closed period cannot be reopened.</>
+                            : <>The period stays closed for good. This cannot be undone.</>}>
+                          {next === 'CLOSED' ? 'Close' : 'Lock'}
+                        </ConfirmButton>
+                      )}
                     </TableCell>
                   </TableRow>
                 )

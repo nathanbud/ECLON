@@ -21,6 +21,34 @@ class HandoverRulesTest {
         return HandoverRules.check(from, to, new BigDecimal(amount), counts, FACES, head);
     }
 
+    private static List<String> withCheques(Drawer from, Drawer to, String cash, Map<Integer, Integer> counts, String cheques) {
+        return HandoverRules.check(from, to, new BigDecimal(cash), counts, FACES, false, new BigDecimal(cheques));
+    }
+
+    @Test
+    void chequesAloneNeedNoCashOrCount() {
+        assertTrue(withCheques(TELLER91, HEAD, "0", Map.of(), "3858.00").isEmpty());
+        assertTrue(withCheques(TELLER91, HEAD, "1000", Map.of(1, 1), "3858.00").isEmpty(), "cash and cheques on one transfer");
+        assertFalse(withCheques(TELLER91, HEAD, "0", Map.of(1, 1), "3858.00").isEmpty(), "notes counted but no cash given");
+        assertFalse(withCheques(TELLER91, HEAD, "0", Map.of(), "0").isEmpty(), "nothing at all");
+    }
+
+    @Test
+    void chequesDoNotLeaveTheVaultExceptToTheBank() {
+        List<String> p = HandoverRules.check(VAULT, HEAD, new BigDecimal("0"), Map.of(), FACES, true, new BigDecimal("100"));
+        assertTrue(p.stream().anyMatch((x) -> x.contains("bank deposit")), p.toString());
+        assertTrue(HandoverRules.check(HEAD, VAULT, new BigDecimal("0"), Map.of(), FACES, true, new BigDecimal("100")).isEmpty(), "the head cashier may put cheques in the vault");
+    }
+
+    @Test
+    void chequeAccountsAndEventsFollowTheOldChart() {
+        assertEquals("100111", HandoverRules.chequeAccount(50));
+        assertEquals("100112", HandoverRules.chequeAccount(52));
+        assertEquals("100113", HandoverRules.chequeAccount(53));
+        assertEquals(51, HandoverRules.chequeEvent(50));
+        assertEquals(53, HandoverRules.chequeEvent(53));
+    }
+
     @Test
     void headCashierToTellerWithMatchingCountIsFine() {
         assertTrue(check(HEAD, TELLER91, "206000", Map.of(1, 206), true).isEmpty());

@@ -44,7 +44,7 @@ class SavingsPostingTest {
         SavingsController.Account acc = s.accounts().stream().filter((x) -> x.typeCode() == typ && x.refNo() == ref).findFirst().orElseThrow();
         assertEquals(0, expected.compareTo(acc.balance()));
         assertEquals("Active", acc.statusName());
-        assertEquals(0, acc.balance().subtract(acc.held()).max(BigDecimal.ZERO).compareTo(acc.available()));
+        assertEquals(0, acc.balance().subtract(acc.held()).subtract(acc.uncleared()).max(BigDecimal.ZERO).compareTo(acc.available()));
         assertEquals(0, s.accounts().stream().map(SavingsController.Account::balance).reduce(BigDecimal.ZERO, BigDecimal::add).compareTo(s.totalBalance()));
     }
 

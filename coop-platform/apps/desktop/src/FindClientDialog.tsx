@@ -1,10 +1,12 @@
-import { Alert, Avatar, Box, Chip, CircularProgress, Dialog, InputAdornment, TextField, Typography, type Theme } from '@mui/material'
+import { Alert, Avatar, Box, Chip, CircularProgress, Dialog, FormControlLabel, IconButton, InputAdornment, Skeleton, Switch, TextField, Typography, type Theme } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { FiSearch } from 'react-icons/fi'
-import { searchMembers, type Lookups } from './api'
+import { FiCornerDownLeft, FiSearch, FiUser, FiX } from 'react-icons/fi'
+import { searchMembers, type Lookups, type Member } from './api'
 import { displayName, initials, memberNo, statusOf, type Id } from './clients'
+import { LIGHT } from './glass'
 import { tileFill } from './theme'
+import { takePendingFind, VOICE_FIND } from './voice/bus'
 
 const MAX_RESULTS = 8
 
@@ -16,19 +18,76 @@ const dark = (t: Theme) => t.palette.mode === 'dark'
 /** A physical-looking key cap for the shortcut hints. */
 const Key = ({ children }: { children: ReactNode }) => (
   <Box component="kbd" sx={(t) => ({
-    fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600, lineHeight: 1, px: 0.9, py: 0.5, borderRadius: '5px',
+    fontFamily: 'inherit', fontSize: 11, fontWeight: 600, lineHeight: 1, px: 0.9, py: 0.5, borderRadius: '5px',
     color: 'text.primary',
     backgroundColor: dark(t) ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
     border: `1px solid ${dark(t) ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.12)'}`,
   })}>{children}</Box>
 )
 
+const AVATAR_TINTS = [tileFill.blue, tileFill.orange, tileFill.indigo]
+
+/** The part of the text the person typed, set in a heavier weight, so it is clear why a row matched. */
+function Highlight({ text, q }: { text: string; q: string }) {
+  const needle = q.trim()
+  if (needle.length < 2) return <>{text}</>
+  const at = text.toLowerCase().indexOf(needle.toLowerCase())
+  if (at < 0) return <>{text}</>
+  return <>{text.slice(0, at)}<Box component="span" sx={{ fontWeight: 700 }}>{text.slice(at, at + needle.length)}</Box>{text.slice(at + needle.length)}</>
+}
+
+/** Placeholder rows shown while the first results load, so the list does not jump. */
+function LoadingRows() {
+  return (
+    <Box aria-hidden sx={{ p: 1, display: 'grid', gap: 0.5 }}>
+      {[0, 1, 2].map((i) => (
+        <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.75, px: 1.5, py: 1.1 }}>
+          <Skeleton variant="circular" width={40} height={40} />
+          <Box sx={{ flex: 1 }}><Skeleton width={`${55 - i * 8}%`} height={18} /><Skeleton width="38%" height={14} /></Box>
+        </Box>
+      ))}
+    </Box>
+  )
+}
+
 /** The search field and results. Used inside the pop-up, and directly on the page when no client is open. */
-export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => void; lk?: Lookups; inline?: boolean }) {
+/** The words on a finder, so another screen (the loan application) can use the same layout with its own wording. */
+export interface FindWording { title: string; lead: string; hint: string; enter: string; queryTag: string }
+const MEMBER_WORDING: FindWording = { title: 'Find Client', lead: 'Who are you looking for?', hint: 'Type at least two letters of a name, or a member ID.', enter: 'open', queryTag: 'find' }
+
+export function FindBody({ onPick, onPickMember, lk, inline = false, wording = MEMBER_WORDING, allowInactive = true }: { onPick: (id: Id) => void; onPickMember?: (member: Member) => void; lk?: Lookups; inline?: boolean; wording?: FindWording
+  /** False where only active members may be chosen (a new loan application): the Include inactive switch is not shown and only active members are found. */
+  allowInactive?: boolean }) {
   const [input, setInput] = useState('')
   const [q, setQ] = useState('')
   const [active, setActive] = useState(0)
+  // A name search lists active members only; the switch adds dormant and closed ones.
+  const [inactive, setInactive] = useState(false)
   const activeRef = useRef<HTMLLIElement>(null)
+
+  // The pop-up's own focus handling (and a menu or button that had focus) can take focus back just after it opens, so autoFocus alone is not enough:
+  // put the cursor in the field again as the pop-up settles (only in the first quarter of a second, so it never fights the person).
+  useEffect(() => {
+    const timers = [0, 80, 250].map((ms) => setTimeout(() => {
+      const el = document.getElementById('find-client-input') as HTMLInputElement | null
+      if (el && document.activeElement !== el) el.focus()
+    }, ms))
+    return () => timers.forEach(clearTimeout)
+  }, [])
+
+  // "find client Santos" by voice types the name in; the person still presses Enter to open a member.
+  useEffect(() => {
+    const take = () => {
+      const text = takePendingFind()
+      if (text === null) return
+      setInput(text)
+      setQ(text.trim())
+      setActive(0)
+    }
+    take()
+    window.addEventListener(VOICE_FIND, take)
+    return () => window.removeEventListener(VOICE_FIND, take)
+  }, [])
 
   // Debounce typing so each keystroke doesn't hit the large member table.
   useEffect(() => {
@@ -38,22 +97,34 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
 
   const enabled = searchable(q)
   const { data, error, isFetching } = useQuery({
-    queryKey: ['members', q, 'find'],
-    queryFn: () => searchMembers(q, 0, MAX_RESULTS),
+    queryKey: ['members', q, wording.queryTag, inactive],
+    queryFn: () => searchMembers(q, 0, MAX_RESULTS, inactive),
     enabled,
     placeholderData: (prev) => prev,
   })
   const results = enabled ? data?.content ?? [] : []
-  const more = enabled && data ? data.totalElements - results.length : 0
+  // How many members there are, shown while nothing is typed (an empty search lists everyone; one row is enough to read the total).
+  const { data: all } = useQuery({
+    queryKey: ['members', 'count', wording.queryTag, inactive],
+    queryFn: () => searchMembers('', 0, 1, inactive),
+    enabled: !enabled,
+    staleTime: 60_000,
+  })
+  const total = all?.totalElements
+  const hasMore = enabled && data?.last === false
 
   useEffect(() => { activeRef.current?.scrollIntoView({ block: 'nearest' }) }, [active, results.length])
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, Math.max(results.length - 1, 0))) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)) }
-    else if (e.key === 'Enter' && results[active]) { e.preventDefault(); onPick(results[active].id) }
+    else if (e.key === 'Enter' && results[active]) { e.preventDefault(); onPick(results[active].id); onPickMember?.(results[active]) }
+    else if (e.key === 'Escape' && input) { e.preventDefault(); e.stopPropagation(); setInput(''); setActive(0) }
   }
 
+  const rule = (t: Theme) => (dark(t) ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)')
+  const busy = isFetching && enabled
+  const hints = [...(results.length > 0 ? [['↑↓', 'move'], ['Enter', wording.enter]] : []), ...(inline ? [] : [['Esc', 'close']])]
   return (
     <Box sx={{ position: 'relative', isolation: 'isolate' }}>
       {/* Soft colour behind the glass gives it something to refract. Decorative only. */}
@@ -62,100 +133,144 @@ export function FindBody({ onPick, lk, inline = false }: { onPick: (id: Id) => v
         <Box sx={{ position: 'absolute', width: 300, height: 300, bottom: -130, right: -80, borderRadius: '50%', filter: 'blur(70px)', opacity: 0.25, bgcolor: tileFill.indigo }} />
       </Box>
 
-      <Box sx={{ p: 2.5, pb: 2 }}>
-        <Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', mb: 1.5 }}>Find Client</Typography>
+      <Box sx={{ px: 2.5, pt: 2.25, pb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <Typography component="h2" sx={{ flex: 1, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">{wording.title}</Typography>
+          {allowInactive && (
+            <FormControlLabel
+              sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} label="Include inactive"
+              control={<Switch size="small" checked={inactive} onChange={(e) => { setInactive(e.target.checked); setActive(0) }} />}
+            />
+          )}
+        </Box>
         <TextField
           id="find-client-input" fullWidth autoFocus value={input}
           onChange={(e) => { setInput(e.target.value); setActive(0) }}
           onKeyDown={onKeyDown}
-          label="Client name or member ID"
-          placeholder="e.g. Budikey, or 0001-0033189"
+          placeholder="Search by name or member ID"
           slotProps={{
             htmlInput: {
-              role: 'combobox', 'aria-expanded': results.length > 0,
+              role: 'combobox', 'aria-label': 'Client name or member ID', 'aria-expanded': results.length > 0, autoComplete: 'off', spellCheck: false,
               'aria-controls': 'find-client-results', 'aria-activedescendant': results[active] ? `find-client-${active}` : undefined,
             },
             input: {
-              endAdornment: isFetching && enabled
-                ? <InputAdornment position="end"><CircularProgress size={16} /></InputAdornment>
-                : <InputAdornment position="end"><FiSearch /></InputAdornment>,
+              startAdornment: <InputAdornment position="start" sx={{ color: 'text.secondary' }}><FiSearch size={18} aria-hidden /></InputAdornment>,
+              endAdornment: busy
+                ? <InputAdornment position="end"><CircularProgress size={16} aria-label="Searching" /></InputAdornment>
+                : input
+                  ? <InputAdornment position="end"><IconButton size="small" edge="end" aria-label="Clear search" onClick={() => { setInput(''); setActive(0); document.getElementById('find-client-input')?.focus() }}><FiX size={16} /></IconButton></InputAdornment>
+                  : undefined,
             },
           }}
           sx={(t) => ({
-            // The field looks pressed into the glass: inset shadow below the top edge, a lit rim at the bottom.
+            // A taller field with the icon inside and no floating label: the placeholder says what to type. The corner radius is the app's own.
             '& .MuiOutlinedInput-root': {
-              borderRadius: '5px', fontSize: 15.5, backgroundColor: dark(t) ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.55)',
+              fontSize: 17, minHeight: 50, backgroundColor: dark(t) ? 'rgba(0,0,0,0.28)' : LIGHT.field,
               boxShadow: dark(t) ? 'inset 0 1px 2px rgba(0,0,0,0.35)' : 'inset 0 1px 2px rgba(0,0,0,0.08)',
               transition: 'box-shadow 160ms ease-out',
               '& .MuiOutlinedInput-notchedOutline': { borderColor: dark(t) ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' },
               '&.Mui-focused': { boxShadow: `0 0 0 3px ${dark(t) ? 'rgba(10,132,255,0.3)' : 'rgba(0,122,255,0.2)'}` },
             },
+            '& .MuiOutlinedInput-input::placeholder': { opacity: 0.55 },
           })}
         />
       </Box>
 
-      <Box sx={(t) => ({ borderTop: `1px solid ${dark(t) ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`, minHeight: 120, maxHeight: 360, overflow: 'auto' })}>
+      <Box sx={(t) => ({ borderTop: `1px solid ${rule(t)}`, minHeight: 132, maxHeight: 380, overflow: 'auto' })}>
         {error && <Alert severity="error" sx={{ m: 1.5 }}>Search failed. Try again.</Alert>}
+
         {!error && !enabled && (
-          <Typography sx={{ p: 2.5, fontSize: 13.5 }} color="text.secondary">
-            Type a name, or a member ID such as 0001-0033189 or 33189. A reference ID such as A010352 works too.
-          </Typography>
+          <Box sx={{ px: 2.5, py: 3, textAlign: 'center' }}>
+            <Typography sx={{ fontSize: 15, fontWeight: 600, mb: 0.5 }}>{wording.lead}</Typography>
+            <Typography sx={{ fontSize: 13, mb: total === undefined ? 1.5 : 0.5 }} color="text.secondary">{wording.hint}</Typography>
+            {total !== undefined && (
+              <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1.5, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">
+                {total.toLocaleString('en-PH')} {inactive ? 'members in all' : `active member${total === 1 ? '' : 's'}`}
+              </Typography>
+            )}
+            <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {['Dela Cruz', '0001-0033189', '33189', 'A010352'].map((e) => (
+                <Chip key={e} size="small" variant="outlined" label={e} clickable onClick={() => { setInput(e); setActive(0); document.getElementById('find-client-input')?.focus() }}
+                  sx={{ fontVariantNumeric: 'tabular-nums', fontSize: 12 }} />
+              ))}
+            </Box>
+          </Box>
         )}
+
+        {!error && enabled && !data && isFetching && <LoadingRows />}
+
         {!error && enabled && !isFetching && results.length === 0 && (
-          <Typography sx={{ p: 2.5, fontSize: 13.5 }} color="text.secondary">No clients found for “{q}”.</Typography>
+          <Box sx={{ px: 2.5, py: 3, textAlign: 'center' }}>
+            <Typography sx={{ fontSize: 15, fontWeight: 600, mb: 0.5 }}>No clients found</Typography>
+            <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing matches “{q}”. Check the spelling, or try the member ID.{!inactive && (allowInactive ? ' Only active clients are listed: turn on Include inactive to see dormant and closed ones.' : ' Only active members are listed: a dormant or closed member cannot apply.')}</Typography>
+          </Box>
         )}
-        <Box component="ul" id="find-client-results" role="listbox" aria-label="Matching clients" sx={{ listStyle: 'none', m: 0, p: 1, display: 'grid', gap: 0.75 }}>
-          {results.map((m, i) => {
-            const st = statusOf(m, lk)
-            const on = i === active
-            return (
-              <Box
-                component="li" key={`${m.id.branchCode}-${m.id.clientId}`} id={`find-client-${i}`} role="option" aria-selected={on}
-                ref={on ? activeRef : undefined}
-                onClick={() => onPick(m.id)} onMouseMove={() => setActive(i)}
-                sx={(t) => ({
-                  display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 1.1, borderRadius: '5px', cursor: 'pointer',
-                  border: '1px solid transparent',
-                  // The highlighted row is just a soft tint.
-                  backgroundColor: on ? (dark(t) ? 'rgba(255,255,255,0.1)' : 'rgba(0,100,220,0.09)') : 'transparent',
-                  transition: 'background-color 120ms ease-out',
-                  '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
-                })}
-              >
-                <Avatar sx={{
-                  width: 38, height: 38, fontSize: 13, fontWeight: 700, color: '#fff',
-                  backgroundColor: tileFill.blue,
-                }}>{initials(m)}</Avatar>
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography noWrap sx={{ fontSize: 14.5, fontWeight: 600 }}>{displayName(m)}</Typography>
-                  <Typography noWrap sx={{ fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">
-                    {memberNo(m.id)}{m.referenceId ? ` · Ref ${m.referenceId}` : ''}{m.city ? ` · ${m.city}` : ''}
-                  </Typography>
-                </Box>
-                <Chip size="small" variant="outlined" label={st.label} color={st.kind} sx={{ height: 22, fontSize: 11.5, backdropFilter: 'blur(6px)' }} />
-              </Box>
-            )
-          })}
-        </Box>
-        {more > 0 && (
-          <Typography sx={{ px: 2.5, pb: 1.5, fontSize: 12.5 }} color="text.secondary">
-            {more.toLocaleString()} more match{more === 1 ? '' : 'es'}. Keep typing to narrow the list.
+
+        {results.length > 0 && (
+          <>
+            <Typography sx={{ px: 2.5, pt: 1.5, pb: 0.5, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">
+              {hasMore ? `First ${results.length} matches` : `${results.length} client${results.length === 1 ? '' : 's'}`}
+            </Typography>
+            <Box component="ul" id="find-client-results" role="listbox" aria-label="Matching clients" sx={{ listStyle: 'none', m: 0, px: 1, pb: 1, display: 'grid', gap: 0.25 }}>
+              {results.map((m, i) => {
+                const st = statusOf(m, lk)
+                const on = i === active
+                const name = displayName(m)
+                const dot = st.kind === 'success' ? 'success.main' : st.kind === 'warning' ? 'warning.main' : st.kind === 'info' ? 'info.main' : 'text.disabled'
+                return (
+                  <Box
+                    component="li" key={`${m.id.branchCode}-${m.id.clientId}`} id={`find-client-${i}`} role="option" aria-selected={on}
+                    ref={on ? activeRef : undefined}
+                    onClick={() => { onPick(m.id); onPickMember?.(m) }} onMouseMove={() => setActive(i)}
+                    sx={(t) => ({
+                      display: 'flex', alignItems: 'center', gap: 1.75, px: 1.5, py: 1.15, borderRadius: '5px', cursor: 'pointer',
+                      backgroundColor: on ? (dark(t) ? 'rgba(255,255,255,0.1)' : 'rgba(0,100,220,0.09)') : 'transparent',
+                      transition: 'background-color 120ms ease-out',
+                      '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+                    })}
+                  >
+                    <Avatar aria-hidden sx={{ width: 40, height: 40, fontSize: 13, fontWeight: 700, color: '#fff', backgroundColor: AVATAR_TINTS[m.id.clientId % AVATAR_TINTS.length] }}>
+                      {initials(m) === '?' ? <FiUser size={20} /> : initials(m)}
+                    </Avatar>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography noWrap sx={{ fontSize: 15, fontWeight: 500, lineHeight: 1.3 }}><Highlight text={name} q={q} /></Typography>
+                      <Typography noWrap sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', lineHeight: 1.4 }} color="text.secondary">
+                        <Highlight text={memberNo(m.id)} q={q} />{m.referenceId ? ` · Ref ${m.referenceId}` : ''}{m.city ? ` · ${m.city}` : ''}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+                      <Box aria-hidden sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: dot }} />
+                      <Typography sx={{ fontSize: 12 }} color="text.secondary">{st.label}</Typography>
+                    </Box>
+                    <Box aria-hidden sx={{ width: 18, display: 'flex', justifyContent: 'flex-end', color: 'text.secondary', opacity: on ? 1 : 0, transition: 'opacity 120ms ease-out' }}><FiCornerDownLeft size={15} /></Box>
+                  </Box>
+                )
+              })}
+            </Box>
+          </>
+        )}
+        {hasMore && (
+          <Typography sx={{ px: 2.5, pb: 1.5, fontSize: 12 }} color="text.secondary">
+            There are more matches. Keep typing to narrow the list.
           </Typography>
         )}
       </Box>
 
-      <Box sx={(t) => ({
-        px: 2.5, py: 1.25, display: 'flex', gap: 2.5, flexWrap: 'wrap', alignItems: 'center',
-        borderTop: `1px solid ${dark(t) ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
-        backgroundColor: dark(t) ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.35)',
-      })}>
-        {[['↑↓', 'move'], ['Enter', 'open'], ...(inline ? [] : [['Esc', 'close']])].map(([k, label]) => (
-          <Box key={k} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-            <Key>{k}</Key>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary">{label}</Typography>
-          </Box>
-        ))}
-      </Box>
+      {/* The keys to move and choose show only while a search has results to move through; Esc closes the pop-up at any time. */}
+      {(hints.length > 0) && (
+        <Box sx={(t) => ({
+          px: 2.5, py: 1.1, display: 'flex', gap: 2.5, flexWrap: 'wrap', alignItems: 'center',
+          borderTop: `1px solid ${rule(t)}`,
+          backgroundColor: dark(t) ? 'rgba(0,0,0,0.18)' : 'rgba(244,245,247,0.55)',
+        })}>
+          {hints.map(([k, label]) => (
+            <Box key={k} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <Key>{k}</Key>
+              <Typography sx={{ fontSize: 12 }} color="text.secondary">{label}</Typography>
+            </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   )
 }
@@ -178,13 +293,13 @@ export default function FindClientDialog({ open, onClose, onPick, lk }: {
           backgroundImage: 'none',
           background: dark(t)
             ? 'linear-gradient(145deg, rgba(58,58,64,0.62), rgba(28,28,32,0.5))'
-            : 'linear-gradient(145deg, rgba(255,255,255,0.78), rgba(255,255,255,0.5))',
+            : 'linear-gradient(145deg, rgba(251,251,252,0.82), rgba(247,248,250,0.66))',
           backdropFilter: 'blur(30px) saturate(180%)',
-          border: `1px solid ${dark(t) ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.7)'}`,
+          border: `1px solid ${dark(t) ? 'rgba(255,255,255,0.16)' : LIGHT.hairline}`,
           // A lit top edge, a tight contact shadow and one soft ambient shadow.
           boxShadow: dark(t)
             ? 'inset 0 1px 0 rgba(255,255,255,0.12), 0 1px 2px rgba(0,0,0,0.4), 0 16px 40px rgba(0,0,0,0.5)'
-            : 'inset 0 1px 0 rgba(255,255,255,0.8), 0 1px 2px rgba(20,40,90,0.08), 0 16px 40px rgba(20,40,90,0.16)',
+            : 'inset 0 1px 0 rgba(255,255,255,0.55), 0 1px 2px rgba(20,40,90,0.08), 0 16px 40px rgba(20,40,90,0.14)',
           // Fades in with a small drop.
           transformOrigin: '50% 0%',
           animation: 'findIn 220ms cubic-bezier(.2,.8,.2,1) both',

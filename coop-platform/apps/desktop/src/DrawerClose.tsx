@@ -53,14 +53,14 @@ export default function DrawerClose({ setup, date }: { setup: FoSetup; date: str
           {result && result.variance !== 0 && ` The ledger expected ${money(result.expected)}; you counted ${money(result.counted)}.`}
         </Alert>
       )}
-      <Typography sx={{ fontSize: 12.5, mb: 1 }} color="text.secondary">Count every note and coin first. The expected amount is shown after you submit.</Typography>
+      <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">Count every note and coin first. The expected amount is shown after you submit.</Typography>
       <Box sx={{ mb: 1 }}><CountGrid setup={setup} counts={counts} onChange={setCounts} onSubmit={() => { if (entered && !busy) void submit() }} /></Box>
       {error && <Alert severity={askReason ? 'warning' : 'error'} sx={{ mb: 1 }} role="alert">{error}</Alert>}
       {askReason && (
         <TextField fullWidth size="small" label="Reason for the difference" value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mb: 1 }} slotProps={{ htmlInput: { maxLength: 200 } }} />
       )}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Typography sx={{ fontSize: 13.5 }}>Counted <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(counted)}</b></Typography>
+        <Typography sx={{ fontSize: 13 }}>Counted <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(counted)}</b></Typography>
         <Box sx={{ flex: 1 }} />
         <Button variant="contained" disabled={!entered || busy || (askReason && reason.trim().length < 5)} onClick={() => { void submit() }}>
           {busy ? 'Submitting…' : done ? 'Count again' : 'Submit count'}

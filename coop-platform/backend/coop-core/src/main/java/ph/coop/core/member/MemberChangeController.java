@@ -18,7 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 class MemberChangeController {
 
-    record Capabilities(boolean edit, boolean approve) {}
+    /** {@code direct}: this person's own edits go straight through, with no second approval (a Membership Officer on a server that allows it). */
+    record Capabilities(boolean edit, boolean approve, boolean images, boolean direct) {}
 
     record Decision(String note) {}
 
@@ -40,15 +41,16 @@ class MemberChangeController {
     @GetMapping("/capabilities")
     Capabilities capabilities(Authentication auth) {
         boolean on = changes.editAvailable();
-        return new Capabilities(on && canEdit(auth), on && officer(auth));
+        return new Capabilities(on && canEdit(auth), on && officer(auth), canEdit(auth) && auth.getAuthorities().stream().anyMatch((a) -> a.getAuthority().equals("PERM_MEMBER_IMAGES")),
+            on && canEdit(auth) && ChangeRules.appliesDirectly(officer(auth), changes.officerDirect()));
     }
 
-    /** Proposes changes to a client. The client is not updated until a Membership Officer approves. */
+    /** Proposes changes to a client. The client is not updated until a Membership Officer approves, except that a Membership Officer's own edit is applied at once (and logged). */
     @PostMapping("/members/{branchCode}/{clientId}/changes")
     @PreAuthorize("hasAuthority('PERM_MEMBER_EDIT')")
     MemberChangeService.Change submit(@PathVariable int branchCode, @PathVariable int clientId,
                                       @RequestBody MemberChangeService.SubmitRequest req, Authentication auth) {
-        return changes.submit(branchCode, clientId, req, auth.getName());
+        return changes.submit(branchCode, clientId, req, auth.getName(), officer(auth));
     }
 
     @GetMapping("/members/{branchCode}/{clientId}/changes/pending")

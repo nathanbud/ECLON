@@ -140,8 +140,8 @@ class HandoverPostingTest {
 
     @Test
     void theSameAttemptSentTwiceIsPostedOnce() {
-        Integer hasKey = jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ecis_cash_handover' AND column_name = 'request_key'", Integer.class);
-        assumeTrue(hasKey != null && hasKey > 0, "V007_drawer_controls.sql has not been run, so there is no request key");
+        boolean hasKey = new ph.coop.core.db.Db(jdbc).columnExists("ecis_cash_handover", "request_key");
+        assumeTrue(hasKey, "V007_drawer_controls.sql has not been run, so there is no request key");
         String key = "it-twice-" + System.nanoTime();
         BigDecimal before = cash(head);
         Handover first = handover.issue(give(50, 52, headNumber, "1000", Map.of(1, 1), key, null), as(headName));
@@ -192,6 +192,42 @@ class HandoverPostingTest {
         assertEquals("POSTED", handover.accept(ret.id(), new Count(Map.of(2, 1)), as(headName)).status());
         sameAmount("0", cash(teller).subtract(tellerBefore));
         sameAmount("0", cash(head).subtract(headBefore));
+    }
+
+    @Test
+    void chequesMoveFromTheHeadCashierToTheVaultOnTheirOwnAccounts() {
+        boolean hasColumn = new ph.coop.core.db.Db(jdbc).columnExists("ecis_cash_handover", "cheque_amount");
+        assumeTrue(hasColumn, "V025_cheque_handover.sql has not been run");
+        BigDecimal headCheques = balances.chequesOf(branch, head);
+        assumeTrue(headCheques.compareTo(new BigDecimal("100")) >= 0, "the head cashier holds no cheques in this database");
+        BigDecimal vaultBefore = balances.chequesOf(branch, new Drawer(50, 99));
+
+        Issue give = new Issue(52, 50, 99, BigDecimal.ZERO, Map.of(), "integration test", "it-chq-" + System.nanoTime(), "integration test", new BigDecimal("100.00"));
+        Handover moved = handover.issue(give, as(headName));
+        assertEquals("POSTED", moved.status());
+        sameAmount("100", moved.cheques());
+        sameAmount("-100", balances.chequesOf(branch, head).subtract(headCheques));
+        sameAmount("100", balances.chequesOf(branch, new Drawer(50, 99)).subtract(vaultBefore));
+
+        // Cheques only: no cash pair, the cheque pair starts at sequence 0, on the cheque accounts with the vault's own event 51.
+        List<Map<String, Object>> l = lines(32, moved.ctlNo());
+        assertEquals(2, l.size());
+        assertEquals(0, ((Number) l.get(0).get("DTSEQ_NO")).intValue());
+        assertEquals("100112", l.get(0).get("DTACCT_CODE"));
+        sameAmount("-100", (BigDecimal) l.get(0).get("DTAMT"));
+        assertEquals(52, ((Number) l.get(0).get("DTSLE_CODE")).intValue());
+        assertEquals("100111", l.get(1).get("DTACCT_CODE"));
+        sameAmount("100", (BigDecimal) l.get(1).get("DTAMT"));
+        assertEquals(51, ((Number) l.get(1).get("DTSLE_CODE")).intValue());
+        assertEquals(99, ((Number) l.get(1).get("DTCTS_NUM")).intValue());
+        // Cash balances are untouched, because cheque lines are a different sub-ledger type.
+        Integer cashLines = jdbc.queryForObject("SELECT COUNT(*) FROM transdt WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = 4 AND DTTR_CODE = 32 AND DTTR_CTLNO = ? AND DTSLT_CODE = 1", Integer.class,
+            branch, LocalDate.now().getYear(), moved.ctlNo());
+        assertEquals(0, cashLines);
+
+        // More than the drawer holds is refused.
+        assertThrows(ResponseStatusException.class, () -> handover.issue(
+            new Issue(52, 50, 99, BigDecimal.ZERO, Map.of(), "x", "it-chq2-" + System.nanoTime(), "integration test", headCheques.add(BigDecimal.ONE)), as(headName)));
     }
 
     @Test

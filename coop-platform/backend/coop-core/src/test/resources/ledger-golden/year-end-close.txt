@@ -1,0 +1,7 @@
+## transsum
+andor_name=null | cashpayment=null | clientname=null | creditpayment=null | invtr_ctlno=null | is_fo=0 | pointspayment=null | tr_brcode=1 | tr_clientid=null | tr_code=99 | tr_ctlno={ctl} | tr_docno={docNo} | tr_module=1 | tr_refno=null
+## transdt
+clientiddt=null | clientiddtna=null | dtadj_flag=1 | dtamtdue=null | dtapprvby={checker} | dtcheckisrelease=0 | dtcoci_type=null | dtcts_num=null | dtcts_num2=null | dtencdby={preparer} | dtiscleared=null | dtistransit=0 | dtisundentified=0 | dtpostby={checker} | dtref_no=null | dtreference= | dtslc_code=null | dtsle_code=null | dtsle_code2=null | dtslt_code=null | dttr_brcode=1 | dttr_code=99 | dttr_ctlno={ctl} | dttr_module=1 | dtupd_tag=1
+## gltrans
+gltransbr_code=1 | gltranscr_balb4=0 | gltransdr_balb4=0 | gltranssum_balb4=0 | gltranssync=1 | gltranstr_code=99 | side=C
+gltransbr_code=1 | gltranscr_balb4=0 | gltransdr_balb4=0 | gltranssum_balb4=0 | gltranssync=1 | gltranstr_code=99 | side=D

@@ -1,0 +1,6 @@
+# Reporting (ECIS.pdf phase 20, core built)
+
+Moved from CLAUDE.md unchanged (one sentence per line). Keep this note current when the feature changes.
+
+**Reporting (ECIS.pdf phase 20, core built)**: `ph.coop.core.report.Reports` framework (a report declares parameters and returns a typed table) with `ReportController` (`GET /api/reports`, `GET /api/reports/{id}`; role-filtered; every run audited as `report.run`) and the Reports tile (`ReportsPage`, print and CSV): membership (status, growth), loans (portfolio, status, PAR, delinquent, maturity, releases, payments, collection; `LoanReports` in the loan package reuses `LoanRules.arrears`; on 2026-04-24 it finds 10,512 loans, 2,699,050,350.25 outstanding, PAR over 30 days 31.47%), general ledger of one account, inventory (balance, movement, low stock, valuation, count variance) and POS (daily, by product, by store, returns, discounts); `ReportsTest`; see `documentation/reporting-design.md`.
+Not built: cash flow, CIC reports, PDF/scheduled output. **The guide's body has 33 phases, not the 21 of its summary list** (16 Document Management, 17 Workflow Engine, 18 Audit and Compliance, 19 Data Privacy, 21 Management Dashboard, 22 Data Warehouse, 23-27 testing, 28 Data Migration, 29-33 production): see the reporting design note.

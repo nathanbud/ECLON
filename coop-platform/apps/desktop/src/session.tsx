@@ -1,9 +1,11 @@
-import { Alert, Box, Button, CircularProgress, TextField, Typography } from '@mui/material'
+import { Box, Button, CircularProgress, TextField, Typography } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
-import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { restoreSession, signIn, signOut, SIGNED_OUT, type Me } from './api'
-import { appBackground, glass } from './glass'
-import { Logo, WindowControls } from './TopBar'
+import { appBackground } from './glass'
+import ChangePasswordScreen from './ChangePasswordScreen'
+import SignInPage from './SignInPage'
+import AccessWatcher from './AccessWatcher'
 
 const SessionCtx = createContext<Me | null>(null)
 
@@ -12,67 +14,6 @@ export function useMe(): Me {
   const me = useContext(SessionCtx)
   if (!me) throw new Error('useMe must be used inside SessionGate')
   return me
-}
-
-const LAST_USER = 'coop.lastUser'
-const remembered = () => {
-  try { return localStorage.getItem(LAST_USER) ?? '' } catch { return '' }
-}
-
-function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
-  const [username, setUsername] = useState(remembered)
-  const [password, setPassword] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!username.trim() || !password) return
-    setBusy(true)
-    setError(null)
-    try {
-      const me = await signIn(username.trim(), password)
-      try { localStorage.setItem(LAST_USER, username.trim()) } catch { /* storage unavailable */ }
-      onSignedIn(me)
-    } catch (err) {
-      setError((err as Error).message)
-      setPassword('')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Box sx={(t) => ({ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: appBackground(t) })}>
-      {/* No native title bar, so the window can still be moved and closed from here. */}
-      <Box data-tauri-drag-region="" sx={{ height: 44, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-        <WindowControls />
-      </Box>
-      <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', p: 2, pb: 10 }}>
-        <Box component="form" onSubmit={submit} sx={(t) => ({ width: '100%', maxWidth: 380, p: 3.5, ...glass(t, { elevated: true }) })}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 2.5 }}>
-            <Box sx={{ display: 'flex', '& svg': { width: 28, height: 28 } }}><Logo /></Box>
-            <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>Sign in to Coop Platform</Typography>
-          </Box>
-          <TextField
-            label="Username" value={username} onChange={(e) => setUsername(e.target.value)} fullWidth autoFocus={!username}
-            autoComplete="username" sx={{ mb: 2 }}
-          />
-          <TextField
-            label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} fullWidth
-            autoFocus={!!username} autoComplete="current-password" sx={{ mb: 2 }}
-          />
-          {error && <Alert severity="error" sx={{ mb: 2 }} role="alert">{error}</Alert>}
-          <Button type="submit" variant="contained" fullWidth disabled={busy || !username.trim() || !password} sx={{ py: 1 }}>
-            {busy ? <CircularProgress size={20} /> : 'Sign in'}
-          </Button>
-          <Typography sx={{ mt: 2, fontSize: 12.5 }} color="text.secondary">
-            Use your own account. If you do not have a password yet, ask an administrator to set one.
-          </Typography>
-        </Box>
-      </Box>
-    </Box>
-  )
 }
 
 /** Minutes without a key or a click before the screen locks. Unsaved work stays where it is; the same person signs back in with their password. */
@@ -97,17 +38,34 @@ function LockScreen({ me, onUnlock }: { me: Me; onUnlock: () => void }) {
       setBusy(false)
     }
   }
+  const initials = me.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || me.username.slice(0, 2).toUpperCase()
   return (
-    <Box role="dialog" aria-modal="true" aria-label="Screen locked" sx={(t) => ({ position: 'fixed', inset: 0, zIndex: 2000, display: 'grid', placeItems: 'center', p: 2, background: appBackground(t) })}>
-      <Box component="form" onSubmit={submit} sx={(t) => ({ width: '100%', maxWidth: 360, p: 3.5, ...glass(t, { elevated: true }) })}>
-        <Typography component="h1" sx={{ fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Locked</Typography>
-        <Typography sx={{ fontSize: 13.5, mb: 2 }} color="text.secondary">You were away for a while. Enter the password for {me.name} ({me.username}) to continue. Nothing was lost.</Typography>
-        <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} fullWidth autoFocus autoComplete="current-password" sx={{ mb: 2 }} />
-        {error && <Alert severity="error" sx={{ mb: 2 }} role="alert">{error}</Alert>}
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button type="submit" variant="contained" fullWidth disabled={busy || !password}>{busy ? <CircularProgress size={20} /> : 'Unlock'}</Button>
-          <Button color="inherit" onClick={signOut}>Sign out</Button>
-        </Box>
+    <Box
+      role="dialog" aria-modal="true" aria-label="Screen locked"
+      sx={(t) => ({
+        position: 'fixed', inset: 0, zIndex: 2000, display: 'grid', placeItems: 'center', p: 2, background: appBackground(t),
+        backdropFilter: 'blur(28px) saturate(1.4)', WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
+      })}
+    >
+      <Box component="form" onSubmit={submit} sx={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+        <Box
+          aria-hidden
+          sx={(t) => ({
+            width: 96, height: 96, borderRadius: '50%', display: 'grid', placeItems: 'center', mb: 2, fontSize: 34, fontWeight: 500, letterSpacing: '0.02em', color: '#fff',
+            background: t.palette.mode === 'dark' ? 'linear-gradient(160deg,#5f6672,#3a3f48)' : 'linear-gradient(160deg,#a6adbb,#7d8594)',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.35)',
+          })}
+        >{initials}</Box>
+        <Typography component="h1" sx={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>{me.name}</Typography>
+        <Typography sx={{ fontSize: 13, mt: 0.5, mb: 2.5 }} color="text.secondary">Locked after a while away. Nothing was lost.</Typography>
+        <TextField
+          type="password" label="Password" size="small" value={password} onChange={(e) => setPassword(e.target.value)} fullWidth autoFocus autoComplete="current-password"
+        />
+        <Button type="submit" variant="contained" fullWidth disabled={busy || !password} sx={{ mt: 1.5 }}>
+          {busy ? <CircularProgress size={18} color="inherit" /> : 'Unlock'}
+        </Button>
+        {error && <Typography role="alert" sx={{ mt: 1.5, fontSize: 13 }} color="error">{error}</Typography>}
+        <Button color="inherit" onClick={() => signOut()} sx={{ mt: 3, fontSize: 13, fontWeight: 500, opacity: 0.7, textTransform: 'none', borderRadius: 999 }}>Sign out</Button>
       </Box>
     </Box>
   )
@@ -148,10 +106,13 @@ export function SessionGate({ children }: { children: ReactNode }) {
     window.addEventListener(SIGNED_OUT, out)
     return () => { live = false; window.removeEventListener(SIGNED_OUT, out) }
   }, [qc])
+  // The person's rights changed while signed in: the menu and buttons follow at once, without signing in again.
+  const updateMe = useCallback((me: Me) => setState((s) => (s.status === 'in' ? { status: 'in', me } : s)), [])
 
   if (state.status === 'checking') {
     return <Box sx={{ minHeight: '100dvh', display: 'grid', placeItems: 'center' }}><CircularProgress aria-label="Loading" /></Box>
   }
   if (state.status === 'out') return <SignInPage onSignedIn={(me) => setState({ status: 'in', me })} />
-  return <SessionCtx.Provider value={state.me}><IdleLock me={state.me}>{children}</IdleLock></SessionCtx.Provider>
+  if (state.me.mustChangePassword) return <ChangePasswordScreen me={state.me} onDone={(me) => setState({ status: 'in', me })} />
+  return <SessionCtx.Provider value={state.me}><IdleLock me={state.me}>{children}<AccessWatcher onMe={updateMe} /></IdleLock></SessionCtx.Provider>
 }

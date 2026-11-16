@@ -6,12 +6,14 @@ import {
   type BankAccount, type BankKey, type BankRecon,
 } from './api'
 import { glass } from './glass'
+import MoneyField from './MoneyField'
+import { money, tabular } from './ui/format'
+import { labelOf } from './ui/labels'
 
-const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const iso = (d: Date) => d.toLocaleDateString('en-CA')
 const addDays = (date: string, n: number) => { const d = new Date(`${date}T00:00:00`); d.setDate(d.getDate() + n); return iso(d) }
 const keyOf = (k: BankKey) => `${k.year}-${k.module}-${k.code}-${k.ctlNo}-${k.seq}`
-const num = { fontVariantNumeric: 'tabular-nums' } as const
+const num = tabular
 
 /** Bank accounts of the cooperative with their ledger balance, the entries behind it, and reconciliation against the bank statement. */
 export default function BanksTab({ branchCode }: { branchCode: number }) {
@@ -135,7 +137,7 @@ function ReconcileDialog({ branchCode, bank, onClose }: { branchCode: number; ba
       <DialogContent>
         <Stack direction="row" spacing={2} useFlexGap sx={{ my: 1, flexWrap: 'wrap', alignItems: 'center' }}>
           <TextField size="small" type="date" label="Statement date" value={date} onChange={(e) => setDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField size="small" type="number" label="Balance on the bank statement" value={balance} onChange={(e) => setBalance(e.target.value)} slotProps={{ htmlInput: { step: '0.01' } }} sx={{ width: 240 }} />
+          <MoneyField size="small" label="Balance on the bank statement" value={balance} onValueChange={(v) => setBalance(v)} slotProps={{ htmlInput: { step: '0.01' } }} sx={{ width: 240 }} />
           <TextField size="small" label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} sx={{ flex: 1, minWidth: 200 }} />
         </Stack>
         {sheet.data?.previousDate && <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">Last reconciled through {sheet.data.previousDate}. Entries that were outstanding then are ticked.</Typography>}
@@ -181,13 +183,13 @@ function ReconcileDialog({ branchCode, bank, onClose }: { branchCode: number; ba
         )}
         {history.data && history.data.length > 0 && (
           <Box sx={{ mt: 2 }}>
-            <Typography sx={{ fontWeight: 600, fontSize: 14, mb: 0.5 }}>Earlier reconciliations</Typography>
+            <Typography sx={{ fontWeight: 600, fontSize: 13, mb: 0.5 }}>Earlier reconciliations</Typography>
             <Table size="small" aria-label="Earlier reconciliations">
               <TableBody>
                 {history.data.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell>{r.statementDate}</TableCell><TableCell align="right" sx={num}>{money(r.statementBalance)}</TableCell>
-                    <TableCell><Chip size="small" label={r.status} color={r.status === 'FINAL' ? 'success' : 'default'} /></TableCell>
+                    <TableCell><Chip size="small" label={labelOf(r.status)} color={r.status === 'FINAL' ? 'success' : 'default'} /></TableCell>
                     <TableCell>{r.preparedBy}{r.finalizedBy ? ` / ${r.finalizedBy}` : ''}</TableCell>
                     <TableCell align="right">{r.status === 'DRAFT' && r.reconciled && <Button size="small" disabled={finalize.isPending} onClick={() => finalize.mutate(r.id)}>Finalize</Button>}</TableCell>
                   </TableRow>

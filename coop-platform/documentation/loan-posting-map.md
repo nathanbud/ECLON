@@ -91,6 +91,14 @@ that are late show an event 41 line (loan 11016, paid 2026-01-09, four instalmen
 interest, the days counted from the due date or from the end of the grace period) was **not** reproduced: the plain variants (36 per cent a year on the late principal or on the late instalments, with and without the 15 days) come
 close (about 470) but not to the cent. Do not post penalties until this is pinned down.
 
+**Penalty fit, 2026-10-25 (mode 4 loans, 36 per cent, 15 days grace, type 48, payments since 2025, 760 penalty payments):**
+* Where the instalment that is late is wholly unpaid (the simple case), the penalty is **scheduled principal due + scheduled interest due (`amortsched`) x 36% x calendar days from the due date to the payment date / 365, rounded half up**. No grace days are taken off the amount (grace only decides whether a penalty applies). It matches to the cent in 38 of 53 such cases (72%); 11 more are higher than the formula.
+* Across all penalty payments the same family of formulas matches to the cent in only about 6% and within 1 peso in about 28%. Where earlier payments overpaid or part-paid an instalment, the old penalty is usually **higher** than the formula after crediting those payments (142 of 245 such single-instalment cases), so the old system does not credit them the way a first-in-first-out split does.
+* Tried and rejected: grace days deducted, 360-day year, principal only, principal and interest credited separately, days counted from the last payment. Only 5% of penalties are whole pesos, so they are not mostly typed by hand.
+* **What the app does (2026-10-25):** it suggests the figure from the simple formula (first in first out against everything paid, principal plus interest), and the cashier types the real penalty; a different figure needs a supervisor (kind `LOAN_PENALTY`). Mode 4 only; other modes have no suggestion. Posted as event 41, number 99, after the principal and interest lines.
+* Still unknown: how partial and excess payments reduce the base, multi-instalment arrears, `PEN_MODE` 1/5/6 versus 4, and event 42 (waiver, 1,066 rows).
+
+
 ## The repayment schedule (`amortsched`) for the common loans
 
 Checked against the real schedules of 600 recent loans (types 48, 49, 4, 3; term in months; diminishing balance `LoanAMORTYPE` 1; monthly payment mode 4), read only:
@@ -154,3 +162,28 @@ An application writes **everything at once, at status New (1)**, before anyone v
 
 * **Loan payment (cash)** is the nearest to ready: a receipt like the share payment with the interest-first split above on a 365-day year, written by the existing `MemberLedgerPoster` pattern with a third line, refusing penalties until question 1 is answered.
 * **Loan release** needs the application workflow, schedule generation and deductions first; do not start before questions 3 and 6.
+
+## Co-makers and their holds
+
+* **`comaker` columns are the other way round from their names:** `ClientIDCoMaker` is the **borrower** (the loan's own client; 16,471 of 16,594 rows match `loan.ClientIDLoan`) and `CoMakerClientID` is the **co-maker** member (NULL for a guarantor typed as free text, with the name in `CoMakerClientName`). A foreign key ties `ClientIDCoMaker` to the loan's `slmastersum` row. The application insert and both readers (`LoansController`, `LoanProfileController`) used them the wrong way until this was found by the first test that created a real co-maker.
+* **The old system's co-maker hold** is a `hold` row on the co-maker's own account, mostly share capital (class 31 type 1, 13,516 of 21,988 collateral holds), also savings (22) and time deposits (24): `HHOLD_CODE` 1 (Collateral), `HHOLDDESCR` `CM to <borrower First Last>` (or `Own loan`), `HOL_REFNO` `CV#<voucher number>` (typed by hand, so the format varies), dated about the day of the release. Example: Co-maker loan voucher 2026/2/21/39762 has holds of 102,000, 20,000 and 20,000 on three co-makers' share capital and 27,000 on the borrower's own.
+* **Built:** the amount each co-maker agreed to cover and the account to hold it on are saved with the application (`ecis_loan_comaker`, V019), refused if more than the account's free balance (balance less holds). The `hold` row is written when the release voucher is **posted** (`CoMakerHolds.placeForVoucher`, same transaction), written like the real ones above, after checking the free balance again. Not built: releasing a hold when the loan is paid (the old data keeps the row and sets the amount to 0.00 in some cases), holds on time deposits, and the borrower's own-loan hold.
+
+## Annuity schedules (amortization 3)
+
+Checked against 2,698 real annuity loans in `loan` / `amortsched` (3,003 loans use annuity, almost all of them the Salary Loan, type 21).
+
+- Level payment `pay = round(P x r / (1 - (1 + r)^-n), 2)` with `r = rate/100 x 30 x (months per payment) / 365` (monthly 1, quarterly 3, half-yearly 6; a lump sum is one payment over the whole term). Example: 80,000 at 10% for 12 months gives 7,028.18 (6,370.65 principal + 657.53 interest in the first row).
+- Each row: interest = round(balance x rate x days / 36500, 2), principal = pay - interest, the last row's principal is the whole balance left.
+- `days` depends on the loan type's `ND_FLAG` (copied to `loan.LoanND_FLAG`): **1 = 30 days every payment period** (Salary Loan), **2 = the real days between due dates** (the first period from the release date). The payment itself always uses 30-day months.
+- Due dates as for diminishing balance (release day capped at 30, short months use their last day). A term in years is 12 months each.
+- Loans that do not match: 2020 loans with a payment holiday (zero-principal rows from April or October 2020), loans whose rate was changed after the schedule was made, and a few with a stored schedule cut short or missing. Nothing in the data explains these as a rule.
+- The Salary Loan type's own setup says Diminishing Balance (`SLTypeAMORTYPE` 1) while its real loans are annuity: an administrator picks Annuity for the type on the Loan Setup screen to apply for it as the old system did.
+
+## Penalty waivers (event 42), mapped 2026-10-26
+
+The old ledger holds no penalty balance: penalties are worked out when a payment is made, and a waived penalty at the window is simply a smaller (or zero) figure on the Cash Receipt (real receipts such as "LOAN FULL PAYMENT ... PENALTY WAIVED" carry no waiver line). Event 42 ("Penalty waived loans", GL 4149901 for every loan type, number 99) is an accountant's General Journal (module 1, type 1) kept as a memo of what was waived. Real example: 2025 no. 9573 "50% Penalty": seq 0 debit of the expense account `4149911` "Penalty waived - Other Loan" (no sub-ledger), seq 1 credit of `4149901` on the loan (class 12, event 42, number 99, one `sldtl` row event 42 with `ADJ_FLAG` 1). The loan's principal (event 11) is not touched. Encoder and poster are the same person and a different person approves. Event 42 is rare: 994 rows from a 2023 bulk entry, and since 2024 only about four waiver journals, every one later reversed as a wrong entry (type 81 reversals, or "correct wrong entry" journals with the opposite sign). One 2024 cash receipt carried a stray event 42 credit that an accountant later moved to principal (mis-keyed).
+
+The app (`PenaltyWaiverController`, `/api/loan-penalty-waivers`, Accounting > Penalty waivers, accountants and administrators):
+* **Report** (`/report`): payments where the cashier charged less than the program suggested, read from the audit rows of the loan payment postings (`loan.payment.post` with "(suggested ...)" and the spent override `loan.payment.override.used`). Payments on loans with no suggestion (penalty mode other than 4) are not listed. The old system kept no such record.
+* **Waiver journal** (`/check`, `/ask`, `/decide`, `/post`): the journal above, with the debit account chosen from the enabled `41499xx` detail accounts, a reason, and a request that another accountant or administrator approves (`ecis_fo_override`, kind `PENALTY_WAIVER`, spent once). It does not reduce what a member owes; the cashier still types the penalty at the next payment. Tested by `PenaltyWaiverTest`.

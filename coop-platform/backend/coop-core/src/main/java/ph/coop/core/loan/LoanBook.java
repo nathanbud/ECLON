@@ -22,7 +22,12 @@ public class LoanBook {
     /** status: 11 current, 12 past due, 13 in litigation, 14 restructured. graceDays is the loan's penalty grace period. */
     public record Terms(int status, String type, BigDecimal amount, BigDecimal outstanding, BigDecimal ratePercent, LocalDate released, LocalDate interestPaidTo, int graceDays) {}
 
-    public record Quote(Terms terms, LocalDate asOf, int days, BigDecimal interestDue, BigDecimal payoff, BigDecimal pastDuePrincipal, long daysPastDue) {}
+    /**
+     * suggestedPenalty is what the penalty formula gives (zero when the loan is not late beyond its grace period); it is null when the loan's
+     * penalty mode is not one the formula was fitted to, so the cashier has to type the figure. See {@link LoanRules#penalty}.
+     */
+    public record Quote(Terms terms, LocalDate asOf, int days, BigDecimal interestDue, BigDecimal payoff, BigDecimal pastDuePrincipal, long daysPastDue, BigDecimal suggestedPenalty,
+                        LocalDate nextDueDate, LocalDate pastDueSince) {}
 
     private final JdbcTemplate jdbc;
 
@@ -56,7 +61,20 @@ public class LoanBook {
             (rs) -> { dues.add(new Due(rs.getDate(1).toLocalDate(), rs.getBigDecimal(2), rs.getBigDecimal(3))); }, branch, clientId, CLASS_LOANS, typeCode, refNo);
         BigDecimal paid = t.amount().subtract(t.outstanding()).max(BigDecimal.ZERO);
         Arrears a = LoanRules.arrears(dues, paid, asOf);
+        Due next = t.outstanding().signum() > 0 ? LoanRules.nextDue(dues, paid, asOf) : null;
         int days = (int) Math.max(0, java.time.temporal.ChronoUnit.DAYS.between(t.interestPaidTo(), asOf));
-        return new Quote(t, asOf, days, interest, t.outstanding().add(interest), a.pastDuePrincipal(), a.daysPastDue());
+        return new Quote(t, asOf, days, interest, t.outstanding().add(interest), a.pastDuePrincipal(), a.daysPastDue(), suggestedPenalty(branch, clientId, typeCode, refNo, t, dues, paid, a, asOf),
+            next == null ? null : next.date(), a.pastDuePrincipal().signum() > 0 ? a.oldestUnpaidDate() : null);
+    }
+
+    /** Penalty mode 4 at the loan's own yearly rate is the only kind the formula was checked against (documentation/loan-posting-map.md). */
+    private BigDecimal suggestedPenalty(int branch, int clientId, int typeCode, int refNo, Terms t, List<Due> dues, BigDecimal principalPaid, Arrears a, LocalDate asOf) {
+        List<java.util.Map<String, Object>> setup = jdbc.queryForList("SELECT LoanPEN_MODE, LoanPEN_RATE FROM loan WHERE LoanBR_CODE = ? AND ClientIDLoan = ? AND LoanSLC_CODE = ? AND LoanSLT_CODE = ? AND LoanREF_NO = ?",
+            branch, clientId, CLASS_LOANS, typeCode, refNo);
+        if (setup.isEmpty() || setup.get(0).get("LoanPEN_MODE") == null || ((Number) setup.get(0).get("LoanPEN_MODE")).intValue() != 4 || setup.get(0).get("LoanPEN_RATE") == null) return null;
+        if (a.pastDuePrincipal().signum() <= 0 || a.daysPastDue() <= t.graceDays()) return BigDecimal.ZERO;
+        BigDecimal interestPaid = jdbc.queryForObject("SELECT COALESCE(-SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = ? AND SL_CLIENTID = ? AND SLC_CODE = ? AND SLT_CODE = ? AND REF_NO = ? AND SLE_CODE = 23 AND AMT < 0",
+            BigDecimal.class, branch, clientId, CLASS_LOANS, typeCode, refNo);
+        return LoanRules.penalty(dues, principalPaid.add(interestPaid), (BigDecimal) setup.get(0).get("LoanPEN_RATE"), asOf);
     }
 }

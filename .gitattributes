@@ -1,0 +1,11 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.png binary
+*.jpg binary
+*.ico binary
+*.icns binary
+*.pdf binary
+
+# golden ledger snapshots are compared byte for byte
+coop-platform/backend/coop-core/src/test/resources/ledger-golden/*.txt text eol=lf

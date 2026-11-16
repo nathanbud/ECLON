@@ -1,0 +1,6 @@
+# Fixed assets (ECIS.pdf phase 15, core built)
+
+Moved from CLAUDE.md unchanged (one sentence per line). Keep this note current when the feature changes.
+
+**Fixed assets (ECIS.pdf phase 15, core built)**: the old database has no asset register; depreciation was booked by hand each month as a General Journal on 50328 against the accumulated depreciation accounts, so it is new `ecis_*` tables (`V034_fixed_assets.sql`, applied): categories (each names its cost, accumulated depreciation and expense accounts), the register (`FA-yyyy-nnnn`), straight-line monthly depreciation starting the month after the asset goes into service (the accountant previews and runs a month end; every asset gets a row per due month and **one DRAFT journal per month `DEP-yyyy-MM`** is left through `JournalDrafts` for the usual review and posting), transfers and disposals approved by a different accountant (a disposal leaves a balanced draft journal, losses to 6004108), maintenance with due dates; `/api/assets`; roles ASSET_CUSTODIAN (granted by API) and ACCOUNTANT; screen = Fixed Assets tile (`AssetsPage`, it took the Treasury placeholder's cell); `AssetRulesTest`, `AssetFlowTest`; see `documentation/fixed-assets-design.md`.
+Not built: acquisition postings, other depreciation methods, an opening-balance import of existing assets, a register-versus-ledger report.

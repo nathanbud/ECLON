@@ -33,6 +33,28 @@ public final class LoanRules {
         return new Split(interest, amount.subtract(interest));
     }
 
+    /**
+     * The penalty the old system charged on the simple cases (a late instalment wholly unpaid: 38 of 53 real payments to the cent): the
+     * unpaid part of each instalment that is due (its scheduled principal plus interest, first in first out against everything paid so
+     * far) times the yearly penalty rate times the calendar days since its due date, over 365, rounded half up. The grace days are not
+     * taken off the amount. It is only a suggestion: across all real penalty payments the formula matches to the cent in about 6 per
+     * cent, because the old system treats earlier part payments in a way that is not known.
+     */
+    public static BigDecimal penalty(List<Due> dues, BigDecimal paidSoFar, BigDecimal ratePercent, LocalDate asOf) {
+        BigDecimal remaining = paidSoFar;
+        BigDecimal penaltyDays = BigDecimal.ZERO;
+        for (Due d : dues) {
+            if (d.date().isAfter(asOf)) break;
+            BigDecimal due = d.principal().add(d.interest());
+            if (d.principal().signum() <= 0) continue;
+            if (remaining.compareTo(due) >= 0) { remaining = remaining.subtract(due); continue; }
+            BigDecimal unpaid = due.subtract(remaining);
+            remaining = BigDecimal.ZERO;
+            penaltyDays = penaltyDays.add(unpaid.multiply(BigDecimal.valueOf(ChronoUnit.DAYS.between(d.date(), asOf))));
+        }
+        return penaltyDays.multiply(ratePercent).divide(BigDecimal.valueOf(36500), 2, java.math.RoundingMode.HALF_UP);
+    }
+
     enum State { PAID, PARTIAL, PAST_DUE, UPCOMING }
 
     record Due(LocalDate date, BigDecimal principal, BigDecimal interest) {}

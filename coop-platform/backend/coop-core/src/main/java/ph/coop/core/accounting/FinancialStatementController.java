@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import ph.coop.core.accounting.close.ClosedBooks;
 
 /**
  * Read-only financial statements over the legacy ledger (guide step 6.7): the Statement of Financial Condition
@@ -37,8 +38,10 @@ class FinancialStatementController {
 
     private static final int FIRST_YEAR = 2013;
     private static final int MAX_RANGE_DAYS = 400;
-    /** Legacy transaction type 98 (Profit Loss Summ): year-end summary rows, left out as in the trial balance. */
-    private static final int PROFIT_LOSS_SUMMARY = 98;
+    /** Legacy transaction type 98 (Profit Loss Summ): one-sided running rows on the net surplus for the period account, left out as in the trial balance. */
+    private static final int PROFIT_LOSS_SUMMARY = ClosedBooks.PROFIT_LOSS_SUMMARY;
+    /** Legacy transaction type 99: the year-end Closing Entry, dated 31 December. */
+    private static final int CLOSING_ENTRY = ClosedBooks.CLOSING_ENTRY;
 
     record Line(String accountCode, String description, BigDecimal amount) {}
 
@@ -54,11 +57,13 @@ class FinancialStatementController {
     private record Acct(String desc, String parent, int type) {}
 
     private final JdbcTemplate jdbc;
+    private final ClosedBooks books;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Map<String, String> buildState = new ConcurrentHashMap<>();
 
-    FinancialStatementController(JdbcTemplate jdbc) {
+    FinancialStatementController(JdbcTemplate jdbc, ClosedBooks books) {
         this.jdbc = jdbc;
+        this.books = books;
     }
 
     // ---- year balances ----
@@ -118,11 +123,14 @@ class FinancialStatementController {
         Map<String, BigDecimal> net = new HashMap<>();
         jdbc.query("SELECT account_code, SUM(net) FROM ecis_gl_year_balance WHERE branch_code = ? AND tr_year < ? GROUP BY account_code",
                 (rs) -> { net.merge(rs.getString(1), rs.getBigDecimal(2), BigDecimal::add); }, branchCode, year);
+        // A closed year's Closing Entry is included (income and expenses end at zero, the surplus sits in 30198), except its one-sided rows
+        // on the net surplus for the period account, which only cancel the type 98 rows left out here.
         jdbc.query("""
                 SELECT GLTransACCT_CODE, SUM(GLTransDR_AMT) + SUM(GLTransCR_AMT) FROM gltrans
-                WHERE GLTransBR_CODE = ? AND GLTransTR_DATE BETWEEN ? AND ? AND GLTransTR_CODE <> ? GROUP BY GLTransACCT_CODE
+                WHERE GLTransBR_CODE = ? AND GLTransTR_DATE BETWEEN ? AND ? AND GLTransTR_CODE <> ?
+                  AND NOT (GLTransTR_CODE = ? AND GLTransACCT_CODE = ?) GROUP BY GLTransACCT_CODE
                 """, (rs) -> { net.merge(rs.getString(1), rs.getBigDecimal(2), BigDecimal::add); },
-                branchCode, LocalDate.of(year, 1, 1), asOf, PROFIT_LOSS_SUMMARY);
+                branchCode, LocalDate.of(year, 1, 1), asOf, PROFIT_LOSS_SUMMARY, CLOSING_ENTRY, books.profitLossAccount(branchCode));
 
         Map<String, Acct> coa = loadCoa(branchCode);
         Section assets = section("ASSETS", 1, net, coa, false);
@@ -147,10 +155,11 @@ class FinancialStatementController {
         if (to.isBefore(from)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The end date is before the start date.");
         if (from.plusDays(MAX_RANGE_DAYS).isBefore(to)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "range is limited to " + MAX_RANGE_DAYS + " days");
         Map<String, BigDecimal> net = new HashMap<>();
+        // The Closing Entry is left out: it zeroes income and expenses on 31 December, which would hide the year's results.
         jdbc.query("""
                 SELECT GLTransACCT_CODE, SUM(GLTransDR_AMT) + SUM(GLTransCR_AMT) FROM gltrans
-                WHERE GLTransBR_CODE = ? AND GLTransTR_DATE BETWEEN ? AND ? AND GLTransTR_CODE <> ? GROUP BY GLTransACCT_CODE
-                """, (rs) -> { net.put(rs.getString(1), rs.getBigDecimal(2)); }, branchCode, from, to, PROFIT_LOSS_SUMMARY);
+                WHERE GLTransBR_CODE = ? AND GLTransTR_DATE BETWEEN ? AND ? AND GLTransTR_CODE NOT IN (?, ?) GROUP BY GLTransACCT_CODE
+                """, (rs) -> { net.put(rs.getString(1), rs.getBigDecimal(2)); }, branchCode, from, to, PROFIT_LOSS_SUMMARY, CLOSING_ENTRY);
         Map<String, Acct> coa = loadCoa(branchCode);
         Section revenue = section("REVENUES", 4, net, coa, true);
         Section expenses = section("EXPENSES", 5, net, coa, false);

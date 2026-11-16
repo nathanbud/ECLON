@@ -32,7 +32,8 @@ class DbPostingTest {
         assertFalse(db.columnExists("ecis_journal", "no_such_column"));
         assertTrue(db.textColumnLengths("client").containsKey("LName"));
         assertTrue(db.canInsertInto("ecis_audit_log", "transsum"));
-        assertFalse(db.canInsertInto("client"), "the app may update clients but never insert them");
+        assertTrue(db.canInsertInto("client"), "V037 lets an approved registration insert a client");
+        assertFalse(db.canInsertInto("loan_nonexistent_table_guard"), "an unknown table is never insertable");
     }
 
     @Test
