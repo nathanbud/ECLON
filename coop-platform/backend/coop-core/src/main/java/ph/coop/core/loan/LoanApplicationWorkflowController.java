@@ -38,8 +38,25 @@ public class LoanApplicationWorkflowController {
 
     private static final int LOAN_CLASS = 12, NEW = 1, VERIFIED = 2, APPROVED = 3, MODULE = 2, VOUCHER = 21, PENDING = 2;
 
+    /**
+     * An application as the lists show it. For an approved one, approvedOn is the day it was approved and releaseStatus where its release voucher
+     * stands (WAITING FOR APPROVAL, APPROVED, POSTED; null when the voucher is not found), with releasedOn the day it was posted. All three are null
+     * before approval.
+     */
     public record Item(long id, String documentNo, int clientId, String clientName, int typeCode, String typeName, int refNo, BigDecimal amount, int terms, int status, String statusName,
-                String encodedByName, String date, Integer voucherYear, Long voucherControlNo, int branchCode, boolean waitingForDeductions) {}
+                String encodedByName, String date, Integer voucherYear, Long voucherControlNo, int branchCode, boolean waitingForDeductions,
+                String approvedOn, String releaseStatus, String releasedOn) {
+
+        Item withRelease(String release, String on) {
+            return new Item(id, documentNo, clientId, clientName, typeCode, typeName, refNo, amount, terms, status, statusName, encodedByName, date, voucherYear,
+                voucherControlNo, branchCode, waitingForDeductions, approvedOn, release, on);
+        }
+    }
+
+    /** Approved applications stay on the waiting list this many days after approval while their release is not posted. */
+    static final int RELEASE_WAIT_DAYS = 60;
+    /** Released applications stay on the list this many days after the release was posted. */
+    static final int RELEASED_SHOWN_DAYS = 30;
 
     record Row(String account, String description, BigDecimal amount) {}
 
@@ -102,7 +119,28 @@ public class LoanApplicationWorkflowController {
         Number ctl = st == APPROVED ? (Number) rs.getObject(13) : null;
         return new Item(rs.getLong(1), rs.getString(2), rs.getInt(3), rs.getString(4), rs.getInt(5), rs.getString(6), rs.getInt(7), rs.getBigDecimal(8), rs.getInt(9), st,
             st == NEW ? "New" : st == VERIFIED ? "Verified" : st == APPROVED ? "Approved" : "Status " + st, rs.getString(12), String.valueOf(rs.getDate(11)),
-            ctl == null ? null : rs.getDate(14).toLocalDate().getYear(), ctl == null ? null : ctl.longValue(), rs.getInt(15), rs.getInt(16) > 0);
+            ctl == null ? null : rs.getDate(14).toLocalDate().getYear(), ctl == null ? null : ctl.longValue(), rs.getInt(15), rs.getInt(16) > 0,
+            st == APPROVED && rs.getDate(14) != null ? rs.getDate(14).toLocalDate().toString() : null, null, null);
+    }
+
+    /**
+     * Adds where the release stands to an approved application: read from its release voucher (the lines' update tag and approver, as the Disburse
+     * screen reads them) and, once posted, the day from the loan's own release row in the member ledger (class 12, event 11, written by that voucher).
+     * Read only; both reads use the tables' primary keys.
+     */
+    private Item release(Item it) {
+        if (it.status() != APPROVED || it.voucherYear() == null || it.voucherControlNo() == null) return it;
+        List<Object[]> v = jdbc.query("""
+                SELECT COUNT(*), MIN(DTUPD_TAG), MAX(DTAPPRVBY) FROM transdt
+                WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTTR_CTLNO = ?
+                """, (rs, i) -> new Object[] {rs.getInt(1), rs.getInt(2), rs.getObject(3)}, it.branchCode(), it.voucherYear(), MODULE, VOUCHER, it.voucherControlNo());
+        if (v.isEmpty() || (int) v.get(0)[0] == 0) return it;
+        if ((int) v.get(0)[1] == PENDING) return it.withRelease(v.get(0)[2] == null ? "WAITING FOR APPROVAL" : "APPROVED", null);
+        List<java.sql.Date> on = jdbc.queryForList("""
+                SELECT MIN(TR_DATE) FROM sldtl
+                WHERE SL_BRCODE = ? AND SL_CLIENTID = ? AND SLC_CODE = ? AND SLT_CODE = ? AND REF_NO = ? AND SLE_CODE = 11 AND TR_CODE = ? AND TR_CTLNO = ?
+                """, java.sql.Date.class, it.branchCode(), it.clientId(), LOAN_CLASS, it.typeCode(), it.refNo(), VOUCHER, it.voucherControlNo());
+        return it.withRelease("POSTED", on.isEmpty() || on.get(0) == null ? null : on.get(0).toLocalDate().toString());
     }
 
     /** Applications waiting to be verified or approved. */
@@ -122,7 +160,17 @@ public class LoanApplicationWorkflowController {
     List<Item> pending(Authentication auth) {
         Staff s = staff(auth.getName());
         if (!s.anyStep()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not work on loan applications.");
-        return jdbc.query(itemSql() + " WHERE a.BR_CODE = ? AND a.STATUSID IN (?, ?) ORDER BY a.ID DESC LIMIT 200", (rs, i) -> item(rs), s.branch(), NEW, VERIFIED);
+        List<Item> out = new ArrayList<>(jdbc.query(itemSql() + " WHERE a.BR_CODE = ? AND a.STATUSID IN (?, ?) ORDER BY a.ID DESC LIMIT 200", (rs, i) -> item(rs), s.branch(), NEW, VERIFIED));
+        // then the approved ones on their way to release: waiting in Front Office, or released in the last RELEASED_SHOWN_DAYS days
+        LocalDate today = LocalDate.now(clock);
+        LocalDate releasedSince = today.minusDays(RELEASED_SHOWN_DAYS);
+        for (Item it : jdbc.query(itemSql() + " WHERE a.BR_CODE = ? AND a.STATUSID = ? AND a.APPRV_DATE >= ? ORDER BY a.ID DESC LIMIT 200",
+                (rs, i) -> item(rs), s.branch(), APPROVED, java.sql.Date.valueOf(today.minusDays(RELEASE_WAIT_DAYS)))) {
+            Item r = release(it);
+            boolean released = "POSTED".equals(r.releaseStatus());
+            if (!released || (r.releasedOn() != null && !LocalDate.parse(r.releasedOn()).isBefore(releasedSince))) out.add(r);
+        }
+        return out;
     }
 
     @GetMapping("/{id}")
@@ -130,7 +178,7 @@ public class LoanApplicationWorkflowController {
         Staff s = staff(auth.getName());
         if (!s.anyStep()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not work on loan applications.");
         Prepared p = prepare(s.branch(), id, false);
-        return new Detail(p.item(), rows(p), p.deductions(), p.net(), p.problems(), holds.forApplication(s.branch(), id));
+        return new Detail(release(p.item()), rows(p), p.deductions(), p.net(), p.problems(), holds.forApplication(s.branch(), id));
     }
 
     @PostMapping("/{id}/verify")

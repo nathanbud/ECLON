@@ -2,19 +2,22 @@ import { Button, Divider, ListItemIcon, ListItemText, ListSubheader, Menu, MenuI
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { FiCheck, FiChevronDown, FiFilePlus, FiSettings } from 'react-icons/fi'
 import type { LoanApplicationItem } from './api'
+import { APPROVED, isReleased } from './loanSteps'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 export const NEW_LOAN_SHORTCUT = isMac ? '⌘N' : 'Ctrl+N'
 
-/** Which applications the Loan Module lists: all waiting, or only those at one step. */
-export type LoanFilter = 'all' | 'deductions' | 'verify' | 'approve'
+/** Which applications the Loan Module lists: all still on their way, those at one step, or those released lately. */
+export type LoanFilter = 'all' | 'deductions' | 'verify' | 'approve' | 'release' | 'released'
 
 /** `step` is the loan step the application waits at, as the step buttons over the list name it. */
 export const FILTERS: { key: LoanFilter; label: string; step: string; test: (a: LoanApplicationItem) => boolean }[] = [
-  { key: 'all', label: 'All waiting', step: 'All', test: () => true },
-  { key: 'deductions', label: 'Waiting for deductions', step: '2 · Deduction', test: (a) => a.waitingForDeductions },
+  { key: 'all', label: 'All waiting', step: 'All', test: (a) => !isReleased(a) },
+  { key: 'deductions', label: 'Waiting for deductions', step: '2 · Deduction', test: (a) => a.status === 1 && a.waitingForDeductions },
   { key: 'verify', label: 'New, to verify', step: '3 · Verification', test: (a) => a.status === 1 && !a.waitingForDeductions },
   { key: 'approve', label: 'Verified, to approve', step: '4 · Approval', test: (a) => a.status === 2 },
+  { key: 'release', label: 'Approved, waiting for release', step: '5 · Release', test: (a) => a.status === APPROVED && !isReleased(a) },
+  { key: 'released', label: 'Released, last 30 days', step: 'Released', test: isReleased },
 ]
 
 const Shortcut = ({ children }: { children: ReactNode }) => (

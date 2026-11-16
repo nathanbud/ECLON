@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { approveLoanApplication, cancelLoanApplication, disapproveLoanApplication, getLoanAppPermissions, getLoanApplication, getLoanApplications, verifyLoanApplication, type LoanApplicationItem } from './api'
@@ -8,6 +8,7 @@ import { Segmented } from './appleUi'
 import { glass } from './glass'
 import { FILTERS, type LoanFilter } from './LoanMenu'
 import { LoanStepStatus } from './LoanStepStatus'
+import { APPROVED, isReleased, LOAN_SORTS, releaseWords, sortApplications, type LoanSort } from './loanSteps'
 
 const STALE_DAYS = 60
 
@@ -29,7 +30,11 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
   const [disapproving, setDisapproving] = useState(false)
   const [showOlder, setShowOlder] = useState(false)
   const [reason, setReason] = useState('')
-  const detail = useQuery({ queryKey: ['loan-application', open?.id], queryFn: () => getLoanApplication(open!.id), enabled: !!open })
+  // Always opens newest first; another order lasts while the screen is open.
+  const [sort, setSort] = useState<LoanSort>('date-desc')
+  // an approved one is asked again every 30 seconds until released, so its release shows while it is open
+  const detail = useQuery({ queryKey: ['loan-application', open?.id], queryFn: () => getLoanApplication(open!.id), enabled: !!open,
+    refetchInterval: (q) => (q.state.data?.item.status === APPROVED && !isReleased(q.state.data.item) ? 30_000 : false) })
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['loan-applications'] }); void qc.invalidateQueries({ queryKey: ['loan-application'] }); void qc.invalidateQueries({ queryKey: ['loan-releases'] }) }
   const verify = useMutation({ mutationFn: (a: LoanApplicationItem) => verifyLoanApplication(a.id), onSuccess: (a) => { setError(null); setOpen(a); refresh() }, onError: (e) => setError((e as Error).message) })
   const cancel = useMutation({
@@ -53,8 +58,10 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
   const step = FILTERS.find((f) => f.key === filter) ?? FILTERS[0]
   const all = (list.data ?? []).filter(step.test)
   const cutoff = new Date(Date.now() - STALE_DAYS * 86_400_000).toISOString().slice(0, 10)
-  const older = all.filter((r) => r.date < cutoff).length
-  const rows = showOlder ? all : all.filter((r) => r.date >= cutoff)
+  // an application counts as recent by its last move: released, approved, or else the day it was saved
+  const lastMove = (r: LoanApplicationItem) => r.releasedOn ?? r.approvedOn ?? r.date
+  const older = all.filter((r) => lastMove(r) < cutoff).length
+  const rows = sortApplications(showOlder ? all : all.filter((r) => lastMove(r) >= cutoff), sort)
   const a = detail.data?.item ?? open
   const busy = verify.isPending || approve.isPending || cancel.isPending || disapprove.isPending
   return (
@@ -65,14 +72,17 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
         </Typography>
         {filter !== 'all' && onShowAll && !onFilter && <Button size="small" onClick={onShowAll}>Show all waiting</Button>}
       </Box>
-      {onFilter && (
-        <Box sx={{ mb: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
+        {onFilter && (
           <Segmented label="Show applications at step" value={filter} onChange={onFilter}
             options={FILTERS.map((f) => ({ value: f.key, label: `${f.step} (${(list.data ?? []).filter(f.test).length})` }))} />
-        </Box>
-      )}
+        )}
+        <TextField select size="small" label="Sort by" value={sort} onChange={(e) => setSort(e.target.value as LoanSort)} sx={{ width: 200, ml: 'auto' }}>
+          {LOAN_SORTS.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+        </TextField>
+      </Box>
       {note && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setNote(null)}>{note}</Alert>}
-      {rows.length === 0 && <Typography sx={{ py: 1 }} color="text.secondary">{filter === 'all' ? 'No recent loan applications are waiting.' : `No recent applications are ${step.label.toLowerCase()}.`}</Typography>}
+      {rows.length === 0 && <Typography sx={{ py: 1 }} color="text.secondary">{filter === 'all' ? 'No recent loan applications are waiting.' : `No recent applications in ${step.label}.`}</Typography>}
       {older > 0 && (
         <Box sx={{ py: 0.5 }}>
           <Button size="small" onClick={() => setShowOlder((v) => !v)}>{showOlder ? `Hide ${older} older than ${STALE_DAYS} days` : `Show ${older} older than ${STALE_DAYS} days`}</Button>
@@ -83,7 +93,7 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
           sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{ fontSize: 13 }}>{r.clientName ?? `Client ${r.clientId}`} · {money(r.amount)}</Typography>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{r.documentNo} · {r.typeName} · {r.terms} months · {r.date} · encoded by {r.encodedByName ?? '—'}</Typography>
+            <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{r.documentNo} · {r.typeName} · {r.terms} months · {r.date} · encoded by {r.encodedByName ?? '—'}{r.approvedOn ? ` · approved ${r.approvedOn}` : ''}{r.releasedOn ? ` · released ${r.releasedOn}` : ''}</Typography>
           </Box>
           <LoanStepStatus application={r} />
         </Box>
@@ -113,17 +123,20 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
               </TableBody>
             </Table>
           )}
+          {a && releaseWords(a) && <Alert severity={isReleased(a) ? 'success' : 'info'} sx={{ mt: 1.5 }}>{releaseWords(a)}.</Alert>}
           {a?.waitingForDeductions && <Alert severity="info" sx={{ mt: 1.5 }}>This application waits for its deductions. It can be verified once someone who may do the Deduction step fills them in.</Alert>}
           {disapproving && <TextField label="Reason for disapproving" value={reason} onChange={(e) => setReason(e.target.value)} fullWidth size="small" sx={{ mt: 1.5 }} autoFocus />}
           {cancelling && <TextField label="Reason for cancelling" value={reason} onChange={(e) => setReason(e.target.value)} fullWidth size="small" sx={{ mt: 1.5 }} autoFocus />}
           <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
-            This is the voucher approval will create. You cannot verify or approve an application you encoded, and the verifier cannot approve it.
+            {a?.status === APPROVED
+              ? 'This is the release voucher. The money is released in Front Office > Disburse, Loan releases waiting: the voucher is approved by one person and posted by another.'
+              : 'This is the voucher approval will create. You cannot verify or approve an application you encoded, and the verifier cannot approve it.'}
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(null)}>Close</Button>
           {a && <Button onClick={() => { if (openLoanApplicationWindow({ applicationId: a.id })) setOpen(null) }}>Open step by step</Button>}
-          {a && !cancelling && !disapproving && <Button color="error" disabled={busy} onClick={() => setCancelling(true)}>Cancel application</Button>}
+          {a && !isReleased(a) && !cancelling && !disapproving && <Button color="error" disabled={busy} onClick={() => setCancelling(true)}>Cancel application</Button>}
           {a && !disapproving && !cancelling && (a.status === 1 || a.status === 2) && <Button color="error" disabled={busy} onClick={() => setDisapproving(true)}>Disapprove</Button>}
           {a && disapproving && <Button color="error" variant="outlined" disabled={busy || !reason.trim()} onClick={() => disapprove.mutate(a)}>Confirm disapprove</Button>}
           {a && cancelling && <Button color="error" variant="outlined" disabled={busy || !reason.trim()} onClick={() => cancel.mutate(a)}>Confirm cancel</Button>}

@@ -105,7 +105,9 @@ export async function getAmortizationPdf(b: number, c: number, body: LoanAppIn, 
   return res.blob()
 }
 
-export interface LoanApplicationItem { id: number; documentNo: string; clientId: number; clientName: string | null; typeCode: number; typeName: string | null; refNo: number; amount: number; terms: number; status: number; statusName: string; encodedByName: string | null; date: string; voucherYear: number | null; voucherControlNo: number | null; branchCode: number; waitingForDeductions: boolean }
+export interface LoanApplicationItem { id: number; documentNo: string; clientId: number; clientName: string | null; typeCode: number; typeName: string | null; refNo: number; amount: number; terms: number; status: number; statusName: string; encodedByName: string | null; date: string; voucherYear: number | null; voucherControlNo: number | null; branchCode: number; waitingForDeductions: boolean
+  /** Approved applications only (missing from an older server): the day approved, where the release voucher stands, and the day it was released. */
+  approvedOn?: string | null; releaseStatus?: 'WAITING FOR APPROVAL' | 'APPROVED' | 'POSTED' | null; releasedOn?: string | null }
 export interface CoMakerHoldSaved { clientId: number; name: string | null; amount: number; slc: number; slt: number; refNo: number; accountType: string | null; placed: boolean }
 export interface LoanApplicationDetail { item: LoanApplicationItem; lines: { account: string | null; description: string; amount: number }[]; totalDeductions: number; netProceeds: number; problems: string[]; coMakerHolds: CoMakerHoldSaved[] }
 /** canAdd is 1 · Profiling, canDeduct 2 · Deduction, canRelease 5 · Loan Release (New on the Cash Voucher; missing from an older server). */

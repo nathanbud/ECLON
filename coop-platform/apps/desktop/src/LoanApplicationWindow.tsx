@@ -121,13 +121,19 @@ export default function LoanApplicationWindow() {
   const [reason, setReason] = useState('')
   const close = () => { void closeThisWindow() }
 
-  const detail = useQuery({ queryKey: ['loan-application', appId], queryFn: () => getLoanApplication(appId!), enabled: appId != null, retry: false })
+  // Asked again every 30 seconds (and when the window regains focus) until the loan is released, so a release posted in Front Office shows here
+  // without reopening the window. Stops once released, disapproved or cancelled.
+  const detail = useQuery({ queryKey: ['loan-application', appId], queryFn: () => getLoanApplication(appId!), enabled: appId != null, retry: false,
+    refetchInterval: (q) => { const it = q.state.data?.item; return it && it.status <= APPROVED && it.releaseStatus !== 'POSTED' ? 30_000 : false } })
   const d = detail.data
   const status = d?.item.status
   const vYear = status === APPROVED ? d?.item.voucherYear : null
   const vCtl = status === APPROVED ? d?.item.voucherControlNo : null
-  const voucher = useQuery({ queryKey: ['loan-release', vYear, vCtl], queryFn: () => getLoanRelease(vYear!, vCtl!), enabled: vYear != null && vCtl != null, retry: false })
-  const released = voucher.data?.voucher.status === 'POSTED'
+  // The voucher's lines need the Cash Voucher look-up right; where it stands comes with the application for everyone (releaseStatus).
+  const voucher = useQuery({ queryKey: ['loan-release', vYear, vCtl], queryFn: () => getLoanRelease(vYear!, vCtl!), enabled: vYear != null && vCtl != null, retry: false,
+    refetchInterval: (q) => (q.state.data?.voucher.status === 'POSTED' || q.state.error ? false : 30_000) })
+  const releaseStatus = voucher.data?.voucher.status ?? d?.item.releaseStatus ?? null
+  const released = releaseStatus === 'POSTED'
 
   const perms = useQuery({ queryKey: ['loan-app-permissions'], queryFn: getLoanAppPermissions, staleTime: 60_000 })
   // saved by someone who may do Profiling only: the Deduction step is still to be done, and verification waits for it
@@ -225,12 +231,17 @@ export default function LoanApplicationWindow() {
     page = (
       <StepPage title="Loan Release" hint="The money is released in Front Office > Disburse (Loan releases waiting) by the people allowed to release it: the voucher is approved by one person and posted by another."
         actions={<>{endRow}
-          {v?.status === 'WAITING FOR APPROVAL' && <Chip color="warning" variant="outlined" label="Waiting for release in Front Office" />}
-          {v?.status === 'APPROVED' && <Chip color="warning" variant="outlined" label="Approved, waiting to be posted in Front Office" />}
-          {v?.status === 'POSTED' && <Chip color="success" label="Released" />}</>}>
+          {releaseStatus === 'WAITING FOR APPROVAL' && <Chip color="warning" variant="outlined" label="Waiting for release in Front Office" />}
+          {releaseStatus === 'APPROVED' && <Chip color="warning" variant="outlined" label="Approved, waiting to be posted in Front Office" />}
+          {releaseStatus === 'POSTED' && <Chip color="success" label={d?.item.releasedOn ? `Released on ${d.item.releasedOn}` : 'Released'} />}</>}>
         {errorAlert}
         {status !== APPROVED && <Alert severity="info">The application must be approved before it can be released.</Alert>}
         {voucher.isLoading && <Skeleton variant="rounded" height={160} />}
+        {status === APPROVED && voucher.error && (
+          <Typography sx={{ fontSize: 13 }} color="text.secondary">
+            {releaseStatus ? 'Where the release stands is shown above. ' : ''}The release voucher's lines are shown to those who may look up Cash Vouchers (Settings &gt; Users, Transaction Types).
+          </Typography>
+        )}
         {v && (
           <>
             <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">

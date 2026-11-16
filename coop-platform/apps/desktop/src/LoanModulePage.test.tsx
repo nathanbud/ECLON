@@ -55,6 +55,50 @@ describe('Loan Module', () => {
     expect(screen.queryByText(/A step marked Not granted/)).toBeNull()
   })
 
+  it('sorts the list by date, name or status, newest first to start', async () => {
+    perms.mockResolvedValue({ canAdd: true, canDeduct: true, canVerify: true, canApprove: true })
+    const item = (id: number, name: string, date: string, status: number, waitingForDeductions: boolean) => ({ id, documentNo: `D${id}`, clientId: id, clientName: name, typeCode: 21, typeName: 'Salary loan', refNo: id, amount: 5000, terms: 12, status, statusName: 'New', encodedByName: 'Ana', date, voucherYear: null, voucherControlNo: null, branchCode: 1, waitingForDeductions })
+    waiting.mockImplementation(() => Promise.resolve([item(1, 'Cruz', '2099-01-02', 2, false), item(2, 'Abad', '2099-01-01', 1, false), item(3, 'Bato', '2099-01-03', 1, true)]))
+    show()
+    await screen.findByText(/Cruz ·/)
+    const order = () => screen.getAllByText(/^(Abad|Bato|Cruz) ·/).map((e) => e.textContent!.split(' ')[0])
+    expect(order()).toEqual(['Bato', 'Cruz', 'Abad'])
+    const choose = async (label: string) => {
+      await userEvent.click(screen.getByRole('combobox', { name: 'Sort by' }))
+      await userEvent.click(await screen.findByRole('option', { name: label }))
+    }
+    await choose('Name, A to Z')
+    expect(order()).toEqual(['Abad', 'Bato', 'Cruz'])
+    await choose('Status, by step')
+    expect(order()).toEqual(['Bato', 'Abad', 'Cruz'])
+    await choose('Date, oldest first')
+    expect(order()).toEqual(['Abad', 'Cruz', 'Bato'])
+  })
+
+  it('opens newest first again, whatever order was chosen before', async () => {
+    perms.mockResolvedValue({ canAdd: true, canDeduct: true, canVerify: true, canApprove: true })
+    show()
+    expect(await screen.findByRole('combobox', { name: 'Sort by' })).toHaveTextContent('Date, newest first')
+  })
+
+  it('lists approved applications at 5 · Release and released ones apart, with their own step buttons', async () => {
+    perms.mockResolvedValue({ canAdd: true, canDeduct: true, canVerify: true, canApprove: true })
+    const item = (id: number, status: number, releaseStatus: string | null, releasedOn: string | null = null) => ({ id, documentNo: `D${id}`, clientId: id, clientName: `Member ${id}`, typeCode: 21, typeName: 'Salary loan', refNo: id, amount: 5000, terms: 12, status, statusName: status === 3 ? 'Approved' : 'New', encodedByName: 'Ana', date: '2099-01-01', voucherYear: status === 3 ? 2099 : null, voucherControlNo: status === 3 ? id : null, branchCode: 1, waitingForDeductions: false, approvedOn: status === 3 ? '2099-01-02' : null, releaseStatus, releasedOn })
+    waiting.mockImplementation(() => Promise.resolve([item(1, 1, null), item(2, 3, 'WAITING FOR APPROVAL'), item(3, 3, 'POSTED', '2099-01-03')]))
+    show()
+    const steps = await screen.findByRole('group', { name: 'Show applications at step' })
+    expect(await within(steps).findByRole('button', { name: 'All (2)' })).toBeInTheDocument()
+    expect(screen.queryByText(/Member 3 ·/)).toBeNull() // released: only under Released
+    expect(screen.getByRole('img', { name: /^At step 5 of 5: Loan Release \(Waiting for release in Front Office\)/ })).toBeInTheDocument()
+    await userEvent.click(within(steps).getByRole('button', { name: '5 · Release (1)' }))
+    expect(screen.getByText(/Member 2 ·/)).toBeInTheDocument()
+    expect(screen.queryByText(/Member 1 ·/)).toBeNull()
+    await userEvent.click(within(steps).getByRole('button', { name: 'Released (1)' }))
+    expect(screen.getByText(/Member 3 ·/)).toBeInTheDocument()
+    expect(screen.getByText(/released 2099-01-03/)).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Released on 2099-01-03. All 5 steps done.' })).toBeInTheDocument()
+  })
+
   it('says so when the person has none of the steps', async () => {
     perms.mockResolvedValue({ canAdd: false, canDeduct: false, canVerify: false, canApprove: false })
     show()
