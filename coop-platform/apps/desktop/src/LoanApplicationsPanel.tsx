@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { approveLoanApplication, cancelLoanApplication, disapproveLoanApplication, getLoanAppPermissions, getLoanApplication, getLoanApplications, verifyLoanApplication, type LoanApplicationItem } from './api'
@@ -7,6 +7,7 @@ import { money } from './FoTransactionForm'
 import { Segmented } from './appleUi'
 import { glass } from './glass'
 import { FILTERS, type LoanFilter } from './LoanMenu'
+import { LoanStepStatus } from './LoanStepStatus'
 
 const STALE_DAYS = 60
 
@@ -84,13 +85,18 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
             <Typography sx={{ fontSize: 13 }}>{r.clientName ?? `Client ${r.clientId}`} · {money(r.amount)}</Typography>
             <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{r.documentNo} · {r.typeName} · {r.terms} months · {r.date} · encoded by {r.encodedByName ?? '—'}</Typography>
           </Box>
-          <Chip size="small" variant="outlined" color={r.waitingForDeductions ? 'warning' : r.status === 2 ? 'info' : 'warning'} label={r.waitingForDeductions ? 'Waiting for deductions' : r.statusName} />
+          <LoanStepStatus application={r} />
         </Box>
       ))}
       <Dialog open={!!open} onClose={() => setOpen(null)} fullWidth maxWidth="md">
         <DialogTitle>Loan application {a?.documentNo}</DialogTitle>
         <DialogContent>
-          {a && <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">{a.clientName ?? `Client ${a.clientId}`} · {a.typeName} · {money(a.amount)} over {a.terms} months · loan ref {a.refNo} · {a.statusName}</Typography>}
+          {a && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
+              <Typography sx={{ fontSize: 13, flex: 1, minWidth: 240 }} color="text.secondary">{a.clientName ?? `Client ${a.clientId}`} · {a.typeName} · {money(a.amount)} over {a.terms} months · loan ref {a.refNo} · {a.statusName}</Typography>
+              <LoanStepStatus application={a} />
+            </Box>
+          )}
           {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
           {detail.data?.problems.map((p) => <Alert key={p} severity="warning" sx={{ mb: 1 }}>{p}</Alert>)}
           {detail.isLoading ? <Skeleton variant="rounded" height={120} /> : (

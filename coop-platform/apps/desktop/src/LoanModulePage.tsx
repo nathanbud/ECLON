@@ -1,8 +1,8 @@
 import { Alert, Box, Button, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { FiFilePlus } from 'react-icons/fi'
-import { getLoanAppPermissions, getLoanApplications } from './api'
+import { FiCheckCircle, FiFilePlus, FiLock } from 'react-icons/fi'
+import { getLoanAppPermissions, getLoanApplications, type LoanAppPermissions } from './api'
 import { openLoanApplicationWindow, openLoanSetupWindow } from './detachedWindow'
 import { appBackground } from './glass'
 import LoanApplicationDialog from './LoanApplicationDialog'
@@ -14,11 +14,22 @@ import { ToolbarPortal } from './toolbarSlot'
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 
 const STEPS = [
-  ['1', 'Profiling', 'Encode the application: member, loan type, principal, terms, collateral, co-makers.'],
-  ['2', 'Deduction', 'Fees, share capital and pay-offs that come out of the proceeds.'],
-  ['3', 'Verification', 'Check the application and its figures. Not by the person who encoded it.'],
-  ['4', 'Approval', 'Approve or disapprove. Approving makes the release voucher.'],
-] as const
+  ['1', 'Profiling', 'Encode the application: member, loan type, principal, terms, collateral, co-makers.', 'canAdd'],
+  ['2', 'Deduction', 'Fees, share capital and pay-offs that come out of the proceeds.', 'canDeduct'],
+  ['3', 'Verification', 'Check the application and its figures. Not by the person who encoded it.', 'canVerify'],
+  ['4', 'Approval', 'Approve or disapprove. Approving makes the release voucher.', 'canApprove'],
+] as const satisfies readonly (readonly [string, string, string, keyof LoanAppPermissions])[]
+
+/** Whether the signed-in person has a step: a check and "Granted to you", or a lock and "Not granted". Nothing while the rights are loading. */
+function Granted({ yes }: { yes: boolean | undefined }) {
+  if (yes == null) return null
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.75, fontSize: 12, fontWeight: 600, color: yes ? 'success.main' : 'text.secondary' }}>
+      {yes ? <FiCheckCircle aria-hidden /> : <FiLock aria-hidden />}
+      {yes ? 'Granted to you' : 'Not granted'}
+    </Box>
+  )
+}
 
 /**
  * Loan Module: where a loan application is started and goes through its steps, Profiling, Deduction, Verification and Approval. Releasing the
@@ -74,18 +85,27 @@ export default function LoanModulePage() {
         </Box>
 
         <Box component="ol" aria-label="Loan steps" sx={{ listStyle: 'none', p: 0, m: 0, mb: 2, display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' } }}>
-          {STEPS.map(([n, name, what]) => (
-            <Box component="li" key={n} sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', p: 1.25 }}>
+          {STEPS.map(([n, name, what, right]) => (
+            <Box component="li" key={n} aria-label={`${n} · ${name}${p ? (p[right] ? ', granted to you' : ', not granted to you') : ''}`}
+              sx={{ border: 1, borderColor: p?.[right] ? 'success.main' : 'divider', borderRadius: '8px', p: 1.25, display: 'flex', flexDirection: 'column' }}>
               <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{n} · {name}</Typography>
-              <Typography color="text.secondary" sx={{ fontSize: 12 }}>{what}</Typography>
+              <Typography color="text.secondary" sx={{ fontSize: 12, flex: 1 }}>{what}</Typography>
+              <Granted yes={p?.[right]} />
             </Box>
           ))}
-          <Box component="li" sx={{ border: 1, borderColor: 'divider', borderStyle: 'dashed', borderRadius: '8px', p: 1.25 }}>
+          <Box component="li" aria-label={`5 · Loan Release${p?.canRelease != null ? (p.canRelease ? ', granted to you' : ', not granted to you') : ''}`}
+            sx={{ border: 1, borderColor: p?.canRelease ? 'success.main' : 'divider', borderStyle: 'dashed', borderRadius: '8px', p: 1.25, display: 'flex', flexDirection: 'column' }}>
             <Typography sx={{ fontSize: 13, fontWeight: 600 }}>5 · Loan Release</Typography>
-            <Typography color="text.secondary" sx={{ fontSize: 12 }}>In Front Office &gt; Disburse, by those allowed to release money (the Cash Voucher right).</Typography>
+            <Typography color="text.secondary" sx={{ fontSize: 12, flex: 1 }}>In Front Office &gt; Disburse, by those allowed to release money (the Cash Voucher right).</Typography>
+            <Granted yes={p?.canRelease} />
           </Box>
         </Box>
 
+        {p && anyStep && STEPS.some(([, , , right]) => !p[right]) && (
+          <Typography color="text.secondary" sx={{ fontSize: 12, mt: -1, mb: 2 }}>
+            A step marked Not granted is given by an administrator in Settings &gt; Users: your user, tab Receivables, Loan process (Loan Release: tab Transaction Types, New on Cash Voucher).
+          </Typography>
+        )}
         {!anyStep && (
           <Alert severity="info" sx={{ mb: 2 }}>
             Your account has none of the loan application steps. An administrator can give them in Settings &gt; Users: open your user, tab Receivables, Loan process.

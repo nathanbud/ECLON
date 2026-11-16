@@ -17,7 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
  * "can access front office" flag on {@code access}, and the find/new flags per transaction type on {@code access_trans}.
  */
 @Component
-class FrontOfficeAccess {
+public class FrontOfficeAccess {
 
     /** One tab of the window and the transaction types it handles (the Summary tab has none of its own). */
     record TabDef(String key, String label, List<Integer> types) {}
@@ -64,6 +64,11 @@ class FrontOfficeAccess {
         jdbc.query("SELECT TR_CODE, CAN_FIND, CAN_NEW FROM access_trans WHERE BR_CODE = ? AND USERID = ?",
             (rs) -> { byType.put(rs.getInt(1), new boolean[] {rs.getInt(2) == 1, rs.getInt(3) == 1}); }, r[0], r[1]);
         return new Perms(r[2] == 1, false, r[0], r[1], byType);
+    }
+
+    /** Whether the person may create this type of transaction (New on it), for screens outside the front office that say who may do what. */
+    public boolean mayCreate(Authentication auth, int type) {
+        return ALL_TYPES.contains(type) && of(auth).canNew(type);
     }
 
     /** The types in this list that the person may look up. */

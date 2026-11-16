@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.db.Db;
+import ph.coop.core.frontoffice.FrontOfficeAccess;
 
 /**
  * Verify and approve a loan application (statuses New 1, Verified 2, Approved 3). Approving creates the release voucher the way the old system
@@ -65,9 +66,12 @@ public class LoanApplicationWorkflowController {
     private final LoanBook book;
     private final CoMakerHolds holds;
     private final LoanSteps steps;
+    private final FrontOfficeAccess frontOffice;
 
-    LoanApplicationWorkflowController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, SingleHandGrants single, LoanBook book, CoMakerHolds holds, LoanSteps steps) {
+    LoanApplicationWorkflowController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, SingleHandGrants single, LoanBook book, CoMakerHolds holds, LoanSteps steps,
+                                      FrontOfficeAccess frontOffice) {
         this.steps = steps;
+        this.frontOffice = frontOffice;
         this.book = book;
         this.holds = holds;
         this.jdbc = jdbc;
@@ -102,13 +106,16 @@ public class LoanApplicationWorkflowController {
     }
 
     /** Applications waiting to be verified or approved. */
-    /** What the signed-in person may do with loan applications (the old system's flags in access), so the form can say so before anything is typed. */
-    public record Permissions(boolean canAdd, boolean canVerify, boolean canApprove, boolean canDeduct) {}
+    /**
+     * What the signed-in person may do with loan applications (the old system's flags in access), so the form can say so before anything is typed.
+     * canRelease is 5 · Loan Release: New on the Cash Voucher (type 21), which approving and posting the release voucher checks.
+     */
+    public record Permissions(boolean canAdd, boolean canVerify, boolean canApprove, boolean canDeduct, boolean canRelease) {}
 
     @GetMapping("/permissions")
     public Permissions permissions(Authentication auth) {
         Staff s = staff(auth.getName());
-        return new Permissions(s.canAdd(), s.canVerify(), s.canApprove(), s.canDeduct());
+        return new Permissions(s.canAdd(), s.canVerify(), s.canApprove(), s.canDeduct(), frontOffice.mayCreate(auth, VOUCHER));
     }
 
     @GetMapping("/pending")

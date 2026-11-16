@@ -34,6 +34,27 @@ describe('Loan Module', () => {
     expect(await screen.findByText('Loan applications waiting')).toBeInTheDocument()
   })
 
+  it('marks each step granted to the person or not, Loan Release from the Cash Voucher right', async () => {
+    perms.mockResolvedValue({ canAdd: true, canDeduct: false, canVerify: true, canApprove: false, canRelease: true })
+    show()
+    const steps = screen.getByRole('list', { name: 'Loan steps' })
+    expect(await within(steps).findByRole('listitem', { name: '1 · Profiling, granted to you' })).toHaveTextContent('Granted to you')
+    expect(within(steps).getByRole('listitem', { name: '2 · Deduction, not granted to you' })).toHaveTextContent('Not granted')
+    expect(within(steps).getByRole('listitem', { name: '3 · Verification, granted to you' })).toBeInTheDocument()
+    expect(within(steps).getByRole('listitem', { name: '4 · Approval, not granted to you' })).toBeInTheDocument()
+    expect(within(steps).getByRole('listitem', { name: '5 · Loan Release, granted to you' })).toBeInTheDocument()
+    expect(screen.getByText(/A step marked Not granted is given by an administrator/)).toBeInTheDocument()
+  })
+
+  it('leaves Loan Release unmarked when an older server does not say', async () => {
+    perms.mockResolvedValue({ canAdd: true, canDeduct: true, canVerify: true, canApprove: true })
+    show()
+    const steps = screen.getByRole('list', { name: 'Loan steps' })
+    await within(steps).findByRole('listitem', { name: '4 · Approval, granted to you' })
+    expect(within(steps).getByRole('listitem', { name: '5 · Loan Release' })).not.toHaveTextContent(/granted/i)
+    expect(screen.queryByText(/A step marked Not granted/)).toBeNull()
+  })
+
   it('says so when the person has none of the steps', async () => {
     perms.mockResolvedValue({ canAdd: false, canDeduct: false, canVerify: false, canApprove: false })
     show()

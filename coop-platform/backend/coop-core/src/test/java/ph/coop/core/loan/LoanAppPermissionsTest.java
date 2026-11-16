@@ -38,6 +38,23 @@ class LoanAppPermissionsTest {
 
     @Test void aPersonWhoMayNotIsToldSo() { check(0); }
 
+    /** 5 · Loan Release is New on the Cash Voucher (type 21) with front office access, the right the release screen checks. */
+    private void checkRelease(boolean may) {
+        List<String> u = jdbc.queryForList("""
+                SELECT e.AccessUserName FROM access e
+                WHERE COALESCE(e.AccessIsDisabled, 0) = 0
+                  AND (CASE WHEN COALESCE(e.AccessCanAccessFrontOffice, 0) = 1 AND EXISTS (SELECT 1 FROM access_trans t WHERE t.BR_CODE = e.AccessBR_CODE
+                       AND t.USERID = e.AccessID AND t.TR_CODE = 21 AND t.CAN_NEW = 1) THEN 1 ELSE 0 END) = ?
+                ORDER BY e.AccessID LIMIT 1
+                """, String.class, may ? 1 : 0);
+        assumeTrue(!u.isEmpty(), "no enabled user " + (may ? "with" : "without") + " the Cash Voucher right");
+        assertEquals(may, workflow.permissions(new TestingAuthenticationToken(u.get(0), null)).canRelease());
+    }
+
+    @Test void aPersonWithTheCashVoucherRightMayRelease() { checkRelease(true); }
+
+    @Test void aPersonWithoutItMayNotRelease() { checkRelease(false); }
+
     @Test void anAccountOutsideTheOldSystemIsRefused() {
         assertThrows(ResponseStatusException.class, () -> workflow.permissions(new TestingAuthenticationToken("no-such-person-xyz", null)));
     }
