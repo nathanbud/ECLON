@@ -9,11 +9,12 @@ export const NEW_LOAN_SHORTCUT = isMac ? '⌘N' : 'Ctrl+N'
 /** Which applications the Loan Module lists: all waiting, or only those at one step. */
 export type LoanFilter = 'all' | 'deductions' | 'verify' | 'approve'
 
-export const FILTERS: { key: LoanFilter; label: string; test: (a: LoanApplicationItem) => boolean }[] = [
-  { key: 'all', label: 'All waiting', test: () => true },
-  { key: 'deductions', label: 'Waiting for deductions', test: (a) => a.waitingForDeductions },
-  { key: 'verify', label: 'New, to verify', test: (a) => a.status === 1 && !a.waitingForDeductions },
-  { key: 'approve', label: 'Verified, to approve', test: (a) => a.status === 2 },
+/** `step` is the loan step the application waits at, as the step buttons over the list name it. */
+export const FILTERS: { key: LoanFilter; label: string; step: string; test: (a: LoanApplicationItem) => boolean }[] = [
+  { key: 'all', label: 'All waiting', step: 'All', test: () => true },
+  { key: 'deductions', label: 'Waiting for deductions', step: '2 · Deduction', test: (a) => a.waitingForDeductions },
+  { key: 'verify', label: 'New, to verify', step: '3 · Verification', test: (a) => a.status === 1 && !a.waitingForDeductions },
+  { key: 'approve', label: 'Verified, to approve', step: '4 · Approval', test: (a) => a.status === 2 },
 ]
 
 const Shortcut = ({ children }: { children: ReactNode }) => (

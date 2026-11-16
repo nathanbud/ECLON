@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { approveLoanApplication, cancelLoanApplication, disapproveLoanApplication, getLoanAppPermissions, getLoanApplication, getLoanApplications, verifyLoanApplication, type LoanApplicationItem } from './api'
 import { openLoanApplicationWindow } from './detachedWindow'
 import { money } from './FoTransactionForm'
+import { Segmented } from './appleUi'
 import { glass } from './glass'
 import { FILTERS, type LoanFilter } from './LoanMenu'
 
@@ -15,7 +16,8 @@ const STALE_DAYS = 60
  * The server decides who may do which: the encoder cannot verify or approve their own application, the verifier cannot approve it, unless a
  * system administrator has let that person work alone.
  */
-export function LoanApplicationsPanel({ full, filter = 'all', onShowAll }: { full?: boolean; filter?: LoanFilter; onShowAll?: () => void } = {}) {
+/** With `onFilter`, a row of step buttons (All, Deduction, Verification, Approval, each with its count) narrows the list. */
+export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilter }: { full?: boolean; filter?: LoanFilter; onShowAll?: () => void; onFilter?: (f: LoanFilter) => void } = {}) {
   const qc = useQueryClient()
   const list = useQuery({ queryKey: ['loan-applications'], queryFn: getLoanApplications, refetchInterval: 30_000, retry: false })
   const perms = useQuery({ queryKey: ['loan-app-permissions'], queryFn: getLoanAppPermissions, staleTime: 60_000 })
@@ -60,8 +62,14 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll }: { ful
         <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', flex: 1 }} color="text.secondary">
           Loan applications waiting{filter !== 'all' ? ` · ${step.label}` : ''}
         </Typography>
-        {filter !== 'all' && onShowAll && <Button size="small" onClick={onShowAll}>Show all waiting</Button>}
+        {filter !== 'all' && onShowAll && !onFilter && <Button size="small" onClick={onShowAll}>Show all waiting</Button>}
       </Box>
+      {onFilter && (
+        <Box sx={{ mb: 1 }}>
+          <Segmented label="Show applications at step" value={filter} onChange={onFilter}
+            options={FILTERS.map((f) => ({ value: f.key, label: `${f.step} (${(list.data ?? []).filter(f.test).length})` }))} />
+        </Box>
+      )}
       {note && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setNote(null)}>{note}</Alert>}
       {rows.length === 0 && <Typography sx={{ py: 1 }} color="text.secondary">{filter === 'all' ? 'No recent loan applications are waiting.' : `No recent applications are ${step.label.toLowerCase()}.`}</Typography>}
       {older > 0 && (

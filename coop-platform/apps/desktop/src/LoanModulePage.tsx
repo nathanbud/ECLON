@@ -91,7 +91,7 @@ export default function LoanModulePage() {
             Your account has none of the loan application steps. An administrator can give them in Settings &gt; Users: open your user, tab Receivables, Loan process.
           </Alert>
         )}
-        {anyStep && <LoanApplicationsPanel full filter={filter} onShowAll={() => setFilter('all')} />}
+        {anyStep && <LoanApplicationsPanel full filter={filter} onFilter={setFilter} onShowAll={() => setFilter('all')} />}
       </Box>
       {inline && <LoanApplicationDialog onClose={() => setInline(false)} />}
     </Box>

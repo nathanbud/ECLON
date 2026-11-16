@@ -75,7 +75,22 @@ describe('Loan Module', () => {
     expect(await screen.findByText('Loan applications waiting · Waiting for deductions')).toBeInTheDocument()
     expect(screen.getByText(/Member 1 ·/)).toBeInTheDocument()
     expect(screen.queryByText(/Member 2 ·/)).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Show all waiting' }))
+    await userEvent.click(screen.getByRole('button', { name: 'All (3)' }))
     expect(await screen.findByText(/Member 2 ·/)).toBeInTheDocument()
+  })
+
+  it('narrows the list with the step buttons over it, each with its count', async () => {
+    perms.mockResolvedValue({ canAdd: true, canDeduct: true, canVerify: true, canApprove: true })
+    const item = (id: number, status: number, statusName: string, waitingForDeductions: boolean) => ({ id, documentNo: `D${id}`, clientId: id, clientName: `Member ${id}`, typeCode: 21, typeName: 'Salary loan', refNo: id, amount: 5000, terms: 12, status, statusName, encodedByName: 'Ana', date: '2099-01-01', voucherYear: null, voucherControlNo: null, branchCode: 1, waitingForDeductions })
+    waiting.mockImplementation(() => Promise.resolve([item(1, 1, 'New', true), item(2, 1, 'New', false), item(3, 2, 'Verified', false)]))
+    show()
+    const steps = await screen.findByRole('group', { name: 'Show applications at step' })
+    expect(within(steps).getByRole('button', { name: 'All (3)' })).toHaveAttribute('aria-pressed', 'true')
+    for (const [name, shown, hidden] of [['2 · Deduction (1)', 1, 2], ['3 · Verification (1)', 2, 3], ['4 · Approval (1)', 3, 1]] as const) {
+      await userEvent.click(within(steps).getByRole('button', { name }))
+      expect(within(steps).getByRole('button', { name })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByText(new RegExp(`Member ${shown} ·`))).toBeInTheDocument()
+      expect(screen.queryByText(new RegExp(`Member ${hidden} ·`))).toBeNull()
+    }
   })
 })
