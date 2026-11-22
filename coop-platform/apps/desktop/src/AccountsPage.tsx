@@ -1,9 +1,9 @@
 import {
-  Alert, Autocomplete, Box, Button, Chip, Drawer, FormControlLabel, IconButton, ListItemIcon, Menu, MenuItem, Stack, Switch,
+  Alert, Autocomplete, Box, Button, Chip, Drawer, FormControlLabel, IconButton, LinearProgress, ListItemIcon, Menu, MenuItem, Stack, Switch,
   Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Tooltip, Typography, useMediaQuery,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { memo, useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent, type ReactNode } from 'react'
 import {
   FiCheckCircle, FiChevronRight, FiDownload, FiEdit2, FiGrid, FiLayers, FiLock, FiMinusSquare, FiMoreHorizontal, FiPauseCircle, FiPlus, FiPlusSquare,
   FiPower, FiUpload, FiX, FiClock, FiCornerDownRight,
@@ -90,7 +90,13 @@ export default function AccountsPage() {
   const { data, error, isFetching } = useQuery({ queryKey: ['chart'], queryFn: getChart, enabled: canEdit })
   const all = useMemo(() => data ?? [], [data])
   const tree = useMemo(() => buildTree(all), [all])
-  const q = search.trim().toLowerCase()
+  // the list follows the search a moment behind the typing, so typing never waits for a thousand rows
+  const deferredSearch = useDeferredValue(search)
+  const q = deferredSearch.trim().toLowerCase()
+  // opening, closing and filtering redraw many rows: they run as a background update, shown by a bar over the list
+  const [pending, startTransition] = useTransition()
+  const busy = pending || isFetching || search !== deferredSearch
+  const changeFilter = (f: ChartFilter | ((f: ChartFilter) => ChartFilter)) => startTransition(() => setFilter(f))
   const sums = useMemo(() => counts(all), [all])
   const typeCounts = useMemo(() => TYPE_NAMES.map((_, i) => all.filter((a) => (i === 0 || a.type === i) && passes(a, { ...filter, type: 0 })).length), [all, filter])
 
@@ -120,13 +126,13 @@ export default function AccountsPage() {
   }, [tree, q, filter, filtering, expanded])
   const matching = useMemo(() => all.filter((a) => passes(a, filter) && matches(a, q)), [all, filter, q])
 
-  const toggle = (code: string) => setOpen((cur) => {
+  const toggle = (code: string) => startTransition(() => setOpen((cur) => {
     const next = new Set(cur ?? expanded)
     if (next.has(code)) next.delete(code); else next.add(code)
     return next
-  })
-  const expandAll = () => setOpen(new Set([...tree.nodes.values()].filter((n) => n.kids.length > 0).map((n) => n.a.code)))
-  const collapseAll = () => setOpen(new Set())
+  }))
+  const expandAll = () => startTransition(() => setOpen(new Set([...tree.nodes.values()].filter((n) => n.kids.length > 0).map((n) => n.a.code))))
+  const collapseAll = () => startTransition(() => setOpen(new Set()))
 
   const saved = (msg: string, code: string, close = true) => {
     if (close) setPanel(null)
@@ -141,19 +147,30 @@ export default function AccountsPage() {
     void qc.invalidateQueries({ queryKey: ['chart'] }); void qc.invalidateQueries({ queryKey: ['accounts'] }); void qc.invalidateQueries({ queryKey: ['chart-history', code] })
   }
 
-  const onKey = (e: KeyboardEvent<HTMLTableRowElement>, r: (typeof shown)[number], i: number) => {
-    const focus = (j: number) => { const el = (e.currentTarget.parentElement?.children[j] as HTMLElement | undefined); el?.focus(); e.preventDefault() }
-    if (e.key === 'ArrowDown') focus(i + 1)
-    else if (e.key === 'ArrowUp') focus(i - 1)
-    else if (e.key === 'ArrowRight' && r.childCount > 0 && !r.opened && !filtering) { toggle(r.n.a.code); e.preventDefault() }
-    else if (e.key === 'ArrowLeft' && !filtering) {
-      if (r.opened && r.childCount > 0) { toggle(r.n.a.code); e.preventDefault() }
-      else if (r.n.a.parent) { const j = shown.findIndex((s) => s.n.a.code === r.n.a.parent); if (j >= 0) focus(j) }
-    }
-  }
-
+  const latest = useRef({ shown, filtering, toggle, edit: (a: ChartAccount) => { void a }, addUnder: (a?: ChartAccount) => { void a } })
   const edit = (a: ChartAccount, tab: 'details' | 'history' = 'details') => { setDone(null); setPanel({ mode: 'edit', account: a, tab }) }
   const addUnder = (a?: ChartAccount) => { setDone(null); setPanel({ mode: 'new', under: a }) }
+  // the rows' handlers read the newest state through this, updated after each draw
+  useLayoutEffect(() => { latest.current = { shown, filtering, toggle, edit, addUnder } })
+  const rowToggle = useCallback((code: string) => latest.current.toggle(code), [])
+  const rowEdit = useCallback((a: ChartAccount) => latest.current.edit(a), [])
+  const rowAdd = useCallback((a: ChartAccount) => latest.current.addUnder(a), [])
+  const rowMenu = useCallback((el: HTMLElement, a: ChartAccount) => setMenu({ el, a }), [])
+  const rowFocus = useCallback((code: string) => setCurrent(code), [])
+  const rowKey = useCallback((e: KeyboardEvent<HTMLTableRowElement>, i: number) => {
+    const r = latest.current.shown[i]
+    if (!r) return
+    if (e.key === 'Enter') { latest.current.edit(r.n.a); e.preventDefault(); return }
+    const focus = (j: number) => { const el = (e.currentTarget.parentElement?.children[j] as HTMLElement | undefined); el?.focus(); e.preventDefault() }
+    const filteringNow = latest.current.filtering
+    if (e.key === 'ArrowDown') focus(i + 1)
+    else if (e.key === 'ArrowUp') focus(i - 1)
+    else if (e.key === 'ArrowRight' && r.childCount > 0 && !r.opened && !filteringNow) { latest.current.toggle(r.n.a.code); e.preventDefault() }
+    else if (e.key === 'ArrowLeft' && !filteringNow) {
+      if (r.opened && r.childCount > 0) { latest.current.toggle(r.n.a.code); e.preventDefault() }
+      else if (r.n.a.parent) { const j = latest.current.shown.findIndex((x) => x.n.a.code === r.n.a.parent); if (j >= 0) focus(j) }
+    }
+  }, [])
   const exportCsv = () => {
     const url = URL.createObjectURL(new Blob([toCsv(matching)], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
@@ -177,13 +194,13 @@ export default function AccountsPage() {
 
   const cards: { label: string; value: number; note: string; icon: ReactNode; color: string; pick: () => void; on: boolean }[] = [
     { label: 'Total accounts', value: sums.total, note: 'Every account and heading', icon: <FiLayers />, color: tint.blue[0],
-      pick: () => setFilter({ type: 0, status: 'all', posting: 'all' }), on: filter.status === 'all' && filter.posting === 'all' && filter.type === 0 },
+      pick: () => changeFilter({ type: 0, status: 'all', posting: 'all' }), on: filter.status === 'all' && filter.posting === 'all' && filter.type === 0 },
     { label: 'Posting accounts', value: sums.posting, note: 'Take postings and in use', icon: <FiGrid />, color: tint.purple[0],
-      pick: () => setFilter((f) => ({ ...f, status: 'active', posting: 'journal' })), on: filter.posting === 'journal' },
+      pick: () => changeFilter((f) => ({ ...f, status: 'active', posting: 'journal' })), on: filter.posting === 'journal' },
     { label: 'Active accounts', value: sums.active, note: 'Can be chosen for new entries', icon: <FiCheckCircle />, color: tint.green[0],
-      pick: () => setFilter((f) => ({ ...f, status: 'active', posting: 'all' })), on: filter.status === 'active' && filter.posting === 'all' },
+      pick: () => changeFilter((f) => ({ ...f, status: 'active', posting: 'all' })), on: filter.status === 'active' && filter.posting === 'all' },
     { label: 'Switched off', value: sums.inactive, note: 'Kept for their history', icon: <FiPauseCircle />, color: tint.orange[0],
-      pick: () => setFilter((f) => ({ ...f, status: 'inactive', posting: 'all' })), on: filter.status === 'inactive' },
+      pick: () => changeFilter((f) => ({ ...f, status: 'inactive', posting: 'all' })), on: filter.status === 'inactive' },
   ]
 
   return (
@@ -228,23 +245,28 @@ export default function AccountsPage() {
         <Surface label="Accounts">
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', px: 1.5, pt: 1.5, pb: 1.25 }}>
             <SearchField value={search} onChange={setSearch} placeholder="Search by code, name or description" width={300} />
-            <TextField select size="small" label="Type" value={filter.type} onChange={(e) => setFilter((f) => ({ ...f, type: Number(e.target.value) }))} sx={{ width: 170 }}>
+            <TextField select size="small" label="Type" value={filter.type} onChange={(e) => changeFilter((f) => ({ ...f, type: Number(e.target.value) }))} sx={{ width: 170 }}>
               {TYPE_NAMES.map((n, i) => <MenuItem key={i} value={i}>{i === 0 ? 'All types' : n} ({typeCounts[i].toLocaleString()})</MenuItem>)}
             </TextField>
-            <TextField select size="small" label="Status" value={filter.status} onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value as Status }))} sx={{ width: 150 }}>
+            <TextField select size="small" label="Status" value={filter.status} onChange={(e) => changeFilter((f) => ({ ...f, status: e.target.value as Status }))} sx={{ width: 150 }}>
               <MenuItem value="active">Active</MenuItem>
               <MenuItem value="inactive">Switched off</MenuItem>
               <MenuItem value="all">All statuses</MenuItem>
             </TextField>
-            <TextField select size="small" label="Posting" value={filter.posting} onChange={(e) => setFilter((f) => ({ ...f, posting: e.target.value as Posting | 'all' }))} sx={{ width: 170 }}>
+            <TextField select size="small" label="Posting" value={filter.posting} onChange={(e) => changeFilter((f) => ({ ...f, posting: e.target.value as Posting | 'all' }))} sx={{ width: 170 }}>
               <MenuItem value="all">All</MenuItem>
               {(Object.keys(POSTING_WORDS) as Posting[]).map((p) => <MenuItem key={p} value={p}>{POSTING_WORDS[p]}</MenuItem>)}
             </TextField>
             <Box sx={{ flex: 1 }} />
-            <Tooltip title="Open every heading"><span><IconButton aria-label="Expand all" onClick={expandAll} disabled={filtering}><FiPlusSquare /></IconButton></span></Tooltip>
-            <Tooltip title="Close every heading"><span><IconButton aria-label="Collapse all" onClick={collapseAll} disabled={filtering}><FiMinusSquare /></IconButton></span></Tooltip>
+            <Tooltip title="Open every heading"><span><IconButton aria-label="Expand all" onClick={expandAll} disabled={filtering || busy}><FiPlusSquare /></IconButton></span></Tooltip>
+            <Tooltip title="Close every heading"><span><IconButton aria-label="Collapse all" onClick={collapseAll} disabled={filtering || busy}><FiMinusSquare /></IconButton></span></Tooltip>
           </Box>
-          <TableContainer sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity .2s', maxHeight: 'calc(100dvh - 390px)', minHeight: 240 }}>
+          <Box sx={{ position: 'relative' }}>
+          {busy && (
+            <LinearProgress aria-label={pending ? 'Opening the accounts' : 'Loading the accounts'}
+              sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, zIndex: 3 }} />
+          )}
+          <TableContainer aria-busy={busy} sx={{ opacity: busy ? 0.55 : 1, pointerEvents: busy ? 'none' : undefined, transition: 'opacity .15s', maxHeight: 'calc(100dvh - 390px)', minHeight: 240 }}>
             <Table size="small" stickyHeader role="treegrid" aria-label="Chart of accounts" sx={(t) => ({ ...listTable(t), '& .MuiTableHead-root .MuiTableCell-root.MuiTableCell-stickyHeader': { bgcolor: t.palette.background.paper } })}>
               <TableHead>
                 <TableRow>
@@ -258,86 +280,21 @@ export default function AccountsPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {shown.map((r, i) => {
-                  const a = r.n.a
-                  const color = colorOf(a.type, dark)
-                  const parentName = a.parent ? tree.nodes.get(a.parent)?.a.name : null
-                  const posting = postingOf(a)
-                  return (
-                    <TableRow
-                      key={a.code} hover tabIndex={a.code === (current ?? shown[0]?.n.a.code) ? 0 : -1} onFocus={() => setCurrent(a.code)} role="row" aria-level={r.depth + 1} aria-expanded={r.childCount > 0 ? r.opened : undefined}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { edit(a); e.preventDefault() } else onKey(e, r, i) }}
-                      onDoubleClick={() => edit(a)}
-                      sx={(t) => ({
-                        opacity: a.disabled ? 0.55 : r.hit ? 1 : 0.7, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 },
-                        bgcolor: a.summary && r.depth === 0 ? (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)') : undefined,
-                        '& .act': { opacity: 0, transition: 'opacity .15s' }, '&:hover .act, &:focus-within .act, &:focus-visible .act': { opacity: 1 },
-                      })}
-                    >
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', pl: `${r.depth * INDENT}px` }}>
-                          {r.childCount > 0 ? (
-                            <IconButton size="small" tabIndex={-1} disabled={filtering} aria-label={r.opened ? 'Collapse' : 'Expand'} onClick={() => toggle(a.code)} sx={{ mr: 0.25, p: 0.25 }}>
-                              <FiChevronRight style={{ transition: 'transform .18s ease', transform: r.opened ? 'rotate(90deg)' : 'none' }} />
-                            </IconButton>
-                          ) : <Box sx={{ width: 26, flexShrink: 0 }} />}
-                          <Typography component="span" sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', fontWeight: a.summary ? 700 : 500 }}><Marked text={a.code} q={q} /></Typography>
-                          {a.inUse && (
-                            <Tooltip title="The system posts to this account (a product, bank or branch setting), so it cannot be switched off">
-                              <Box component="span" aria-label="Used by the system" sx={{ display: 'inline-flex', ml: 0.75, color: 'text.secondary' }}><FiLock size={12} /></Box>
-                            </Tooltip>
-                          )}
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                          <TypeMark type={a.type} summary={a.summary} dark={dark} />
-                          <Box sx={{ minWidth: 0 }}>
-                            <Box component="button" type="button" tabIndex={-1} onClick={() => edit(a)}
-                              sx={{ all: 'unset', cursor: 'pointer', display: 'block', color: 'text.primary', fontSize: 13, fontWeight: a.summary ? 700 : 500, lineHeight: 1.35, '&:hover': { color: 'primary.main', textDecoration: 'underline' } }}>
-                              <Marked text={a.name ?? '(no name)'} q={q} />
-                            </Box>
-                            <Typography sx={{ fontSize: 11, lineHeight: 1.35, display: 'flex', alignItems: 'center', gap: 0.5 }} color="text.secondary" noWrap>
-                              {a.description
-                                ? <Marked text={a.description} q={q} />
-                                : a.parent ? <><FiCornerDownRight size={10} />Under {parentName ?? a.parent}</> : 'Top heading'}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </TableCell>
-                      <TableCell><Pill color={color}>{TYPE_ONE[a.type] ?? '–'}</Pill></TableCell>
-                      <TableCell>
-                        <Typography component="span" sx={{ fontSize: 13 }}>{a.normalBalance === 'D' ? 'Debit' : 'Credit'}</Typography>
-                        {a.contra && <Tooltip title={`A contra account: it runs against its type, whose accounts are normally ${normalOf(a.type) === 'D' ? 'debit' : 'credit'}`}><Box component="span" sx={{ ml: 0.75 }}><Pill color={tint.gray[0]} outlined>Contra</Pill></Box></Tooltip>}
-                      </TableCell>
-                      <TableCell>
-                        {posting === 'heading'
-                          ? <Typography component="span" sx={{ fontSize: 13 }} color="text.secondary">Heading</Typography>
-                          : <Pill color={posting === 'journal' ? tint.indigo[0] : tint.teal[0]}>{POSTING_WORDS[posting]}</Pill>}
-                      </TableCell>
-                      <TableCell>{a.disabled ? <Pill color={tint.orange[0]}>Switched off</Pill> : <Pill color={tint.green[0]}>Active</Pill>}</TableCell>
-                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                        <Box className="act" component="span">
-                          {a.summary && !a.disabled && (
-                            <Tooltip title={`New account under ${a.code}`}>
-                              <IconButton size="small" tabIndex={-1} aria-label={`Add an account under ${a.code}`} onClick={() => addUnder(a)}><FiPlus /></IconButton>
-                            </Tooltip>
-                          )}
-                        </Box>
-                        <IconButton size="small" tabIndex={-1} aria-label={`More for ${a.code}`} onClick={(e) => setMenu({ el: e.currentTarget, a })}><FiMoreHorizontal /></IconButton>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
+                {shown.map((r, i) => (
+                  <ChartRow key={r.n.a.code} a={r.n.a} index={i} depth={r.depth} opened={r.opened} childCount={r.childCount} hit={r.hit} q={q} filtering={filtering}
+                    dark={dark} parentName={r.n.a.parent ? tree.nodes.get(r.n.a.parent)?.a.name ?? null : null} focusable={r.n.a.code === (current ?? shown[0]?.n.a.code)}
+                    onToggle={rowToggle} onEdit={rowEdit} onAdd={rowAdd} onMenu={rowMenu} onFocusRow={rowFocus} onRowKey={rowKey} />
+                ))}
                 {shown.length === 0 && !isFetching && (
                   <TableRow><TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>No account matches. Clear the search or choose another filter.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
           </TableContainer>
+          </Box>
           <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', px: 1.5, py: 1, borderTop: `1px solid ${t.palette.divider}` })}>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary">
-              {filtering
+            <Typography sx={{ fontSize: 12 }} color="text.secondary" role="status">
+              {pending ? 'Opening the headings…' : filtering
                 ? <>{matching.length.toLocaleString()} account{matching.length === 1 ? '' : 's'} match, shown with the headings above them</>
                 : <>Showing {shown.length.toLocaleString()} of {typeCounts[filter.type].toLocaleString()} accounts; open a heading to see what is under it</>}
             </Typography>
@@ -364,6 +321,84 @@ export default function AccountsPage() {
     </Box>
   )
 }
+
+/**
+ * One account of the tree. Memoized: opening a heading draws again only the rows whose own account or place changed, not the whole chart. The handlers
+ * passed in stay the same between draws.
+ */
+const ChartRow = memo(function ChartRow({ a, index, depth, opened, childCount, hit, q, filtering, dark, parentName, focusable, onToggle, onEdit, onAdd, onMenu, onFocusRow, onRowKey }: {
+  a: ChartAccount; index: number; depth: number; opened: boolean; childCount: number; hit: boolean; q: string; filtering: boolean; dark: boolean
+  parentName: string | null; focusable: boolean; onToggle: (code: string) => void; onEdit: (a: ChartAccount) => void; onAdd: (a: ChartAccount) => void
+  onMenu: (el: HTMLElement, a: ChartAccount) => void; onFocusRow: (code: string) => void; onRowKey: (e: KeyboardEvent<HTMLTableRowElement>, i: number) => void
+}) {
+  const color = colorOf(a.type, dark)
+  const posting = postingOf(a)
+  return (
+    <TableRow
+      hover tabIndex={focusable ? 0 : -1} onFocus={() => onFocusRow(a.code)} role="row" aria-level={depth + 1} aria-expanded={childCount > 0 ? opened : undefined}
+      onKeyDown={(e) => onRowKey(e, index)}
+      onDoubleClick={() => onEdit(a)}
+      sx={(t) => ({
+        opacity: a.disabled ? 0.55 : hit ? 1 : 0.7, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 },
+        bgcolor: a.summary && depth === 0 ? (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)') : undefined,
+        '& .act': { opacity: 0, transition: 'opacity .15s' }, '&:hover .act, &:focus-within .act, &:focus-visible .act': { opacity: 1 },
+      })}
+    >
+      <TableCell>
+        <Box sx={{ display: 'flex', alignItems: 'center', pl: `${depth * INDENT}px` }}>
+          {childCount > 0 ? (
+            <IconButton size="small" tabIndex={-1} disabled={filtering} aria-label={opened ? 'Collapse' : 'Expand'} onClick={() => onToggle(a.code)} sx={{ mr: 0.25, p: 0.25 }}>
+              <FiChevronRight style={{ transition: 'transform .18s ease', transform: opened ? 'rotate(90deg)' : 'none' }} />
+            </IconButton>
+          ) : <Box sx={{ width: 26, flexShrink: 0 }} />}
+          <Typography component="span" sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', fontWeight: a.summary ? 700 : 500 }}><Marked text={a.code} q={q} /></Typography>
+          {a.inUse && (
+            <Tooltip title="The system posts to this account (a product, bank or branch setting), so it cannot be switched off">
+              <Box component="span" aria-label="Used by the system" sx={{ display: 'inline-flex', ml: 0.75, color: 'text.secondary' }}><FiLock size={12} /></Box>
+            </Tooltip>
+          )}
+        </Box>
+      </TableCell>
+      <TableCell>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+          <TypeMark type={a.type} summary={a.summary} dark={dark} />
+          <Box sx={{ minWidth: 0 }}>
+            <Box component="button" type="button" tabIndex={-1} onClick={() => onEdit(a)}
+              sx={{ all: 'unset', cursor: 'pointer', display: 'block', color: 'text.primary', fontSize: 13, fontWeight: a.summary ? 700 : 500, lineHeight: 1.35, '&:hover': { color: 'primary.main', textDecoration: 'underline' } }}>
+              <Marked text={a.name ?? '(no name)'} q={q} />
+            </Box>
+            <Typography sx={{ fontSize: 11, lineHeight: 1.35, display: 'flex', alignItems: 'center', gap: 0.5 }} color="text.secondary" noWrap>
+              {a.description
+                ? <Marked text={a.description} q={q} />
+                : a.parent ? <><FiCornerDownRight size={10} />Under {parentName ?? a.parent}</> : 'Top heading'}
+            </Typography>
+          </Box>
+        </Box>
+      </TableCell>
+      <TableCell><Pill color={color}>{TYPE_ONE[a.type] ?? '–'}</Pill></TableCell>
+      <TableCell>
+        <Typography component="span" sx={{ fontSize: 13 }}>{a.normalBalance === 'D' ? 'Debit' : 'Credit'}</Typography>
+        {a.contra && <Tooltip title={`A contra account: it runs against its type, whose accounts are normally ${normalOf(a.type) === 'D' ? 'debit' : 'credit'}`}><Box component="span" sx={{ ml: 0.75 }}><Pill color={tint.gray[0]} outlined>Contra</Pill></Box></Tooltip>}
+      </TableCell>
+      <TableCell>
+        {posting === 'heading'
+          ? <Typography component="span" sx={{ fontSize: 13 }} color="text.secondary">Heading</Typography>
+          : <Pill color={posting === 'journal' ? tint.indigo[0] : tint.teal[0]}>{POSTING_WORDS[posting]}</Pill>}
+      </TableCell>
+      <TableCell>{a.disabled ? <Pill color={tint.orange[0]}>Switched off</Pill> : <Pill color={tint.green[0]}>Active</Pill>}</TableCell>
+      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+        <Box className="act" component="span">
+          {a.summary && !a.disabled && (
+            <Tooltip title={`New account under ${a.code}`}>
+              <IconButton size="small" tabIndex={-1} aria-label={`Add an account under ${a.code}`} onClick={() => onAdd(a)}><FiPlus /></IconButton>
+            </Tooltip>
+          )}
+        </Box>
+        <IconButton size="small" tabIndex={-1} aria-label={`More for ${a.code}`} onClick={(e) => onMenu(e.currentTarget, a)}><FiMoreHorizontal /></IconButton>
+      </TableCell>
+    </TableRow>
+  )
+})
 
 /** People without the right see the list as before. */
 function ReadOnlyChart() {

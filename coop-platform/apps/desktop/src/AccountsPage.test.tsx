@@ -103,6 +103,19 @@ describe('Chart of Accounts', () => {
     expect(code).toHaveValue('100010')
   })
 
+  it('opens every heading in the background with the list marked busy meanwhile, then lets it be used again', async () => {
+    show()
+    const u = user()
+    const tree = await screen.findByRole('treegrid', { name: 'Chart of accounts' })
+    await within(tree).findAllByRole('button', { name: 'Expand' })
+    await u.click(screen.getByRole('button', { name: 'Expand all' }))
+    expect(await within(tree).findByText('Cash in vault')).toBeInTheDocument()
+    await waitFor(() => expect(tree.closest('[aria-busy]')).toHaveAttribute('aria-busy', 'false'))
+    expect(screen.queryByRole('progressbar')).toBeNull()
+    await u.click(screen.getByRole('button', { name: 'Collapse all' }))
+    await waitFor(() => expect(within(tree).queryByText('Cash in vault')).toBeNull())
+  })
+
   it('shows an account with who changed it and what changed', async () => {
     show()
     const u = user()
