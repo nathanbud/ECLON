@@ -51,7 +51,7 @@ const sdLinks: AccountTypeLink[] = [
   { event: 11, what: 'Deposit balance', number: 15, statusName: 'Active', account: '2010101', accountName: 'Savings deposits', accountActive: true, removable: true },
   { event: 75, what: 'Accrued interest payable', number: 99, statusName: null, account: '2011603', accountName: 'Interest payable', accountActive: true, removable: true },
 ]
-const acct = (code: string, name: string, t: number, summary = false): ChartAccount => ({ code, name, type: t, typeName: null, summary, parent: null, disabled: false, glOnly: false, hasChildren: false, inUse: false })
+const acct = (code: string, name: string, t: number, summary = false): ChartAccount => ({ code, name, type: t, typeName: null, summary, parent: null, disabled: false, glOnly: false, hasChildren: false, inUse: false, normalBalance: 'D', contra: false, description: null })
 
 function show(kind?: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })

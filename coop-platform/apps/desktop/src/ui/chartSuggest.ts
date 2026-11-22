@@ -33,6 +33,12 @@ export function nextCode(chart: ChartAccount[], heading: ChartAccount): string |
     const c = heading.code + String(n).padStart(width, '0')
     if (!taken.has(c)) return c
   }
+  // the steps of that width are used up (…7, 8, 9): carry on with one digit more (10, 11, …), as long as the number stays within 10 digits
+  if (heading.code.length + width + 1 > 10) return null
+  for (; String(n).length <= width + 1; n++) {
+    const c = heading.code + String(n).padStart(width + 1, '0')
+    if (!taken.has(c)) return c
+  }
   return null
 }
 

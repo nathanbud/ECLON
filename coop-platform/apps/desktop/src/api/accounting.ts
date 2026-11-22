@@ -193,14 +193,23 @@ export const finalizeBankRecon = (id: number) => send<BankRecon>('POST', `/api/b
 export interface ChartAccount {
   code: string; name: string | null; type: number; typeName: string | null; summary: boolean; parent: string | null
   disabled: boolean; glOnly: boolean; hasChildren: boolean; inUse: boolean
+  /** D or C: the type's own (debit for assets and expenses, credit for the rest) unless it is a contra account */
+  normalBalance: 'D' | 'C'; contra: boolean; description: string | null
 }
+/** One change of an account from the audit log, with each field before and after. */
+export interface ChartHistoryRow { at: string; by: string; action: string; reason: string | null; changes: { field: string; label: string; before: string | null; after: string | null }[] }
 export interface ChartUsage { code: string; entries: number; children: number; usedBy: string[] }
-export interface ChartForm { code?: string; name?: string; summary?: boolean; parent?: string | null; glOnly?: boolean; disabled?: boolean; reason: string }
+export interface ChartForm {
+  code?: string; name?: string; summary?: boolean; parent?: string | null; glOnly?: boolean; disabled?: boolean; reason: string
+  /** D or C; the type's own side clears a contra */
+  normalBalance?: 'D' | 'C'; description?: string
+}
 
 const CHART = '/api/accounting/chart'
 export const getChart = () => getJson<ChartAccount[]>(CHART)
 export const getChartUsage = (code: string) => getJson<ChartUsage>(`${CHART}/${encodeURIComponent(code)}/usage`)
 export const createChartAccount = (f: ChartForm) => send<ChartAccount>('POST', CHART, f)
+export const getChartHistory = (code: string) => getJson<ChartHistoryRow[]>(`${CHART}/${encodeURIComponent(code)}/history`)
 export const updateChartAccount = (code: string, f: ChartForm) => send<ChartAccount>('PUT', `${CHART}/${encodeURIComponent(code)}`, f)
 
 // ---- chart of accounts: uploading a list (advanced mode, administrators) --------------------------------------------

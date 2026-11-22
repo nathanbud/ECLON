@@ -122,6 +122,27 @@ class ChartOfAccountsTest {
         assertThrows(ResponseStatusException.class, () -> chart.update("10001", new ChartOfAccountsController.Form(null, null, null, "100", null, null, "move"), me()));
     }
 
+    @Test void aContraAccountKeepsItsNormalBalanceAndADescriptionAndBothAreAudited() {
+        assumeTrue(new ph.coop.core.db.Db(jdbc).tableExists("ecis_coa_detail"), "V039 has not been applied");
+        var a = chart.create(new ChartOfAccountsController.Form("1000992", "Test allowance", false, "1000", null, null, "needed for testing", "C", "Losses expected on cash shortages"), me());
+        assertEquals("C", a.normalBalance());
+        assertTrue(a.contra());
+        assertEquals("Losses expected on cash shortages", a.description());
+        var plain = chart.create(form("1000993", "Test plain asset", false, "1000"), me());
+        assertEquals("D", plain.normalBalance());
+        assertFalse(plain.contra());
+        // back to the type's own side, and a new description
+        var b = chart.update("1000992", new ChartOfAccountsController.Form(null, null, null, null, null, null, "not a contra after all", "D", "Cash shortages"), me());
+        assertFalse(b.contra());
+        assertEquals("Cash shortages", b.description());
+        var history = chart.history("1000992", me());
+        assertEquals(2, history.size());
+        assertEquals("chart.account.update", history.get(0).action());
+        assertTrue(history.get(0).changes().stream().anyMatch((c) -> c.label().equals("Normal balance")), history.get(0).changes().toString());
+        assertEquals("chart.account.create", history.get(1).action());
+        assertThrows(ResponseStatusException.class, () -> chart.update("1000992", new ChartOfAccountsController.Form(null, null, null, null, null, null, "bad", "X", null), me()));
+    }
+
     @Test @WithMockUser(username = "tester", roles = "ACCOUNTANT") void accountantsMayAdd() {
         assertEquals("1000996", chart.create(form("1000996", "Accountant added", false, "1000"), me()).code());
     }

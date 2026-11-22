@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,6 +25,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import ph.coop.core.audit.AuditChanges;
+import ph.coop.core.connection.DatabaseChanges;
+import ph.coop.core.db.Db;
 
 /**
  * Chart of accounts setup for administrators and accountants: add an account, rename it, move it under another summary account, switch it off.
@@ -43,18 +47,35 @@ public class ChartOfAccountsController {
 
     private final JdbcTemplate jdbc;
     private final Clock clock;
+    private final Db db;
 
-    ChartOfAccountsController(JdbcTemplate jdbc, Clock clock) {
+    ChartOfAccountsController(JdbcTemplate jdbc, Clock clock, Db db) {
         this.jdbc = jdbc;
         this.clock = clock;
+        this.db = db;
     }
 
-    public record AccountRow(String code, String name, int type, String typeName, boolean summary, String parent, boolean disabled, boolean glOnly, boolean hasChildren, boolean inUse) {}
+    /**
+     * An account of the chart. {@code normalBalance} is "D" or "C": its type's (debit for assets and expenses, credit for the rest) unless it is a contra account
+     * ({@code contra}). {@code glOnly} on a detail account: it takes journal entries; off, a subsidiary ledger (loans, savings, share capital) posts to it.
+     */
+    public record AccountRow(String code, String name, int type, String typeName, boolean summary, String parent, boolean disabled, boolean glOnly, boolean hasChildren, boolean inUse,
+                             String normalBalance, boolean contra, String description) {}
+
+    /** One change of an account from the audit log: when, who, what kind of change, why, and each field before and after. */
+    public record HistoryRow(String at, String by, String action, String reason, List<AuditChanges.Change> changes) {}
 
     public record Usage(String code, long entries, long children, List<String> usedBy) {}
 
-    /** What the form sends. {@code summary} and {@code code} count on a new account only; they cannot change afterwards. */
-    public record Form(String code, String name, Boolean summary, String parent, Boolean glOnly, Boolean disabled, String reason) {}
+    /**
+     * What the form sends. {@code summary} and {@code code} count on a new account only; they cannot change afterwards. {@code normalBalance} "D" or "C" (null
+     * leaves it as it is; the type's own side clears a contra), {@code description} up to 250 characters (null leaves it, empty clears it).
+     */
+    public record Form(String code, String name, Boolean summary, String parent, Boolean glOnly, Boolean disabled, String reason, String normalBalance, String description) {
+        public Form(String code, String name, Boolean summary, String parent, Boolean glOnly, Boolean disabled, String reason) {
+            this(code, name, summary, parent, glOnly, disabled, reason, null, null);
+        }
+    }
 
 
     int branch(Authentication auth) {
@@ -63,28 +84,69 @@ public class ChartOfAccountsController {
         return r.get(0);
     }
 
-    private static final String SELECT = """
+    private static final String COLUMNS = """
             SELECT c.COAID, c.COADesc, c.COAacct_type, t.GLAcctTypeDesc, c.COAacct_tag, c.COAacct_sum, COALESCE(c.COAisdisabled, 0), COALESCE(c.COAcanGLOnly, 0),
                    (SELECT COUNT(*) FROM coa k WHERE k.COABR_CODE = c.COABR_CODE AND k.COAacct_sum = c.COAID),
                    (SELECT COUNT(*) FROM glcontrol g WHERE g.GLControlBR_CODE = c.COABR_CODE AND g.GLControlACCT_CODE = c.COAID)
                    + (SELECT COUNT(*) FROM bankcode b WHERE b.BCBR_CODE = c.COABR_CODE AND b.BCCOAID = c.COAID)
-                   + (SELECT COUNT(*) FROM branches r WHERE r.BranchesID = c.COABR_CODE AND c.COAID IN (r.PWDCOAID, r.SCCOAID, r.REB_EXPACCT, r.TD_EXPACCT))
-            FROM coa c LEFT JOIN glaccttype t ON t.GLAcctTypeID = c.COAacct_type
-            WHERE c.COABR_CODE = ?""";
+                   + (SELECT COUNT(*) FROM branches r WHERE r.BranchesID = c.COABR_CODE AND c.COAID IN (r.PWDCOAID, r.SCCOAID, r.REB_EXPACCT, r.TD_EXPACCT)),""";
+
+    /** The chart's columns, with the contra balance and description where the database keeps them (V039). */
+    private String select() {
+        return details()
+            ? COLUMNS + " d.normal_balance, d.description FROM coa c LEFT JOIN glaccttype t ON t.GLAcctTypeID = c.COAacct_type"
+                + " LEFT JOIN ecis_coa_detail d ON d.branch_code = c.COABR_CODE AND d.account_code = c.COAID WHERE c.COABR_CODE = ?"
+            : COLUMNS + " NULL, NULL FROM coa c LEFT JOIN glaccttype t ON t.GLAcctTypeID = c.COAacct_type WHERE c.COABR_CODE = ?";
+    }
+
+    private boolean details() {
+        return db.tableExists("ecis_coa_detail");
+    }
 
     private AccountRow row(java.sql.ResultSet rs) throws java.sql.SQLException {
-        return new AccountRow(rs.getString(1), rs.getString(2), rs.getInt(3), rs.getString(4), "S".equals(rs.getString(5)), rs.getString(6), rs.getInt(7) != 0, rs.getInt(8) != 0,
-            rs.getLong(9) > 0, rs.getLong(10) > 0);
+        int type = rs.getInt(3);
+        String stored = rs.getString(11);
+        String normal = stored == null || stored.isBlank() ? ChartRules.normalBalance(type) : stored.trim();
+        return new AccountRow(rs.getString(1), rs.getString(2), type, rs.getString(4), "S".equals(rs.getString(5)), rs.getString(6), rs.getInt(7) != 0, rs.getInt(8) != 0,
+            rs.getLong(9) > 0, rs.getLong(10) > 0, normal, !normal.equals(ChartRules.normalBalance(type)), rs.getString(12));
     }
 
     /** The whole chart of the branch, in account-number order. */
     @GetMapping
     public List<AccountRow> list(Authentication auth) {
-        return jdbc.query(SELECT + " ORDER BY c.COAID", (rs, i) -> row(rs), branch(auth));
+        return jdbc.query(select() + " ORDER BY c.COAID", (rs, i) -> row(rs), branch(auth));
+    }
+
+    /** Every change of one account, newest first: who, when, what kind, why and each field before and after. */
+    @GetMapping("/{code}/history")
+    public List<HistoryRow> history(@PathVariable String code, Authentication auth) {
+        int branch = branch(auth);
+        find(branch, code);
+        return jdbc.query("""
+                SELECT at, username, action, reason, prev_value, new_value FROM ecis_audit_log
+                WHERE entity = 'coa' AND entity_id = ? ORDER BY at DESC, id DESC
+                """, (rs, i) -> new HistoryRow(String.valueOf(rs.getTimestamp(1).toLocalDateTime()), rs.getString(2), rs.getString(3), rs.getString(4),
+                    AuditChanges.of(rs.getString(3), rs.getString(5), rs.getString(6), ChartOfAccountsController::fieldName)),
+            branch + "/" + code);
+    }
+
+    /** The words for the fields an account's audit rows hold. */
+    static String fieldName(String field) {
+        return switch (field) {
+            case "name" -> "Account name";
+            case "parent" -> "Under heading";
+            case "glOnly" -> "Takes journal entries";
+            case "disabled" -> "Switched off";
+            case "summary" -> "Heading";
+            case "type" -> "Type";
+            case "normalBalance" -> "Normal balance";
+            case "description" -> "Description";
+            default -> null;
+        };
     }
 
     private AccountRow find(int branch, String code) {
-        List<AccountRow> r = jdbc.query(SELECT + " AND c.COAID = ?", (rs, i) -> row(rs), branch, code);
+        List<AccountRow> r = jdbc.query(select() + " AND c.COAID = ?", (rs, i) -> row(rs), branch, code);
         if (r.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such account.");
         return r.get(0);
     }
@@ -125,7 +187,7 @@ public class ChartOfAccountsController {
     /** The parent must be an enabled summary account of the same type, and the child's number must start with the parent's and be longer. */
     private AccountRow checkParent(int branch, String code, String parent) {
         if (parent == null || parent.isBlank()) throw bad("Choose the summary account this one belongs under.");
-        List<AccountRow> p = jdbc.query(SELECT + " AND c.COAID = ?", (rs, i) -> row(rs), branch, parent.trim());
+        List<AccountRow> p = jdbc.query(select() + " AND c.COAID = ?", (rs, i) -> row(rs), branch, parent.trim());
         if (p.isEmpty()) throw bad("The summary account " + parent.trim() + " does not exist.");
         AccountRow a = p.get(0);
         if (!a.summary()) throw bad(a.code() + " " + a.name() + " is a detail account. Choose a summary account.");
@@ -154,6 +216,12 @@ public class ChartOfAccountsController {
 
     /** Writes one new account the way the old system does, with its audit row. {@code parent} is null only for a top-level heading (from an uploaded list). */
     void insert(int branch, String code, String name, boolean summary, String parent, boolean glOnly, Integer userId, Authentication auth, String why) {
+        insert(branch, code, name, summary, parent, glOnly, userId, auth, why, null, null);
+    }
+
+    /** As above, with a contra normal balance ("D" or "C", null for the type's own) and a description, both kept in ecis_coa_detail. */
+    void insert(int branch, String code, String name, boolean summary, String parent, boolean glOnly, Integer userId, Authentication auth, String why,
+                String contra, String description) {
         int type = code.charAt(0) - '0';
         jdbc.update("""
                 INSERT INTO coa (COABR_CODE, COAID, COADesc, COAacct_type, COAacct_tag, COAacct_sum, COAconso_acct, COAseqno, COAisdisabled, COAcanGLOnly, COAUpdUser, COAupdDateTime)
@@ -161,7 +229,38 @@ public class ChartOfAccountsController {
             branch, code, name, type, summary ? "S" : "D", parent, summary ? null : code, glOnly ? 1 : 0, userId, Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)));
         Map<String, Object> shown = new LinkedHashMap<>();
         shown.put("name", name); shown.put("type", type); shown.put("summary", summary); shown.put("parent", parent); shown.put("glOnly", glOnly);
+        if (contra != null || description != null) {
+            saveDetail(branch, code, contra, description, auth);
+            shown.put("normalBalance", contra == null ? ChartRules.normalBalance(type) : contra);
+            if (description != null) shown.put("description", description);
+        }
         audit(auth, "chart.account.create", branch, code, null, shown, why);
+    }
+
+    private void saveDetail(int branch, String code, String contra, String description, Authentication auth) {
+        if (!details()) throw new ResponseStatusException(HttpStatus.CONFLICT, DatabaseChanges.notSetUp("Keeping a contra normal balance and a description for each account"));
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("normal_balance", contra);
+        values.put("description", description);
+        values.put("updated_by", auth.getName());
+        values.put("updated_at", Timestamp.valueOf(LocalDateTime.now(clock)));
+        db.upsert("ecis_coa_detail", Map.of("branch_code", branch, "account_code", code), values);
+    }
+
+    private static String checkedContra(int type, String chosen) {
+        try {
+            return ChartRules.stored(type, chosen);
+        } catch (IllegalArgumentException e) {
+            throw bad(e.getMessage());
+        }
+    }
+
+    private static String checkedDescription(String d) {
+        try {
+            return ChartRules.description(d);
+        } catch (IllegalArgumentException e) {
+            throw bad(e.getMessage());
+        }
     }
 
     @PostMapping
@@ -183,7 +282,7 @@ public class ChartOfAccountsController {
         boolean summary = Boolean.TRUE.equals(in.summary());
         // a detail account is posted to from the general ledger unless it is controlled by a subsidiary ledger; a summary account never takes postings
         int glOnly = summary ? 0 : (Boolean.FALSE.equals(in.glOnly()) ? 0 : 1);
-        insert(branch, code, name, summary, parent.code(), glOnly == 1, userId(auth), auth, why);
+        insert(branch, code, name, summary, parent.code(), glOnly == 1, userId(auth), auth, why, checkedContra(type, in.normalBalance()), checkedDescription(in.description()));
         return find(branch, code);
     }
 
@@ -225,7 +324,29 @@ public class ChartOfAccountsController {
             }
             was.put("disabled", now.disabled()); next.put("disabled", in.disabled()); set.put("COAisdisabled", in.disabled() ? 1 : 0);
         }
-        if (set.isEmpty()) return now;
+        String contra = now.contra() ? now.normalBalance() : null;
+        String description = now.description();
+        boolean detail = false;
+        if (in.normalBalance() != null && !in.normalBalance().isBlank()) {
+            String c = checkedContra(now.type(), in.normalBalance());
+            if (!Objects.equals(c, contra)) {
+                was.put("normalBalance", now.normalBalance());
+                next.put("normalBalance", c == null ? ChartRules.normalBalance(now.type()) : c);
+                contra = c;
+                detail = true;
+            }
+        }
+        if (in.description() != null) {
+            String d = checkedDescription(in.description());
+            if (!Objects.equals(d, description)) {
+                was.put("description", description);
+                next.put("description", d);
+                description = d;
+                detail = true;
+            }
+        }
+        if (set.isEmpty() && !detail) return now;
+        if (detail) saveDetail(branch, code, contra, description, auth);
         set.put("COAUpdUser", userId(auth));
         set.put("COAupdDateTime", Timestamp.valueOf(LocalDateTime.now(clock).withNano(0)));
         String assign = String.join(", ", set.keySet().stream().map((k) -> k + " = ?").toList());

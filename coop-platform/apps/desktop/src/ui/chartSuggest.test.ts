@@ -3,7 +3,7 @@ import type { ChartAccount } from '../api'
 import { nextCode, suggestHeadings, words } from './chartSuggest'
 
 const acct = (code: string, name: string, parent: string | null, summary = false, disabled = false): ChartAccount =>
-  ({ code, name, type: Number(code[0]), typeName: null, summary, parent, disabled, glOnly: true, hasChildren: summary, inUse: false })
+  ({ code, name, type: Number(code[0]), typeName: null, summary, parent, disabled, glOnly: true, hasChildren: summary, inUse: false, normalBalance: 'D', contra: false, description: null })
 
 const CHART: ChartAccount[] = [
   acct('2', 'LIABILITIES', null, true),
@@ -50,6 +50,13 @@ describe('chart suggestions', () => {
     expect(nextCode([...CHART, empty], empty)).toBe('2010301')
     const taken = [...CHART, empty, acct('2010301', 'Taken', null)]
     expect(nextCode(taken, empty)).toBe('2010302')
+  })
+
+  it('carries on with one digit more when the steps of the usual width are used up', () => {
+    const cash = acct('1000', 'CASH ON HAND', '1', true)
+    const full = [cash, ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => acct('1000' + d, 'Cash ' + d, '1000'))]
+    expect(nextCode(full, cash)).toBe('100010')
+    expect(nextCode([...full, acct('100010', 'Cash 10', '1000')], cash)).toBe('100011')
   })
 
   it('reads words without short or everyday ones', () => {
