@@ -27,3 +27,9 @@ PostgreSQL `V036__departments.sql` (applied to `coop` 2026-11-21; on `coop_bgemp
 ## Tests
 
 `DepartmentRulesTest`, `DepartmentControllerTest` (database, rolled back), `LifecycleRulesTest.aMissingListEntryIsNamedWithWhereToAddIt`, `DepartmentsPage.test.tsx`.
+
+## Kinds and statements per unit (2026-11-23)
+
+A branch and a satellite office are different kinds of unit, so each department records what it is: main office, branch, satellite office, consolidation or other unit (`ecis_department_kind`, PostgreSQL `V038` applied to `coop` and `coop_bgempc`, MySQL `V075` not). Until an administrator chooses one (Departments, column Kind, reason required, audited `department.kind`), a kind is suggested from the name and the place in the tree (`UnitRules.suggest`: CONSOL… consolidation, SATELLITE satellite office, BRANCH branch, BUILDING/PROJECT/STORE other unit, MAIN main office).
+
+Statements (`FinancialStatementController`): `department=` makes the Statement of Financial Condition or of Operations for a unit and every unit under it (`UnitRules.subtree`, entries by `gltrans.GLTransDEPT`); `/consolidating` gives one column per unit directly under a unit, a column for the entries posted to that unit itself when there are any (adjustments and eliminations), and the consolidated total, which equals the unit's own statement (`StatementColumns`, pure). On coop the tree is CONSOLIDATED ALL > CONSOLIDATED MAIN (MAIN OFFICE and its buildings, BAUKO, BAGUIO and BUGUIAS SATELLITE OFFICE and their buildings, BRENTWOOD) and CONSO LABCOOP (its units). Finished years per unit are summed into `ecis_gl_year_dept_balance` / `ecis_gl_year_dept_built` by Build balances (button on Accounting > Statements for administrators, runs in the background); posting a year-end close sums that year again. A single unit's statement of financial condition balances only when its inter-unit entries (due to and due from) are in its own books; the screen says so when it does not.

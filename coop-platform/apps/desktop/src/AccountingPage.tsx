@@ -1,8 +1,9 @@
-import { Alert, Box, Button, Chip, MenuItem, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, FormControlLabel, MenuItem, Stack, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import {
-  createPeriod, getFinancialCondition, getOperations, listPeriods, setPeriodStatus, type PeriodStatus, type StatementSection,
+  buildBalances, createPeriod, getBalanceStatus, getConsolidating, getFinancialCondition, getOperations, getStatementUnits, listPeriods, setPeriodStatus, type ConsolidatingStatement,
+  type PeriodStatus, type StatementSection,
 } from './api'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
@@ -13,6 +14,7 @@ import YearEndCloseTab from './YearEndCloseTab'
 import { money } from './ui/format'
 import { ConfirmButton } from './ui/dialogs'
 import { labelOf } from './ui/labels'
+import { unitHeading, unitOptions } from './ui/units'
 
 const today = () => new Date().toLocaleDateString('en-CA')
 const yearStart = () => `${new Date().getFullYear()}-01-01`
@@ -97,9 +99,22 @@ function Statements({ branchCode }: { branchCode: number }) {
   const [asOf, setAsOf] = useState(today())
   const [from, setFrom] = useState(yearStart())
   const [to, setTo] = useState(today())
-  const fc = useQuery({ queryKey: ['fs-fc', branchCode, asOf], queryFn: () => getFinancialCondition(branchCode, asOf), enabled: kind === 'fc' && !!asOf, retry: false })
-  const ops = useQuery({ queryKey: ['fs-ops', branchCode, from, to], queryFn: () => getOperations(branchCode, from, to), enabled: kind === 'ops' && !!from && !!to, retry: false })
-  const q = kind === 'fc' ? fc : ops
+  // null: the whole branch's books; otherwise a unit with everything under it
+  const [unit, setUnit] = useState<number | null>(null)
+  const [sideBySide, setSideBySide] = useState(false)
+  const units = useQuery({ queryKey: ['fs-units'], queryFn: getStatementUnits, staleTime: 300_000 })
+  const options = useMemo(() => unitOptions(units.data ?? []), [units.data])
+  const chosen = options.find((o) => o.unit.id === unit)?.unit
+  const columns = sideBySide && chosen != null && chosen.children > 0
+  const fc = useQuery({ queryKey: ['fs-fc', branchCode, asOf, unit], queryFn: () => getFinancialCondition(branchCode, asOf, unit), enabled: kind === 'fc' && !!asOf && !columns, retry: false })
+  const ops = useQuery({ queryKey: ['fs-ops', branchCode, from, to, unit], queryFn: () => getOperations(branchCode, from, to, unit), enabled: kind === 'ops' && !!from && !!to && !columns, retry: false })
+  const cons = useQuery({
+    queryKey: ['fs-cons', branchCode, kind, asOf, from, to, unit],
+    queryFn: () => getConsolidating(branchCode, unit!, kind === 'fc' ? { asOf } : { from, to }),
+    enabled: columns && (kind === 'fc' ? !!asOf : !!from && !!to), retry: false,
+  })
+  const q = columns ? cons : kind === 'fc' ? fc : ops
+  const shownUnit = (kind === 'fc' ? fc.data?.unit : ops.data?.unit) ?? null
   return (
     <Box>
       <Stack direction="row" spacing={2} useFlexGap sx={{ mb: 2, alignItems: "center", flexWrap: "wrap" }}>
@@ -107,6 +122,22 @@ function Statements({ branchCode }: { branchCode: number }) {
           <MenuItem value="fc">Statement of Financial Condition</MenuItem>
           <MenuItem value="ops">Statement of Operations</MenuItem>
         </TextField>
+        <TextField select size="small" label="Unit" value={unit == null ? 'all' : String(unit)} sx={{ width: 300 }}
+          onChange={(e) => { const v = e.target.value; setUnit(v === 'all' ? null : Number(v)) }}
+          slotProps={{ select: { renderValue: (v) => (v === 'all' ? 'Whole branch (every unit)' : chosen?.name ?? String(v)) } }}>
+          <MenuItem value="all">Whole branch (every unit)</MenuItem>
+          {options.map(({ unit: u, depth }) => (
+            <MenuItem key={u.id} value={String(u.id)} sx={{ pl: 2 + depth * 2 }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: 13, color: u.disabled ? 'text.disabled' : undefined }}>{u.name}</Typography>
+                <Typography sx={{ fontSize: 11 }} color="text.secondary">{u.kindName}{u.kindChosen ? '' : ' (suggested)'}{u.children > 0 ? ` · ${u.children} under it` : ''}</Typography>
+              </Box>
+            </MenuItem>
+          ))}
+        </TextField>
+        {chosen != null && chosen.children > 0 && (
+          <FormControlLabel control={<Switch checked={sideBySide} onChange={(e) => setSideBySide(e.target.checked)} />} label="Show each unit side by side" />
+        )}
         {kind === 'fc' ? (
           <TextField size="small" type="date" label="As at" value={asOf} onChange={(e) => setAsOf(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
         ) : (
@@ -117,17 +148,25 @@ function Statements({ branchCode }: { branchCode: number }) {
         )}
       </Stack>
       {q.error && <Alert severity="error" sx={{ mb: 2 }}>{(q.error as Error).message}</Alert>}
-      {kind === 'fc' && fc.data && (
+      <YearBalances branchCode={branchCode} />
+      {!columns && shownUnit && <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1, px: 0.5 }}>{unitHeading(shownUnit)}</Typography>}
+      {columns && cons.data && (
+        <>
+          <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1, px: 0.5 }}>Consolidating statement: {cons.data.unit.name}</Typography>
+          <Box sx={(t) => ({ overflow: 'auto', opacity: cons.isFetching ? 0.6 : 1, ...glass(t) })}><ConsolidatingTable c={cons.data} /></Box>
+        </>
+      )}
+      {!columns && kind === 'fc' && fc.data && (
         <>
           <Alert severity={fc.data.balanced ? 'success' : 'warning'} sx={{ mb: 2 }}>
             {fc.data.balanced
               ? 'Assets equal liabilities plus equity.'
-              : `Assets are ${money(fc.data.totalAssets)} but liabilities plus equity are ${money(fc.data.totalLiabilitiesAndEquity)} (difference ${money(Math.abs(fc.data.totalAssets - fc.data.totalLiabilitiesAndEquity))}). The legacy ledger does not balance for this date.`}
+              : `Assets are ${money(fc.data.totalAssets)} but liabilities plus equity are ${money(fc.data.totalLiabilitiesAndEquity)} (difference ${money(Math.abs(fc.data.totalAssets - fc.data.totalLiabilitiesAndEquity))}). ${fc.data.unit ? 'A single unit balances only when its entries with the other units (due to and due from) are in its own books.' : 'The legacy ledger does not balance for this date.'}`}
           </Alert>
           <Box sx={(t) => ({ overflow: 'auto', opacity: fc.isFetching ? 0.6 : 1, ...glass(t) })}><SectionTable sections={fc.data.sections} /></Box>
         </>
       )}
-      {kind === 'ops' && ops.data && (
+      {!columns && kind === 'ops' && ops.data && (
         <Box sx={(t) => ({ overflow: 'auto', opacity: ops.isFetching ? 0.6 : 1, ...glass(t) })}>
           <SectionTable sections={ops.data.sections}>
             <TableRow>
@@ -138,6 +177,91 @@ function Statements({ branchCode }: { branchCode: number }) {
         </Box>
       )}
     </Box>
+  )
+}
+
+/**
+ * Which finished years are summed for the statements "as at" a date, for the whole branch and by unit; an administrator starts the summing of the missing ones,
+ * which runs in the background (a few minutes a year) and is shown while it runs.
+ */
+function YearBalances({ branchCode }: { branchCode: number }) {
+  const me = useMe()
+  const qc = useQueryClient()
+  const status = useQuery({
+    queryKey: ['fs-balances', branchCode], queryFn: () => getBalanceStatus(branchCode),
+    refetchInterval: (q) => (q.state.data?.state === 'running' ? 5000 : false),
+  })
+  const build = useMutation({ meta: { done: 'Summing the earlier years has started. It runs in the background.' }, mutationFn: () => buildBalances(branchCode),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['fs-balances', branchCode] }) })
+  const s = status.data
+  if (!s) return null
+  const last = new Date().getFullYear() - 1
+  const upTo = (ys: number[]) => (ys.length === 0 ? 'none yet' : ys.includes(last) ? `every year to ${last}` : `${Math.min(...ys)} to ${Math.max(...ys)}, not ${last} yet`)
+  const missing = !s.builtYears.includes(last) || !s.builtYearsByUnit.includes(last)
+  const running = s.state === 'running'
+  return (
+    <Stack direction="row" spacing={1.5} useFlexGap sx={{ mb: 1.5, px: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+      <Typography sx={{ fontSize: 12 }} color="text.secondary">
+        Earlier years summed: {upTo(s.builtYears)}; by unit: {upTo(s.builtYearsByUnit)}.{running ? ' Summing now…' : ''}{s.state.startsWith('failed') ? ` The last run failed: ${s.state.slice(8)}` : ''}
+      </Typography>
+      {me.admin && missing && !running && <Button size="small" disabled={build.isPending} onClick={() => build.mutate()}>Build balances</Button>}
+    </Stack>
+  )
+}
+
+/** Each unit's figures in its own column, the consolidation's own entries (adjustments and eliminations) when it has any, and the consolidated total. */
+function ConsolidatingTable({ c }: { c: ConsolidatingStatement }) {
+  const head = { fontWeight: 600, whiteSpace: 'nowrap' as const, verticalAlign: 'bottom' as const }
+  const amounts = (xs: number[], total: number, weight?: number) => (
+    <>
+      {xs.map((v, i) => <TableCell key={i} align="right" sx={{ fontWeight: weight, whiteSpace: 'nowrap' }}>{money(v)}</TableCell>)}
+      <TableCell align="right" sx={{ fontWeight: weight ?? 600, whiteSpace: 'nowrap', bgcolor: 'action.hover' }}>{money(total)}</TableCell>
+    </>
+  )
+  return (
+    <Table size="small" aria-label="Consolidating statement">
+      <TableHead>
+        <TableRow>
+          <TableCell colSpan={2} />
+          {c.columns.map((col) => (
+            <TableCell key={`${col.id}-${col.ownEntries}`} align="right" sx={head}>
+              <Box>{col.name}</Box>
+              <Typography component="div" sx={{ fontSize: 11 }} color="text.secondary">{col.kindName}</Typography>
+            </TableCell>
+          ))}
+          <TableCell align="right" sx={{ ...head, bgcolor: 'action.hover' }}>Consolidated</TableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {c.sections.map((s) => (
+          <Fragment key={s.name}>
+            <TableRow>
+              <TableCell colSpan={2} sx={{ fontWeight: 700, bgcolor: 'action.hover' }}>{s.name}</TableCell>
+              {amounts(s.totals, s.total, 700)}
+            </TableRow>
+            {s.groups.map((g) => (
+              <Fragment key={g.name}>
+                <TableRow>
+                  <TableCell colSpan={2} sx={{ fontWeight: 600, pl: 3 }}>{g.name}</TableCell>
+                  {amounts(g.totals, g.total, 600)}
+                </TableRow>
+                {g.lines.map((l) => (
+                  <TableRow key={l.accountCode + l.description} hover>
+                    <TableCell sx={{ pl: 5, width: 110 }}>{l.accountCode}</TableCell>
+                    <TableCell sx={{ minWidth: 200 }}>{l.description}</TableCell>
+                    {amounts(l.amounts, l.total)}
+                  </TableRow>
+                ))}
+              </Fragment>
+            ))}
+          </Fragment>
+        ))}
+        <TableRow>
+          <TableCell colSpan={2} sx={{ fontWeight: 700 }}>{c.bottomName}</TableCell>
+          {amounts(c.bottom, c.bottomTotal, 700)}
+        </TableRow>
+      </TableBody>
+    </Table>
   )
 }
 

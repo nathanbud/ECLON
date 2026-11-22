@@ -45,9 +45,14 @@ public class DepartmentController {
         new String[] {"transtype_invoice", "DeptID", "invoice settings"},
         new String[] {"client_temp", "ClientDEPT", "members being entered in the old system"});
 
-    public record Row(int id, String name, Integer parent, String parentName, String tin, String address, boolean disabled, int members, int users, int children) {}
+    /** {@code kind} is what the unit is (UnitRules.KINDS); {@code kindChosen} is false while it is only suggested from the name. */
+    public record Row(int id, String name, Integer parent, String parentName, String tin, String address, boolean disabled, int members, int users, int children,
+                      String kind, String kindName, boolean kindChosen) {}
 
-    public record Departments(boolean editable, List<Row> departments, int nextNumber, int defaultForMembers, Map<String, Integer> lengths) {}
+    public record Departments(boolean editable, List<Row> departments, int nextNumber, int defaultForMembers, Map<String, Integer> lengths, boolean kindsEditable,
+                              Map<String, String> kinds) {}
+
+    public record Kind(String kind, String reason) {}
 
     public record Change(Integer id, String name, Integer parent, String tin, String address, String reason) {}
 
@@ -58,11 +63,13 @@ public class DepartmentController {
     private final JdbcTemplate jdbc;
     private final Db db;
     private final LookupController lookups;
+    private final Units units;
 
-    DepartmentController(JdbcTemplate jdbc, Db db, LookupController lookups) {
+    DepartmentController(JdbcTemplate jdbc, Db db, LookupController lookups, Units units) {
         this.jdbc = jdbc;
         this.db = db;
         this.lookups = lookups;
+        this.units = units;
     }
 
     private List<Dept> departments() {
@@ -98,9 +105,17 @@ public class DepartmentController {
         for (Dept d : all) if (d.parent() != null) children.merge(d.parent(), 1, Integer::sum);
         Map<Integer, String> names = new HashMap<>();
         for (Dept d : all) names.put(d.id(), d.name());
-        List<Row> rows = all.stream().map((d) -> new Row(d.id(), d.name(), d.parent(), d.parent() == null ? null : names.get(d.parent()), d.tin(), d.address(),
-            d.disabled(), members.getOrDefault(d.id(), 0), users.getOrDefault(d.id(), 0), children.getOrDefault(d.id(), 0))).toList();
-        return new Departments(editable(), rows, DepartmentRules.nextNumber(all), DepartmentRules.DEFAULT_FOR_MEMBERS, lengths());
+        Map<Integer, Units.Unit> kinds = new HashMap<>();
+        for (Units.Unit u : units.all()) kinds.put(u.id(), u);
+        List<Row> rows = all.stream().map((d) -> {
+            Units.Unit u = kinds.get(d.id());
+            String kind = u == null ? UnitRules.OTHER : u.kind();
+            return new Row(d.id(), d.name(), d.parent(), d.parent() == null ? null : names.get(d.parent()), d.tin(), d.address(),
+                d.disabled(), members.getOrDefault(d.id(), 0), users.getOrDefault(d.id(), 0), children.getOrDefault(d.id(), 0),
+                kind, UnitRules.kindName(kind), u != null && u.kindChosen());
+        }).toList();
+        return new Departments(editable(), rows, DepartmentRules.nextNumber(all), DepartmentRules.DEFAULT_FOR_MEMBERS, lengths(),
+            units.kindsStored() && db.canInsertInto("ecis_department_kind"), UnitRules.KINDS);
     }
 
     @PostMapping("/api/admin/departments")
@@ -114,6 +129,25 @@ public class DepartmentController {
             c.id(), c.name().trim(), c.parent(), DepartmentRules.trim(c.tin()), DepartmentRules.trim(c.address()));
         AuditLog.write(jdbc, auth.getName(), "department.add", "department", String.valueOf(c.id()), null, describe(in), c.reason().trim());
         lookups.forget();
+        return list();
+    }
+
+    /**
+     * Records what a department is: main office, branch, satellite office, consolidation or another unit. Statements name each unit by it, so a branch and a
+     * satellite office are not confused. Reason required, audited department.kind with the kind before (or the suggested one) and after.
+     */
+    @PutMapping("/api/admin/departments/{id}/kind")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public Departments setKind(@PathVariable int id, @RequestBody Kind k, Authentication auth) {
+        if (!units.kindsStored()) throw new ResponseStatusException(HttpStatus.CONFLICT, DatabaseChanges.notSetUp("Recording what each department is (main office, branch, satellite office)"));
+        Units.Unit before = units.find(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+            "Department " + id + " is not in this database, so nothing was saved. Reload Settings > Organization > Departments and choose it from the list."));
+        problems(UnitRules.kindProblems(k == null ? null : k.kind(), k == null ? null : k.reason()));
+        if (before.kindChosen() && before.kind().equals(k.kind())) return list();
+        db.upsert("ecis_department_kind", Map.of("dept_id", id), Map.of("kind", k.kind(), "updated_by", auth.getName(), "updated_at", java.sql.Timestamp.valueOf(java.time.LocalDateTime.now())));
+        AuditLog.write(jdbc, auth.getName(), "department.kind", "department", String.valueOf(id),
+            (before.kindChosen() ? "" : "suggested: ") + UnitRules.kindName(before.kind()), UnitRules.kindName(k.kind()), k.reason().trim());
         return list();
     }
 

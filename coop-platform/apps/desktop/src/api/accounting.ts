@@ -124,16 +124,40 @@ export const setPeriodStatus = (id: number, status: PeriodStatus) => send<Accoun
 export interface StatementLine { accountCode: string; description: string; amount: number }
 export interface StatementGroup { name: string; lines: StatementLine[]; total: number }
 export interface StatementSection { name: string; groups: StatementGroup[]; total: number }
+/** The unit a statement is for (a main office, branch, satellite office or consolidation, with everything under it); null for the whole branch. */
+export interface StatementUnit { id: number; name: string; kind: string; kindName: string; units: number }
 export interface FinancialCondition {
-  branchCode: number; asOf: string; sections: StatementSection[]
+  branchCode: number; asOf: string; unit: StatementUnit | null; sections: StatementSection[]
   totalAssets: number; totalLiabilitiesAndEquity: number; balanced: boolean
 }
-export interface OperationsStatement { branchCode: number; from: string; to: string; sections: StatementSection[]; netSurplus: number }
+export interface OperationsStatement { branchCode: number; from: string; to: string; unit: StatementUnit | null; sections: StatementSection[]; netSurplus: number }
+/** A unit to make statements for: the department tree with each unit's kind (suggested from the name while `kindChosen` is false). */
+export interface UnitChoice { id: number; name: string; parent: number | null; kind: string; kindName: string; kindChosen: boolean; disabled: boolean; children: number }
+export interface ConsolidatingColumn { id: number; name: string; kind: string; kindName: string; ownEntries: boolean }
+export interface ConsolidatingLine { accountCode: string; description: string; amounts: number[]; total: number }
+export interface ConsolidatingGroup { name: string; lines: ConsolidatingLine[]; totals: number[]; total: number }
+export interface ConsolidatingSection { name: string; groups: ConsolidatingGroup[]; totals: number[]; total: number }
+export interface ConsolidatingStatement {
+  branchCode: number; statement: 'financial-condition' | 'operations'; asOf: string | null; from: string | null; to: string | null
+  unit: ConsolidatingColumn; columns: ConsolidatingColumn[]; sections: ConsolidatingSection[]; bottomName: string; bottom: number[]; bottomTotal: number
+}
 
-export const getFinancialCondition = (branchCode: number, asOf: string) =>
-  send<FinancialCondition>('GET', `/api/financial-statements/financial-condition?branchCode=${branchCode}&asOf=${asOf}`)
-export const getOperations = (branchCode: number, from: string, to: string) =>
-  send<OperationsStatement>('GET', `/api/financial-statements/operations?branchCode=${branchCode}&from=${from}&to=${to}`)
+const FS = '/api/financial-statements'
+const unitParam = (department?: number | null) => (department != null ? `&department=${department}` : '')
+export const getFinancialCondition = (branchCode: number, asOf: string, department?: number | null) =>
+  send<FinancialCondition>('GET', `${FS}/financial-condition?branchCode=${branchCode}&asOf=${asOf}${unitParam(department)}`)
+export const getOperations = (branchCode: number, from: string, to: string, department?: number | null) =>
+  send<OperationsStatement>('GET', `${FS}/operations?branchCode=${branchCode}&from=${from}&to=${to}${unitParam(department)}`)
+export const getStatementUnits = () => getJson<UnitChoice[]>(`${FS}/units`)
+/** Which finished years are summed (for the whole branch and by unit), and whether a build is running ('running', 'done', 'idle' or 'failed: …'). */
+export interface BalanceStatus { state: string; builtYears: number[]; builtYearsByUnit: number[] }
+export const getBalanceStatus = (branchCode: number) => getJson<BalanceStatus>(`${FS}/balances/status?branchCode=${branchCode}`)
+/** Starts summing every finished year not summed yet, in the background (administrators). */
+export const buildBalances = (branchCode: number) => send<{ state: string }>('POST', `${FS}/balances/build?branchCode=${branchCode}`)
+/** Each unit directly under `department` side by side, the consolidation's own entries, and the consolidated total. */
+export const getConsolidating = (branchCode: number, department: number, q: { asOf: string } | { from: string; to: string }) =>
+  getJson<ConsolidatingStatement>(`${FS}/consolidating?branchCode=${branchCode}&department=${department}&` +
+    ('asOf' in q ? `statement=financial-condition&asOf=${q.asOf}` : `statement=operations&from=${q.from}&to=${q.to}`))
 
 // ---- banks and reconciliation --------------------------------------------------------------------------------------
 

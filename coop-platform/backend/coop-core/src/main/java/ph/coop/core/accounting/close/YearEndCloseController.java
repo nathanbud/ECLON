@@ -204,8 +204,12 @@ class YearEndCloseController {
         }
     }
 
-    /** A year whose balances were already summed (ecis_gl_year_balance) gets the closing added, so the statements stay right. */
+    /**
+     * A year whose balances were already summed (ecis_gl_year_balance) gets the closing added, so the statements stay right; its sums per unit
+     * (ecis_gl_year_dept_balance, V038) are summed again from the ledger, which now holds the closing.
+     */
     private void addToBuiltBalances(int branch, int year, List<Line> lines) {
+        resumByUnit(branch, year);
         Integer built = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_gl_year_built WHERE branch_code = ? AND tr_year = ?", Integer.class, branch, year);
         if (built == null || built == 0) return;
         Map<String, BigDecimal> byAccount = new LinkedHashMap<>();
@@ -218,6 +222,19 @@ class YearEndCloseController {
             int n = jdbc.update("UPDATE ecis_gl_year_balance SET net = net + ? WHERE branch_code = ? AND tr_year = ? AND account_code = ?", e.getValue(), branch, year, e.getKey());
             if (n == 0) jdbc.update("INSERT INTO ecis_gl_year_balance (branch_code, tr_year, account_code, net) VALUES (?, ?, ?, ?)", branch, year, e.getKey(), e.getValue());
         }
+    }
+
+    private void resumByUnit(int branch, int year) {
+        if (!db.allTablesExist("ecis_gl_year_dept_balance", "ecis_gl_year_dept_built")) return;
+        Integer built = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_gl_year_dept_built WHERE branch_code = ? AND tr_year = ?", Integer.class, branch, year);
+        if (built == null || built == 0) return;
+        jdbc.update("DELETE FROM ecis_gl_year_dept_balance WHERE branch_code = ? AND tr_year = ?", branch, year);
+        List<Object[]> rows = jdbc.query("""
+                SELECT COALESCE(GLTransDEPT, 0), GLTransACCT_CODE, SUM(GLTransDR_AMT) + SUM(GLTransCR_AMT) FROM gltrans
+                WHERE GLTransBR_CODE = ? AND GLTransTR_DATE BETWEEN ? AND ? GROUP BY COALESCE(GLTransDEPT, 0), GLTransACCT_CODE ORDER BY 1, 2
+                """, (rs, i) -> new Object[] {rs.getInt(1), rs.getString(2), rs.getBigDecimal(3)}, branch, LocalDate.of(year, 1, 1), YearEndRules.closingDate(year));
+        jdbc.batchUpdate("INSERT INTO ecis_gl_year_dept_balance (branch_code, tr_year, dept, account_code, net) VALUES (?, ?, ?, ?, ?)",
+            rows.stream().filter((r) -> ((BigDecimal) r[2]).signum() != 0).map((r) -> new Object[] {branch, year, r[0], r[1], r[2]}).toList());
     }
 
     // ---- reads ----

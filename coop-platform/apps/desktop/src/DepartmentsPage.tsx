@@ -2,11 +2,11 @@ import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogT
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiEdit2, FiPlus, FiPower, FiTrash2 } from 'react-icons/fi'
-import { addDepartment, changeDepartment, deleteDepartment, getDepartments, switchDepartment, type DepartmentRow, type Departments } from './api/departments'
+import { addDepartment, changeDepartment, deleteDepartment, getDepartments, setDepartmentKind, switchDepartment, type DepartmentRow, type Departments } from './api/departments'
 import { DatabaseChangeNotice } from './DatabaseChangeNotice'
 import { appBackground, glass } from './glass'
 import { LoadingRow } from './ui/Loading'
-import { Hinted, ScreenTitle } from './appleUi'
+import { Hinted, ReasonDialog, ScreenTitle } from './appleUi'
 
 const KEY = ['departments']
 const MIN_REASON = 3
@@ -34,7 +34,8 @@ export default function DepartmentsPage() {
   const [open, setOpen] = useState<Open>(null)
   const data = q.data
   const editable = !!data?.editable
-  const cols = editable ? 6 : 5
+  const cols = editable ? 7 : 6
+  const [kindOf, setKindOf] = useState<DepartmentRow | null>(null)
   const lacksDefault = !!data && !data.departments.some((d) => d.id === data.defaultForMembers)
 
   return (
@@ -68,6 +69,7 @@ export default function DepartmentsPage() {
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600, width: 64 }}>No.</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Department</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Kind</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Under</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 600 }}>Members</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 600 }}>Users</TableCell>
@@ -91,6 +93,18 @@ export default function DepartmentsPage() {
                         </Stack>
                         {(d.tin || d.address) && (
                           <Typography sx={{ fontSize: 11 }} color="text.secondary">{[d.tin && `TIN ${d.tin}`, d.address].filter(Boolean).join(' · ')}</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        {data?.kindsEditable ? (
+                          <Tooltip title={d.kindChosen ? 'Change what this department is' : 'Suggested from its name; choose what it really is'} describeChild>
+                            <Button size="small" onClick={() => setKindOf(d)} aria-label={`Kind of ${d.name}: ${d.kindName}${d.kindChosen ? '' : ', suggested'}`}
+                              sx={{ color: d.kindChosen ? 'text.primary' : 'text.secondary', fontWeight: 400, px: 0.5, minWidth: 0 }}>
+                              {d.kindName}{d.kindChosen ? '' : ' (suggested)'}
+                            </Button>
+                          </Tooltip>
+                        ) : (
+                          <Typography sx={{ fontSize: 13 }} color={d.kindChosen ? undefined : 'text.secondary'}>{d.kindName}{d.kindChosen ? '' : ' (suggested)'}</Typography>
                         )}
                       </TableCell>
                       <TableCell>{d.parentName ?? '–'}</TableCell>
@@ -118,6 +132,7 @@ export default function DepartmentsPage() {
         </Box>
       </Box>
       {open && data && <DepartmentDialog open={open} data={data} onClose={() => setOpen(null)} />}
+      {kindOf && data && <KindDialog dept={kindOf} kinds={data.kinds} onClose={() => setKindOf(null)} />}
     </Box>
   )
 }
@@ -213,5 +228,25 @@ function DepartmentDialog({ open, data, onClose }: { open: NonNullable<Open>; da
         </Button>
       </DialogActions>
     </Dialog>
+  )
+}
+
+/** Chooses what a department is: main office, branch, satellite office, consolidation or another unit. Statements name each unit by it. */
+function KindDialog({ dept, kinds, onClose }: { dept: DepartmentRow; kinds: Record<string, string>; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [kind, setKind] = useState(dept.kind)
+  const save = useMutation({
+    meta: { done: `${dept.name} is now recorded as ${(kinds[kind] ?? kind).toLowerCase()}.` },
+    mutationFn: (reason: string) => setDepartmentKind(dept.id, kind, reason),
+    onSuccess: (d) => { qc.setQueryData(KEY, d); qc.invalidateQueries({ queryKey: ['fs-units'] }); onClose() },
+  })
+  return (
+    <ReasonDialog open title={`What is ${dept.name}?`} confirm="Save" busy={save.isPending} error={save.error ? (save.error as Error).message : null}
+      canSubmit={kind !== dept.kind || !dept.kindChosen} onCancel={onClose} onConfirm={(r) => save.mutate(r)}
+      intro="A branch is a full operating unit; a satellite office offers part of the services under the main office or a branch; a consolidation adds up the units under it. Financial statements name each unit by what it is.">
+      <TextField select required autoFocus label="Kind" value={kind} onChange={(e) => setKind(e.target.value)}>
+        {Object.entries(kinds).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
+      </TextField>
+    </ReasonDialog>
   )
 }
