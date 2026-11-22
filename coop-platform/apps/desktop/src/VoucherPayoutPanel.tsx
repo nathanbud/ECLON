@@ -26,17 +26,17 @@ export function VoucherPayoutPanel() {
     <Box sx={(t) => ({ p: 1.5, flex: 1, minHeight: 0, overflow: 'auto', ...glass(t) })}>
       <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Pay out vouchers payable</Typography>
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
-        <TextField size="small" label="Client number" value={clientText} onChange={(e) => setClientText(e.target.value)}
+        <TextField size="small" label="Member number" value={clientText} onChange={(e) => setClientText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && canFind) setLookup(clientNo) }} sx={{ width: 180 }} />
         <Button variant="outlined" disabled={!canFind} onClick={() => setLookup(clientNo)}>Find</Button>
         {lookup !== null && <Button onClick={() => { setLookup(null); setClientText('') }}>Show those waiting</Button>}
       </Box>
       {found.error && lookup !== null && <Alert severity="error" sx={{ mb: 1 }}>{(found.error as Error).message}</Alert>}
-      {rows.length === 0 && <Typography sx={{ py: 2 }} color="text.secondary">{lookup !== null ? 'This member has no money waiting in a vouchers-payable account.' : 'Nobody has money waiting from a recent voucher. Look a member up by client number.'}</Typography>}
+      {rows.length === 0 && <Typography sx={{ py: 2 }} color="text.secondary">{lookup !== null ? 'This member has no money waiting in a vouchers-payable account.' : 'Nobody has money waiting from a recent voucher. Look a member up by member number.'}</Typography>}
       {rows.map((r) => (
         <Box key={`${r.clientId}-${r.refNo}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider' }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 13 }}>{r.client ?? `Client ${r.clientId}`} · {money(r.balance)}</Typography>
+            <Typography sx={{ fontSize: 13 }}>{r.client ?? `Member ${r.clientId}`} · {money(r.balance)}</Typography>
             <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>Client {r.clientId} · payable account {r.refNo}{r.lastCredit ? ` · last credited ${r.lastCredit}` : ''}</Typography>
           </Box>
           <Button size="small" variant="contained" onClick={() => setPaying(r)}>Pay out</Button>
@@ -95,7 +95,7 @@ function PayDialog({ payable, onClose }: { payable: VoucherPayable; onClose: () 
       <DialogContent>
         {!receipt && (
           <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
-            <Box sx={{ fontSize: 13 }}>{payable.client ?? `Client ${payable.clientId}`} · payable account {payable.refNo}</Box>
+            <Box sx={{ fontSize: 13 }}>{payable.client ?? `Member ${payable.clientId}`} · payable account {payable.refNo}</Box>
             <Box sx={{ fontSize: 22, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{money(check?.payable.balance ?? payable.balance)}</Box>
             <Box sx={{ fontSize: 12 }}>The whole balance is paid in cash out of your own drawer{check ? ` (it holds ${money(check.drawerCash)})` : ''} and posted to the ledger at once.</Box>
             <TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} helperText="Up to 8 letters or digits. Left empty, the system numbers it." />
@@ -112,7 +112,7 @@ function PayDialog({ payable, onClose }: { payable: VoucherPayable; onClose: () 
         {receipt && (
           <Box sx={{ display: 'grid', gap: 0.5, pt: 1, fontSize: 13 }}>
             <Box>Receipt <strong>{receipt.documentNo}</strong> (control {receipt.controlNo}) dated {receipt.date}</Box>
-            <Box>{receipt.clientName ?? `Client ${receipt.clientId}`}</Box>
+            <Box>{receipt.clientName ?? `Member ${receipt.clientId}`}</Box>
             <Box>Paid out <strong>{money(receipt.amount)}</strong> from payable account {receipt.refNo}</Box>
             <Box>By {receipt.cashier}</Box>
           </Box>

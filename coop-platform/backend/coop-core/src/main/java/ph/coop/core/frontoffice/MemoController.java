@@ -79,7 +79,10 @@ class MemoController {
     private final Clock clock;
     private final ClosedBooks books;
 
-    MemoController(JdbcTemplate jdbc, Db db, MemberLedgerPoster poster, Clock clock, ClosedBooks books) {
+    private final ph.coop.core.businessday.BusinessDay businessDay;
+
+    MemoController(JdbcTemplate jdbc, Db db, MemberLedgerPoster poster, Clock clock, ClosedBooks books, ph.coop.core.businessday.BusinessDay businessDay) {
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.db = db;
         this.poster = poster;
@@ -193,6 +196,7 @@ class MemoController {
         require(r, "APPROVED");
         String problem = MemoRules.separation(r.createdBy(), r.approvedBy(), auth.getName());
         if (problem != null) throw forbidden(problem);
+        businessDay.requireStarted(r.branch()); // posted only while the branch has a business day open, whatever the memo's own date
         requireOpenPeriod(r.branch(), r.date());
         Person postedBy = legacyPerson(auth.getName(), "person posting");
         Person creator = legacyPerson(r.createdBy(), "maker");

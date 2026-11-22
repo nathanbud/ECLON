@@ -81,7 +81,7 @@ class PosCatalogController {
         if (in.price() == null || in.price().signum() < 0 || in.price().compareTo(new BigDecimal("999999999.99")) > 0 || in.price().scale() > 2 && in.price().stripTrailingZeros().scale() > 2)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The price must be zero or more, with at most two decimals.");
         Integer p = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_product WHERE branch_code = ? AND id = ?", Integer.class, InventorySupport.BRANCH, in.productId());
-        if (p == null || p == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such product.");
+        if (p == null || p == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That product was not found; it may have been switched off or the code mistyped. Choose the product from the list.");
         BigDecimal before = jdbc.queryForList("SELECT price FROM ecis_product_price WHERE product_id = ? ORDER BY id DESC LIMIT 1", BigDecimal.class, in.productId()).stream().findFirst().orElse(null);
         jdbc.update("INSERT INTO ecis_product_price (product_id, price, set_by, set_at) VALUES (?, ?, ?, ?)", in.productId(), in.price().setScale(2), auth.getName(), Timestamp.valueOf(support.now()));
         support.audit(auth, "pos.price.set", "ecis_product_price", String.valueOf(in.productId()), (before == null ? "none" : before.toPlainString()) + " -> " + in.price().setScale(2).toPlainString());
@@ -166,7 +166,7 @@ class PosCatalogController {
         if (in.percentOff() == null || in.percentOff().signum() <= 0 || in.percentOff().compareTo(new BigDecimal("100")) > 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The percent off is more than 0 and at most 100.");
         if (in.startDate() == null || in.endDate() == null || in.endDate().isBefore(in.startDate())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Give the start and end dates, the end not before the start.");
         Integer p = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_product WHERE branch_code = ? AND id = ?", Integer.class, InventorySupport.BRANCH, in.productId());
-        if (p == null || p == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such product.");
+        if (p == null || p == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That product was not found; it may have been switched off or the code mistyped. Choose the product from the list.");
         long id = db.insertReturningId("INSERT INTO ecis_promotion (branch_code, name, product_id, percent_off, start_date, end_date, active, created_by) VALUES (?, ?, ?, ?, ?, ?, 1, ?)", "id",
             InventorySupport.BRANCH, in.name().trim(), in.productId(), in.percentOff(), in.startDate(), in.endDate(), auth.getName());
         support.audit(auth, "pos.promotion.create", "ecis_promotion", String.valueOf(id), in.name().trim() + " " + in.percentOff().toPlainString() + "% " + in.startDate() + ".." + in.endDate());

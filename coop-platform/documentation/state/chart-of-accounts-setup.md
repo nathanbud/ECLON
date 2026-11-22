@@ -16,3 +16,7 @@ The other rules are those of a single account: digits starting with 1 to 6, the 
 `GET /template` is a blank workbook (Accounts sheet with the column names only, Guide sheet with an example), `GET /template.csv` the same as CSV.
 Unlike the member list there is no second approver, because adding one account by hand has none either: the control is the administrator role, the required reason and the audit log.
 Tested by `ChartImportRulesTest` (7), `ChartImportTest` (6, rolls back) and `ChartUpload.test.tsx`.
+
+## Suggested heading for a new account (2026-11-22)
+
+New account suggests up to three headings to put the account under, from its name and the number typed so far (`ui/chartSuggest.ts`, pure, tested by `chartSuggest.test.ts`): headings whose own name shares words with the new name (counted double) or that already hold accounts with similar names; with a number typed, only headings it starts with, and the deepest one. Each suggestion carries the next free number under it (one more than the highest number of the usual length under the heading, or the heading's number plus 01). Why shows on hover; pressing a chip sets the heading, and the number too when the one typed does not fit under it. Switched-off headings are never suggested.

@@ -82,7 +82,7 @@ final class HandoverRules {
         } else if (amount == null || amount.signum() <= 0) {
             p.add(withCheques ? "Enter the cash given, or leave it at zero." : "Enter an amount above zero.");
         } else if (amount.scale() > 2 && amount.stripTrailingZeros().scale() > 2) {
-            p.add("The amount can have at most 2 decimal places.");
+            p.add("An amount can have at most 2 decimal places (centavos). Round it and try again.");
         }
         BigDecimal counted = BigDecimal.ZERO;
         for (Map.Entry<Integer, Integer> e : counts.entrySet()) {

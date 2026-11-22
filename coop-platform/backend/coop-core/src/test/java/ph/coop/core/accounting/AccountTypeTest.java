@@ -243,6 +243,19 @@ class AccountTypeTest {
         assertFalse(types.deleteCheck(11, 1, me()).deletable(), "cash types stay");
     }
 
+    @Test void aNewSavingsTypeIsSuggestedTheAccountTheOtherSavingsTypesUse() {
+        var s = types.suggestions(22, 11, 15, null, "Holiday Savings", me());
+        assertFalse(s.isEmpty());
+        var regular = s.stream().filter((x) -> x.account().equals("2010101")).findFirst().orElseThrow();
+        assertTrue(regular.why().startsWith("Used for this posting by"), regular.why());
+        // every suggestion takes postings and is in use
+        for (var x : s) {
+            assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM coa WHERE COABR_CODE = 1 AND COAID = ? AND COAacct_tag = 'D' AND COALESCE(COAisdisabled, 0) = 0", Integer.class, x.account()));
+        }
+        // for type 1 itself, its own link is not counted as another type's
+        assertTrue(types.suggestions(22, 11, 15, 1, null, me()).stream().noneMatch((x) -> x.why().contains(savings(1).name().trim() + " ")));
+    }
+
     @Test @WithMockUser(username = "tester", roles = "ACCOUNTANT") void onlyAdministratorsMayOpenIt() {
         assertThrows(AccessDeniedException.class, () -> types.list(me()));
         assertThrows(AccessDeniedException.class, () -> types.changeLink(22, 1, new LinkIn(11, 15, "2010106", "try"), me()));

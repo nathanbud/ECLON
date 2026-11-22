@@ -1,0 +1,22 @@
+cic_contypid,cic_contypdesc
+10,Agricultural Loan
+11,Loan Line
+12,Personal Loan
+13,Mortgage Real Estate
+14,Syndicated Loan
+15,Term Loan
+16,Short Term Loan
+17,Vehicle Loan
+18,Unsecured Loan
+19,Home Equity Loan
+20,Salary Loan
+21,Provident Loan
+22,Business Loan
+23,Vehicle Leasing
+24,Real Estat Leasing
+25,Equipment Leasing
+26,APEX Loan
+27,Trust Loan
+28,Benefit Loan
+29,Time Loan
+40,Letter of Credit

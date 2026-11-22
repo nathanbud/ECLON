@@ -6,6 +6,7 @@ import { getBackups, runBackup } from './api'
 import { appBackground, glass } from './glass'
 import { sizeOf, tabular } from './ui/format'
 import { useMe } from './session'
+import { ScreenTitle } from './appleUi'
 
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
@@ -36,10 +37,9 @@ export default function BackupPage() {
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
-        <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Backup</Typography>
-        <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
+        <ScreenTitle title="Backup" sx={{ mb: 2 }}>
           Saves everything this application owns, and the fingerprint key, into a dated folder on the server. The old system’s own tables are not included; they are backed up as the database.
-        </Typography>
+        </ScreenTitle>
         {!admin && <Alert severity="info" sx={{ mb: 2 }}>Only an administrator can take or see backups.</Alert>}
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
         {notice && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setNotice(null)}>{notice}</Alert>}

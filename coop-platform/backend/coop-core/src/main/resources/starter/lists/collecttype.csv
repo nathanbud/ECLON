@@ -1,0 +1,48 @@
+collecttypeid,collecttypedesc
+1,Office-OTC
+2,Office-ATM
+3,Office-MOA
+4,Field
+5,Office-PDC
+6,SD - DSWD
+7,SD - DPWH I
+8,SD - DPWH II
+9,SD - BSU Main
+10,SD - BSU Bokod
+11,SD - BSU Buguias
+12,SD - DA
+13,SD - DOST CAR
+14,SD - Human Rights
+15,SD - CDA
+16,SD - NLRC
+17,SD - LGU Bokod
+18,SD - LGU Itogon
+19,SD - LGU Buguias
+20,SD - LGU Mankayan
+21,SD - LGU Bauko
+22,SD - LGU La Trinidad
+23,SD - LGU Brgy Abatan-Buguias
+24,SD - LGU Atok
+25,SD - BSUCMPC
+26,SD - SISAI
+27,SD - SLU - Pacdal
+28,SD - Don Bosco School
+29,SD - DILG - CAR 
+30,SD - DILG - Abra
+31,SD - MNAS - Abra
+32,SD - ABRECO - Abra
+33,SD - CCDC-SALDEC
+34,SD - DHFC
+35,SD - DILG Benguet
+36,BSU - MidYear
+37,BSU - YearEnd
+38,SD - DILG Mt. Prov.
+39,SD - BCS Bauko
+40,CPAD - CAR
+41,SD - DILG - Baguio
+42,SD - BLGU Bulalacao
+43,DOH-DATRC - Mt. Prov.
+44,DOST-CAR
+45,Alejo
+46,SD- Bureau of Treasury
+47,SD - IGSMPC

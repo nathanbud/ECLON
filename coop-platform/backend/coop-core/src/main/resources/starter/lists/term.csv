@@ -1,0 +1,8 @@
+termid,termdesc,termoldid
+1,Days,D
+2,Weeks,W
+3,S-Months,H
+4,Months,M
+5,Quarters,Q
+6,Semesters,S
+7,Years,Y

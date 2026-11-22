@@ -8,7 +8,10 @@ import {
 } from './api'
 import { appBackground, glass } from './glass'
 import { useLeaveGuard } from './leaveGuard'
+import { SchemaStatusNotice } from './SchemaStatusNotice'
 import { useMe } from './session'
+import { can } from './nav/screens'
+import { ScreenTitle } from './appleUi'
 
 interface Form { name: string; host: string; port: string; dbName: string; branchId: number | null; makeDefault: boolean }
 
@@ -109,10 +112,10 @@ export default function DatabaseConnectionsPage() {
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
-        <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Database connection</Typography>
-        <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
+        <ScreenTitle title="Database connection" sx={{ mb: 2 }}>
           The database this server works on, and the others it can be moved to. The database user and password are the server&apos;s own settings; none is saved here.
-        </Typography>
+        </ScreenTitle>
+        <SchemaStatusNotice showOk canApply={can(me, 'superadmin')} />
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)} role="alert">{error}</Alert>}
         {rows.isError && <Alert severity="error" sx={{ mb: 2 }}>The saved connections could not be read.</Alert>}
 

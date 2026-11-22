@@ -1,0 +1,30 @@
+clstatid,clstatdesc
+1,See Remarks
+2,No Specimen Signature
+3,No Personal Data Sheet 
+4,Unlocated Address
+5,Moved to New Address
+6,Deceased
+7,PMES Date
+8,Ultimate Date
+21, 1st Collection Letter
+22, 2nd Collection Letter
+23, 3rd Collection Letter
+24,Final Collection Letter
+31,Deposits on hold
+32,Offsetted Account
+41, 1st Demand Letter
+42,Final Demand Letter
+43,In Litigation
+44,Insolvent
+51,Amnesty Availed
+52,Restructured Account
+53,With Interest Receivable
+54,Mediated
+55,Negotiated
+56,Date of Litigation
+57,Date of Filing of Litigation
+58,Date of Court Decision
+59,Date of Full Payment
+60,Ultima Date
+99,Written Off

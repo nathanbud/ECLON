@@ -70,10 +70,10 @@ class MemberDraftController {
     /** The fields cleaned for keeping: known-shaped column names, text values of a sensible size, blanks dropped. */
     static Map<String, String> cleaned(Map<String, String> fields) {
         if (fields == null || fields.isEmpty()) throw bad("There is nothing to save yet.");
-        if (fields.size() > MAX_FIELDS) throw bad("Too many fields.");
+        if (fields.size() > MAX_FIELDS) throw bad("The draft has more fields than a registration can hold, so it was not saved. Close the window and start the draft again; if it keeps happening, tell your administrator.");
         Map<String, String> out = new LinkedHashMap<>();
         for (var e : fields.entrySet()) {
-            if (e.getKey() == null || !COLUMN.matcher(e.getKey()).matches()) throw bad("A field name is not valid.");
+            if (e.getKey() == null || !COLUMN.matcher(e.getKey()).matches()) throw bad("The draft has a field this screen does not know, so it was not saved. Close the window and start the draft again; if it keeps happening, tell your administrator.");
             String v = e.getValue() == null ? "" : e.getValue().trim();
             if (v.length() > MAX_VALUE) throw bad("The text in " + e.getKey() + " is too long.");
             if (!v.isEmpty()) out.put(e.getKey(), v);
@@ -86,7 +86,7 @@ class MemberDraftController {
         try {
             return json.writeValueAsString(fields);
         } catch (JsonProcessingException e) {
-            throw bad("The draft could not be saved.");
+            throw bad("The draft could not be saved, so what you typed is still only on the screen. Try again; if it keeps failing, send the registration instead or copy what you typed.");
         }
     }
 
@@ -103,10 +103,10 @@ class MemberDraftController {
                 Map<String, String> f = json.readValue(rs.getString(5), new TypeReference<LinkedHashMap<String, String>>() {});
                 return new Draft(rs.getLong(1), rs.getString(2), rs.getInt(3), rs.getInt(4), f, String.valueOf(rs.getTimestamp(6).toLocalDateTime()));
             } catch (JsonProcessingException e) {
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "This draft cannot be read.");
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "This draft cannot be read, so it cannot be continued. Delete it and start a new registration.");
             }
         }, id, auth.getName());
-        if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no such draft.");
+        if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That draft no longer exists: it was sent or deleted. Reload your drafts to see the ones that are left.");
         return rows.get(0);
     }
 
@@ -128,7 +128,7 @@ class MemberDraftController {
         Map<String, String> fields = cleaned(in.fields());
         int n = jdbc.update("UPDATE ecis_member_draft SET title = ?, client_type = ?, fields = ?, updated_at = NOW() WHERE id = ? AND owner = ?",
             titleOf(fields), in.clientType() == null ? 1 : in.clientType(), write(fields), id, auth.getName());
-        if (n == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no such draft.");
+        if (n == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That draft no longer exists: it was sent or deleted. Reload your drafts to see the ones that are left.");
         AuditLog.write(jdbc, auth.getName(), "member.draft.save", "member_draft", String.valueOf(id), null, null, "Saved a new-member draft");
         return summary(id, auth);
     }
@@ -136,7 +136,7 @@ class MemberDraftController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable long id, Authentication auth) {
         int n = jdbc.update("DELETE FROM ecis_member_draft WHERE id = ? AND owner = ?", id, auth.getName());
-        if (n == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no such draft.");
+        if (n == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That draft no longer exists: it was sent or deleted. Reload your drafts to see the ones that are left.");
         AuditLog.write(jdbc, auth.getName(), "member.draft.delete", "member_draft", String.valueOf(id), null, null, "Deleted a new-member draft");
     }
 

@@ -1,5 +1,6 @@
 package ph.coop.core.member;
 
+import ph.coop.core.connection.DatabaseChanges;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,13 +24,23 @@ import ph.coop.core.db.Db;
 public class MembershipPolicyController {
 
     static final String RETURNING_PAYS_SHARE = "membership.returning_pays_share_capital";
+    /**
+     * A Membership Officer's own registration is approved at once, without a second officer. Off by default (registration is maker-checker); only a
+     * super administrator may switch it, because it removes the second person from creating a member. Each such registration is audited as
+     * MEMBER_REGISTERED_DIRECTLY. Closing, reactivating and beneficiary changes still need a second officer.
+     */
+    static final String OFFICER_REGISTERS_DIRECTLY = "membership.registration.officer_direct";
 
-    public record Policy(boolean returningPaysShareCapital, boolean kycBlocksWithdrawals) {}
+    public record Policy(boolean returningPaysShareCapital, boolean kycBlocksWithdrawals, boolean officerRegistersDirectly) {}
 
-    /** A switch left null is not changed. */
-    public record Change(Boolean returningPaysShareCapital, Boolean kycBlocksWithdrawals, String reason) {
+    /** A switch left null is not changed. officerRegistersDirectly needs a super administrator. */
+    public record Change(Boolean returningPaysShareCapital, Boolean kycBlocksWithdrawals, Boolean officerRegistersDirectly, String reason) {
+        public Change(Boolean returningPaysShareCapital, Boolean kycBlocksWithdrawals, String reason) {
+            this(returningPaysShareCapital, kycBlocksWithdrawals, null, reason);
+        }
+
         public Change(boolean returningPaysShareCapital, String reason) {
-            this(returningPaysShareCapital, null, reason);
+            this(returningPaysShareCapital, null, null, reason);
         }
     }
 
@@ -48,6 +59,11 @@ public class MembershipPolicyController {
         return flag(RETURNING_PAYS_SHARE);
     }
 
+    /** Off unless a super administrator switched it on. */
+    public boolean officerRegistersDirectly() {
+        return flag(OFFICER_REGISTERS_DIRECTLY);
+    }
+
     private boolean flag(String key) {
         if (!db.tableExists("ecis_setting")) return false;
         List<String> v = jdbc.queryForList("SELECT setting_value FROM ecis_setting WHERE setting_key = ?", String.class, key);
@@ -56,17 +72,20 @@ public class MembershipPolicyController {
 
     @GetMapping("/api/membership-policy")
     public Policy get() {
-        return new Policy(returningPaysShareCapital(), kyc.blocksWithdrawals());
+        return new Policy(returningPaysShareCapital(), kyc.blocksWithdrawals(), officerRegistersDirectly());
     }
 
     @PutMapping("/api/admin/membership-policy")
     @PreAuthorize("hasRole('ADMIN')")
     public Policy set(@RequestBody Change c, Authentication auth) {
-        if (!db.allTablesExist("ecis_setting", "ecis_audit_log")) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "The settings table is not installed (V038).");
+        if (!db.allTablesExist("ecis_setting", "ecis_audit_log")) throw new ResponseStatusException(HttpStatus.FORBIDDEN, DatabaseChanges.notSetUp("the membership policy"));
         if (c.reason() == null || c.reason().trim().length() < 3) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Give a reason for the change.");
         if (Boolean.TRUE.equals(c.kycBlocksWithdrawals()) && !db.tableExists("ecis_member_kyc"))
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "The KYC table is not installed on this database, so withdrawals cannot depend on it.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, DatabaseChanges.notSetUp("KYC, which withdrawals would depend on,"));
+        if (c.officerRegistersDirectly() != null && auth.getAuthorities().stream().noneMatch((a) -> a.getAuthority().equals("ROLE_SUPERADMIN")))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only a super administrator can let Membership Officers approve their own registrations.");
         if (c.returningPaysShareCapital() != null) change(RETURNING_PAYS_SHARE, flag(RETURNING_PAYS_SHARE), c.returningPaysShareCapital(), c.reason(), auth);
+        if (c.officerRegistersDirectly() != null) change(OFFICER_REGISTERS_DIRECTLY, flag(OFFICER_REGISTERS_DIRECTLY), c.officerRegistersDirectly(), c.reason(), auth);
         if (c.kycBlocksWithdrawals() != null) change(KycGate.BLOCK_WITHDRAWALS, flag(KycGate.BLOCK_WITHDRAWALS), c.kycBlocksWithdrawals(), c.reason(), auth);
         return get();
     }

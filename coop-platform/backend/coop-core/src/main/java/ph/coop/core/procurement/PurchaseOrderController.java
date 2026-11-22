@@ -99,7 +99,7 @@ class PurchaseOrderController {
     @GetMapping("/{id}")
     Detail get(@PathVariable long id) {
         List<Summary> s = jdbc.query(SUMMARY + " WHERE o.branch_code = ? AND o.id = ?", PurchaseOrderController::map, ProcurementSupport.BRANCH, id);
-        if (s.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such purchase order.");
+        if (s.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That purchase order was not found; it may have been cancelled or the number mistyped. Reload the list and open it from there.");
         List<LineOut> lines = jdbc.query("""
                 SELECT l.description, l.unit, l.quantity, l.unit_cost, l.qty_received, l.product_id, COALESCE(p.track_batch, 0), COALESCE(p.track_expiry, 0)
                 FROM ecis_purchase_order_line l LEFT JOIN ecis_product p ON p.id = l.product_id WHERE l.order_id = ? ORDER BY l.line_no
@@ -116,11 +116,11 @@ class PurchaseOrderController {
         support.requirePurchaser(auth);
         LocalDate today = LocalDate.now(clock);
         List<Object[]> sup = jdbc.query("SELECT active, terms_days FROM ecis_supplier WHERE branch_code = ? AND id = ? FOR UPDATE", (rs, i) -> new Object[] {rs.getInt(1) == 1, rs.getInt(2)}, ProcurementSupport.BRANCH, in.supplierId());
-        if (sup.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such supplier.");
+        if (sup.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That supplier was not found. It may have been switched off or the code mistyped: choose the supplier from the list.");
         String requestStatus = null;
         if (in.requestId() != null) {
             List<String> st = jdbc.queryForList("SELECT status FROM ecis_purchase_request WHERE branch_code = ? AND id = ? FOR UPDATE", String.class, ProcurementSupport.BRANCH, in.requestId());
-            if (st.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such purchase request.");
+            if (st.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That purchase request was not found; it may have been cancelled or the number mistyped. Reload the list and open it from there.");
             requestStatus = st.get(0);
         }
         // a line that names a product takes that product's unit
@@ -167,7 +167,7 @@ class PurchaseOrderController {
         // the row is locked on its own: PostgreSQL does not lock through the outer join of SUMMARY
         jdbc.queryForList("SELECT id FROM ecis_purchase_order WHERE branch_code = ? AND id = ? FOR UPDATE", Long.class, ProcurementSupport.BRANCH, id);
         List<Summary> found = jdbc.query(SUMMARY + " WHERE o.branch_code = ? AND o.id = ?", PurchaseOrderController::map, ProcurementSupport.BRANCH, id);
-        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such purchase order.");
+        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That purchase order was not found; it may have been cancelled or the number mistyped. Reload the list and open it from there.");
         return found.get(0);
     }
 

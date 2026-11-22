@@ -85,7 +85,7 @@ class AssetDisposalController {
         List<Object[]> a = jdbc.query("""
                 SELECT a.status, a.cost, a.in_service_date, a.acquisition_date, c.asset_account, c.accum_account FROM ecis_asset a JOIN ecis_asset_category c ON c.id = a.category_id WHERE a.branch_code = ? AND a.id = ? FOR UPDATE
                 """, (rs, i) -> new Object[] {rs.getString(1), rs.getBigDecimal(2), rs.getDate(3).toLocalDate(), rs.getDate(4).toLocalDate()}, InventorySupport.BRANCH, assetId);
-        if (a.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such asset.");
+        if (a.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That asset was not found in the register. It may have been disposed of or the number mistyped: reload the list and open it from there.");
         if (!a.get(0)[0].equals("ACTIVE")) throw new ResponseStatusException(HttpStatus.CONFLICT, "This asset has already been disposed of.");
         Integer waiting = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_asset_disposal WHERE asset_id = ? AND status = 'PENDING'", Integer.class, assetId);
         if (waiting != null && waiting > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "A disposal of this asset is already waiting to be decided.");
@@ -129,7 +129,7 @@ class AssetDisposalController {
         if (own != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, own);
         String note = in == null || in.note() == null || in.note().isBlank() ? null : in.note().trim();
         if (!approve && note == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say why the disposal is rejected.");
-        if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long (255 characters at most).");
+        if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long: it can have at most 255 characters. Shorten it and try again.");
         Long journal = null;
         if (approve) {
             List<Object[]> a = jdbc.query("""

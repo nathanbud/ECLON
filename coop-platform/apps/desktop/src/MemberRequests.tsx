@@ -2,7 +2,8 @@ import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { FiPaperclip, FiX } from 'react-icons/fi'
-import { approveMemberImport, approveMemberRequest, listMemberImports, listMemberRequests, rejectMemberImport, withdrawMemberImport, type ImportBatch, rejectMemberRequest, requestClosure, requestReactivation, withdrawMemberRequest, type MemberRequest, getDocumentSetup, uploadDocument } from './api'
+import { getMembershipPolicy, approveMemberImport, approveMemberRequest, listMemberImports, listMemberRequests, rejectMemberImport, withdrawMemberImport, type ImportBatch, rejectMemberRequest, requestClosure, requestReactivation, withdrawMemberRequest, type MemberRequest, getDocumentSetup, uploadDocument } from './api'
+import { getMemberDefaults } from './api/memberDefaults'
 import { glass } from './glass'
 import { useMe } from './session'
 import { ReasonDialog, ConfirmButton } from './ui/dialogs'
@@ -113,7 +114,10 @@ export function CloseDialog({ branchCode, clientId, name, onClose, onDone }: { b
 /** Ask to bring a dormant or closed member back on the same record. Accounts never formally closed are kept; missing ones are opened. */
 export function ReactivateDialog({ branchCode, clientId, name, onClose, onDone }: { branchCode: number; clientId: number; name: string; onClose: () => void; onDone: (msg: string) => void }) {
   const qc = useQueryClient()
-  const [clientType, setClientType] = useState('1')
+  const types = useQuery({ queryKey: ['member-defaults'], queryFn: getMemberDefaults })
+  const [picked, setClientType] = useState<string | null>(null)
+  // the member types this cooperative registers (Settings > Membership > Member defaults); the first one until another is chosen
+  const clientType = picked ?? String(types.data?.types[0]?.code ?? '')
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const save = useMutation({
@@ -128,7 +132,7 @@ export function ReactivateDialog({ branchCode, clientId, name, onClose, onDone }
         <Stack spacing={1.5} sx={{ pt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
           <TextField select size="small" label="Membership" value={clientType} onChange={(e) => setClientType(e.target.value)}>
-            <MenuItem value="1">Regular Individual</MenuItem><MenuItem value="2">Associate</MenuItem>
+            {(types.data?.types ?? []).map((t) => <MenuItem key={t.code} value={String(t.code)}>{t.name}</MenuItem>)}
           </TextField>
           <TextField size="small" label="Reason" value={note} onChange={(e) => setNote(e.target.value)} />
           <Typography sx={{ fontSize: 12 }} color="text.secondary">The same member record comes back, with its history. A Membership Officer other than you approves; a member who left owing money (bad debts or offset) also needs an administrator. A deceased member cannot be reactivated. Check the cooperative's rule on paying share capital again before approving.</Typography>
@@ -136,7 +140,7 @@ export function ReactivateDialog({ branchCode, clientId, name, onClose, onDone }
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" disabled={save.isPending || note.trim().length < 3} onClick={() => { setError(null); save.mutate() }}>Send for approval</Button>
+        <Button variant="contained" disabled={save.isPending || !clientType || note.trim().length < 3} onClick={() => { setError(null); save.mutate() }}>Send for approval</Button>
       </DialogActions>
     </Dialog>
   )
@@ -207,6 +211,10 @@ export default function MemberRequestsPanel() {
   const me = useMe()
   const qc = useQueryClient()
   const list = useQuery({ queryKey: ['member-requests', 'PENDING'], queryFn: () => listMemberRequests('PENDING'), refetchInterval: 30_000 })
+  // While a super administrator lets Membership Officers register members directly, an officer may approve their own waiting registration
+  // (including one sent before that was switched on). The server checks the same.
+  const policy = useQuery({ queryKey: ['membership-policy'], queryFn: getMembershipPolicy, staleTime: 60_000, retry: false })
+  const ownRegistrations = !!policy.data?.officerRegistersDirectly && me.roles.some((x) => x.replace('ROLE_', '') === 'MEMBERSHIP_OFFICER')
   const [rejecting, setRejecting] = useState<MemberRequest | null>(null)
   const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['member-requests'] }) }
@@ -232,7 +240,8 @@ export default function MemberRequestsPanel() {
                 <TableCell>{r.requestedBy}</TableCell><TableCell sx={{ whiteSpace: 'nowrap' }}>{when(r.requestedAt)}</TableCell>
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                   {me.canApprove && <>
-                    <Gated allowed={r.requestedBy.toLowerCase() !== me.username.toLowerCase()} reason="You made this request. Another Membership Officer must decide it.">
+                    <Gated allowed={r.requestedBy.toLowerCase() !== me.username.toLowerCase() || (r.kind === 'REGISTER' && ownRegistrations)}
+                      reason={r.kind === 'REGISTER' ? 'You made this request. Another Membership Officer must decide it, unless a super administrator lets officers register members directly (Membership policy).' : 'You made this request. Another Membership Officer must decide it.'}>
                       <Button size="small" disabled={act.isPending} onClick={() => act.mutate({ r, kind: 'approve' })}>Approve</Button>
                     </Gated>
                     <Gated allowed={r.requestedBy.toLowerCase() !== me.username.toLowerCase()} reason="You made this request. Another Membership Officer must decide it.">

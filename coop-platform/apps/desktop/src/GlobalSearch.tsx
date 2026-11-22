@@ -11,7 +11,7 @@ import { useMe } from './session'
 interface Destination { label: string; hint: string; view: View; tab?: string; keywords: string; group: string }
 type Option =
   | (Destination & { kind: 'destination' })
-  | { kind: 'client'; group: 'Clients'; label: string; hint: string; id: Id }
+  | { kind: 'client'; group: 'Members'; label: string; hint: string; id: Id }
 
 /** The screens this person may open, from the one list of screens the side menu and the tiles also use, plus Home. */
 function destinationsFor(me: Me): Destination[] {
@@ -66,7 +66,7 @@ export default function GlobalSearch({ onNavigate, onOpenClient }: { onNavigate:
   const destinations: Option[] = destinationsFor(me).filter((d) => matches(d, input)).map((d) => ({ ...d, kind: 'destination' as const }))
   const clients: Option[] = wantClients
     ? (data?.content ?? []).map((m) => ({
-        kind: 'client' as const, group: 'Clients' as const, label: displayName(m),
+        kind: 'client' as const, group: 'Members' as const, label: displayName(m),
         hint: `${memberNo(m.id)}${m.city ? ` · ${m.city}` : ''}`, id: m.id,
       }))
     : []
@@ -97,7 +97,7 @@ export default function GlobalSearch({ onNavigate, onOpenClient }: { onNavigate:
       noOptionsText="Nothing matches"
       renderInput={(params) => (
         <TextField
-          {...params} inputRef={ref} placeholder={`Search screens, modules and clients  (${GLOBAL_SEARCH_SHORTCUT})`}
+          {...params} inputRef={ref} placeholder={`Search screens, modules and members  (${GLOBAL_SEARCH_SHORTCUT})`}
           sx={{ '& .MuiInputBase-root': { color: 'inherit' }, '& input::placeholder': { opacity: 0.75 }, '& .MuiOutlinedInput-root': { borderRadius: '5px', fontSize: 12, fontWeight: 400, height: 26, py: '0 !important', bgcolor: 'transparent' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'text.disabled' } }}
           slotProps={{
             ...params.slotProps,

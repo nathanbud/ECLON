@@ -1,8 +1,9 @@
 import {
-  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, InputAdornment, TextField, ToggleButton, ToggleButtonGroup, Typography, type Theme,
+  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
+  type SxProps, type Theme,
 } from '@mui/material'
 import { useState, type ReactNode } from 'react'
-import { FiSearch } from 'react-icons/fi'
+import { FiInfo, FiSearch } from 'react-icons/fi'
 import { glass } from './glass'
 
 /** Small building blocks shared by the settings-style screens, so they look and move the same way. */
@@ -16,14 +17,33 @@ export const IconChip = ({ icon, color, size = 28 }: { icon: React.ReactNode; co
   <Box aria-hidden sx={{ width: size, height: size, flexShrink: 0, borderRadius: `${Math.round(size * 0.28)}px`, display: 'grid', placeItems: 'center', color, bgcolor: `${color}1F`, fontSize: Math.round(size * 0.55), lineHeight: 0 }}>{icon}</Box>
 )
 
-/** A large title with a quiet line under it. */
-export function PageTitle({ title, children }: { title: string; children?: ReactNode }) {
+/**
+ * A small ⓘ that shows an explanation (what a screen is for, how it works) on hover, on keyboard focus or on a tap, instead of a paragraph on the screen. Only for text a
+ * person can do without: an error, a warning, a limit to keep to or what an action is about to do stays on the screen.
+ */
+export function InfoTip({ children, label = 'About this screen' }: { children: ReactNode; label?: string }) {
+  const [open, setOpen] = useState(false)
   return (
-    <Box sx={{ mb: 2.5, px: 0.5 }}>
+    <Tooltip describeChild open={open} onOpen={() => setOpen(true)} onClose={() => setOpen(false)}
+      title={<Box sx={{ fontSize: 13, lineHeight: 1.45, py: 0.25 }}>{children}</Box>} slotProps={{ tooltip: { sx: { maxWidth: 400 } } }}>
+      <IconButton aria-label={label} onClick={() => setOpen((o) => !o)} sx={{ color: 'text.secondary', fontSize: 15, flexShrink: 0 }}><FiInfo /></IconButton>
+    </Tooltip>
+  )
+}
+
+/** A screen's title, with its explanation behind an ⓘ beside it (see {@link InfoTip}). */
+export function ScreenTitle({ title, children, sx }: { title: ReactNode; children?: ReactNode; sx?: SxProps<Theme> }) {
+  return (
+    <Box sx={[{ display: 'flex', alignItems: 'center', gap: 0.25, minWidth: 0 }, ...(Array.isArray(sx) ? sx : [sx])]}>
       <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.25 }}>{title}</Typography>
-      {children && <Typography color="text.secondary" sx={{ fontSize: 13, mt: 0.5, maxWidth: 720 }}>{children}</Typography>}
+      {children && <InfoTip>{children}</InfoTip>}
     </Box>
   )
+}
+
+/** A large title, with its explanation behind an ⓘ. */
+export function PageTitle({ title, children }: { title: string; children?: ReactNode }) {
+  return <ScreenTitle title={title} sx={{ mb: 2.5, px: 0.5 }}>{children}</ScreenTitle>
 }
 
 /** The rounded surface a list or table sits on. */

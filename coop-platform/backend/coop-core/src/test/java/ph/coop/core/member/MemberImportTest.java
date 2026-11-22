@@ -41,9 +41,9 @@ class MemberImportTest {
         return a;
     }
 
-    /** The uploader must be a real user of the old system, because the new members are credited to them. */
+    /** The uploader: a Membership Officer, and a real user of the old system, because the new members are credited to them. */
     private static Authentication admin() {
-        return me("admin", "ROLE_ADMIN", "PERM_MEMBER_EDIT");
+        return me("admin", "ROLE_MEMBERSHIP_OFFICER", "PERM_MEMBER_EDIT");
     }
 
     private static Authentication officer() {
@@ -119,10 +119,14 @@ class MemberImportTest {
     }
 
     @Test
-    void onlyAdministratorsMayUploadAndOnlyOfficersDecide() {
+    void onlyMembershipOfficersMayUpload() {
         var staff = me("clerk", "PERM_MEMBER_EDIT");
         assertThrows(AccessDeniedException.class, () -> imports.preview(csv(list()), 1));
         assertThrows(AccessDeniedException.class, () -> imports.upload(csv(list()), 1, true, staff));
+        // an administrator who is not a Membership Officer may not either
+        var administrator = me("admin", "ROLE_ADMIN", "PERM_MEMBER_EDIT");
+        assertThrows(AccessDeniedException.class, () -> imports.preview(csv(list()), 1));
+        assertThrows(AccessDeniedException.class, () -> imports.upload(csv(list()), 1, true, administrator));
         assertTrue(imports.templateCsv().getBody().startsWith("LName,"));
     }
 

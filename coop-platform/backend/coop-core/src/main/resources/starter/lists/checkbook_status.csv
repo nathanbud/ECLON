@@ -1,0 +1,7 @@
+checkbook_statusid,checkbook_statusdesc
+1,New
+2,Approved
+3,Disapproved
+4,Cancelled
+5,Deferred
+6,Released

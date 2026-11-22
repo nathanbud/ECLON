@@ -34,6 +34,27 @@ export async function getPublicConnections(serverUrl?: string): Promise<PublicCo
 }
 
 export const getConnections = () => getJson<ConnectionRow[]>('/api/admin/connections')
+
+/**
+ * Whether the connected database has every database change this server needs (SchemaCheck on the server, checked at start and after a switch).
+ * BEHIND: some are missing (screens that use them fail); NEWER: the database was updated by a newer version; NO_LOG: it keeps no record; NOT_CHECKED: MySQL, or the check failed.
+ */
+export interface SchemaStatus {
+  state: 'UP_TO_DATE' | 'BEHIND' | 'NEWER' | 'NO_LOG' | 'NOT_CHECKED'
+  database: string | null
+  message: string
+  missing: string[]
+  newer: string[]
+  changed: string[]
+  lastExpected: string | null
+  lastRecorded: string | null
+}
+export const getSchemaStatus = () => getJson<SchemaStatus>('/api/admin/schema-status')
+/** What applying the missing changes did: the files applied, the one that failed (rolled back; nothing after it tried), a sentence, and the state after. */
+export interface SchemaApplyResult { applied: string[]; failedFile: string | null; message: string; status: SchemaStatus }
+/** Super administrators: apply the missing changes with a database administrator's login, used once and not kept. */
+export const applySchemaChanges = (adminUser: string, adminPassword: string, reason: string) =>
+  send<SchemaApplyResult>('POST', '/api/admin/schema-status/apply', { adminUser, adminPassword, reason })
 export const createConnection = (c: ConnectionIn) => send<ConnectionRow>('POST', '/api/admin/connections', c)
 export const updateConnection = (id: string, c: ConnectionIn) => send<ConnectionRow>('PUT', `/api/admin/connections/${id}`, c)
 export const deleteConnection = (id: string) => send<void>('DELETE', `/api/admin/connections/${id}`)

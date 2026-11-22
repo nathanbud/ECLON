@@ -17,7 +17,7 @@ describe('sortApplications', () => {
     expect(ids(sortApplications(rows, 'date-asc'))).toEqual([3, 1, 2, 4])
   })
 
-  it('orders by name ignoring case, a member with no name as Client <number>', () => {
+  it('orders by name ignoring case, a member with no name as Member <number>', () => {
     expect(ids(sortApplications(rows, 'name'))).toEqual([4, 3, 2, 1])
   })
 

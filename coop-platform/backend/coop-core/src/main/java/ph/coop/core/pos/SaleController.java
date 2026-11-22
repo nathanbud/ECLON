@@ -64,7 +64,10 @@ class SaleController {
     private final StockService stock;
     private final PosSupport pos;
 
-    SaleController(JdbcTemplate jdbc, Db db, InventorySupport support, StockService stock, PosSupport pos) {
+    private final ph.coop.core.businessday.BusinessDay businessDay;
+
+    SaleController(JdbcTemplate jdbc, Db db, InventorySupport support, StockService stock, PosSupport pos, ph.coop.core.businessday.BusinessDay businessDay) {
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.db = db;
         this.support = support;
@@ -103,14 +106,15 @@ class SaleController {
     @Transactional
     Summary sell(@RequestBody NewSale in, Authentication auth) {
         pos.requireSeller(auth);
+        businessDay.requireStarted(InventorySupport.BRANCH); // a sale takes money: only while the branch has a business day open
         LocalDate today = support.today();
         Integer wh = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_warehouse WHERE branch_code = ? AND id = ? AND active = 1", Integer.class, InventorySupport.BRANCH, in.warehouseId());
-        if (wh == null || wh == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such active warehouse.");
+        if (wh == null || wh == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That warehouse was not found or is switched off. Choose an active warehouse from the list.");
         if (in.lines() == null || in.lines().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Add at least one product.");
         if (in.lines().size() > 200) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A sale can have at most 200 lines.");
         if (in.clientId() != null) {
             Integer c = jdbc.queryForObject("SELECT COUNT(*) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", Integer.class, InventorySupport.BRANCH, in.clientId());
-            if (c == null || c == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No such member.");
+            if (c == null || c == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
         }
         if (in.customerName() != null && in.customerName().length() > 80) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The customer name is too long (80 characters at most).");
 

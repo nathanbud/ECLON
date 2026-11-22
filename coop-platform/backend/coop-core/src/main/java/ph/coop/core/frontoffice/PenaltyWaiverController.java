@@ -142,7 +142,7 @@ class PenaltyWaiverController {
 
     private Person who(Authentication auth) {
         Person p = poster.person(auth.getName());
-        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be posted.");
+        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be posted (every entry carries the department of the person who makes it). Ask an administrator to set your department in Settings > Users, then try again.");
         return p;
     }
 
@@ -154,10 +154,10 @@ class PenaltyWaiverController {
     private List<String> problems(Person p, Request r) {
         List<String> out = new ArrayList<>();
         if (r.amount() == null || r.amount().signum() <= 0) out.add("Enter the amount waived.");
-        else if (r.amount().stripTrailingZeros().scale() > 2) out.add("The amount can have at most 2 decimal places.");
+        else if (r.amount().stripTrailingZeros().scale() > 2) out.add("An amount can have at most 2 decimal places (centavos). Round it and try again.");
         if (r.reason() == null || r.reason().trim().length() < 5) out.add("Give the reason (at least 5 characters), for example the approval it was waived under.");
         if (jdbc.queryForObject("SELECT COUNT(*) FROM loan WHERE LoanBR_CODE = ? AND ClientIDLoan = ? AND LoanSLC_CODE = ? AND LoanSLT_CODE = ? AND LoanREF_NO = ?", Integer.class,
-            p.branch(), r.clientId(), CLASS_LOANS, r.typeCode(), r.refNo()) == 0) out.add("That client has no such loan.");
+            p.branch(), r.clientId(), CLASS_LOANS, r.typeCode(), r.refNo()) == 0) out.add("That member has no such loan.");
         if (r.expenseAccount() == null || expenseAccounts().stream().noneMatch((e) -> e.code().equals(r.expenseAccount()))) out.add("Choose the \"penalty waived\" account to debit.");
         try {
             poster.glAccount(p.branch(), CLASS_LOANS, r.typeCode(), WAIVED, 99);

@@ -16,6 +16,8 @@ test-results/
 
 # logs, IDE, OS
 *.log
+# the backend's log folder, including the rolled copies (backend.log.2026-11-20.0.gz)
+logs/
 .idea/
 .vscode/
 .DS_Store
@@ -33,8 +35,6 @@ backups/
 pics/CIC/**/*_CSDF_*
 pics/CIC/**/*.txt
 
-# the speech model for voice commands (large; fetched by scripts/fetch-voice-model.ps1)
-coop-platform/apps/desktop/public/voice/model.tar.gz
 
 # real CIC submission files and other member data kept for reference: never commit
 pics/CIC/

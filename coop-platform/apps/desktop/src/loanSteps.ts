@@ -46,7 +46,7 @@ export const LOAN_SORTS: { value: LoanSort; label: string }[] = [
 
 type Sortable = Pick<LoanApplicationItem, 'id' | 'date' | 'clientName' | 'clientId' | 'status' | 'waitingForDeductions' | 'releaseStatus'>
 
-const nameOf = (a: Sortable) => (a.clientName ?? `Client ${a.clientId}`).trim()
+const nameOf = (a: Sortable) => (a.clientName ?? `Member ${a.clientId}`).trim()
 /** Newest first: by date, then by id (the later saved first) for the same day. */
 const newest = (a: Sortable, b: Sortable) => b.date.localeCompare(a.date) || b.id - a.id
 

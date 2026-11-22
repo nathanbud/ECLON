@@ -1,0 +1,7 @@
+creditortypeid,creditortypedesc
+1,Active Coop
+2,Other COOP
+3,Credit Card
+4,Bank
+5,Lending Institution
+99,Others

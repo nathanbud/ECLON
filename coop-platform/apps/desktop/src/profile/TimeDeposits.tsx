@@ -30,7 +30,7 @@ export function TimeDepositsTab({ id, teller = false }: { id: Id; teller?: boole
         {teller && <Button size="small" variant="outlined" startIcon={<FiPlus />} onClick={() => setPlacing(true)}>Place a time deposit</Button>}
         <FormControlLabel control={<Switch size="small" checked={showClosed} onChange={(_, v) => setShowClosed(v)} />} label="Show closed certificates" />
       </Box>
-      {!data || data.deposits.length === 0 ? <EmptyState icon={<FiInfo />} title="No time deposits" hint="This client has no running time deposit certificates." /> : (
+      {!data || data.deposits.length === 0 ? <EmptyState icon={<FiInfo />} title="No time deposits" hint="This member has no running time deposit certificates." /> : (
         <TableCard>
           <Table size="small" aria-label="Time deposits">
             <TableHead>

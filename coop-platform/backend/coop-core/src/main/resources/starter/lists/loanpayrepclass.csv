@@ -1,0 +1,9 @@
+loanpayrepclassid,loanpayrepclassdesc
+1,Principal
+2,Interest
+3,Penalty
+4,Service Fee
+5,Loan Insurance
+6,Unearned Interest
+98,Misc
+99,Others

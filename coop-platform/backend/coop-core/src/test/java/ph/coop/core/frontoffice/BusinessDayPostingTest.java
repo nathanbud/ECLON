@@ -41,6 +41,8 @@ class BusinessDayPostingTest {
     @Autowired BusinessDayController days;
     @Autowired BusinessDay businessDay;
     @Autowired DayEndChecks dayEnd;
+    @Autowired DrawerOpenController drawerOpen;
+    @Autowired ph.coop.core.businessday.DrawerOpening drawerOpening;
     @Autowired JdbcTemplate jdbc;
 
     private final Authentication admin = new TestingAuthenticationToken("itest-admin", null, "ROLE_ADMIN");
@@ -83,9 +85,10 @@ class BusinessDayPostingTest {
         return new Request(client, type, ref, new BigDecimal(amount), "itest business day", null, true, null);
     }
 
-    /** Opens the date (confirming whatever it warns about) as an administrator. */
+    /** Opens the date (confirming whatever it warns about) as an administrator, and the teller's drawer for it (counted on paper here). */
     private void start(LocalDate d) {
         days.start(new StartIn(d.toString(), true), admin);
+        if (drawerOpening.available()) drawerOpen.open(new DrawerOpenController.OpenIn(HandoverRules.TELLER, Map.of(), "itest: counted on paper"), as(teller));
     }
 
     private LocalDate openable(LocalDate d) {
@@ -118,6 +121,53 @@ class BusinessDayPostingTest {
     }
 
     @Test
+    void cashWaitsUntilTheTellerHasOpenedTheDrawerAndTheOpeningIsKept() {
+        assumeTrue(drawerOpening.available(), "no drawer opening table in this database");
+        LocalDate today = openable(LocalDate.now());
+        days.start(new StartIn(today.toString(), true), admin);
+        assertTrue(drawerOpening.required());
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> savings.deposit(deposit("100.00"), as(teller)));
+        assertEquals(ph.coop.core.businessday.DrawerOpening.NOT_OPEN, e.getReason());
+        // a blind count that does not match needs a reason
+        assertThrows(ResponseStatusException.class, () -> drawerOpen.open(new DrawerOpenController.OpenIn(HandoverRules.TELLER, Map.of(1, 1), null), as(teller)));
+        var opened = drawerOpen.open(new DrawerOpenController.OpenIn(HandoverRules.TELLER, Map.of(1, 1), "itest: one note"), as(teller));
+        assertEquals(0, new BigDecimal("1000.00").compareTo(opened.counted()));
+        assertEquals(0, opened.counted().subtract(opened.expected()).compareTo(opened.difference()));
+        assertEquals(409, assertThrows(ResponseStatusException.class, () -> drawerOpen.open(new DrawerOpenController.OpenIn(HandoverRules.TELLER, Map.of(), "again"), as(teller))).getStatusCode().value());
+        assertTrue(drawerOpen.mine(as(teller)).drawers().stream().anyMatch((d) -> d.opened() && d.event() == HandoverRules.TELLER));
+        savings.deposit(deposit("100.00"), as(teller));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'drawer.open' AND entity_id = ?", Integer.class, "Teller " + tellerNumber + " " + today));
+    }
+
+    @Test
+    void endDayRunsTheEndOfDayJobsAndAFailedOrSkippedStepCanBeRunAgain() {
+        LocalDate today = openable(LocalDate.now());
+        start(today);
+        savings.deposit(deposit("100.00"), as(teller));
+        var state = days.runJobs(admin);
+        assumeTrue(state.available(), "no end-of-day tables in this database");
+        assertEquals(5, state.steps().size());
+        assertTrue(state.steps().stream().allMatch((s) -> "DONE".equals(s.status())), state.steps().toString());
+        var balances = state.steps().stream().filter((s) -> s.key().equals("balances")).findFirst().orElseThrow();
+        assertTrue(balances.result().contains("savings"), balances.result());
+        Integer savingsRows = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_eod_balance WHERE branch_code = 1 AND business_date = ? AND kind = 'PRODUCT' AND item LIKE '22/%'",
+            Integer.class, java.sql.Date.valueOf(today));
+        assertTrue(savingsRows != null && savingsRows > 0);
+        Integer aged = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_loan_aging WHERE branch_code = 1 AND business_date = ?", Integer.class, java.sql.Date.valueOf(today));
+        assertTrue(aged != null && aged > 0, "open loans are aged");
+        Integer late = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_loan_aging WHERE branch_code = 1 AND business_date = ? AND days_past_due > 0 AND bucket = 'CURRENT'", Integer.class, java.sql.Date.valueOf(today));
+        assertEquals(0, late, "a late loan is never in the current bucket");
+        // running again skips the steps that are done: nothing is counted twice
+        var again = days.runJobs(admin);
+        assertTrue(again.steps().stream().allMatch((s) -> s.attempts() == 1), again.steps().toString());
+        // End Day runs them once more (the steps that read the day) before closing
+        days.end(new BusinessDayController.ReasonIn("itest: closing with the jobs"), admin);
+        var after = days.jobs(today.toString(), admin);
+        assertTrue(after.steps().stream().filter((s) -> s.key().equals("balances")).allMatch((s) -> s.attempts() == 2), after.steps().toString());
+        assertTrue(after.steps().stream().filter((s) -> s.key().equals("accruals")).allMatch((s) -> s.attempts() == 1), "the accrual step is done once");
+    }
+
+    @Test
     void startDayRefusesTheFutureASecondOpenDayAndPeopleWithoutTheRight() {
         LocalDate today = openable(LocalDate.now());
         ResponseStatusException future = assertThrows(ResponseStatusException.class, () -> start(today.plusDays(1)));
@@ -139,6 +189,8 @@ class BusinessDayPostingTest {
         assertTrue(!drawers.ok() && drawers.detail().contains("Teller " + tellerNumber), drawers.toString());
         ResponseStatusException refused = assertThrows(ResponseStatusException.class, () -> days.end(new BusinessDayController.ReasonIn(null), admin));
         assertTrue(refused.getReason().contains("Teller " + tellerNumber) && refused.getReason().contains("give the reason"), refused.getReason());
+        // refused at once: the end-of-day jobs (a minute or two) were not run for an End Day that could not go ahead
+        assertTrue(days.jobs(today.toString(), admin).steps().stream().allMatch((s) -> s.attempts() == 0), "no job ran before the refusal");
         var state = days.end(new BusinessDayController.ReasonIn("Teller counted on paper; system was down"), admin);
         assertNull(state.open());
         assertEquals(today.toString(), state.lastClosed().date());

@@ -28,8 +28,28 @@ foreach ($l in Get-Content (Join-Path $root 'coop-platform\apps\desktop\.env.loc
   if ($l -match '^VITE_DEV_API_USER=(.*)$') { $env:DEV_API_USER = $Matches[1].Trim() }
   if ($l -match '^VITE_DEV_API_PASSWORD=(.*)$') { $env:DEV_API_PASSWORD = $Matches[1].Trim() }
 }
+# The backend runs hidden, so it always writes a log: logs\backend.log beside the backend (git-ignored), rolled at 10 MB, kept 14 days and 200 MB at most.
+# Errors behind "Something went wrong on the server" are found there. Set LOGGING_FILE_NAME before this script to write it somewhere else.
+# The log can hold member details from failed requests (a refused value, a record number); it stays on this computer and is never committed.
+if (-not $env:LOGGING_FILE_NAME) { $env:LOGGING_FILE_NAME = Join-Path $core 'logs\backend.log' }
+New-Item -ItemType Directory -Force (Split-Path $env:LOGGING_FILE_NAME) | Out-Null
+$env:LOGGING_LOGBACK_ROLLINGPOLICY_MAX_FILE_SIZE = '10MB'
+$env:LOGGING_LOGBACK_ROLLINGPOLICY_MAX_HISTORY = '14'
+$env:LOGGING_LOGBACK_ROLLINGPOLICY_TOTAL_SIZE_CAP = '200MB'
+Write-Host "Log: $env:LOGGING_FILE_NAME"
+$started = Get-Date
 Start-Process -FilePath java -ArgumentList '-jar', 'target/coop-core-0.1.0-SNAPSHOT.jar' -WorkingDirectory $core -WindowStyle Hidden
-Start-Sleep 25
-$h = (Invoke-WebRequest http://localhost:8090/actuator/health -UseBasicParsing).Content
+
+# Wait until it answers (usually 15 to 30 seconds), up to two minutes; if it never does, show the end of this start's log.
+$h = $null
+while (-not $h -and ((Get-Date) - $started).TotalSeconds -lt 120) {
+  Start-Sleep 3
+  try { $h = (Invoke-WebRequest http://localhost:8090/actuator/health -UseBasicParsing -TimeoutSec 5).Content } catch { }
+}
+if (-not $h) {
+  Write-Host 'The backend did not answer within two minutes. The end of its log:'
+  if (Test-Path $env:LOGGING_FILE_NAME) { Get-Content $env:LOGGING_FILE_NAME -Tail 40 }
+  throw 'Backend did not start'
+}
 if ($h -is [byte[]]) { $h = [Text.Encoding]::UTF8.GetString($h) }
 $h

@@ -9,7 +9,7 @@ export const memberNo = (id: Id) => `${String(id.branchCode).padStart(4, '0')}-$
 export const displayName = (m: Pick<Member, 'accountName' | 'lastName' | 'firstName' | 'middleName' | 'suffix'>) => {
   if (m.accountName) return m.accountName
   const given = [m.firstName, m.middleName ? `${m.middleName[0]}.` : null].filter(Boolean).join(' ')
-  return [[m.lastName, given].filter(Boolean).join(', '), m.suffix].filter(Boolean).join(' ') || 'Unnamed client'
+  return [[m.lastName, given].filter(Boolean).join(', '), m.suffix].filter(Boolean).join(' ') || 'Unnamed member'
 }
 
 export const initials = (m: Pick<Member, 'accountName' | 'lastName' | 'firstName'>) =>

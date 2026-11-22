@@ -124,18 +124,18 @@ class UserProfileController {
 
         var client = new LinkedHashMap<String, List<Spec>>();
         client.put("Clients", List.of(
-            b("Add new client", "AccessCanAddNewClient"), b("Edit client", "AccessCanEditClient"), b("Delete client", "AccessCanDeleteClient"),
-            b("Edit client name", "AccessCanEditClientName"), b("Edit client images", "AccessCanEditClientImages"), b("View closed clients", "AccessCanViewClosedClients"),
-            b("Close client", "AccessCanCloseClient"), b("Approve client", "AccessCanApproveClient"), b("Edit client department", "AccessCanEditClientDept"),
-            b("Transact for clients with a warning", "AccessCanTransactClientWARNING"), b("Transact for closed clients", "AccessCanTransactClosedClient"),
-            b("Ask for client ID by default", "AccessIsClientIDDefaultPrompt")));
-        client.put("Client details", List.of(
+            b("Add new member", "AccessCanAddNewClient"), b("Edit member", "AccessCanEditClient"), b("Delete member", "AccessCanDeleteClient"),
+            b("Edit member name", "AccessCanEditClientName"), b("Edit member images", "AccessCanEditClientImages"), b("View closed members", "AccessCanViewClosedClients"),
+            b("Close member", "AccessCanCloseClient"), b("Approve member", "AccessCanApproveClient"), b("Edit member department", "AccessCanEditClientDept"),
+            b("Transact for members with a warning", "AccessCanTransactClientWARNING"), b("Transact for closed members", "AccessCanTransactClosedClient"),
+            b("Ask for member ID by default", "AccessIsClientIDDefaultPrompt")));
+        client.put("Member details", List.of(
             b("Edit SMS number", "AccessCanEditClientSMSNumber"), b("Edit email address", "AccessCanEditClientEmailAddress"),
             b("Edit sources of income", "AccessCanEditClientSourcesOfIncome"), m("Max sources of income", "AccessMaxClientSourcesOfIncome"),
             b("Edit credit limit", "AccessCanEditClientCreditLimit"), m("Max credit limit", "AccessMaxClientCreditLimit")));
         client.put("Approval and holds", List.of(
-            list("Can approve client types", "AccessCanApproveClientType", "clientType"), b("Add hold", "AccessCanAddHold"),
-            b("Delete hold", "AccessCanDeleteHold"), b("Modify hold", "AccessCanModifyHold"), n("Own client no.", "AccessClientID")));
+            list("Can approve member types", "AccessCanApproveClientType", "clientType"), b("Add hold", "AccessCanAddHold"),
+            b("Delete hold", "AccessCanDeleteHold"), b("Modify hold", "AccessCanModifyHold"), n("Own member no.", "AccessClientID")));
         out.put("client", client);
 
         var receivables = new LinkedHashMap<String, List<Spec>>();
@@ -152,7 +152,7 @@ class UserProfileController {
             note("5 · Loan Release", LOAN_RELEASE,
                 "Approve and post the release voucher. This is the New right on Cash Voucher in the Transaction Types tab; the person who approved the application may not release it.")));
         receivables.put("Loan setup (old system)", List.of(
-            b("Create loan setup", "AccessCanCreateLoanSetup", OLD_ONLY + " Here, loan types are changed by administrators in Settings > Loan Setup."),
+            b("Create loan setup", "AccessCanCreateLoanSetup", OLD_ONLY + " Here, loan types are changed by administrators in Settings > Products > Loan products."),
             b("Edit loan setup", "AccessCanEditLoanSetup", OLD_ONLY), b("Batch edit loan setups", "AccessCanBatchEditLoanSetups", OLD_ONLY)));
         receivables.put("Loan applications (old system)", List.of(
             b("Edit loan application", "AccessCanEditLoanApplication", OLD_ONLY), b("Delete loan application", "AccessCanDeleteLoanApplication", OLD_ONLY),
@@ -356,7 +356,7 @@ class UserProfileController {
 
     @PatchMapping("/profile")
     EditResult edit(@PathVariable String username, @RequestBody EditRequest req, Authentication auth) {
-        if (!editAvailable()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Editing is not enabled on this server.");
+        if (!editAvailable()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Changes are switched off on this server, so nothing can be saved. Ask your administrator to switch editing on (the server setting COOP_EDIT_ENABLED).");
         if (req.changes() == null || req.changes().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "There is nothing to save.");
 
         // 1. Check every value before touching the database.
@@ -388,7 +388,7 @@ class UserProfileController {
                     for (String c : cols) row.put(c, rs.getString(c));
                     return row;
                 }, username);
-            if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found.");
+            if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That user was not found; they may have been removed or the name mistyped. Reload the list of users and choose again.");
             Map<String, String> current = found.get(0);
 
             String problem = UserEditRules.problem(by, levelOf(by, "SUPERADMIN"), current.get("AccessUserName"), current.get("AccessLevel"), clean.containsKey("AccessLevel"));
@@ -421,7 +421,7 @@ class UserProfileController {
     /** Changes what a person may do with a type of transaction. */
     @PutMapping("/transaction-types")
     EditResult editTransactionTypes(@PathVariable String username, @RequestBody TransEditRequest req, Authentication auth) {
-        if (!editAvailable()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Editing is not enabled on this server.");
+        if (!editAvailable()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Changes are switched off on this server, so nothing can be saved. Ask your administrator to switch editing on (the server setting COOP_EDIT_ENABLED).");
         if (req.changes() == null || req.changes().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "There is nothing to save.");
         for (TransChange c : req.changes()) {
             if (!TRANSACTION_COLUMNS.contains(c.column())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The permission '" + c.column() + "' cannot be edited.");
@@ -429,7 +429,7 @@ class UserProfileController {
         String by = auth.getName();
         return tx.execute((status) -> {
             List<int[]> ids = jdbc.query("SELECT AccessBR_CODE, AccessID FROM access WHERE AccessUserName = ? FOR UPDATE", (rs, i) -> new int[] {rs.getInt(1), rs.getInt(2)}, username);
-            if (ids.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found.");
+            if (ids.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That user was not found; they may have been removed or the name mistyped. Reload the list of users and choose again.");
             String problem = UserEditRules.problem(by, levelOf(by, "SUPERADMIN"), username, levelOf(username, "USER"), false);
             if (problem != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, problem);
             int branch = ids.get(0)[0];

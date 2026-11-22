@@ -62,7 +62,7 @@ class AuditChangesTest {
     @Test void nestedValuesAreShownCompactAndNamesAreTakenApart() {
         List<Change> c = of("cash.drawer.add", null, "{\"links\":[{\"type\":1,\"account\":\"10101\"}],\"clientType\":2}");
         assertEquals("[{\"type\":1,\"account\":\"10101\"}]", c.get(0).after());
-        assertEquals("Client type", c.get(1).label());
+        assertEquals("Member type", c.get(1).label());
         assertEquals("Last deposit or withdrawal", AuditChanges.label("lastActivity", null));
         assertEquals("Value", AuditChanges.label("", null));
         assertNull(AuditChanges.show(null));

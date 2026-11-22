@@ -61,7 +61,7 @@ public class MemberPrivacyController {
         String how = in.how() == null ? "" : in.how().trim().toUpperCase();
         if (!HOW.contains(how)) throw bad("Say how the notice was given: verbally, in writing or electronically.");
         Integer member = jdbc.queryForObject("SELECT COUNT(*) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", Integer.class, branchCode, clientId);
-        if (member == null || member == 0) throw notFound("Member not found.");
+        if (member == null || member == 0) throw notFound("That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
         State s = state(branchCode, clientId);
         if (s.active() == null) throw conflict("There is no privacy notice in force yet. A data protection officer must activate one first.");
         if (s.upToDate()) throw conflict("This member has already been given the current notice (version " + s.active().version() + ").");

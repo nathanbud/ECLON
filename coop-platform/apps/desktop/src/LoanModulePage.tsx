@@ -10,6 +10,7 @@ import { LoanApplicationsPanel } from './LoanApplicationsPanel'
 import { FILTERS, LoanMenu, NEW_LOAN_SHORTCUT, type LoanFilter } from './LoanMenu'
 import { useMe } from './session'
 import { ToolbarPortal } from './toolbarSlot'
+import { ScreenTitle } from './appleUi'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 
@@ -74,8 +75,7 @@ export default function LoanModulePage() {
       <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
           <Box sx={{ flex: 1, minWidth: 240 }}>
-            <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>Loan Module</Typography>
-            <Typography color="text.secondary" sx={{ fontSize: 13 }}>Start a loan application and take it through its steps up to approval.</Typography>
+            <ScreenTitle title="Loan Module">Start a loan application and take it through its steps up to approval.</ScreenTitle>
           </Box>
           <Button variant="contained" startIcon={<FiFilePlus />} disabled={!mayStart} onClick={start} aria-keyshortcuts={isMac ? 'Meta+N' : 'Control+N'}
             title={!mayStart ? 'Your account may not do the Profiling step.' : `New loan application (${NEW_LOAN_SHORTCUT})`}>

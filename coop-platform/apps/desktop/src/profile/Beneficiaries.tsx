@@ -79,7 +79,7 @@ export function BeneficiariesTab({ id, lk }: { id: Id; lk?: Lookups }) {
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       {me.canEdit && <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}><Button size="small" variant="contained" onClick={() => setForm({})}>Add beneficiary</Button></Box>}
       {rows.length === 0 ? (
-        <EmptyState icon={<FiUsers />} title="No beneficiaries" hint="No beneficiary is recorded for this client." />
+        <EmptyState icon={<FiUsers />} title="No beneficiaries" hint="No beneficiary is recorded for this member." />
       ) : (
         <TableCard>
           <Table size="small" aria-label="Beneficiaries">

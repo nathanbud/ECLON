@@ -129,9 +129,9 @@ class ClientDetailController {
             t("Delivery fee factor", "DeliveryFeeFactor")));
         others.put("Settings", List.of(
             b("Excluded from SSP", "SSPExcluded"), b("Show total points", "IsShowTotalPoints"), t("Loan availment type", "LoanAvailType"),
-            t("Rating", "Rating"), t("Joint type", "JointType"), t("Primary client no.", "CLIENTID_PRIMARY")));
+            t("Rating", "Rating"), t("Joint type", "JointType"), t("Primary member no.", "CLIENTID_PRIMARY")));
         others.put("Previous records", List.of(
-            t("Old client ID", "OldClientID"), t("Old PSBN", "OldPSBN"), t("Old client name", "OldClientName"),
+            t("Old member ID", "OldClientID"), t("Old PSBN", "OldPSBN"), t("Old member name", "OldClientName"),
             t("Encoded by", "EncdBy"), d("Encoded on", "EncdDateTime"), t("Last updated by", "UpdUser"), d("Last updated", "UpdDateTime")));
         others.put("Remarks", List.of(t("Remarks", "Remarks")));
         tabs.put("others", others);
@@ -162,7 +162,7 @@ class ClientDetailController {
             t("Provincial city", "ProvAddCity"), t("Provincial province", "ProvAddProvince"), t("Provincial zip code", "ProvAddZipCode"),
             t("Profession", "Profession"),
             m("Monthly income", "BusinessIncome"), l("Health care", "IsIncludeHealthCare", "yesNo"),
-            l("Client type", "ClientType", "clientType"), l("Account type", "AccountType", "accountType"),
+            l("Member type", "ClientType", "clientType"), l("Account type", "AccountType", "accountType"),
             l("Department", "ClientDEPT", "department"), l("DOSRI tag", "DOSRITag", "dosriTag"));
     }
 

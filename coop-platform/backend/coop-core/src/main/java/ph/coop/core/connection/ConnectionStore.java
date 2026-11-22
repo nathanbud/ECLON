@@ -98,7 +98,7 @@ public class ConnectionStore {
 
     private static int indexOf(List<DbConnection> list, String id) {
         for (int i = 0; i < list.size(); i++) if (list.get(i).id().equals(id)) return i;
-        throw ApiErrors.notFound("There is no such connection.");
+        throw ApiErrors.notFound("That saved connection was not found; it may have been removed. Reload the list of connections and choose again.");
     }
 
     private String newId(List<DbConnection> existing) {

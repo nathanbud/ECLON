@@ -2,6 +2,7 @@ package ph.coop.core.member;
 
 
 
+import ph.coop.core.connection.DatabaseChanges;
 import ph.coop.core.audit.AuditLog;import static ph.coop.core.web.ApiErrors.bad;import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -32,7 +33,7 @@ import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.db.Db;
 
 /**
- * Advanced mode: registering many members from a CSV or Excel list. An administrator uploads the list. It is checked row by row with the same rules as a single registration (required
+ * Advanced mode: registering many members from a CSV or Excel list. A Membership Officer uploads the list (administrators without the role may not). It is checked row by row with the same rules as a single registration (required
  * fields, age, coded values, no same name and birth date already on file, in the file or waiting); every valid row becomes a pending registration request belonging to one batch. A
  * Membership Officer other than the uploader then approves the batch, which opens the members one at a time exactly as a single approval does and reports what succeeded; or rejects it.
  * Photos and fingerprints are not part of a list: they are added afterwards on each member.
@@ -59,16 +60,18 @@ public class MemberImportController {
     private final Db db;
     private final LookupController lookups;
     private final MemberLifecycleController lifecycle;
+    private final MemberDefaults defaults;
     private final ObjectMapper json;
     private final org.springframework.transaction.support.TransactionTemplate tx;
 
-    MemberImportController(JdbcTemplate jdbc, Db db, LookupController lookups, MemberLifecycleController lifecycle, ObjectMapper json,
+    MemberImportController(JdbcTemplate jdbc, Db db, LookupController lookups, MemberLifecycleController lifecycle, MemberDefaults defaults, ObjectMapper json,
                            org.springframework.transaction.PlatformTransactionManager txManager) {
         this.tx = new org.springframework.transaction.support.TransactionTemplate(txManager);
         this.jdbc = jdbc;
         this.db = db;
         this.lookups = lookups;
         this.lifecycle = lifecycle;
+        this.defaults = defaults;
         this.json = json;
     }
 
@@ -79,7 +82,7 @@ public class MemberImportController {
 
     private void requireInstalled() {
         if (!db.allTablesExist("ecis_member_import", "ecis_member_request", "ecis_audit_log") || !db.columnExists("ecis_member_request", "batch_id")) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Importing a list is not installed on this server (V043).");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, DatabaseChanges.notSetUp("importing a list of members"));
         }
     }
 
@@ -102,7 +105,7 @@ public class MemberImportController {
 
     /** Checks the list and reports every row, without saving anything. */
     @PostMapping("/preview")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MEMBERSHIP_OFFICER')")
     public Preview preview(@RequestParam("file") MultipartFile file, @RequestParam(defaultValue = "1") int branchCode) throws IOException {
         requireInstalled();
         return check(file, branchCode).preview();
@@ -110,14 +113,14 @@ public class MemberImportController {
 
     /** Saves the list as one batch of pending registrations waiting for a Membership Officer. Rows with problems are left out when {@code skipErrors} is true; otherwise any problem stops it. */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MEMBERSHIP_OFFICER')")
     public Batch upload(@RequestParam("file") MultipartFile file, @RequestParam(defaultValue = "1") int branchCode, @RequestParam(defaultValue = "false") boolean skipErrors,
                         Authentication auth) throws IOException {
         requireInstalled();
         Checks c = check(file, branchCode);
         if (c.preview().errors() > 0 && !skipErrors) throw new ResponseStatusException(HttpStatus.CONFLICT, c.preview().errors() + " row(s) have problems. Fix them, or choose to leave those rows out.");
         List<Checked> good = c.rows().stream().filter((r) -> r.problems().isEmpty()).toList();
-        if (good.isEmpty()) throw bad("There is no valid row to register.");
+        if (good.isEmpty()) throw bad("No row of the list can be registered: each has a problem shown beside it. Correct the rows in the file and upload it again.");
         return saveBatch(branchCode, c.preview().fileName(), c.preview().total(), good, auth.getName());
     }
 
@@ -132,7 +135,7 @@ public class MemberImportController {
             Map<String, String> payload = new LinkedHashMap<>(r.fields());
             payload.put("_clientType", Integer.toString(r.clientType()));
             jdbc.update("INSERT INTO ecis_member_request (branch_code, kind, client_id, summary, payload, status, requested_by, requested_at, batch_id) VALUES (?, 'REGISTER', NULL, ?, ?, 'PENDING', ?, NOW(), ?)",
-                branch, r.name() + " (" + LifecycleRules.TYPES.get(r.clientType()) + ")", write(payload), user, batchId);
+                branch, r.name() + " (" + defaults.typeName(r.clientType()) + ")", write(payload), user, batchId);
         }
         audit(user, "member.import.uploaded", String.valueOf(batchId), null, good.size() + " of " + total + " rows from " + fileName, "Batch #" + batchId);
         return load(batchId);
@@ -210,7 +213,7 @@ public class MemberImportController {
         } catch (IllegalArgumentException e) {
             throw bad(e.getMessage());
         }
-        if (rows.isEmpty()) throw bad("The file has a header but no members.");
+        if (rows.isEmpty()) throw bad("The file has column headings but no members under them, so nothing was read. Add the members, one per row, below the headings and upload it again.");
 
         Map<String, ClientDetailController.Spec> byName = new LinkedHashMap<>();
         ClientDetailController.EDITABLE.forEach((col, spec) -> byName.put(col.toLowerCase(Locale.ROOT), spec));
@@ -248,7 +251,7 @@ public class MemberImportController {
             }
             String name = (clean.getOrDefault("LName", "") + ", " + clean.getOrDefault("FName", "")).trim();
             if (problems.isEmpty()) {
-                problems.addAll(LifecycleRules.registrationProblems(type, clean, LocalDate.now()));
+                problems.addAll(LifecycleRules.registrationProblems(type, clean, LocalDate.now(), defaults.types()));
                 if (problems.isEmpty()) {
                     String key = LifecycleRules.duplicateKey(clean);
                     if (onFile.contains(key)) problems.add("A member with the same name and birth date is already on file or waiting for approval.");
@@ -299,14 +302,14 @@ public class MemberImportController {
 
     private Batch pendingBatch(long id) {
         List<String> status = jdbc.query("SELECT status FROM ecis_member_import WHERE id = ? FOR UPDATE", (rs, i) -> rs.getString(1), id);
-        if (status.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "List not found.");
+        if (status.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That uploaded list was not found; it may have been withdrawn or decided already. Reload the lists to see where they stand.");
         if (!"PENDING".equals(status.get(0))) throw new ResponseStatusException(HttpStatus.CONFLICT, "This list has already been " + status.get(0).toLowerCase(Locale.ROOT) + ".");
         return load(id);
     }
 
     private Batch load(long id) {
         List<Batch> found = jdbc.query(SELECT + " WHERE id = ?", (rs, i) -> map(rs), id);
-        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "List not found.");
+        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That uploaded list was not found; it may have been withdrawn or decided already. Reload the lists to see where they stand.");
         return found.get(0);
     }
 

@@ -22,7 +22,7 @@ export function ProfileStrip({ m, lk, title, group }: { m: Member; lk?: Lookups;
       </Box>
       {/* Classification and, beside it on the same rows, the account status and alert. Their tops line up with Member type. */}
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, flexWrap: 'wrap', maxWidth: '100%' }}>
-      <Box role="group" aria-label="Client classification" sx={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: '2px 10px', alignItems: 'center', width: 280, maxWidth: '100%' }}>
+      <Box role="group" aria-label="Member classification" sx={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: '2px 10px', alignItems: 'center', width: 280, maxWidth: '100%' }}>
         <SelectField inline label="Member type" lookup="clientType" code={m.clientType} lk={lk} col="ClientType" />
         <SelectField inline label="Department" lookup="department" code={m.department} lk={lk} col="ClientDEPT" />
         <InlineField label="Date opened" value={m.dateOpened ? `${fmtDate(m.dateOpened)}${yearsSince(m.dateOpened) != null ? ` · ${yearsSince(m.dateOpened)} yrs` : ''}` : null} />

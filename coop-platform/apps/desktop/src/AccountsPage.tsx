@@ -1,5 +1,5 @@
 import {
-  Alert, Autocomplete, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, Stack, Switch,
+  Alert, Autocomplete, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, Stack, Switch,
   Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Tooltip, Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -10,6 +10,7 @@ import { listTable, PageTitle, SearchField, Surface } from './appleUi'
 import ChartUpload from './ChartUpload'
 import { appBackground } from './glass'
 import { useMe } from './session'
+import { suggestHeadings, type HeadingSuggestion } from './ui/chartSuggest'
 
 const TYPES = ['All', 'Assets', 'Liabilities', 'Equity and Reserves', 'Revenues', 'Expenses', 'Net Income']
 const INDENT = 22
@@ -287,6 +288,12 @@ function AccountDialog({ target, under, chart, onClose, onSaved }: {
   // only enabled summary accounts can hold others; for a new account, those whose number is a prefix of the typed one
   const parents = useMemo(() => chart.filter((a) => a.summary && !a.disabled && (editing ? editing.code.startsWith(a.code) && a.code !== editing.code : code.startsWith(a.code) && a.code !== code)), [chart, code, editing])
   const parentRow = parents.find((p) => p.code === parent) ?? null
+  // where a new account most likely goes, from its name and the number typed so far
+  const suggested = useMemo(() => (editing ? [] : suggestHeadings(chart, name, code)), [chart, name, code, editing])
+  const place = (s: HeadingSuggestion) => {
+    if (!code.startsWith(s.heading.code) || code === s.heading.code) setCode(s.nextCode)
+    setParent(s.heading.code)
+  }
 
   const save = useMutation({
     mutationFn: () => editing
@@ -322,6 +329,19 @@ function AccountDialog({ target, under, chart, onClose, onSaved }: {
               noOptionsText={editing == null && !code ? 'Type the account number first' : 'No heading matches this number'}
               renderInput={(p) => <TextField {...p} required label="Under heading" helperText={editing != null && (usage.data?.entries ?? 0) > 0 ? 'It has ledger entries, so it stays where it is.' : undefined} />}
             />
+            {suggested.length > 0 && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
+                <Typography color="text.secondary" sx={{ fontSize: 12 }}>Suggested:</Typography>
+                {suggested.map((s) => {
+                  const on = parent === s.heading.code && code.startsWith(s.heading.code) && code !== s.heading.code
+                  return (
+                    <Tooltip key={s.heading.code} describeChild title={`${s.why}. Puts it under ${s.heading.code} ${s.heading.name ?? ''}${on ? '' : ` as ${code.startsWith(s.heading.code) && code !== s.heading.code ? code : s.nextCode}`}.`}>
+                      <Chip size="small" label={`${s.heading.code} ${s.heading.name ?? ''}`} onClick={() => place(s)} color={on ? 'primary' : 'default'} variant={on ? 'filled' : 'outlined'} />
+                    </Tooltip>
+                  )
+                })}
+              </Box>
+            )}
             {editing == null && (
               <FormControlLabel control={<Switch checked={summary} onChange={(e) => setSummary(e.target.checked)} />} label="Heading (totals the accounts under it, takes no postings)" />
             )}

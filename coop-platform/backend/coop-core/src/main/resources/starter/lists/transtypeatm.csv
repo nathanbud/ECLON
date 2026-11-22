@@ -1,0 +1,19 @@
+id,desc1,desc2
+1,ECHO,ECHO
+2,BINQ,Balance Inquiry
+3,WDRL,Withdrawal
+4,WDCM,Withdrawal Reversal
+5,WPOS,POS Transaction
+6,WPCM,POS Trans Reversal
+7,FTRN,IntraAcct Fund Transfer
+8,FTCM,IntraAcct Fund Transfer Reversal
+9,WIAT,InterAcct Fund Transfer
+10,WIAR,InterAcct Fund Transfer Reversal
+11,WIBT,InterBank Fund Transfer Withdrawal
+12,WIBR,InterBank Fund Transfer Withdrawal Reversal
+13,DEPO,InterBank Fund Transfer Deposit
+14,DEPR,InterBank Fund Transfer Deposit Reversal
+15,BILL,Bills Payment
+16,BICM,Bills Payment Reversal
+17,CHKR,Check Book Request
+18,SOAR,Statement Request

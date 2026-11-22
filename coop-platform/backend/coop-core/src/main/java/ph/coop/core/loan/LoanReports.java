@@ -191,7 +191,7 @@ class LoanReports implements Provider, ph.coop.core.connection.OnConnectionSwitc
                     Map<Integer, String> member = names(shown), types = typeNames();
                     List<List<Object>> rows = new ArrayList<>();
                     for (Pos p : shown) rows.add(row(p.key().client(), member.getOrDefault(p.key().client(), ""), typeName(types, p.key().type()), p.key().ref(), p.balance(), p.pastDue(), p.daysLate(), p.oldest() == null ? null : p.oldest().toString(), STATUS.getOrDefault(p.status(), "")));
-                    return new Table(List.of(number("client", "Client no."), text("name", "Member"), text("type", "Loan type"), number("ref", "Loan"), money("outstanding", "Outstanding"), money("pastDue", "Past due"), number("days", "Days late"), date("since", "Oldest unpaid since"), text("status", "Status")),
+                    return new Table(List.of(number("member", "Member no."), text("name", "Member"), text("type", "Loan type"), number("ref", "Loan"), money("outstanding", "Outstanding"), money("pastDue", "Past due"), number("days", "Days late"), date("since", "Oldest unpaid since"), text("status", "Status")),
                         rows, row("All " + total + " late loans", null, null, null, bal, past, null, null, null), total > LIST_LIMIT ? "Only the " + LIST_LIMIT + " latest-running loans are listed; raise the minimum days to narrow it." : null);
                 }),
             of("loan-maturity", "Loans", "Loans maturing", "Loans with a balance whose final instalment falls in the period.",
@@ -202,7 +202,7 @@ class LoanReports implements Provider, ph.coop.core.connection.OnConnectionSwitc
                     List<List<Object>> rows = new ArrayList<>();
                     for (Pos x : due.subList(0, Math.min(due.size(), LIST_LIMIT))) rows.add(row(x.maturity().toString(), x.key().client(), member.getOrDefault(x.key().client(), ""), typeName(types, x.key().type()), x.key().ref(), x.balance()));
                     BigDecimal total = due.stream().map(Pos::balance).reduce(BigDecimal.ZERO, BigDecimal::add);
-                    return new Table(List.of(date("maturity", "Matures"), number("client", "Client no."), text("name", "Member"), text("type", "Loan type"), number("ref", "Loan"), money("outstanding", "Outstanding")), rows,
+                    return new Table(List.of(date("maturity", "Matures"), number("member", "Member no."), text("name", "Member"), text("type", "Loan type"), number("ref", "Loan"), money("outstanding", "Outstanding")), rows,
                         row("All " + due.size() + " loans", null, null, null, null, total), "Balances are as of today.");
                 }),
             of("loan-releases", "Loans", "Loan releases", "Money lent in the period, by loan type (debits to loan principal).", period, NONE, (a) -> {

@@ -118,7 +118,7 @@ class GoodsReceiptController {
         support.requireReceiver(auth);
         List<Object[]> order = jdbc.query("SELECT status, created_by, order_no FROM ecis_purchase_order WHERE branch_code = ? AND id = ? FOR UPDATE",
             (rs, i) -> new Object[] {rs.getString(1), rs.getString(2), rs.getString(3)}, ProcurementSupport.BRANCH, in.orderId());
-        if (order.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such purchase order.");
+        if (order.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That purchase order was not found; it may have been cancelled or the number mistyped. Reload the list and open it from there.");
         String own = ProcurementRules.approverProblem((String) order.get(0)[1], auth.getName(), "order");
         if (own != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You made this order, so someone else must receive its goods.");
         List<Open> lines = open(in.orderId());

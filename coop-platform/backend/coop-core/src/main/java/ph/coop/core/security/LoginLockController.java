@@ -37,7 +37,7 @@ class LoginLockController {
 
     @PostMapping("/users/{username}/unlock")
     Locked unlock(@PathVariable String username, Authentication auth) {
-        if (!attempts.unlock(username)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That sign-in is not locked.");
+        if (!attempts.unlock(username)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That sign-in is not locked, so there is nothing to unlock: the person can sign in. If they still cannot, check their password or whether their account is switched on.");
         AuditLog.write(jdbc, auth.getName(), "signin.unlocked", "user", username, null, "lock lifted by an administrator", null);
         return new Locked(username.toLowerCase(), 0);
     }

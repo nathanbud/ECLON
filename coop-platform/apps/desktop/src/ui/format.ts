@@ -12,6 +12,17 @@ export const parseAmount = (s: string) => Number(s.replace(/,/g, ''))
 /** Style that keeps digits the same width so columns of figures line up. */
 export const tabular = { fontVariantNumeric: 'tabular-nums' } as const
 
+/**
+ * A person's name with each word capitalised, as the old tables often keep names in capitals: "JUAN DELA CRUZ" -> "Juan Dela Cruz",
+ * "MARIA-LUZ O'NEIL" -> "Maria-Luz O'Neil". Roman numeral suffixes stay in capitals ("JOSE RIZAL III" -> "Jose Rizal III").
+ */
+export const nameCase = (name: string) =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/(^|[\s\-'.])(\p{L})/gu, (_, before: string, letter: string) => before + letter.toUpperCase())
+    .replace(/\b(ii|iii|iv|vi|vii|viii)\b/gi, (m) => m.toUpperCase())
+
 /** A file size for people: 6610000 -> "6.3 MB". */
 export const sizeOf = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`

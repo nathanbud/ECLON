@@ -25,7 +25,7 @@ final class SharePaymentRules {
         if (amount == null || amount.signum() <= 0) {
             p.add("Enter an amount above zero.");
         } else {
-            if (amount.stripTrailingZeros().scale() > 2) p.add("The amount can have at most 2 decimal places.");
+            if (amount.stripTrailingZeros().scale() > 2) p.add("An amount can have at most 2 decimal places (centavos). Round it and try again.");
             if (amount.compareTo(MAX_PAYMENT) > 0) p.add("The amount is too large.");
             if (maxBalance != null && balance.add(amount).compareTo(maxBalance) > 0) {
                 p.add("The balance would become " + balance.add(amount).setScale(2, java.math.RoundingMode.HALF_UP).toPlainString()
@@ -33,7 +33,7 @@ final class SharePaymentRules {
             }
         }
         if (accountStatus != ACTIVE) p.add("This share capital account is not active, so it cannot take payments.");
-        if (clientStatus == 3 || clientStatus == 98 || clientStatus == 99) p.add("This client's account is closed, disapproved or not yet approved.");
+        if (clientStatus == 3 || clientStatus == 98 || clientStatus == 99) p.add("This member's account is closed, disapproved or not yet approved.");
         return p;
     }
 

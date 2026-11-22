@@ -19,6 +19,7 @@ const drawers = vi.fn()
 const addDrawer = vi.fn()
 const delCheck = vi.fn()
 const del = vi.fn()
+const suggest = vi.fn()
 vi.mock('./api', async (orig) => ({
   ...(await orig<typeof import('./api')>()),
   getAccountTypes: () => list(),
@@ -34,6 +35,7 @@ vi.mock('./api', async (orig) => ({
   addCashDrawer: (...a: unknown[]) => addDrawer(...a),
   checkAccountTypeDelete: (c: number, t: number) => delCheck(c, t),
   deleteAccountType: (...a: unknown[]) => del(...a),
+  getLinkSuggestions: (...a: unknown[]) => suggest(...a),
 }))
 
 const type = (classId: number, code: number, name: string, extra: Partial<AccountType> = {}): AccountType =>
@@ -51,14 +53,15 @@ const sdLinks: AccountTypeLink[] = [
 ]
 const acct = (code: string, name: string, t: number, summary = false): ChartAccount => ({ code, name, type: t, typeName: null, summary, parent: null, disabled: false, glOnly: false, hasChildren: false, inUse: false })
 
-function show() {
+function show(kind?: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={qc}><AppThemeProvider><AccountTypesPage /></AppThemeProvider></QueryClientProvider>)
+  render(<QueryClientProvider client={qc}><AppThemeProvider><AccountTypesPage kind={kind} /></AppThemeProvider></QueryClientProvider>)
 }
 
 describe('Account types', () => {
   beforeEach(() => {
-    for (const f of [list, links, update, create, move, chart, first, addLink, linkOptions, drawers, addDrawer, delCheck, del]) f.mockReset()
+    for (const f of [list, links, update, create, move, chart, first, addLink, linkOptions, drawers, addDrawer, delCheck, del, suggest]) f.mockReset()
+    suggest.mockResolvedValue([])
     list.mockResolvedValue(classes)
     links.mockResolvedValue(sdLinks)
     chart.mockResolvedValue([acct('201', 'DEPOSITS', 2, true), acct('2010101', 'Savings deposits', 2), acct('2010106', 'Savings - Kaya', 2), acct('412', 'Service fee', 4)])
@@ -79,6 +82,19 @@ describe('Account types', () => {
     expect(await within(table).findByText('Deposit balance')).toBeInTheDocument()
     expect(within(table).getByText('Active')).toBeInTheDocument()
     expect(links).toHaveBeenCalledWith(22, 1)
+  })
+
+  it('opened on a product kind from Settings, lists only that kind of account, under its own title', async () => {
+    show('deposits')
+    expect(await screen.findByRole('heading', { name: 'Savings and deposit products' })).toBeInTheDocument()
+    const nav = await screen.findByRole('navigation', { name: 'Account types by class' })
+    expect(await within(nav).findByText('22 Savings Deposit')).toBeInTheDocument()
+    for (const other of ['11 Cash and COCI', '12 Loans Receivable', '26 Accts Payable', '14 Misc. Asset']) expect(within(nav).queryByText(other)).toBeNull()
+  })
+
+  it('says so when the database has none of a product kind', async () => {
+    show('shares')
+    expect(await screen.findByText('This database has none of these accounts set up.')).toBeInTheDocument()
   })
 
   it('saves a new rate only after a reason is given, saying what changes', async () => {
@@ -105,7 +121,7 @@ describe('Account types', () => {
     show()
     const user = userEvent.setup()
     await user.click(await screen.findByText('Salary Loan'))
-    expect(await screen.findByText(/Loan types are kept in Settings > Loan Setup/)).toBeInTheDocument()
+    expect(await screen.findByText(/Loan types are kept in Settings > Products > Loan products/)).toBeInTheDocument()
     expect(screen.getByLabelText(/^Name/)).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'New type' })).not.toBeInTheDocument()
@@ -152,6 +168,25 @@ describe('Account types', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Change account' }))
     await waitFor(() => expect(move).toHaveBeenCalledWith(22, 1, 11, 15, '2010106', 'Separate ledger account'))
     expect(await within(table).findByText('Savings - Kaya')).toBeInTheDocument()
+  })
+
+  it('suggests where to point a link, says why on hover, and fills it in when chosen', async () => {
+    suggest.mockResolvedValue([
+      { account: '2010106', accountName: 'Savings - Kaya', why: 'Used for this posting by Kaya' },
+      { account: '412', accountName: 'Service fee', why: 'not of the same kind, so not shown' },
+    ])
+    show()
+    const user = userEvent.setup()
+    const table = await screen.findByRole('table', { name: 'Ledger accounts' })
+    await user.click((await within(table).findAllByRole('button', { name: 'Change' }))[0])
+    const dialog = await screen.findByRole('dialog')
+    const chip = await within(dialog).findByRole('button', { name: '2010106 Savings - Kaya' })
+    expect(within(dialog).queryByRole('button', { name: '412 Service fee' })).toBeNull()
+    expect(suggest).toHaveBeenCalledWith(22, 11, 15, 1, undefined)
+    await user.hover(chip)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Used for this posting by Kaya')
+    await user.click(chip)
+    expect(within(dialog).getByLabelText(/Post to/)).toHaveValue('2010106 Savings - Kaya')
   })
 
   it('adds the first type of a class that has none, with the account its balance posts to', async () => {

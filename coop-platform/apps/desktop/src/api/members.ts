@@ -207,7 +207,8 @@ export const approveMemberRequest = (id: number) => send<MemberRequest>('POST', 
 export const rejectMemberRequest = (id: number, note: string) => send<MemberRequest>('POST', `/api/member-requests/${id}/reject`, { note })
 export const withdrawMemberRequest = (id: number) => send<MemberRequest>('POST', `/api/member-requests/${id}/withdraw`)
 export const requestReactivation = (body: { branchCode: number; clientId: number; clientType: number; note: string }) => send<MemberRequest>('POST', '/api/member-requests/reactivations', body)
-export interface MembershipPolicy { returningPaysShareCapital: boolean; kycBlocksWithdrawals: boolean }
+/** officerRegistersDirectly: a Membership Officer's own registration is approved at once (only a super administrator switches it). */
+export interface MembershipPolicy { returningPaysShareCapital: boolean; kycBlocksWithdrawals: boolean; officerRegistersDirectly: boolean }
 export const getMembershipPolicy = () => getJson<MembershipPolicy>('/api/membership-policy')
 /** Changes the switches given; the others stay as they are. */
 export const changeMembershipPolicy = (change: Partial<MembershipPolicy>, reason: string) => send<MembershipPolicy>('PUT', '/api/admin/membership-policy', { ...change, reason })

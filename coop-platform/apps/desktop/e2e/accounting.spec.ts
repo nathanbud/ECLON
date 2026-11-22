@@ -5,11 +5,15 @@ const user = process.env.E2E_USER
 const password = process.env.E2E_PASSWORD
 test.skip(!user || !password, 'Set E2E_USER and E2E_PASSWORD to run the signed-in tests')
 
-async function openAccounting(page: Page) {
+async function signIn(page: Page) {
   await page.goto('/')
   await page.getByLabel('Username').fill(user!)
   await page.getByLabel('Password').fill(password!)
   await page.getByRole('button', { name: 'Sign in' }).click()
+}
+
+async function openAccounting(page: Page) {
+  await signIn(page)
   await page.getByRole('button', { name: 'Reports' }).click()
   await expect(page.getByRole('tab', { name: 'Trial balance' })).toBeVisible()
 }
@@ -17,7 +21,7 @@ async function openAccounting(page: Page) {
 test.describe('accounting', () => {
   test('shows every tab to an administrator', async ({ page }) => {
     await openAccounting(page)
-    for (const name of ['Statements', 'Journals', 'Periods']) await expect(page.getByRole('tab', { name })).toBeVisible()
+    for (const name of ['Statements', 'Periods', 'Banks', 'Year-end close']) await expect(page.getByRole('tab', { name })).toBeVisible()
   })
 
   test('statement of operations lists revenues and expenses', async ({ page }) => {
@@ -45,11 +49,16 @@ test.describe('accounting', () => {
     await page.getByRole('button', { name: 'Close' }).click()
   })
 
-  test('journals and periods lists load', async ({ page }) => {
+  test('periods list loads', async ({ page }) => {
     await openAccounting(page)
-    await page.getByRole('tab', { name: 'Journals' }).click()
-    await expect(page.getByRole('table', { name: 'Journals' })).toBeVisible()
     await page.getByRole('tab', { name: 'Periods' }).click()
     await expect(page.getByRole('table', { name: 'Accounting periods' })).toBeVisible()
+  })
+
+  test('Back Office holds the journal, memo and waiver entries', async ({ page }) => {
+    await signIn(page)
+    await page.getByRole('button', { name: 'Back Office' }).click()
+    for (const name of ['General journal', 'Debit/credit memos', 'Penalty waivers']) await expect(page.getByRole('tab', { name })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'New journal' })).toBeVisible()
   })
 })

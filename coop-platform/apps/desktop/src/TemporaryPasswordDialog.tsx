@@ -1,15 +1,16 @@
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
+import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 import { useState } from 'react'
-import { FiCheck, FiCopy } from 'react-icons/fi'
+import OneTimePassword from './OneTimePassword'
 import { issueTemporaryPassword, type AdminUser, type TemporaryPassword } from './api'
+import { nameCase } from './ui/format'
 
-const CHOICES = [
+export const CHOICES = [
   { hours: 1, label: '1 hour' },
   { hours: 4, label: '4 hours' },
   { hours: 24, label: '24 hours' },
   { hours: 72, label: '3 days' },
 ]
-const DEFAULT_HOURS = 24
+export const DEFAULT_HOURS = 24
 
 const when = (d: Date) => d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 
@@ -29,9 +30,8 @@ export default function TemporaryPasswordDialog({ user, onClose, onIssued }: { u
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [issued, setIssued] = useState<TemporaryPassword | null>(null)
-  const [copied, setCopied] = useState(false)
 
-  const reset = () => { setHours(DEFAULT_HOURS); setError(null); setIssued(null); setCopied(false) }
+  const reset = () => { setHours(DEFAULT_HOURS); setError(null); setIssued(null) }
   const endsAt = new Date(Date.now() + hours * 3_600_000)
 
   const issue = async () => {
@@ -48,17 +48,6 @@ export default function TemporaryPasswordDialog({ user, onClose, onIssued }: { u
     }
   }
 
-  const copy = async () => {
-    if (!issued) return
-    try {
-      await navigator.clipboard.writeText(issued.password)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
-    } catch { /* the password is on screen; it can be read out */ }
-  }
-
-  const groups = issued ? issued.password.match(/.{1,4}/g) ?? [] : []
-
   return (
     <Dialog open={!!user} onClose={busy ? undefined : onClose} fullWidth maxWidth="xs" aria-labelledby="temp-password-title"
       slotProps={{ transition: { onExited: reset } }}>
@@ -67,7 +56,7 @@ export default function TemporaryPasswordDialog({ user, onClose, onIssued }: { u
         <form onSubmit={(e) => { e.preventDefault(); void issue() }}>
           <DialogContent>
             <Typography sx={{ fontSize: 13, mb: 2.5 }} color="text.secondary">
-              For <strong>{user.username}</strong>{user.name ? ` (${user.name})` : ''}. {note(user)}
+              For <strong>{user.username}</strong>{user.name ? ` (${nameCase(user.name)})` : ''}. {note(user)}
             </Typography>
             <Typography id="validity-label" sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Valid for</Typography>
             <ToggleButtonGroup exclusive fullWidth value={hours} onChange={(_, v) => v != null && setHours(v)} aria-labelledby="validity-label" size="small"
@@ -91,19 +80,7 @@ export default function TemporaryPasswordDialog({ user, onClose, onIssued }: { u
             <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
               Give this to <strong>{issued.username}</strong> in person or by phone. It is shown once and cannot be looked up again.
             </Typography>
-            <Box
-              role="group" aria-label="Temporary password"
-              sx={(t) => ({
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, py: 2.25, px: 2, borderRadius: '12px',
-                bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.045)',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 22, fontWeight: 600, letterSpacing: '0.06em', userSelect: 'all',
-              })}
-            >
-              {groups.map((g, i) => <span key={i}>{g}</span>)}
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1.5 }}>
-              <Button size="small" startIcon={copied ? <FiCheck /> : <FiCopy />} onClick={() => void copy()}>{copied ? 'Copied' : 'Copy'}</Button>
-            </Box>
+            <OneTimePassword password={issued.password} />
             <Alert severity="info" icon={false} sx={{ mt: 2, fontSize: 13 }}>
               Works until <strong>{when(new Date(issued.expiresAt))}</strong>. {issued.username} will be asked to choose their own password at first sign-in.
             </Alert>

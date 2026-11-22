@@ -81,7 +81,7 @@ class KycController {
 
     private void requireMember(int branchCode, int clientId) {
         Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", Integer.class, branchCode, clientId);
-        if (n == null || n == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found.");
+        if (n == null || n == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
     }
 
     @GetMapping
@@ -139,8 +139,8 @@ class KycController {
     ResponseEntity<Void> setScan(@PathVariable int branchCode, @PathVariable int clientId, @RequestParam("file") MultipartFile file, Authentication auth) throws IOException {
         requireMember(branchCode, clientId);
         byte[] data = file.getBytes();
-        if (data.length == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The scan is empty.");
-        if (data.length > MAX_SCAN_BYTES) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The scan is too large (at most 3 MB).");
+        if (data.length == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The scan is empty, so nothing was saved. Scan or choose the ID picture again.");
+        if (data.length > MAX_SCAN_BYTES) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The scan is too large: it can be at most 3 MB. Scan it at a lower resolution or save it as JPEG, then try again.");
         boolean jpeg = data.length > 3 && (data[0] & 0xFF) == 0xFF && (data[1] & 0xFF) == 0xD8;
         boolean png = data.length > 3 && (data[0] & 0xFF) == 0x89 && data[1] == 'P';
         if (!jpeg && !png) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only JPEG and PNG scans are accepted.");

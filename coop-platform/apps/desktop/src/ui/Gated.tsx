@@ -17,5 +17,6 @@ export function Gated({ allowed, reason, children }: { allowed: boolean; reason:
   )
 }
 
-export const NEEDS_EDIT = 'You need the edit-client permission, and editing must be switched on for this server.'
+export const NEEDS_EDIT = 'You need the edit-member permission, and editing must be switched on for this server.'
 export const NEEDS_ADMIN = 'Only an administrator can do this.'
+export const NEEDS_OFFICER = 'Only a Membership Officer can do this. An administrator assigns the role in Settings > Users.'

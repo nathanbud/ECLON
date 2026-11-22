@@ -1,0 +1,11 @@
+cocitypeid,cocitypedesc,cocitypeisglonly
+1,Cash,0
+2,Check,0
+3,Treas. Warrant,0
+4,MO,0
+5,Payroll,0
+6,POS,1
+7,ATM,0
+8,OnUs Check,0
+21,Bank Deposit,0
+99,DCM,1

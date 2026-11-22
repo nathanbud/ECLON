@@ -90,7 +90,7 @@ class AssetController {
     @GetMapping("/{id}")
     Detail get(@PathVariable long id) {
         List<Summary> s = jdbc.query(SUMMARY + " WHERE a.branch_code = ? AND a.id = ?", AssetController::map, InventorySupport.BRANCH, id);
-        if (s.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such asset.");
+        if (s.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That asset was not found in the register. It may have been disposed of or the number mistyped: reload the list and open it from there.");
         List<Object[]> extra = jdbc.query("SELECT serial_no, reference, supplier_id FROM ecis_asset WHERE id = ?", (rs, i) -> new Object[] {rs.getString(1), rs.getString(2), rs.getObject(3) == null ? null : rs.getLong(3)}, id);
         List<DepRow> dep = jdbc.query("""
                 SELECT d.period_end, d.amount, j.reference, j.status FROM ecis_asset_depreciation d LEFT JOIN ecis_journal j ON j.id = d.journal_id WHERE d.asset_id = ? ORDER BY d.period_end
@@ -118,7 +118,7 @@ class AssetController {
         if (cat.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No such category.");
         if (!(Boolean) cat.get(0)[2]) throw new ResponseStatusException(HttpStatus.CONFLICT, "That category is switched off.");
         if (in.supplierId() != null && jdbc.queryForObject("SELECT COUNT(*) FROM ecis_supplier WHERE branch_code = ? AND id = ?", Integer.class, InventorySupport.BRANCH, in.supplierId()) == 0)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No such supplier.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "That supplier was not found. It may have been switched off or the code mistyped: choose the supplier from the list.");
         int life = in.lifeMonths() == null ? (Integer) cat.get(0)[0] : in.lifeMonths();
         BigDecimal salvage = in.salvageValue() != null ? in.salvageValue()
             : in.cost() == null ? BigDecimal.ZERO : in.cost().multiply((BigDecimal) cat.get(0)[1]).divide(new BigDecimal("100"), 2, java.math.RoundingMode.HALF_UP);
@@ -145,7 +145,7 @@ class AssetController {
         assets.requireCustodian(auth);
         Summary before = get(id).summary();
         String name = in.name() == null || in.name().isBlank() ? before.name() : in.name().trim();
-        if (name.length() > 120) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The name is too long (120 characters at most).");
+        if (name.length() > 120) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The name is too long: it can have at most 120 characters. Shorten it and try again.");
         jdbc.update("UPDATE ecis_asset SET name = ?, serial_no = COALESCE(?, serial_no), reference = COALESCE(?, reference) WHERE id = ?", name, clean(in.serialNo()), clean(in.reference()), id);
         support.audit(auth, "asset.update", "ecis_asset", before.assetNo(), before.name() + " -> " + name);
         return get(id).summary();
@@ -158,7 +158,7 @@ class AssetController {
     TransferRow askTransfer(@PathVariable long id, @RequestBody TransferIn in, Authentication auth) {
         assets.requireCustodian(auth);
         List<Object[]> a = jdbc.query("SELECT status, location FROM ecis_asset WHERE branch_code = ? AND id = ? FOR UPDATE", (rs, i) -> new Object[] {rs.getString(1), rs.getString(2)}, InventorySupport.BRANCH, id);
-        if (a.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such asset.");
+        if (a.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That asset was not found in the register. It may have been disposed of or the number mistyped: reload the list and open it from there.");
         if (!a.get(0)[0].equals("ACTIVE")) throw new ResponseStatusException(HttpStatus.CONFLICT, "This asset has been disposed of.");
         if (in.toLocation() == null || in.toLocation().isBlank() || in.toLocation().length() > 80) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say where the asset is going (80 characters at most).");
         if (in.toLocation().trim().equalsIgnoreCase((String) a.get(0)[1])) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The asset is already there.");
@@ -187,7 +187,7 @@ class AssetController {
         if (own != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, own);
         String note = in == null || in.note() == null || in.note().isBlank() ? null : in.note().trim();
         if (!approve && note == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say why the transfer is rejected.");
-        if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long (255 characters at most).");
+        if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long: it can have at most 255 characters. Shorten it and try again.");
         if (approve) {
             String status = jdbc.queryForObject("SELECT status FROM ecis_asset WHERE id = ? FOR UPDATE", String.class, t.get(0)[0]);
             if (!"ACTIVE".equals(status)) throw new ResponseStatusException(HttpStatus.CONFLICT, "This asset has been disposed of.");

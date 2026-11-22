@@ -98,6 +98,77 @@ public class Db implements ph.coop.core.connection.OnConnectionSwitch {
         });
     }
 
+    public record ColumnInfo(String name, int sqlType) {}
+
+    public record ForeignKey(List<String> columns, String parent, List<String> parentColumns) {}
+
+    public record TableLayout(String name, List<ColumnInfo> columns, List<String> key, List<ForeignKey> links) {}
+
+    /**
+     * The columns (in order, with their kind as {@link java.sql.Types}), primary key and links of the tables, keyed by the table's name in lowercase;
+     * a table that is not there is left out. Three queries in all, however many tables (the driver's metadata calls take one or more per table).
+     */
+    public Map<String, TableLayout> tableLayouts(java.util.Collection<String> tables) {
+        Map<String, TableLayout> out = new LinkedHashMap<>();
+        if (tables.isEmpty()) return out;
+        List<String> names = tables.stream().map((t) -> t.toLowerCase(java.util.Locale.ROOT)).distinct().toList();
+        String in = String.join(", ", names.stream().map((t) -> "?").toList());
+        Object[] args = names.toArray();
+        boolean postgres = isPostgres();
+        String schema = postgres ? "current_schema()" : "DATABASE()";
+        Map<String, String> exact = new LinkedHashMap<>();
+        Map<String, List<ColumnInfo>> cols = new LinkedHashMap<>();
+        jdbc.query("SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = " + schema + " AND LOWER(table_name) IN (" + in + ")"
+            + " ORDER BY table_name, ordinal_position", (org.springframework.jdbc.core.RowCallbackHandler) (rs) -> {
+                String t = rs.getString(1);
+                exact.put(t.toLowerCase(java.util.Locale.ROOT), t);
+                cols.computeIfAbsent(t.toLowerCase(java.util.Locale.ROOT), (x) -> new ArrayList<>()).add(new ColumnInfo(rs.getString(2), sqlType(rs.getString(3))));
+            }, args);
+        Map<String, List<String>> keys = new LinkedHashMap<>();
+        jdbc.query("SELECT k.table_name, k.column_name FROM information_schema.table_constraints c JOIN information_schema.key_column_usage k"
+            + " ON k.constraint_name = c.constraint_name AND k.table_schema = c.table_schema AND k.table_name = c.table_name"
+            + " WHERE c.constraint_type = 'PRIMARY KEY' AND c.table_schema = " + schema + " AND LOWER(c.table_name) IN (" + in + ") ORDER BY k.table_name, k.ordinal_position",
+            (org.springframework.jdbc.core.RowCallbackHandler) (rs) -> keys.computeIfAbsent(rs.getString(1).toLowerCase(java.util.Locale.ROOT), (x) -> new ArrayList<>()).add(rs.getString(2)), args);
+        Map<String, Map<String, ForeignKey>> links = new LinkedHashMap<>();
+        String fkSql = postgres
+            ? "SELECT c.conname, cl.relname, pc.relname, a.attname, pa.attname FROM pg_constraint c JOIN pg_class cl ON cl.oid = c.conrelid"
+                + " JOIN pg_namespace n ON n.oid = cl.relnamespace JOIN pg_class pc ON pc.oid = c.confrelid"
+                + " CROSS JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY AS k(ck, pk, ord)"
+                + " JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.ck JOIN pg_attribute pa ON pa.attrelid = c.confrelid AND pa.attnum = k.pk"
+                + " WHERE c.contype = 'f' AND n.nspname = current_schema() AND cl.relname IN (" + in + ") ORDER BY 2, 1, k.ord"
+            : "SELECT CONSTRAINT_NAME, TABLE_NAME, REFERENCED_TABLE_NAME, COLUMN_NAME, REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE"
+                + " WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL AND LOWER(TABLE_NAME) IN (" + in + ") ORDER BY 2, 1, ORDINAL_POSITION";
+        jdbc.query(fkSql, (org.springframework.jdbc.core.RowCallbackHandler) (rs) -> {
+            Map<String, ForeignKey> byName = links.computeIfAbsent(rs.getString(2).toLowerCase(java.util.Locale.ROOT), (x) -> new LinkedHashMap<>());
+            ForeignKey fk = byName.computeIfAbsent(rs.getString(1), (x) -> {
+                try {
+                    return new ForeignKey(new ArrayList<>(), rs.getString(3), new ArrayList<>());
+                } catch (SQLException e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            fk.columns().add(rs.getString(4));
+            fk.parentColumns().add(rs.getString(5));
+        }, args);
+        for (Map.Entry<String, String> e : exact.entrySet()) {
+            String t = e.getKey();
+            out.put(t, new TableLayout(e.getValue(), cols.get(t), keys.getOrDefault(t, List.of()), new ArrayList<>(links.getOrDefault(t, Map.of()).values())));
+        }
+        return out;
+    }
+
+    /** A column's kind as {@link java.sql.Types}, from the data_type name information_schema gives (PostgreSQL and MySQL spellings). */
+    static int sqlType(String dataType) {
+        String d = dataType == null ? "" : dataType.toLowerCase(java.util.Locale.ROOT);
+        if (d.equals("boolean") || d.equals("bit")) return java.sql.Types.BOOLEAN;
+        if (d.contains("int")) return java.sql.Types.BIGINT;
+        if (d.equals("numeric") || d.equals("decimal") || d.equals("real") || d.startsWith("double") || d.equals("float")) return java.sql.Types.NUMERIC;
+        if (d.equals("date")) return java.sql.Types.DATE;
+        if (d.startsWith("timestamp") || d.equals("datetime")) return java.sql.Types.TIMESTAMP;
+        if (d.startsWith("time")) return java.sql.Types.TIME;
+        return java.sql.Types.VARCHAR;
+    }
+
     /** True when the signed-in database user may INSERT into every one of the tables. */
     public boolean canInsertInto(String... tables) {
         String key = String.join(",", tables);

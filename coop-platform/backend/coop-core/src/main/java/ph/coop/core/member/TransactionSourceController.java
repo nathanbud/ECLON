@@ -40,7 +40,7 @@ class TransactionSourceController {
     Detail detail(@PathVariable int branchCode, @PathVariable int clientId, @PathVariable int year, @PathVariable int code, @PathVariable long ctlNo) {
         Integer own = jdbc.queryForObject("SELECT COUNT(*) FROM sldtl WHERE SL_BRCODE = ? AND SL_CLIENTID = ? AND TR_CODE = ? AND TR_CTLNO = ? AND EXTRACT(YEAR FROM TR_DATE) = ?",
             Integer.class, branchCode, clientId, code, ctlNo, year);
-        if (own == null || own == 0) throw notFound("This member's ledger has no such transaction.");
+        if (own == null || own == 0) throw notFound("That transaction is not in this member's ledger. Open it from the member's own ledger.");
 
         // The year of a ledger row is the year of its date; a transaction keyed in the next year's books is found one year either side, the exact year first.
         List<Header> found = jdbc.query("""
@@ -61,7 +61,7 @@ class TransactionSourceController {
                     date == null ? null : date.toString(), time == null ? null : time.toString(), rs.getString(10), null, name != null ? name : clean(rs.getString(11)),
                     owner == null ? null : clientNo(branchCode, owner), clean(rs.getString(13)), clean(rs.getString(14)), clean(rs.getString(15)), null);
             }, branchCode, code, ctlNo, year - 1, year, year + 1, year);
-        if (found.isEmpty()) throw notFound("The transaction is not on file.");
+        if (found.isEmpty()) throw notFound("That transaction is not on file; it may have been reversed or the number mistyped. Open it from the member's ledger instead.");
         Header h = found.get(0);
 
         List<Boolean> approved = new ArrayList<>();

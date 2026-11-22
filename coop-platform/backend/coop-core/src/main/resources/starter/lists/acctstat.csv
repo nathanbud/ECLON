@@ -1,0 +1,6 @@
+acctstatid,acctstatdesc
+1,Active
+2,Dormant
+3,Closed
+98,Disapproved
+99,New

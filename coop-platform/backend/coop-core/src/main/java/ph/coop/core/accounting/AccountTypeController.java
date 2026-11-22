@@ -84,7 +84,7 @@ public class AccountTypeController {
 
     private int branch(Authentication auth) {
         List<Integer> r = jdbc.queryForList("SELECT AccessBR_CODE FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1", Integer.class, auth.getName());
-        if (r.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is not a staff account.");
+        if (r.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are signed in with an account that is not in the cooperative's staff list, so this cannot be done with it. Sign in with your own staff account, or ask an administrator to add you in Settings > Users.");
         return r.get(0);
     }
 
@@ -347,7 +347,7 @@ public class AccountTypeController {
         if (jdbc.queryForObject("SELECT COUNT(*) FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ?", Integer.class, branch, cls) > 0) throw bad("This class already has types. Add one as a copy of another.");
         Map<String, Object> cols = columns(branch, cls, new Form(in.name(), in.fullName(), 99, null, null, false, why), null);
         List<Option> statuses = options(cls).statuses();
-        if (statuses.isEmpty()) throw bad("This class has no account status to post a balance on, so a type cannot be started here.");
+        if (statuses.isEmpty()) throw bad("This product cannot be added yet, so nothing was saved: this database is missing the system's standard list of account statuses (current, past due, closed and so on), which every product's balance is posted under. Ask your administrator to load the standard system lists on this database, then add the product again.");
         int kind = postable(branch, in.account());
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("SLTypeBR_CODE", branch);
@@ -411,6 +411,40 @@ public class AccountTypeController {
             if (n != 99 && AccountTypeRules.appliesTo(rs.getString(3), cls)) statuses.add(new Option(n, AccountTypeRules.statusName(n) != null ? AccountTypeRules.statusName(n) : rs.getString(2)));
         });
         return new LinkOptions(events, statuses);
+    }
+
+    /**
+     * Chart accounts to suggest for a ledger link, best first, each with why (rules in {@link LinkSuggestions}): what the class's other types use for the same posting, what this
+     * type uses for its other account statuses, then accounts of the right kind whose names match. {@code type} is left out for a type not made yet (the first of a class), and
+     * {@code name} gives the name typed so far. Suggests only; nothing is saved.
+     */
+    @GetMapping("/{cls}/link-suggestions")
+    public List<LinkSuggestions.Suggestion> suggestions(@PathVariable int cls, @RequestParam int event, @RequestParam(defaultValue = "99") int number,
+                                                        @RequestParam(required = false) Integer type, @RequestParam(required = false) String name, Authentication auth) {
+        int branch = branch(auth);
+        String typeName = name;
+        if (type != null) {
+            List<String> names = jdbc.queryForList("SELECT CONCAT_WS(' ', SLTypeM_DESC2, SLTypeM_DESC) FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?",
+                String.class, branch, cls, type);
+            if (names.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such account type.");
+            if (typeName == null || typeName.isBlank()) typeName = names.get(0);
+        }
+        int self = type == null ? -1 : type;
+        List<LinkSuggestions.Peer> peers = jdbc.query("""
+            SELECT g.GLControlACCT_CODE, s.SLTypeM_DESC FROM glcontrol g
+            JOIN sltype s ON s.SLTypeBR_CODE = g.GLControlBR_CODE AND s.SLTypeSLC_CODE = g.GLControlSLC_CODE AND s.SLTypeSLT_CODE = g.GLControlSLT_CODE
+            WHERE g.GLControlBR_CODE = ? AND g.GLControlSLC_CODE = ? AND g.GLControlSLE_CODE = ? AND g.GLControlCTS_NUM = ? AND g.GLControlSLT_CODE <> ?
+            ORDER BY g.GLControlSLT_CODE
+            """, (rs, i) -> new LinkSuggestions.Peer(rs.getString(1), rs.getString(2)), branch, cls, event, number, self);
+        List<String> own = type == null ? List.of() : jdbc.queryForList("""
+            SELECT GLControlACCT_CODE FROM glcontrol WHERE GLControlBR_CODE = ? AND GLControlSLC_CODE = ? AND GLControlSLT_CODE = ? AND GLControlSLE_CODE = ? AND GLControlCTS_NUM <> ?
+            ORDER BY GLControlCTS_NUM
+            """, String.class, branch, cls, type, event, number);
+        List<LinkSuggestions.Account> chart = jdbc.query("""
+            SELECT COAID, COADesc, COALESCE(COAacct_type, 0) FROM coa WHERE COABR_CODE = ? AND COAacct_tag = 'D' AND COALESCE(COAisdisabled, 0) = 0 ORDER BY COAID
+            """, (rs, i) -> new LinkSuggestions.Account(rs.getString(1), rs.getString(2), rs.getInt(3)), branch);
+        List<String> className = jdbc.queryForList("SELECT SLClassDesc FROM slclass WHERE SLClassID = ?", String.class, cls);
+        return LinkSuggestions.suggest(cls, event, typeName, className.isEmpty() ? null : className.get(0), AccountTypeRules.eventName(cls, event), peers, own, chart);
     }
 
     /** The account must be in the chart, take postings and be in use. Returns its kind (1 assets to 6 net income). */

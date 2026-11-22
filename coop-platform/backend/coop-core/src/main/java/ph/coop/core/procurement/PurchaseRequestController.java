@@ -87,7 +87,7 @@ class PurchaseRequestController {
     @GetMapping("/{id}")
     Detail get(@PathVariable long id) {
         List<Summary> s = jdbc.query(SUMMARY + " WHERE r.branch_code = ? AND r.id = ?", PurchaseRequestController::map, ProcurementSupport.BRANCH, id);
-        if (s.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such purchase request.");
+        if (s.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That purchase request was not found; it may have been cancelled or the number mistyped. Reload the list and open it from there.");
         List<LineIn> lines = jdbc.query("SELECT description, unit, quantity, est_cost FROM ecis_purchase_request_line WHERE request_id = ? ORDER BY line_no",
             (rs, i) -> new LineIn(rs.getString(1), rs.getString(2), rs.getBigDecimal(3), rs.getBigDecimal(4)), id);
         return new Detail(withWorkflow(s.get(0)), lines);
@@ -116,14 +116,14 @@ class PurchaseRequestController {
     private Summary decide(long id, String to, Decision in, Authentication auth) {
         support.requireApprover(auth);
         List<Summary> found = jdbc.query(SUMMARY + " WHERE r.branch_code = ? AND r.id = ? FOR UPDATE", PurchaseRequestController::map, ProcurementSupport.BRANCH, id);
-        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such purchase request.");
+        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That purchase request was not found; it may have been cancelled or the number mistyped. Reload the list and open it from there.");
         Summary r = found.get(0);
         if (!r.status().equals("SUBMITTED")) throw new ResponseStatusException(HttpStatus.CONFLICT, "This request is already " + r.status().toLowerCase() + ".");
         String own = ProcurementRules.approverProblem(r.requestedBy(), auth.getName(), "request");
         if (own != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, own);
         String note = in == null || in.note() == null || in.note().isBlank() ? null : in.note().trim();
         if (to.equals("REJECTED") && note == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say why the request is rejected.");
-        if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long (255 characters at most).");
+        if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long: it can have at most 255 characters. Shorten it and try again.");
         if (to.equals("APPROVED")) {
             // the usual approver's approval may be only the first: a workflow can ask for more when the estimate reaches its limits
             Gate gate = workflow.gate(WORKFLOW, String.valueOf(id), r.total(), r.requestedBy(), auth.getName());
@@ -156,7 +156,7 @@ class PurchaseRequestController {
     @Transactional
     Summary cancel(@PathVariable long id, @RequestBody Decision in, Authentication auth) {
         List<Summary> found = jdbc.query(SUMMARY + " WHERE r.branch_code = ? AND r.id = ? FOR UPDATE", PurchaseRequestController::map, ProcurementSupport.BRANCH, id);
-        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such purchase request.");
+        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That purchase request was not found; it may have been cancelled or the number mistyped. Reload the list and open it from there.");
         Summary r = found.get(0);
         if (!support.isAdmin(auth) && !r.requestedBy().equalsIgnoreCase(auth.getName())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the person who made the request can withdraw it.");
         if (!r.status().equals("SUBMITTED") && !r.status().equals("APPROVED")) throw new ResponseStatusException(HttpStatus.CONFLICT, "This request is " + r.status().toLowerCase() + " and cannot be withdrawn.");

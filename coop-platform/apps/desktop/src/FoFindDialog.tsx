@@ -74,7 +74,7 @@ function Body({ setup, typeIds, onPickTransaction, onPickDraft }: {
               <TextField label="Date" type="date" value={date} onChange={(e) => { setDate(e.target.value); setActive(0) }} onKeyDown={onKeyDown}
                 slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 170 }} />
               <TextField
-                label="Control no., client, or words" value={input} autoFocus fullWidth sx={{ flex: 1, minWidth: 200 }}
+                label="Control no., member, or words" value={input} autoFocus fullWidth sx={{ flex: 1, minWidth: 200 }}
                 onChange={(e) => { setInput(e.target.value); setActive(0) }} onKeyDown={onKeyDown}
                 slotProps={{ input: { endAdornment: loading ? <CircularProgress size={16} /> : null } }}
               />
@@ -110,7 +110,7 @@ function Body({ setup, typeIds, onPickTransaction, onPickDraft }: {
           ))}
         </Box>
         {what === 'txn' && rows.length >= 200 && (
-          <Typography sx={{ px: 2.5, pb: 1.5, fontSize: 12 }} color="text.secondary">Showing the latest 200. Type a control number, client or words to narrow the list.</Typography>
+          <Typography sx={{ px: 2.5, pb: 1.5, fontSize: 12 }} color="text.secondary">Showing the latest 200. Type a control number, member or words to narrow the list.</Typography>
         )}
       </Box>
     </Box>

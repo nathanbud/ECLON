@@ -8,6 +8,7 @@ import { glass } from '../glass'
 import { tileFill } from '../theme'
 import { money, tabular } from '../ui/format'
 import { TABS } from './constants'
+import { featureOn, useFeaturesOff } from '../ui/features'
 
 interface TileProps {
   label: string
@@ -57,25 +58,27 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * tabs (same query keys), so opening a tab afterwards costs nothing, and pressing a card opens that tab. A balance that cannot be read shows a dash and never stops the page.
  */
 export function StatTiles({ id, onOpen }: { id: Id; onOpen: (tab: number) => void }) {
+  const off = useFeaturesOff()
   const shares = useQuery({ queryKey: ['member-shares', id], queryFn: () => getShares(id.branchCode, id.clientId), staleTime: 60_000, retry: false })
-  const savings = useQuery({ queryKey: ['member-savings', id], queryFn: () => getSavings(id.branchCode, id.clientId), staleTime: 60_000, retry: false })
-  const loans = useQuery({ queryKey: ['member-loans', id.branchCode, id.clientId, false], queryFn: () => getLoans(id.branchCode, id.clientId, false), staleTime: 60_000, retry: false })
-  const deposits = useQuery({ queryKey: ['member-time-deposits', id, false], queryFn: () => getTimeDeposits(id.branchCode, id.clientId, false), staleTime: 60_000, retry: false })
+  const savings = useQuery({ queryKey: ['member-savings', id], queryFn: () => getSavings(id.branchCode, id.clientId), staleTime: 60_000, retry: false, enabled: featureOn(off, 'savings') })
+  const loans = useQuery({ queryKey: ['member-loans', id.branchCode, id.clientId, false], queryFn: () => getLoans(id.branchCode, id.clientId, false), staleTime: 60_000, retry: false, enabled: featureOn(off, 'loans') })
+  const deposits = useQuery({ queryKey: ['member-time-deposits', id, false], queryFn: () => getTimeDeposits(id.branchCode, id.clientId, false), staleTime: 60_000, retry: false, enabled: featureOn(off, 'timedeposits') })
   const at = (name: string) => TABS.indexOf(name)
+  const shown = 1 + [featureOn(off, 'savings'), featureOn(off, 'loans'), featureOn(off, 'timedeposits')].filter(Boolean).length
 
   return (
-    <Box role="group" aria-label="Balances" sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+    <Box role="group" aria-label="Balances" sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: `repeat(${shown}, minmax(0, 1fr))` }}>
       <Tile lead label="Share capital" icon={<FiDatabase />} openLabel="Share Capital" onOpen={() => onOpen(at('Share Capital'))}
         value={shares.data?.totalBalance ?? null} loading={shares.isLoading} foot={shares.data ? plural(shares.data.accounts.length, 'account', 'accounts') : 'Not available'} />
-      <Tile label="Savings" icon={<FiDollarSign />} openLabel="Savings" onOpen={() => onOpen(at('Savings'))}
+      {featureOn(off, 'savings') && <Tile label="Savings" icon={<FiDollarSign />} openLabel="Savings" onOpen={() => onOpen(at('Savings'))}
         value={savings.data?.totalBalance ?? null} loading={savings.isLoading}
-        foot={savings.data ? `${plural(savings.data.accounts.length, 'account', 'accounts')}${savings.data.totalHeld ? ` · held ${money(savings.data.totalHeld)}` : ''}` : 'Not available'} />
-      <Tile label="Loans owed" icon={<FiCreditCard />} openLabel="Loans" onOpen={() => onOpen(at('Loans'))}
+        foot={savings.data ? `${plural(savings.data.accounts.length, 'account', 'accounts')}${savings.data.totalHeld ? ` · held ${money(savings.data.totalHeld)}` : ''}` : 'Not available'} />}
+      {featureOn(off, 'loans') && <Tile label="Loans owed" icon={<FiCreditCard />} openLabel="Loans" onOpen={() => onOpen(at('Loans'))}
         value={loans.data?.totalOutstanding ?? null} loading={loans.isLoading}
-        foot={loans.data ? `${plural(loans.data.loans.length, 'loan', 'loans')}${loans.data.totalPastDue ? ` · past due ${money(loans.data.totalPastDue)}` : ''}` : 'Not available'} />
-      <Tile label="Time deposits" icon={<FiTrendingUp />} openLabel="Time Deposits" onOpen={() => onOpen(at('Time Deposits'))}
+        foot={loans.data ? `${plural(loans.data.loans.length, 'loan', 'loans')}${loans.data.totalPastDue ? ` · past due ${money(loans.data.totalPastDue)}` : ''}` : 'Not available'} />}
+      {featureOn(off, 'timedeposits') && <Tile label="Time deposits" icon={<FiTrendingUp />} openLabel="Time Deposits" onOpen={() => onOpen(at('Time Deposits'))}
         value={deposits.data?.totalBalance ?? null} loading={deposits.isLoading}
-        foot={deposits.data ? `${plural(deposits.data.deposits.length, 'deposit', 'deposits')}${deposits.data.totalAccrued ? ` · accrued ${money(deposits.data.totalAccrued)}` : ''}` : 'Not available'} />
+        foot={deposits.data ? `${plural(deposits.data.deposits.length, 'deposit', 'deposits')}${deposits.data.totalAccrued ? ` · accrued ${money(deposits.data.totalAccrued)}` : ''}` : 'Not available'} />}
     </Box>
   )
 }

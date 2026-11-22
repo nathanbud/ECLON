@@ -1,12 +1,14 @@
 import {
   Alert, Box, Button, Chip, Collapse, IconButton, InputAdornment, MenuItem, Skeleton, Table, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField, Typography,
 } from '@mui/material'
+import { DatabaseChangeNotice } from './DatabaseChangeNotice'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useState } from 'react'
 import { FiChevronDown, FiChevronRight, FiSearch } from 'react-icons/fi'
 import { getAuditFacets, getAuditIntegrity, getAuditLog, sealAuditLog, verifyAuditLog, type AuditChange, type AuditEntry, type AuditFilter, type AuditVerification } from './api'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
+import { ScreenTitle } from './appleUi'
 
 const SIZE = 50
 /** The date, and the time to the millisecond: 13 Nov 2026 · 05:16:17.874. Read from the text itself, so no time zone shifts it. */
@@ -67,8 +69,9 @@ function Integrity() {
     <Box sx={(t) => ({ p: 1.5, mb: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', ...glass(t) })}>
       <Box sx={{ flex: 1, minWidth: 260 }}>
         <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-          {!s.installed ? 'Tamper protection is not installed on this server.' : s.seals === 0 ? 'The audit log has not been sealed yet.' : `Sealed through entry #${s.lastSealedId}${when ? `, ${when}` : ''}.`}
+          {!s.installed ? 'Tamper protection is not set up on this database yet.' : s.seals === 0 ? 'The audit log has not been sealed yet.' : `Sealed through entry #${s.lastSealedId}${when ? `, ${when}` : ''}.`}
         </Typography>
+        {!s.installed && <DatabaseChangeNotice>Entries are kept, but cannot be sealed against changes until it is.</DatabaseChangeNotice>}
         {s.installed && (
           <Typography sx={{ fontSize: 12 }} color="text.secondary">
             {s.unsealedRows} newer entr{s.unsealedRows === 1 ? 'y is' : 'ies are'} not sealed yet. {s.nightly ? 'The log is sealed every night.' : 'The nightly seal is switched off.'} Each seal is chained to the one before, so a changed or removed entry can be found.
@@ -120,8 +123,7 @@ export default function AuditLogPage() {
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-        <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Audit log</Typography>
-        <Typography color="text.secondary" sx={{ fontSize: 13, mb: 2 }}>Every change the app records, newest first. It can be read here but never changed.</Typography>
+        <ScreenTitle title="Audit log" sx={{ mb: 2 }}>Every change the app records, newest first. It can be read here but never changed.</ScreenTitle>
         {!me.admin ? <Alert severity="info">Only administrators can read the audit log.</Alert> : (
           <>
             <Integrity />

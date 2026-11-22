@@ -100,9 +100,9 @@ class BankCashController {
         access.requireNew(perms, code);
         Person p = poster.person(auth.getName());
         if (!p.head()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the head cashier moves cash between the vault and a bank.");
-        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be posted.");
+        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be posted (every entry carries the department of the person who makes it). Ask an administrator to set your department in Settings > Users, then try again.");
         if (req.amount() == null || req.amount().signum() <= 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter an amount above zero.");
-        if (req.amount().stripTrailingZeros().scale() > 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The amount can have at most 2 decimal places.");
+        if (req.amount().stripTrailingZeros().scale() > 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An amount can have at most 2 decimal places (centavos). Round it and try again.");
         BigDecimal amount = req.amount().setScale(2, java.math.RoundingMode.UNNECESSARY);
         Map<Integer, Integer> counts = req.counts() == null ? Map.of() : req.counts();
         Map<Integer, BigDecimal> faces = new LinkedHashMap<>();

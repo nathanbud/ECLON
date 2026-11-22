@@ -123,7 +123,7 @@ class MemberChangeService {
         return tx.execute((status) -> {
             Map<String, String> current = lockClient(branchCode, clientId, clean.keySet());
             if (!Objects.equals(EditRules.stamp(current.get("UpdDateTime")), EditRules.stamp(req.expectedUpdatedAt()))) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "This client was changed by someone else since you opened it. Reload the profile and try again.");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This member was changed by someone else since you opened it. Reload the profile and try again.");
             }
             List<ChangeItem> items = new ArrayList<>();
             for (var e : clean.entrySet()) {
@@ -133,9 +133,9 @@ class MemberChangeService {
                 items.add(new ChangeItem(spec.column(), spec.label(), current.get(e.getKey()), e.getValue(),
                     show(lookup, current.get(e.getKey())), show(lookup, e.getValue())));
             }
-            if (items.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nothing was changed.");
+            if (items.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nothing was changed: the values are the same as before. Change at least one value, or close without saving.");
             if (pendingFor(branchCode, clientId) != null) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "This client already has a change waiting for approval. Withdraw it, or wait for a decision.");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This member already has a change waiting for approval. Withdraw it, or wait for a decision.");
             }
             if (direct) {
                 long id = db.insertReturningId("INSERT INTO ecis_member_change (branch_code, client_id, requested_by, requested_at, base_updated_at, status, changes, reason, decided_by, decided_at, decision_note) VALUES (?, ?, ?, NOW(), ?, 'APPROVED', ?, ?, ?, NOW(), ?)", "id",
@@ -163,7 +163,7 @@ class MemberChangeService {
             Map<String, String> current = lockClient(ch.branchCode(), ch.clientId(), List.of());
             String base = jdbc.queryForObject("SELECT base_updated_at FROM ecis_member_change WHERE id = ?", String.class, id);
             if (!Objects.equals(EditRules.stamp(current.get("UpdDateTime")), EditRules.stamp(base))) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "The client was changed after this request was made. Reject it, and ask for it to be submitted again.");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "The member was changed after this request was made. Reject it, and ask for it to be submitted again.");
             }
 
             updateClient(ch.branchCode(), ch.clientId(), ch.items());
@@ -218,7 +218,7 @@ class MemberChangeService {
     }
 
     private void requireAvailable() {
-        if (!editAvailable()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Editing is not enabled on this server.");
+        if (!editAvailable()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Changes are switched off on this server, so nothing can be saved. Ask your administrator to switch editing on (the server setting COOP_EDIT_ENABLED).");
     }
 
     /** Checks every submitted value before anything touches the database. */
@@ -250,7 +250,7 @@ class MemberChangeService {
                 for (String c : cols) row.put(c, rs.getString(c));
                 return row;
             }, branchCode, clientId);
-        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found.");
+        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
         return found.get(0);
     }
 

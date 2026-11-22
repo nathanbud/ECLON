@@ -67,7 +67,7 @@ final class CicValidator {
         int width = "ID".equals(type) ? Csdf1.ID_WIDTH : "CI".equals(type) ? Csdf1.CI_WIDTH : Csdf1.CN_WIDTH;
         if (f.length != width) err(out, "Record length", "The record has " + f.length + " columns; a " + type + " record has " + width + ".");
         if (!provider.equals(get(f, "B"))) err(out, "Provider code", "The provider code is '" + get(f, "B") + "', not " + provider + ".");
-        if (!get(f, "E").matches("\\d{11}")) err(out, "Subject number", "The subject number must be 11 digits (branch and client number).");
+        if (!get(f, "E").matches("\\d{11}")) err(out, "Subject number", "The subject number must be 11 digits (branch and member number).");
         if (parseDate(get(f, "D")) == null) err(out, "File date", "The file date is not a date (ddmmyyyy).");
         if ("ID".equals(type)) individual(f, cutOff, out);
         else contract(f, type, cutOff, out);

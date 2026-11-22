@@ -1,0 +1,5 @@
+check_statusid,check_statusdesc
+1,Active
+2,Cancelled
+3,Stop Payment
+4,Transacted

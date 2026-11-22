@@ -1,0 +1,25 @@
+duedatetypeid,duedatetypedesc,duedatetypeoldid
+1,Default,D
+2,End of Month,E
+3,15th/End of Each Month,Q
+4,Same Day of Each Month,S
+5,5th/20th of Each Month,
+6,10th/25th of Each Month,
+7,End of Week (Saturday),
+8,End of Week (Friday),
+9,15th/30th of Each Month,
+10,Every 15th of Each Month,
+11,Every 1st of Each Month,
+12,Every Monday of the Week,
+13,Every Tuesday of the Week,
+14,Every Wednesday of the Week,
+15,Every Thursday of the Week,
+16,Every Friday of the Week,
+17,Every 7th of Each Month,
+18,Every 30th of Each Month,
+19,2nd/17th of Each Month,
+20,8th/23rd of Each Month,
+21,12th/27th of Each Month,
+22,Every 10th of Each Month,
+23,13th/28th of Each Month,
+24,Every 25th of Each Month,

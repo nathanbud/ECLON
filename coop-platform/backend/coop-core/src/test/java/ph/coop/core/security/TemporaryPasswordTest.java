@@ -41,13 +41,15 @@ class TemporaryPasswordTest {
     @Autowired JdbcTemplate jdbc;
 
     private String person;
+    private int changesBefore;
 
     @BeforeEach
     void ready() {
         assumeTrue(!jdbc.queryForList("SELECT 1 FROM access WHERE AccessUserName = 'tester' AND AccessLevel = 'SUPERADMIN'").isEmpty(), "no tester super administrator");
-        List<String> p = jdbc.queryForList("SELECT AccessUserName FROM access WHERE UPPER(AccessLevel) = 'USER' AND COALESCE(AccessIsDisabled, 0) = 0 AND AccessUserName <> 'tester' LIMIT 1", String.class);
+        List<String> p = jdbc.queryForList("SELECT AccessUserName FROM access WHERE UPPER(AccessLevel) = 'USER' AND COALESCE(AccessIsDisabled, 0) = 0 AND AccessUserName <> 'tester' ORDER BY AccessID LIMIT 1", String.class);
         assumeTrue(!p.isEmpty());
         person = p.get(0);
+        changesBefore = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'PASSWORD_CHANGED' AND entity_id = ?", Integer.class, person);
     }
 
     private Authentication me() {
@@ -129,7 +131,8 @@ class TemporaryPasswordTest {
         assertNull(row.get("expires_at"));
         assertEquals(person, row.get("set_by"));
         assertTrue(details.loadUserByUsername(person).getAuthorities().stream().noneMatch((a) -> a.getAuthority().equals(UserAccountController.PASSWORD_CHANGE_REQUIRED)));
-        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'PASSWORD_CHANGED' AND entity_id = ?", Integer.class, person));
+        // one more than before: the person may have changed their password for real earlier
+        assertEquals(changesBefore + 1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'PASSWORD_CHANGED' AND entity_id = ?", Integer.class, person));
     }
 
     @Test @WithMockUser(username = "tester", roles = "USER") void onlyAdministratorsIssueThem() {

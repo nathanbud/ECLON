@@ -87,7 +87,7 @@ class StockCountController {
         support.requireKeeper(auth);
         if (in.lines() == null || in.lines().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Add at least one counted line.");
         Integer wh = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_warehouse WHERE branch_code = ? AND id = ? AND active = 1", Integer.class, InventorySupport.BRANCH, in.warehouseId());
-        if (wh == null || wh == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such active warehouse.");
+        if (wh == null || wh == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That warehouse was not found or is switched off. Choose an active warehouse from the list.");
         List<Object[]> resolved = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         int n = 0;
@@ -123,7 +123,7 @@ class StockCountController {
         if (own != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, own);
         String note = in == null || in.note() == null || in.note().isBlank() ? null : in.note().trim();
         if (!approve && note == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say why the count is rejected.");
-        if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long (255 characters at most).");
+        if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long: it can have at most 255 characters. Shorten it and try again.");
         if (approve) {
             List<Object[]> lines = jdbc.query("SELECT product_id, batch_id, system_qty, counted_qty FROM ecis_stock_count_line WHERE count_id = ? ORDER BY line_no",
                 (rs, i) -> new Object[] {rs.getLong(1), rs.getLong(2), rs.getBigDecimal(3), rs.getBigDecimal(4)}, id);

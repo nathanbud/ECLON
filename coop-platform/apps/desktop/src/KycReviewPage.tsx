@@ -3,7 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import { getKycReview, type KycStatus } from './api'
-import { Dot, listTable, PageTitle, Segmented, Surface } from './appleUi'
+import { Dot, listTable, ScreenTitle, Segmented, Surface } from './appleUi'
 import { memberNo, type Id } from './clients'
 import { appBackground } from './glass'
 
@@ -39,10 +39,12 @@ export default function KycReviewPage({ onOpenMember }: { onOpenMember: (id: Id)
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
-        <PageTitle title="KYC review">
+        <ScreenTitle title="KYC review" sx={{ px: 0.5, mb: 0.5 }}>
           Active members whose Know Your Customer record needs attention. Open a member to put it right in the KYC section.
-          {complete !== undefined && active > 0 && ` ${complete.toLocaleString()} of ${active.toLocaleString()} active members are complete.`}
-        </PageTitle>
+        </ScreenTitle>
+        <Typography color="text.secondary" sx={{ fontSize: 13, px: 0.5, mb: 2, minHeight: 20 }}>
+          {complete !== undefined && active > 0 && `${complete.toLocaleString()} of ${active.toLocaleString()} active members are complete.`}
+        </Typography>
 
         <Box sx={{ mb: 1.5 }}>
           <Segmented
@@ -76,7 +78,7 @@ export default function KycReviewPage({ onOpenMember }: { onOpenMember: (id: Id)
                   onKeyDown={(e) => { if (e.key === 'Enter') onOpenMember({ branchCode: r.branchCode, clientId: r.clientId }) }}
                 >
                   <TableCell>
-                    <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{r.name || 'Unnamed client'}</Typography>
+                    <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{r.name || 'Unnamed member'}</Typography>
                     <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{memberNo(r)}</Typography>
                   </TableCell>
                   <TableCell><Dot color={kind.color}>{kind.label}</Dot></TableCell>

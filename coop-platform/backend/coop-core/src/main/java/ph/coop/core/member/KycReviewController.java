@@ -1,5 +1,6 @@
 package ph.coop.core.member;
 
+import ph.coop.core.connection.DatabaseChanges;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -60,7 +61,7 @@ class KycReviewController {
     }
 
     Review review(String status, Integer branch, int page, int size, LocalDate today) {
-        if (!db.tableExists("ecis_member_kyc")) throw new ResponseStatusException(HttpStatus.CONFLICT, "The KYC table is not installed on this database.");
+        if (!db.tableExists("ecis_member_kyc")) throw new ResponseStatusException(HttpStatus.CONFLICT, DatabaseChanges.notSetUp("the KYC review list"));
         String s = status == null ? "" : status.trim().toUpperCase();
         if (!STATUSES.contains(s)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown KYC status: " + status + ".");
         int n = Math.max(1, Math.min(size, MAX_SIZE));

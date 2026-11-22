@@ -1,0 +1,7 @@
+updtagid,updtagdesc,updtagcode
+1,Posted,P
+2,Cancelled,C
+3,G/L Acct Error,G
+4,S/L Info Error,L
+5,Reversed,R
+6,Pending,PD

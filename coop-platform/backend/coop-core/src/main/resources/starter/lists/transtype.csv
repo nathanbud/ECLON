@@ -1,0 +1,86 @@
+transtypeid,transtypedesc,transtypedesc2,transtypemodule,disablefind,disablenew
+1,General Journal,GJ,1,0,0
+2,Debit/Credit Memo,DCM,1,0,0
+3,Transfer Client,TRC,1,0,0
+4,Time Deposit Rollover,TDR,1,0,0
+5,Bills Payment,BP,1,0,0
+6,Remittance Journal,RJ,1,0,0
+7,Payroll Remittance Journal,PRJ,1,0,0
+8,Debit Memo,DM,1,0,0
+9,Credit Memo,CM,1,0,0
+10,Cash Receipt,CR,3,0,0
+11,Deposit Receipt,DEPR,3,0,0
+12,Payment Receipt,PAYR,3,0,0
+13,Terminal Receipt,TRMR,3,0,0
+14,Collection Receipt,COLR,3,0,0
+15,Acknowledgement Receipt,AKR,3,0,0
+16,Cash Deposit,CSD,"",0,0
+17,Check Deposit,CKD,"",0,0
+18,TD Termination,TDT,1,0,0
+20,Loan Voucher,LV,2,0,0
+21,Cash Voucher,CV,2,0,0
+22,Check Voucher,CKV,2,0,0
+23,Deposit Withdrawal,SW,2,0,0
+24,Misc Disbursement,MD,2,0,0
+25,Encashment,ENC,2,0,0
+26,Returned Check,RCK,"",0,0
+27,Reclassify,REC,1,0,0
+30,OTC Voucher,OTCV,2,0,0
+31,Cash Transfer From,CTF,4,0,0
+32,Cash Transfer To,CTT,4,0,0
+33,Bank Deposit,BD,5,0,0
+34,Cleared Checks,CCK,CC,0,0
+35,Bank Withdrawal,BW,5,0,0
+39,Purchase Order,PO,"",0,0
+40,Stocks Transfer,STT,1,0,0
+41,Sales Receipt,SR,3,0,0
+42,Sales Return,RTR,3,0,0
+43,Receiving Voucher,RCV,2,0,0
+44,Return Voucher,RET,2,0,0
+45,Adj Qty,ADQ,1,0,0
+46,Begin Qty,BGQ,1,0,0
+47,Receiving Journal,RVJ,1,0,0
+48,Return Journal,REJ,1,0,0
+49,PI Count,PI,PI,0,0
+50,Commissions,COM,1,0,0
+51,Unearned Amortization,UA,1,0,0
+52,Accrued Interest,ACI,8,0,0
+53,Interest (Savings),ISD,8,0,0
+54,Dividends,DIV,6,0,0
+55,Patronage Refund,PR,7,0,0
+56,Special A/R,SAR,SAR,0,0
+57,Withholding Tax,WTX,8,0,0
+59,Sales Patronage Refund,SPR,7,0,0
+60,Interest Rebates,IRL,7,0,0
+62,Mortuary Aid Cont,MAC,1,0,0
+63,Members Incentive,MI,1,0,0
+66,ATM On-Us Balance Inquiry,ATMI,9,0,0
+67,ATM Off-Us Balance Inquiry,ATMI,9,0,0
+68,ATM Intercoop Balance Inquiry,ATMI,9,0,0
+69,ATM On-Us Withdrawal,ATMW,9,0,0
+70,ATM Off-Us Withdrawal,ATMW,9,0,0
+71,ATM Intercoop Withdrawal,ATMW,9,0,0
+72,ATM IBFT Deposit,ATMD,9,0,0
+73,ATM IBFT Withdrawal,ATMW,9,0,0
+74,ATM Bills Payment,ATMB,9,0,0
+75,ATM Reversal,ATMR,9,0,0
+77,Special Transaction,ST,1,0,0
+78,Unearned Interest Rebate,UR,1,0,0
+80,Online Transaction,OLT,10,0,0
+81,Reversing Entry,RVE,1,0,0
+82,Void,V,1,0,0
+85,Sales Invoice,SI,3,0,0
+86,Charge Invoice,CI,3,0,0
+87,Official Receipt,OR,3,0,0
+95,Quantity Forward,QFW,1,0,0
+96,Balance Forward,BFW,SL,0,0
+98,Profit Loss Summ,P/L,"",0,0
+99,Closing Entry,CLE,1,0,0
+101,Raw Materials,RM,1,0,0
+102,Work In Process,WIP,1,0,0
+103,Finished Goods,FG,1,0,0
+104,Item Profile,IP,1,0,0
+105,Product Recipe,PR,1,0,0
+106,Dealer Profile,DP,1,0,0
+107,Inventory BatchNo,IBN,1,0,0
+108,Inventory Credit Limit,ICL,1,0,0

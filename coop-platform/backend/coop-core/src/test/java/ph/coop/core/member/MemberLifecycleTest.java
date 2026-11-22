@@ -72,6 +72,46 @@ class MemberLifecycleTest {
     }
 
     @Test
+    void anOfficersOwnRegistrationWaitsForASecondOfficerUnlessASuperAdministratorAllowsIt() {
+        // a real user of the old system acting as the officer (the new member is credited to whoever registered it)
+        List<String> u = jdbc.queryForList("SELECT AccessUserName FROM access WHERE COALESCE(AccessIsDisabled, 0) = 0 ORDER BY AccessID LIMIT 1", String.class);
+        assumeTrue(!u.isEmpty(), "no user in the old system");
+        Authentication own = as(u.get(0), "ROLE_MEMBERSHIP_OFFICER", "PERM_MEMBER_EDIT");
+
+        // off (the default): the officer's own registration waits, like anyone's, and they cannot approve it themselves
+        var waiting = ctl.register(ana(), me(own));
+        assertEquals("PENDING", waiting.status());
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM client WHERE LName = 'Zzitest'", Integer.class));
+        assertEquals(403, assertThrows(ResponseStatusException.class, () -> ctl.approve(waiting.id(), null, me(own))).getStatusCode().value());
+
+        // an administrator who is not a super administrator cannot switch it on
+        var notSuper = assertThrows(ResponseStatusException.class,
+            () -> policy.set(new MembershipPolicyController.Change(null, null, true, "Small office"), me(as("boss", "ROLE_ADMIN"))));
+        assertEquals(403, notSuper.getStatusCode().value());
+
+        // a super administrator switches it on, audited
+        policy.set(new MembershipPolicyController.Change(null, null, true, "One officer at this branch"), me(as("super", "ROLE_ADMIN", "ROLE_SUPERADMIN")));
+        assertTrue(policy.get().officerRegistersDirectly());
+
+        // the registration sent before the switch was on can now be approved by the officer who sent it, recorded as registered directly
+        var approvedOwn = ctl.approve(waiting.id(), null, me(own));
+        assertEquals("APPROVED", approvedOwn.status());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM client WHERE ClientIDBrCode = 1 AND ClientID = ? AND FName = 'Ana'", Integer.class, approvedOwn.clientId()));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'MEMBER_REGISTERED_DIRECTLY' AND entity_id = ?", Integer.class, "1-" + approvedOwn.clientId()));
+
+        // now an officer's registration opens the member at once, with its accounts, and says so in the audit log
+        var direct = ctl.register(new MemberLifecycleController.Register(1, 1, Map.of("LName", "Zzitest", "FName", "Ben", "DateOfBirth", "1991-04-05", "Gender", "1", "CivilStatus", "2")), me(own));
+        assertEquals("APPROVED", direct.status());
+        int id = direct.clientId();
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM client WHERE ClientIDBrCode = 1 AND ClientID = ? AND FName = 'Ben'", Integer.class, id));
+        assertTrue(jdbc.queryForObject("SELECT COUNT(*) FROM sc WHERE SCBR_CODE = 1 AND ClientIDSC = ?", Integer.class, id) >= 1, "a share capital account opens");
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'MEMBER_REGISTERED_DIRECTLY' AND entity_id = ?", Integer.class, "1-" + id));
+
+        // someone who is not an officer still waits for one, even with the switch on
+        assertEquals("PENDING", ctl.register(new MemberLifecycleController.Register(1, 1, Map.of("LName", "Zzitest", "FName", "Cara", "DateOfBirth", "1992-06-07", "Gender", "2", "CivilStatus", "2")), me(maker)).status());
+    }
+
+    @Test
     void duplicatesAndBadDataAreRefused() {
         ctl.register(ana(), me(maker));
         assertThrows(ResponseStatusException.class, () -> ctl.register(ana(), me(maker)));

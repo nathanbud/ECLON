@@ -47,7 +47,7 @@ class BeneficiaryChanges {
 
     Prepared prepare(Change c) {
         String memberName = jdbc.queryForList("SELECT CONCAT_WS(', ', LName, FName) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", String.class, c.branchCode(), c.clientId())
-            .stream().findFirst().orElseThrow(() -> notFound("Member not found."));
+            .stream().findFirst().orElseThrow(() -> notFound("That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again."));
         List<String> problems = BeneficiaryRules.problems(c.action(), c.name(), c.relation(), relations(), c.dateOfBirth(), c.occupation(), c.type(), c.note(), LocalDate.now());
         if (!problems.isEmpty()) throw bad(String.join(" ", problems));
         String action = c.action();
@@ -57,7 +57,7 @@ class BeneficiaryChanges {
         if (!action.equals("ADD")) {
             if (c.benefId() == null) throw bad("Choose the beneficiary.");
             Map<String, Object> row = row(c.branchCode(), c.clientId(), c.benefId(), false);
-            if (row == null) throw notFound("That beneficiary is not recorded for this member.");
+            if (row == null) throw notFound("That beneficiary is not recorded for this member; it may have been removed already. Reload the member's beneficiaries and choose again.");
             before = snapshot(row);
             payload.put("benefId", c.benefId().toString());
             before.forEach((k, v) -> payload.put("before_" + k, v == null ? "" : v));
@@ -67,13 +67,13 @@ class BeneficiaryChanges {
         } else {
             Map<String, String> next = proposed(c);
             next.forEach(payload::put);
-            if (action.equals("EDIT") && same(before, next)) throw bad("Nothing was changed.");
-            if (action.equals("ADD") && duplicate(c.branchCode(), c.clientId(), next)) throw conflict("This beneficiary is already recorded for the member.");
+            if (action.equals("EDIT") && same(before, next)) throw bad("Nothing was changed: the values are the same as before. Change at least one value, or close without saving.");
+            if (action.equals("ADD") && duplicate(c.branchCode(), c.clientId(), next)) throw conflict("This beneficiary is already recorded for the member, so it was not added twice. Change the existing entry instead.");
         }
         for (var p : pending(c.branchCode(), c.clientId())) {
             String id = payload.get("benefId");
             if (id != null && id.equals(p.get("benefId"))) throw conflict("A change to this beneficiary is already waiting for approval.");
-            if (action.equals("ADD") && "ADD".equals(p.get("action")) && same(proposed(c), pick(p))) throw conflict("The same beneficiary is already waiting for approval.");
+            if (action.equals("ADD") && "ADD".equals(p.get("action")) && same(proposed(c), pick(p))) throw conflict("The same beneficiary change is already waiting for approval, so it was not sent twice. Wait for a Membership Officer to decide it, or withdraw it first.");
         }
         String who = BeneficiaryRules.name(action.equals("REMOVE") ? before.get("name") : c.name());
         String summary = switch (action) {

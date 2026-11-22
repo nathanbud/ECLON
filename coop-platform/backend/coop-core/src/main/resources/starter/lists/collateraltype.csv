@@ -1,0 +1,15 @@
+collateraltypeid,collateraltypedesc,collateraltypeoldid
+1,None,N
+2,Real Estate,R
+3,Chattel,C
+4,Chattel & Real Estate,E
+5,ATM,T
+6,Savings Deposit,S
+10,Appliance,A
+11,Vehicles,V
+12,Real Properties,P
+13,Share Capital,H
+14,Time Deposit,I
+15,Other Deposit,X
+16,Salary,L
+99,Others,O

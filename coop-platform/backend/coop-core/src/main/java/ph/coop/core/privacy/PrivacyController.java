@@ -94,7 +94,7 @@ public class PrivacyController {
         PrivacyRegisters.Reg r = reg(key);
         Map<String, Object> before = one(r, id);
         Map<String, Object> values = PrivacyRegisters.clean(r, body, false);
-        if (values.isEmpty()) throw bad("Nothing was changed.");
+        if (values.isEmpty()) throw bad("Nothing was changed: the values are the same as before. Change at least one value, or close without saving.");
         addServerColumns(key, values, auth, false);
         if (key.equals("notices") && "ACTIVE".equals(String.valueOf(before.get("status"))) && values.containsKey("body")) throw bad("An active notice cannot be rewritten. Add a new version instead.");
         String set = String.join(", ", values.keySet().stream().map((c) -> c + " = ?").toList());

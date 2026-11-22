@@ -1,6 +1,7 @@
 package ph.coop.core.bank;
 
 
+import ph.coop.core.connection.DatabaseChanges;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -279,7 +280,7 @@ class BankController {
 
     private void requireTables() {
         if (!db.allTablesExist("bankcode", "ecis_bank_recon", "ecis_bank_recon_item")) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Bank reconciliation is not set up yet. An administrator has to run database/migrations/V013_bank_reconciliation.sql.");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, DatabaseChanges.notSetUp("bank reconciliation"));
         }
     }
 }

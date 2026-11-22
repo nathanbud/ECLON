@@ -30,8 +30,14 @@ export function takeSignOutReason(): string | null {
   return r
 }
 
+/** What the sign-in screen says when the password is right but an administrator has switched the account off. */
+export const ACCOUNT_DISABLED_SIGN_IN = 'Your account is disabled. An administrator has switched it off, so you cannot sign in. Ask an administrator to switch it on again.'
+/** What the sign-in screen says once, after someone working was signed out because their account was switched off. */
+export const ACCOUNT_DISABLED_SIGNED_OUT = 'Your account was disabled. An administrator switched it off while you were signed in, so you were signed out. Nothing you saved was lost. Ask an administrator to switch it on again.'
+
 /** The words for a sign-in the server stopped accepting while the person was working. */
 function refusedSignIn(res: Response): string {
+  if (res.headers.get('X-Auth-Reason') === 'ACCOUNT_DISABLED') return ACCOUNT_DISABLED_SIGNED_OUT
   if (res.headers.get('X-Auth-Reason') === 'TEMPORARY_PASSWORD_EXPIRED') return 'You were signed out because your temporary password ran out. Ask an administrator for a new one.'
   return 'You were signed out because the server no longer accepts your sign-in. An administrator may have switched your account off or reset your password. Sign in again, or ask an administrator.'
 }
@@ -69,7 +75,15 @@ const BY_STATUS: Record<number, string> = {
   413: 'The file is too large.',
   415: 'That kind of file is not accepted.',
 }
-const SERVER_TROUBLE = 'Something went wrong on the server. Try again; if it keeps happening, tell your administrator.'
+/** When the server failed and said nothing a person can use (an older server, or a reply from something in between). */
+const SERVER_TROUBLE = 'The server failed while doing this and gave no reason. Try again; if it happens again, tell your administrator the time it happened, so they can find it in the server’s log (logs/backend.log).'
+
+/** The server program did not answer: the development proxy or a gateway in between says so with these. */
+const NOT_ANSWERING: Record<number, string> = {
+  502: 'The server program is not answering (it may be stopped or restarting). Start it again (scripts/run-backend.ps1 on the server computer) or ask your administrator, then try again.',
+  503: 'The server is busy or not ready yet. Wait a moment and try again; if it keeps happening, ask your administrator whether the server and its database are running.',
+  504: 'The server took too long to answer. Try again; for a large report, choose a shorter period.',
+}
 
 /** Text the server wrote for people (a sentence), as opposed to a technical message from an unexpected failure. */
 function readable(message: string): boolean {
@@ -81,15 +95,21 @@ function readable(message: string): boolean {
 /** The message shown for a failed reply: the server's own explanation when it is meant for people, otherwise plain words by status. */
 export function friendlyError(status: number, serverMessage?: string | null): string {
   if (serverMessage && readable(serverMessage)) return serverMessage
+  if (NOT_ANSWERING[status]) return NOT_ANSWERING[status]
   if (status >= 500) return SERVER_TROUBLE
   return BY_STATUS[status] ?? `The server refused this (code ${status}). Try again, or tell your administrator.`
 }
 
-/** Reads a failed reply and returns the message to show (see {@link friendlyError}). */
+/**
+ * Reads a failed reply and returns the message to show. An unexpected failure comes with a reference (ServerErrors): its message is already in
+ * everyday words (what could not be done, what to do), and its technical details are in the administrators' error log under that reference, so it is
+ * shown as it is. Otherwise see {@link friendlyError}.
+ */
 export async function errorFrom(res: Response): Promise<string> {
   let message: string | null = null
   try {
     const j = await res.json()
+    if (j && typeof j.reference === 'string' && typeof j.message === 'string') return j.message
     if (j && typeof j.message === 'string') message = j.message
   } catch { /* no readable body */ }
   return friendlyError(res.status, message)

@@ -12,6 +12,12 @@ const status = vi.fn()
 const startCheck = vi.fn()
 const start = vi.fn()
 const end = vi.fn()
+const jobs = vi.fn()
+const runJobs = vi.fn()
+const drawerRule = vi.fn()
+const setRule = vi.fn()
+const me = { username: 'ana', name: 'Ana Cruz', roles: [] as string[], admin: false, branchCode: 1 }
+vi.mock('./session', () => ({ useMe: () => me }))
 vi.mock('./api', async (orig) => ({
   ...(await orig<typeof import('./api')>()),
   getBusinessDay: () => state(),
@@ -19,7 +25,16 @@ vi.mock('./api', async (orig) => ({
   checkStartDay: (d: string) => startCheck(d),
   startDay: (d: string, c: boolean) => start(d, c),
   endDay: (r: string | null) => end(r),
+  getDayJobs: (d?: string) => jobs(d),
+  runDayJobs: () => runJobs(),
+  getDrawerOpen: () => drawerRule(),
+  setDrawerOpenPolicy: (on: boolean, reason: string) => setRule(on, reason),
 }))
+
+const step = (key: string, label: string, status: 'NOT RUN' | 'DONE' | 'FAILED', result: string | null = null, error: string | null = null) =>
+  ({ key, label, status, attempts: status === 'NOT RUN' ? 0 : 1, finishedAt: status === 'NOT RUN' ? null : '2026-11-16 17:02', result, error })
+const notRun = { date: '2026-11-16', available: true, status: 'NOT RUN', startedBy: null, finishedAt: null,
+  steps: [step('balances', 'Balance snapshot', 'NOT RUN'), step('loan_aging', 'Loan aging and penalties', 'NOT RUN')] }
 
 const closed = { date: '2026-11-14', words: 'Saturday, 14 November 2026', status: 'CLOSED' as const, openedBy: 'Ana Cruz', openedAt: '2026-11-14 07:58', closedBy: 'Ben Uy', closedAt: '2026-11-14 17:40', overrideReason: null, failedChecks: null }
 const base: BusinessDayState = {
@@ -34,7 +49,42 @@ function show(ui = <BusinessDayPage />) {
 }
 
 describe('Business Day', () => {
-  beforeEach(() => { state.mockReset(); status.mockReset(); startCheck.mockReset(); start.mockReset(); end.mockReset() })
+  beforeEach(() => {
+    state.mockReset(); status.mockReset(); startCheck.mockReset(); start.mockReset(); end.mockReset(); jobs.mockReset(); runJobs.mockReset(); drawerRule.mockReset(); setRule.mockReset()
+    me.admin = false
+    jobs.mockResolvedValue(notRun)
+    drawerRule.mockResolvedValue({ required: true, policyOn: true, available: true, businessDate: '2026-11-16', drawers: [] })
+  })
+
+  it('lists the end-of-day jobs, runs them, and shows a step that failed with its reason', async () => {
+    state.mockResolvedValue({ ...base, open: openDay, checks: [check('drawers', true, true, 'ok')] })
+    runJobs.mockResolvedValue({ ...notRun, status: 'FAILED', steps: [step('balances', 'Balance snapshot', 'DONE', 'Cash in drawers 12,000.00'), step('loan_aging', 'Loan aging and penalties', 'FAILED', null, 'The database did not answer.')] })
+    show()
+    const list = await screen.findByRole('list', { name: 'End-of-day jobs' })
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(list).getByLabelText('Balance snapshot: not run')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Run the jobs now' }))
+    expect(await screen.findByText('Cash in drawers 12,000.00')).toBeInTheDocument()
+    expect(screen.getByLabelText('Loan aging and penalties: failed')).toHaveTextContent('The database did not answer.')
+    expect(runJobs).toHaveBeenCalledOnce()
+  })
+
+  it('lets only an administrator switch the open-the-drawer rule, with a reason', async () => {
+    state.mockResolvedValue(base)
+    show()
+    expect(await screen.findByText('Open the drawer before cash')).toBeInTheDocument()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+  })
+
+  it('asks an administrator why before the drawer rule is switched off', async () => {
+    me.admin = true
+    state.mockResolvedValue(base)
+    setRule.mockResolvedValue({ required: false, policyOn: false, available: true, businessDate: '2026-11-16', drawers: [] })
+    show()
+    await userEvent.click(await screen.findByRole('switch'))
+    expect(await screen.findByText('Stop requiring the drawer count')).toBeInTheDocument()
+    expect(setRule).not.toHaveBeenCalled()
+  })
 
   it('starts the suggested day, after the person confirms what it warns about', async () => {
     state.mockResolvedValue(base)

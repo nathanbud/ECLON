@@ -171,7 +171,7 @@ class VoucherPayoutController {
     private Check evaluate(Request req, Person p, boolean lock) {
         List<Integer> status = jdbc.queryForList("SELECT OSLSTATUS FROM osl WHERE OSLBR_CODE = ? AND ClientIDOSL = ? AND OSLSLC_CODE = 29 AND OSLSLT_CODE = 1 AND OSLREF_NO = ?"
             + (lock ? " FOR UPDATE" : ""), Integer.class, p.branch(), req.clientId(), req.refNo());
-        if (status.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That client has no such vouchers-payable account.");
+        if (status.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member has no such vouchers-payable account.");
         Client c = poster.client(p.branch(), req.clientId());
         BigDecimal balance = balanceOf(p.branch(), req.clientId(), req.refNo());
         List<Integer> events = HandoverController.eventsOf(p.head(), p.assignment());

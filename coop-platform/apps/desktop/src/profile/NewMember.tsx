@@ -5,8 +5,10 @@ import { PHOTO, Ring, tag } from './ProfileHeader'
 import { FiCamera, FiEdit2, FiEdit3, FiPlus, FiSave, FiUser } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
 import { quietChip } from './fields'
-import { deleteMemberDraft, registerMember, saveMemberDraft, type Lookups, type MemberDraft, type StagedFinger } from '../api'
-import { useQueryClient } from '@tanstack/react-query'
+import { deleteMemberDraft, getMembershipPolicy, registerMember, saveMemberDraft, type Lookups, type MemberDraft, type StagedFinger } from '../api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMe } from '../session'
+import { getMemberDefaults } from '../api/memberDefaults'
 import { useState } from 'react'
 import { useLeaveGuard } from '../leaveGuard'
 import { Profile } from './Profile'
@@ -50,7 +52,7 @@ function NewMemberHeader({ canImages }: { canImages: boolean }) {
     <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 2, p: 1.75, ...glass(t, { elevated: true }) })}>
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Chip size="small" color="primary" label="New member" icon={<FiPlus />} sx={{ ...quietChip, mb: 0.75 }} />
-        <Typography sx={{ fontSize: 13 }} color="text.secondary">The member number is given when a Membership Officer approves. {canImages ? 'The photo, signature and fingerprints taken here are kept with the registration until then.' : 'A photo, signature and fingerprints need the edit-client-images permission.'}</Typography>
+        <Typography sx={{ fontSize: 13 }} color="text.secondary">The member number is given when a Membership Officer approves. {canImages ? 'The photo, signature and fingerprints taken here are kept with the registration until then.' : 'A photo, signature and fingerprints need the edit-member-images permission.'}</Typography>
       </Box>
     </Box>
   )
@@ -59,7 +61,16 @@ function NewMemberHeader({ canImages }: { canImages: boolean }) {
 /** Registering a new member on the member profile itself: the same tabs and fields, all open for typing. Sending asks a Membership Officer (not you) to approve. */
 export function NewMemberScreen({ lk, canImages, onClose, onDone, initial }: { lk?: Lookups; canImages: boolean; onClose: () => void; onDone: (msg: string) => void; initial?: MemberDraft }) {
   const qc = useQueryClient()
+  const me = useMe()
+  const policy = useQuery({ queryKey: ['membership-policy'], queryFn: getMembershipPolicy, staleTime: 60_000, retry: false })
+  // whether sending opens the member at once: a Membership Officer, and a super administrator allows officers to register directly
+  const direct = !!policy.data?.officerRegistersDirectly && me.roles.some((r) => r.replace('ROLE_', '') === 'MEMBERSHIP_OFFICER')
   const [draft, setDraft] = useState<Record<string, string>>(() => ({ ...(initial?.fields ?? {}), ClientType: String(initial?.clientType ?? 1) }))
+  // only the member types this cooperative registers (Settings > Membership > Member defaults) are offered; the first one until another is chosen
+  const defaults = useQuery({ queryKey: ['member-defaults'], queryFn: getMemberDefaults, staleTime: 60_000, retry: false })
+  const allowed = defaults.data?.types
+  const typeFor = (t: string | undefined) => (allowed && !allowed.some((x) => String(x.code) === t) ? String(allowed[0]?.code ?? '') : (t ?? ''))
+  const memberLk = lk && allowed ? { ...lk, clientType: Object.fromEntries(allowed.map((t) => [t.code, t.name])) } : lk
   // a draft is what was typed, saved on the server for this person only; photo, signature and fingerprints are not part of it
   const [draftId, setDraftId] = useState<number | null>(initial?.id ?? null)
   const [savedSnap, setSavedSnap] = useState<string | null>(() => (initial ? JSON.stringify({ ...initial.fields, ClientType: String(initial.clientType) }) : null))
@@ -97,10 +108,11 @@ export function NewMemberScreen({ lk, canImages, onClose, onDone, initial }: { l
       const encoded = photo ? await new Promise<string>((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(',')[1] ?? ''); fr.onerror = () => no(new Error('The photo could not be read.')); fr.readAsDataURL(photo) }) : null
       const signed = signature ? await new Promise<string>((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(',')[1] ?? ''); fr.onerror = () => no(new Error('The signature could not be read.')); fr.readAsDataURL(signature) }) : null
       const staged = encoded || signed || prints.length ? { photo: encoded, consent, fingerprints: prints, signature: signed } : undefined
-      const r = await registerMember({ branchCode: 1, clientType: Number(ClientType || 1), fields, staged })
+      const r = await registerMember({ branchCode: 1, clientType: Number(typeFor(ClientType)), fields, staged })
       void qc.invalidateQueries({ queryKey: ['member-requests'] })
       if (draftId !== null) void deleteMemberDraft(draftId).catch(() => undefined).finally(() => qc.invalidateQueries({ queryKey: ['member-drafts'] }))
-      onDone(`Registration sent for approval: ${r.summary}`)
+      // A Membership Officer's own registration is opened at once when a super administrator allows it (Membership policy); otherwise it waits for approval.
+      onDone(r.status === 'APPROVED' ? `Member ${r.clientId ?? ''} opened: ${r.summary}` : `Registration sent for approval: ${r.summary}`)
       onClose()
     } catch (e) {
       setError((e as Error).message)
@@ -114,7 +126,7 @@ export function NewMemberScreen({ lk, canImages, onClose, onDone, initial }: { l
     setSaving(true)
     setError(null)
     try {
-      const saved = await saveMemberDraft(draftId, { branchCode: 1, clientType: Number(ClientType || 1), fields })
+      const saved = await saveMemberDraft(draftId, { branchCode: 1, clientType: Number(typeFor(ClientType)), fields })
       setDraftId(saved.id)
       setSavedSnap(JSON.stringify(draft))
       setSavedAt(new Date())
@@ -134,16 +146,18 @@ export function NewMemberScreen({ lk, canImages, onClose, onDone, initial }: { l
         <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1, ...glass(t) })}>
           <FiEdit2 aria-hidden />
           <Typography sx={{ flex: 1, fontSize: 13 }} role="status">
-            Registering a new member. Last name, first name, date of birth, gender and civil status are required. Sending asks a Membership Officer other than you to approve.
+            Registering a new member. Last name, first name, date of birth, gender and civil status are required. {direct
+              ? 'You are a Membership Officer and a super administrator allows officers to register directly, so sending opens the member at once.'
+              : 'Sending asks a Membership Officer other than you to approve.'}
           </Typography>
           {savedAt && !unsaved && <Typography sx={{ fontSize: 12 }} color="text.secondary" role="status">Draft saved {savedAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</Typography>}
           <Button size="small" onClick={() => (unsaved ? setDiscarding(true) : onClose())} disabled={saving}>{unsaved ? 'Cancel' : 'Close'}</Button>
           <Button size="small" variant="outlined" onClick={() => void saveDraft()} disabled={saving || fieldCount === 0 || !unsaved}>Save as draft</Button>
-          <Button size="small" variant="contained" startIcon={<FiSave />} onClick={() => void send()} disabled={saving || !ready}>{saving ? 'Sending…' : 'Send for approval'}</Button>
+          <Button size="small" variant="contained" startIcon={<FiSave />} onClick={() => void send()} disabled={saving || !ready}>{saving ? 'Sending…' : direct ? 'Register member' : 'Send for approval'}</Button>
         </Box>
         {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
       </Box>
-      <Profile id={FRESH_ID} lk={lk} fresh newHeader={<NewMemberHeader canImages={canImages} />} newIdentity={<NewMemberIdentity photo={photoUrl} prints={prints.length} signed={!!signature} canImages={canImages} onPhoto={() => setPhotoOpen(true)} onPrints={() => setPrintsOpen(true)} onSign={() => setSignatureOpen(true)} />} />
+      <Profile id={FRESH_ID} lk={memberLk} fresh newHeader={<NewMemberHeader canImages={canImages} />} newIdentity={<NewMemberIdentity photo={photoUrl} prints={prints.length} signed={!!signature} canImages={canImages} onPhoto={() => setPhotoOpen(true)} onPrints={() => setPrintsOpen(true)} onSign={() => setSignatureOpen(true)} />} />
       {photoOpen && <MemberPhotoDialog id={FRESH_ID} name={draft.LName ? `${draft.LName}, ${draft.FName ?? ''}` : 'the new member'} onPick={keepPhoto} onClose={() => setPhotoOpen(false)} onDone={onDone} />}
       {signatureOpen && <SignatureDialog id={FRESH_ID} name={draft.LName ? `${draft.LName}, ${draft.FName ?? ''}` : 'the new member'} current={signatureUrl} canCapture onPick={keepSignature} onClose={() => setSignatureOpen(false)} onDone={onDone} />}
       {printsOpen && <StagedFingerprintDialog memberKey={`new-${[draft.LName, draft.FName, draft.DateOfBirth].join('|')}`} name={draft.LName ? `${draft.LName}, ${draft.FName ?? ''}` : 'the new member'} consent={consent} prints={prints}

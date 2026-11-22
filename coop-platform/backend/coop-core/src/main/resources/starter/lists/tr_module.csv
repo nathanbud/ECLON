@@ -1,0 +1,11 @@
+trmod_id,trmod_desc
+1,General Journal
+2,Disbursement
+3,Cash Receipt
+4,Front Office
+5,Bank Transaction
+6,Dividend
+7,Patronage Refund
+8,Deposits CG Trans
+9,ATM Transactions
+10,Online Transactions

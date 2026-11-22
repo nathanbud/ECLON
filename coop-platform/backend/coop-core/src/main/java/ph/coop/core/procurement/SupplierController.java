@@ -58,7 +58,7 @@ class SupplierController {
     @GetMapping("/{id}")
     Supplier get(@PathVariable long id) {
         List<Supplier> s = jdbc.query(SELECT + " WHERE branch_code = ? AND id = ?", SupplierController::map, ProcurementSupport.BRANCH, id);
-        if (s.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such supplier.");
+        if (s.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That supplier was not found. It may have been switched off or the code mistyped: choose the supplier from the list.");
         return s.get(0);
     }
 
@@ -68,7 +68,7 @@ class SupplierController {
 
     private static void check(SupplierIn in) {
         if (in.name() == null || in.name().isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Give the supplier's name.");
-        if (in.name().length() > 120) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The name is too long (120 characters at most).");
+        if (in.name().length() > 120) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The name is too long: it can have at most 120 characters. Shorten it and try again.");
         if (in.termsDays() != null && (in.termsDays() < 0 || in.termsDays() > 365)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payment terms are 0 to 365 days.");
         if (in.email() != null && !in.email().isBlank() && !in.email().contains("@")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "That email address does not look right.");
     }

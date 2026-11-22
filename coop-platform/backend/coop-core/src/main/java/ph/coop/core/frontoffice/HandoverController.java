@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.connection.DatabaseChanges;
 import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;import ph.coop.core.db.Db;
 import java.math.BigDecimal;
@@ -123,8 +124,8 @@ class HandoverController {
 
     /** Null when handover can run; otherwise what is missing (the migration has to be run by an administrator). */
     private String notReady() {
-        if (!db.tableExists("ecis_cash_handover")) return "Cash handover is not set up yet. An administrator has to run database/migrations/V006_cash_handover.sql.";
-        if (!db.canInsertInto(LEDGER_TABLES)) return "The app does not have permission to post to the ledger yet. An administrator has to run database/migrations/V006_cash_handover.sql.";
+        if (!db.tableExists("ecis_cash_handover")) return DatabaseChanges.notSetUp("cash handovers");
+        if (!db.canInsertInto(LEDGER_TABLES)) return DatabaseChanges.notSetUp("posting cash handovers to the ledger");
         return null;
     }
 
@@ -323,7 +324,7 @@ class HandoverController {
         if (notReady != null) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, notReady);
 
         Drawer from = req.fromEvent() == HandoverRules.VAULT ? new Drawer(HandoverRules.VAULT, HandoverRules.VAULT_NUMBER) : new Drawer(req.fromEvent(), p.number());
-        if (!from.isVault() && !drawersOf(p).contains(from)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have that drawer.");
+        if (!from.isVault() && !drawersOf(p).contains(from)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "That cash drawer is not yours, so you cannot use it. Choose your own drawer, or ask the head cashier which drawer you are assigned.");
         Drawer to = req.toEvent() == HandoverRules.VAULT ? new Drawer(HandoverRules.VAULT, HandoverRules.VAULT_NUMBER)
             : new Drawer(req.toEvent(), req.toNumber() == null ? 0 : req.toNumber());
         if (!to.isVault() && !drawerExists(p.branch(), to)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "There is no " + to.label() + ".");
@@ -336,7 +337,7 @@ class HandoverController {
         List<String> problems = HandoverRules.check(from, to, req.amount(), counts, denomValues(), p.head(), cheques);
         if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
         if (cheques.signum() > 0 && !hasChequeColumn())
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Handing over cheques is not set up yet. An administrator has to run database/migrations/V025_cheque_handover.sql.");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, DatabaseChanges.notSetUp("handing over cheques"));
         BigDecimal cash = req.amount() == null ? BigDecimal.ZERO : req.amount();
         if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so the transfer cannot be posted.");
 
@@ -417,7 +418,7 @@ class HandoverController {
                 new java.util.LinkedHashMap<>(java.util.Map.of("branch_code", p.branch(), "event", row.event(), "number", row.number())),
                 new java.util.LinkedHashMap<>(java.util.Map.of("max_cash", max, "updated_by", p.id(), "updated_at", Timestamp.valueOf(LocalDateTime.now()))));
         } catch (org.springframework.dao.DataAccessException e) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Drawer limits are not set up yet. An administrator has to run database/migrations/V007_drawer_controls.sql.");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, DatabaseChanges.notSetUp("drawer limits"));
         }
         AuditLog.write(jdbc, p.username(), "drawer.limit", "drawer", new Drawer(row.event(), row.number()).label(), null, max.toPlainString(), null);
         return limitRows(auth);
@@ -432,11 +433,11 @@ class HandoverController {
         Person p = me(auth);
         access.of(auth);
         Drawer d = new Drawer(req.event(), p.number());
-        if (!drawersOf(p).contains(d)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have that drawer.");
+        if (!drawersOf(p).contains(d)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "That cash drawer is not yours, so you cannot use it. Choose your own drawer, or ask the head cashier which drawer you are assigned.");
         Map<Integer, BigDecimal> faces = denomValues();
         Map<Integer, Integer> counts = req.counts() == null ? Map.of() : req.counts();
         for (Map.Entry<Integer, Integer> e : counts.entrySet())
-            if (!faces.containsKey(e.getKey()) || e.getValue() < 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The count has a note or coin that is not valid.");
+            if (!faces.containsKey(e.getKey()) || e.getValue() < 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The count includes a note or coin value that is not used. Check the denominations and enter only the notes and coins listed.");
         BigDecimal counted = HandoverRules.total(counts, faces);
         BigDecimal expected = balances.of(p.branch(), d);
         BigDecimal variance = DrawerRules.variance(expected, counted);
@@ -453,7 +454,7 @@ class HandoverController {
             jdbc.update("INSERT INTO ecis_drawer_close (branch_code, tr_date, event, number, closed_by, expected, counted, variance, counts, reason, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 p.branch(), java.sql.Date.valueOf(countDay), d.event(), d.number(), p.id(), expected, counted, variance, json.toString(), reason, Timestamp.valueOf(now));
         } catch (org.springframework.dao.DataAccessException e) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Drawer counts are not set up yet. An administrator has to run database/migrations/V007_drawer_controls.sql.");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, DatabaseChanges.notSetUp("drawer counts"));
         }
         AuditLog.write(jdbc, p.username(), "drawer.close", "drawer", d.label(), null, "expected " + expected.toPlainString() + ", counted " + counted.toPlainString() + ", difference " + variance.toPlainString(), reason);
         return new CloseResult(expected, counted, variance, now.format(DateTimeFormatter.ofPattern("HH:mm")));
@@ -510,7 +511,7 @@ class HandoverController {
         Map<Integer, BigDecimal> faces = denomValues();
         Map<Integer, Integer> counts = body.counts() == null ? Map.of() : body.counts();
         for (Map.Entry<Integer, Integer> e : counts.entrySet())
-            if (!faces.containsKey(e.getKey()) || e.getValue() < 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The count has a note or coin that is not valid.");
+            if (!faces.containsKey(e.getKey()) || e.getValue() < 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The count includes a note or coin value that is not used. Check the denominations and enter only the notes and coins listed.");
         BigDecimal counted = HandoverRules.total(counts, faces);
         BigDecimal chequesSeen = chequesOrZero(body.cheques());
 

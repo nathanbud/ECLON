@@ -76,6 +76,8 @@ export interface ChequeClearRow {
   year: number; ctlNo: number; seq: number; documentNo: string; receiptDate: string; client: string | null; number: string; bank: string | null
   chequeDate: string | null; kind: string | null; amount: number; clearsOn: string; due: boolean; cleared: boolean
   clearedOn: string | null; clearedBy: string | null; bankReference: string | null
+  /** Days until the expected clearing day: 0 on the day, below 0 once it is past. */
+  daysLeft: number
 }
 export const getChequeClearing = () => getJson<ChequeClearRow[]>('/api/front-office/cheque-clearing')
 export const clearCheques = (items: { year: number; ctlNo: number; seq: number }[], reason: string, clearedOn?: string, bankReference?: string) =>
@@ -85,7 +87,10 @@ export const clearCheques = (items: { year: number; ctlNo: number; seq: number }
 export interface ChequeReturnCandidate {
   year: number; ctlNo: number; seq: number; documentNo: string; receiptDate: string; clientId: number; client: string; number: string; bank: string | null
   amount: number; typeCode: number | null; refNo: number | null; returned: boolean; problem: string | null
+  /** Every account line the cheque paid on its receipt (savings, loan principal and charges, share capital), each debited back on the return. */
+  paid: ChequeReturnPaid[]
 }
+export interface ChequeReturnPaid { slc: number; typeCode: number; refNo: number; event: number; account: string; cts: number; amount: number; what: string }
 /** Where the cheque is now: with a cashier or teller (event 52 or 53 and the number), in the vault, or in a bank account. */
 export interface ChequeReturnReq { year: number; ctlNo: number; seq: number; where: 'DRAWER' | 'VAULT' | 'BANK'; event?: number; number?: number; bankId?: number }
 export interface ChequeReturnCheck { description: string; amount: number; approval: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED'; problems: string[]; ready: boolean }

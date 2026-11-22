@@ -14,6 +14,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,8 +41,13 @@ class UserAccountController {
     private final Db db;
     private final PasswordEncoder encoder;
     private final Clock clock;
+    private final TransactionTemplate tx;
 
-    UserAccountController(JdbcTemplate jdbc, Db db, PasswordEncoder encoder, Clock clock) {
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ph.coop.core.feature.Features features;
+
+    UserAccountController(JdbcTemplate jdbc, Db db, PasswordEncoder encoder, Clock clock, PlatformTransactionManager txManager) {
+        this.tx = new TransactionTemplate(txManager);
         this.clock = clock;
         this.jdbc = jdbc;
         this.db = db;
@@ -48,7 +55,8 @@ class UserAccountController {
     }
 
     /** branchCode: the person's own branch in the old system (1 when they are not in it, as for the bootstrap account); screens start on it. */
-    record Me(String username, String name, List<String> roles, boolean canEdit, boolean canApprove, boolean admin, boolean mustChangePassword, int branchCode) {}
+    /** featuresOff: the areas this cooperative switched off (Settings > System > Features), for the screens to hide. */
+    record Me(String username, String name, List<String> roles, boolean canEdit, boolean canApprove, boolean admin, boolean mustChangePassword, int branchCode, List<String> featuresOff) {}
 
     record Branch(int code, String name) {}
 
@@ -68,7 +76,7 @@ class UserAccountController {
         int branch = found.isEmpty() || (Integer) found.get(0)[1] <= 0 ? 1 : (Integer) found.get(0)[1];
         return new Me(auth.getName(), name, authorities.stream().filter((a) -> a.startsWith("ROLE_")).map((a) -> a.substring(5)).toList(),
             authorities.contains("PERM_MEMBER_EDIT"), authorities.contains("ROLE_MEMBERSHIP_OFFICER"), authorities.contains("ROLE_ADMIN"),
-            authorities.contains(PASSWORD_CHANGE_REQUIRED), branch);
+            authorities.contains(PASSWORD_CHANGE_REQUIRED), branch, features == null ? List.of() : features.off());
     }
 
     /** passwordState: NONE (no password yet), ACTIVE (their own), TEMPORARY (issued, not yet replaced, still valid) or EXPIRED (issued and ran out). */
@@ -134,6 +142,113 @@ class UserAccountController {
         return new TemporaryIssued(name, password, hours, expires);
     }
 
+    /** A new user: who they are, where and at what level they work, whose permissions to start from (optional), and how long the first password lasts. */
+    record NewUser(String username, String firstName, String middleName, String lastName, Integer branchCode, String level, String copyFrom, Integer validityHours) {}
+
+    /** The user made, what came from the user copied, and the temporary password (in this reply only, like a reissued one). */
+    record Created(String username, long accessId, String level, int branchCode, String copiedFrom, int transactionRights, List<String> roles, TemporaryIssued password) {}
+
+    /**
+     * Creates a user (Settings > Users > New user): a row in the old system's access table, so the old system knows them too, and a temporary password in
+     * ecis_user_credential that they replace at their first sign-in. With {@code copyFrom}, the new user starts with that person's permissions: every access
+     * column but those in {@link UserCreateRules#NOT_COPIED}, their per-transaction-type rights (access_trans) and the application's roles; without it, with none.
+     * Only a super administrator creates an administrator. One transaction; audited as USER_CREATED (never with the password).
+     */
+    @PostMapping("/admin/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    @org.springframework.transaction.annotation.Transactional
+    Created create(@RequestBody NewUser in, Authentication auth) {
+        Integer hours = PasswordPolicy.validity(in.validityHours());
+        if (hours == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose how long the first password lasts: 1, 4, 24 or 72 hours.");
+        List<String> mine = jdbc.query("SELECT AccessLevel FROM access WHERE AccessUserName = ? LIMIT 1", (rs, i) -> rs.getString(1), auth.getName());
+        String callerLevel = mine.isEmpty() ? "SUPERADMIN" : mine.get(0); // the bootstrap account is not in the old system
+        List<String> problems = UserCreateRules.problems(in.username(), in.firstName(), in.lastName(), in.middleName(), in.level(), callerLevel);
+        if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
+        String username = in.username().trim();
+        String level = in.level().trim().toUpperCase();
+        Integer taken = jdbc.queryForObject("SELECT COUNT(*) FROM access WHERE LOWER(AccessUserName) = LOWER(?)", Integer.class, username);
+        Integer credentials = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_user_credential WHERE LOWER(username) = LOWER(?)", Integer.class, username);
+        if ((taken != null && taken > 0) || (credentials != null && credentials > 0)) throw new ResponseStatusException(HttpStatus.CONFLICT, "The username " + username + " is already taken.");
+        int branch = in.branchCode() == null ? 1 : in.branchCode();
+        Integer branchFound = jdbc.queryForObject("SELECT COUNT(*) FROM branches WHERE BranchesID = ?", Integer.class, branch);
+        if (branchFound == null || branchFound == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "There is no branch " + branch + ".");
+
+        // the first password goes in first: its table is keyed by username, so two administrators creating the same name at once cannot both succeed
+        String password = PasswordPolicy.generateTemporary();
+        LocalDateTime now = LocalDateTime.now(clock).withNano(0);
+        LocalDateTime expires = now.plusHours(hours);
+        try {
+            jdbc.update("INSERT INTO ecis_user_credential (username, password_hash, set_by, set_at, must_change, expires_at) VALUES (?, ?, ?, ?, 1, ?)",
+                username, encoder.encode(password), auth.getName(), Timestamp.valueOf(now), Timestamp.valueOf(expires));
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The username " + username + " is already taken.");
+        }
+
+        // the access row: the copied person's columns (never who they are, their password or codes), then this person's own
+        java.util.Map<String, Object> template = null;
+        String copiedFrom = null;
+        if (in.copyFrom() != null && !in.copyFrom().isBlank()) {
+            List<java.util.Map<String, Object>> found = jdbc.queryForList("SELECT * FROM access WHERE AccessUserName = ? ORDER BY AccessID LIMIT 1", in.copyFrom().trim());
+            if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no user " + in.copyFrom().trim() + " to copy permissions from.");
+            template = found.get(0);
+            copiedFrom = String.valueOf(template.entrySet().stream().filter((e) -> e.getKey().equalsIgnoreCase("AccessUserName")).findFirst().orElseThrow().getValue());
+        }
+        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+        Integer templateId = null, templateBranch = null;
+        if (template != null) {
+            for (var e : template.entrySet()) {
+                String col = e.getKey().toLowerCase();
+                if (col.equals("accessid")) templateId = ((Number) e.getValue()).intValue();
+                if (col.equals("accessbr_code") && e.getValue() != null) templateBranch = ((Number) e.getValue()).intValue();
+                if (UserCreateRules.NOT_COPIED.contains(col)) continue;
+                row.put(e.getKey(), e.getValue());
+            }
+            // a point-of-sale location belongs to a branch: it is kept only when the new person works in the same one
+            if (templateBranch == null || templateBranch != branch) row.keySet().removeIf((k) -> k.equalsIgnoreCase("AccessPOSLocation"));
+        }
+        // the column defaults to store location 1, which a database without store locations refuses; every existing user has none
+        if (row.keySet().stream().noneMatch((k) -> k.equalsIgnoreCase("AccessPOSLocation"))) put(row, "AccessPOSLocation", null);
+        put(row, "AccessUserName", username);
+        put(row, "AccessFName", in.firstName().trim());
+        put(row, "AccessMName", in.middleName() == null || in.middleName().isBlank() ? null : in.middleName().trim());
+        put(row, "AccessLName", in.lastName().trim());
+        put(row, "AccessLevel", level);
+        put(row, "AccessBR_CODE", branch);
+        put(row, "AccessIsDisabled", 0);
+        if (row.keySet().stream().noneMatch((k) -> k.equalsIgnoreCase("AccessStartDay"))) put(row, "AccessStartDay", 0);
+        if (row.keySet().stream().noneMatch((k) -> k.equalsIgnoreCase("AccessEndDay"))) put(row, "AccessEndDay", 0);
+        String sql = "INSERT INTO access (" + String.join(", ", row.keySet()) + ") VALUES (" + String.join(", ", java.util.Collections.nCopies(row.size(), "?")) + ")";
+        long accessId = db.insertReturningId(sql, "AccessID", row.values().toArray());
+
+        int rights = 0;
+        List<String> roles = new java.util.ArrayList<>();
+        if (templateId != null) {
+            rights = jdbc.update("""
+                    INSERT INTO access_trans (br_code, userid, tr_code, can_find, can_new, can_edit, can_edit_entry, can_delete, can_tag_approved, can_post, can_reverse, can_cancel,
+                      can_backdate, can_futuredate, can_post_auto, can_post_partialpay, can_post_overpay, can_post_uncleareddep, can_post_with_hold_dep, can_post_resultsnegative,
+                      can_see_other_users_trans, can_backdate_closedbooks)
+                    SELECT ?, ?, tr_code, can_find, can_new, can_edit, can_edit_entry, can_delete, can_tag_approved, can_post, can_reverse, can_cancel,
+                      can_backdate, can_futuredate, can_post_auto, can_post_partialpay, can_post_overpay, can_post_uncleareddep, can_post_with_hold_dep, can_post_resultsnegative,
+                      can_see_other_users_trans, can_backdate_closedbooks
+                    FROM access_trans WHERE userid = ? AND br_code = ?
+                    """, branch, accessId, templateId, templateBranch == null ? branch : templateBranch);
+            for (String r : jdbc.queryForList("SELECT role FROM ecis_user_role WHERE username = ? ORDER BY role", String.class, copiedFrom)) {
+                if (!GRANTABLE_ROLES.contains(r)) continue;
+                jdbc.update("INSERT INTO ecis_user_role (username, role, granted_by, granted_at) VALUES (?, ?, ?, NOW())", username, r, auth.getName());
+                roles.add(r);
+            }
+        }
+        audit(auth.getName(), "USER_CREATED", username, level + ", branch " + branch + (copiedFrom == null ? ", no permissions" : ", permissions copied from " + copiedFrom
+            + " (" + rights + " transaction types" + (roles.isEmpty() ? "" : ", roles " + String.join(", ", roles)) + ")") + "; temporary password for " + hours + " hours");
+        return new Created(username, accessId, level, branch, copiedFrom, rights, roles, new TemporaryIssued(username, password, hours, expires));
+    }
+
+    /** Sets a column, replacing the same column however the database spells it. */
+    private static void put(java.util.Map<String, Object> row, String column, Object value) {
+        row.keySet().removeIf((k) -> k.equalsIgnoreCase(column));
+        row.put(column, value);
+    }
+
     record PasswordChange(String current, String next) {}
 
     /** A person replaces their own password: the temporary one at first sign-in, or their own any time. The current password is asked for again. */
@@ -143,7 +258,7 @@ class UserAccountController {
         List<String> hash = jdbc.query("SELECT password_hash FROM ecis_user_credential WHERE username = ?", (rs, i) -> rs.getString(1), auth.getName());
         if (hash.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This account has no password of its own to change.");
         if (body == null || body.current() == null || !encoder.matches(body.current(), hash.get(0))) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The current password is not right.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The current password is not right, so the password was not changed. Type the password you signed in with, then the new one.");
         }
         String problem = PasswordPolicy.problem(body.next(), auth.getName(), body.current());
         if (problem != null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, problem);
@@ -152,20 +267,85 @@ class UserAccountController {
         audit(auth.getName(), "PASSWORD_CHANGED", auth.getName(), null);
     }
 
+    static final String OFFICER = "MEMBERSHIP_OFFICER";
+
+    /** On the Member tab but a preference, not a permission (whether the old system asks for a member ID first), so granting the role leaves it alone. */
+    static final Set<String> NOT_SWITCHED_ON_WITH_OFFICER = Set.of("AccessIsClientIDDefaultPrompt");
+
+    /**
+     * The permission switches of the Member tab (Settings > Users > a person > Member), read from the tab itself so the two never drift apart:
+     * every on/off setting there except {@link #NOT_SWITCHED_ON_WITH_OFFICER}. Amounts, the member types list and the own member number are not switches and are left as they are.
+     */
+    static List<UserProfileController.Spec> memberTabSwitches() {
+        return UserProfileController.TABS.get("client").values().stream().flatMap(List::stream)
+            .filter((s) -> s.kind().equals("bool") && !NOT_SWITCHED_ON_WITH_OFFICER.contains(s.column())).toList();
+    }
+
+    /** switchedOn: the Member tab permissions this grant switched on, by their label (empty when they were all on already, or for another role). */
+    record Granted(String role, List<String> switchedOn) {}
+
     @PutMapping("/admin/users/{username}/roles/{role}")
     @PreAuthorize("hasRole('ADMIN')")
-    void grant(@PathVariable String username, @PathVariable String role, Authentication auth) {
+    Granted grant(@PathVariable String username, @PathVariable String role, Authentication auth) {
         String r = checkRole(role);
         String name = canonicalName(username);
-        Integer has = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_user_role WHERE username = ? AND role = ?", Integer.class, name, r);
-        if (has == null || has == 0) {
-            try {
-                jdbc.update("INSERT INTO ecis_user_role (username, role, granted_by, granted_at) VALUES (?, ?, ?, NOW())", name, r, auth.getName());
-            } catch (org.springframework.dao.DuplicateKeyException alreadyGranted) {
-                // granted at the same moment by someone else; the person has the role either way
+        // The role and the permissions that come with it are written together: if either fails, neither stays.
+        return tx.execute((status) -> {
+            List<String> switchedOn = r.equals(OFFICER) ? switchOnMemberPermissions(auth.getName(), name) : List.of();
+            Integer has = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_user_role WHERE username = ? AND role = ?", Integer.class, name, r);
+            if (has == null || has == 0) {
+                try {
+                    jdbc.update("INSERT INTO ecis_user_role (username, role, granted_by, granted_at) VALUES (?, ?, ?, NOW())", name, r, auth.getName());
+                } catch (org.springframework.dao.DuplicateKeyException alreadyGranted) {
+                    // granted at the same moment by someone else; the person has the role either way
+                }
             }
+            audit(auth.getName(), "ROLE_GRANTED", name, r);
+            return new Granted(r, switchedOn);
+        });
+    }
+
+    /**
+     * A Membership Officer gets every permission on the Member tab: each switch that is off is switched on, with one UPDATE:<column> audit row per switch
+     * (from its old value to 1), as when it is switched on by hand in the account setup. The same rules apply as for that setup: nobody changes their own
+     * account, and only a super administrator changes an administrator's. Taking the role away later leaves the switches as they are.
+     */
+    private List<String> switchOnMemberPermissions(String by, String name) {
+        List<UserProfileController.Spec> specs = memberTabSwitches();
+        List<String> cols = specs.stream().map(UserProfileController.Spec::column).toList();
+        Map<String, Object> row = jdbc.queryForMap("SELECT AccessLevel, " + String.join(", ", cols) + " FROM access WHERE AccessUserName = ? FOR UPDATE", name);
+        Object level = valueOf(row, "AccessLevel");
+        String problem = UserEditRules.problem(by, levelOf(by), name, level == null ? null : String.valueOf(level), false);
+        if (problem != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, problem);
+
+        List<UserProfileController.Spec> off = specs.stream().filter((s) -> !isOn(valueOf(row, s.column()))).toList();
+        if (off.isEmpty()) return List.of();
+        jdbc.update("UPDATE access SET " + String.join(", ", off.stream().map((s) -> s.column() + " = 1").toList()) + " WHERE AccessUserName = ?", name);
+        for (var s : off) {
+            Object was = valueOf(row, s.column());
+            AuditLog.write(jdbc, by, "UPDATE:" + s.column(), "user", name, was == null ? null : String.valueOf(isOn(was) ? 1 : 0), "1",
+                "Switched on with the Membership Officer role");
         }
-        audit(auth.getName(), "ROLE_GRANTED", name, r);
+        return off.stream().map(UserProfileController.Spec::label).toList();
+    }
+
+    /** A column of the locked row, whatever case the database gave its name. */
+    private static Object valueOf(Map<String, Object> row, String column) {
+        for (var e : row.entrySet()) if (e.getKey().equalsIgnoreCase(column)) return e.getValue();
+        return null;
+    }
+
+    /** A flag as MySQL (tinyint(1): Boolean) or PostgreSQL (smallint: a number) returns it. */
+    private static boolean isOn(Object flag) {
+        if (flag instanceof Boolean b) return b;
+        if (flag instanceof Number n) return n.intValue() != 0;
+        return flag != null && "1".equals(String.valueOf(flag).trim());
+    }
+
+    /** The level of the person granting; the bootstrap administrator is not in the old list and counts as a super administrator. */
+    private String levelOf(String username) {
+        List<String> found = jdbc.query("SELECT AccessLevel FROM access WHERE AccessUserName = ? LIMIT 1", (rs, i) -> rs.getString(1), username);
+        return found.isEmpty() ? "SUPERADMIN" : found.get(0);
     }
 
     @DeleteMapping("/admin/users/{username}/roles/{role}")

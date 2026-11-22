@@ -1,0 +1,5 @@
+adjflagid,adjflagdesc,adjflagcode
+1,Payment,P
+2,Setup,S
+3,INV_PAYMETHOD,M
+4,INV_OTHERS,O

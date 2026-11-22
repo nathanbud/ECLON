@@ -49,7 +49,7 @@ export function ChequeClearingPanel() {
               <TableHead><TableRow>
                 <TableCell padding="checkbox" />
                 <TableCell>Received</TableCell><TableCell>Receipt</TableCell><TableCell>Member</TableCell><TableCell>Cheque</TableCell><TableCell>Bank</TableCell>
-                <TableCell align="right">Amount</TableCell><TableCell>Clears on</TableCell>
+                <TableCell align="right">Amount</TableCell><TableCell>Clears</TableCell>
               </TableRow></TableHead>
               <TableBody>
                 {rows.map((r) => (
@@ -61,7 +61,9 @@ export function ChequeClearingPanel() {
                     <TableCell>{r.number}{r.kind ? ` · ${r.kind}` : ''}</TableCell>
                     <TableCell>{r.bank ?? ''}</TableCell>
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(r.amount)}</TableCell>
-                    <TableCell sx={{ color: r.due ? 'success.main' : 'text.secondary' }}>{r.due ? 'Due' : fmtDate(r.clearsOn)}</TableCell>
+                    <TableCell sx={{ color: r.daysLeft < 0 ? 'warning.main' : r.due ? 'success.main' : 'text.secondary' }} title={fmtDate(r.clearsOn) ?? undefined}>
+                      {r.daysLeft < 0 ? `${-r.daysLeft} ${r.daysLeft === -1 ? 'day' : 'days'} late` : r.daysLeft === 0 ? 'Due today' : `In ${r.daysLeft} ${r.daysLeft === 1 ? 'day' : 'days'} (${fmtDate(r.clearsOn)})`}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -1,17 +1,51 @@
 import { Box, ButtonBase, Drawer, Tooltip, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { FiChevronDown, FiChevronRight } from 'react-icons/fi'
+import { FiChevronDown, FiChevronRight, FiMonitor, FiMoon, FiSun } from 'react-icons/fi'
 import { getInboxCount } from '../api'
 import type { View } from '../Dashboard'
 import { useMe } from '../session'
-import { tileFill } from '../theme'
+import { tileFill, useThemeMode, type ThemeMode } from '../theme'
+import { nameCase } from '../ui/format'
 import { byDomain, HOME, screenFor, type Screen } from './screens'
 
 const EASE = 'cubic-bezier(.2,.8,.2,1)'
 const WIDTH = 252
 /** Height of the title bar the menu opens under. */
 const BAR = 44
+
+const THEMES: { mode: ThemeMode; label: string; icon: React.ReactNode }[] = [
+  { mode: 'light', label: 'Light', icon: <FiSun /> },
+  { mode: 'dark', label: 'Dark', icon: <FiMoon /> },
+  { mode: 'system', label: 'System', icon: <FiMonitor /> },
+]
+
+/** The theme choice at the foot of the menu: Light, Dark, or follow the computer's setting. Stays at the bottom while the menu scrolls. */
+function ThemeChoice() {
+  const { mode, setMode } = useThemeMode()
+  return (
+    <Box role="radiogroup" aria-label="Theme" sx={(t) => ({
+      position: 'sticky', bottom: 0, mt: 'auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.5, p: 1,
+      borderTop: `1px solid ${t.palette.divider}`, backgroundColor: t.palette.background.paper,
+    })}>
+      {THEMES.map((o) => {
+        const on = mode === o.mode
+        return (
+          <ButtonBase key={o.mode} role="radio" aria-checked={on} onClick={() => setMode(o.mode)}
+            sx={(t) => ({
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, height: 28, borderRadius: '5px', fontSize: 12, fontWeight: on ? 500 : 400,
+              color: on ? 'text.primary' : 'text.secondary', bgcolor: on ? t.palette.action.selected : 'transparent',
+              '&:hover': { bgcolor: on ? undefined : t.palette.action.hover },
+              '&.Mui-focusVisible': { outline: `2px solid ${t.palette.primary.main}`, outlineOffset: -1 },
+            })}
+          >
+            <Box aria-hidden sx={{ display: 'flex', fontSize: 13 }}>{o.icon}</Box>{o.label}
+          </ButtonBase>
+        )
+      })}
+    </Box>
+  )
+}
 
 const SHUT = 'coop.nav.shut'
 const shutStored = (): string[] => { try { return JSON.parse(localStorage.getItem(SHUT) ?? '[]') as string[] } catch { return [] } }
@@ -43,7 +77,7 @@ export default function SideNav({ view, tab, onNavigate, open, onClose }: { view
           sx={(t) => ({
             width: '100%', display: 'flex', alignItems: 'center', gap: 1.25, justifyContent: 'flex-start', textAlign: 'left', borderRadius: 0,
             px: 1, pl: sub ? 3.5 : undefined, py: sub ? 0.4 : 0.65, minHeight: sub ? 28 : 34,
-            fontSize: sub ? 13 : 14, fontWeight: active ? 600 : 500, color: 'text.primary',
+            fontSize: sub ? 13 : 14, fontWeight: active ? 500 : 400, color: 'text.primary',
             bgcolor: active ? (t.palette.mode === 'dark' ? 'rgba(10,132,255,0.28)' : 'rgba(0,122,255,0.14)') : 'transparent',
             boxShadow: active ? `inset 2px 0 0 ${t.palette.primary.main}` : 'none',
             transition: `background-color 140ms ${EASE}`,
@@ -73,7 +107,7 @@ export default function SideNav({ view, tab, onNavigate, open, onClose }: { view
         paper: {
           sx: (t) => ({
             top: BAR, height: `calc(100dvh - ${BAR}px)`, width: WIDTH, maxWidth: '86vw', boxSizing: 'border-box', backgroundImage: 'none', overflowY: 'auto', overflowX: 'hidden',
-            px: 0, py: 0.5, borderRight: `1px solid ${t.palette.divider}`, backgroundColor: t.palette.background.paper,
+            display: 'flex', flexDirection: 'column', px: 0, pt: 0.5, pb: 0, borderRight: `1px solid ${t.palette.divider}`, backgroundColor: t.palette.background.paper,
             // thin scrollbar as in VS Code: invisible until the pointer is over the menu, square thumb, darker when grabbed
             scrollbarWidth: 'thin', scrollbarColor: 'transparent transparent',
             '&:hover': { scrollbarColor: `${t.palette.mode === 'dark' ? 'rgba(121,121,121,0.4)' : 'rgba(100,100,100,0.4)'} transparent` },
@@ -88,6 +122,11 @@ export default function SideNav({ view, tab, onNavigate, open, onClose }: { view
       }}
       transitionDuration={{ enter: 180, exit: 140 }}
     >
+      <Box aria-label="Signed in as" role="group" sx={(t) => ({ px: 1.25, pt: 0.75, pb: 1, mb: 0.5, borderBottom: `1px solid ${t.palette.divider}` })}>
+        <Typography sx={{ fontSize: 11 }} color="text.secondary">Signed in as</Typography>
+        <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{nameCase(me.name)}</Typography>
+        <Typography noWrap sx={{ fontSize: 11 }} color="text.secondary">{me.username}</Typography>
+      </Box>
       <Box component="nav" aria-label="Main">
         <Box component="ul" sx={{ m: 0, p: 0, display: 'grid', gap: 0 }}>
           {item('home', HOME.label, HOME.note, HOME.icon, tileFill.gray, here === 'home', () => onNavigate('home'))}
@@ -101,7 +140,7 @@ export default function SideNav({ view, tab, onNavigate, open, onClose }: { view
                 sx={(t) => ({ width: '100%', justifyContent: 'flex-start', gap: 0.5, px: 0.75, py: 0.5, '&:hover': { bgcolor: t.palette.action.hover } })}
               >
                 <Box aria-hidden sx={{ display: 'flex', fontSize: 13, color: 'text.secondary' }}>{expanded ? <FiChevronDown /> : <FiChevronRight />}</Box>
-                <Typography component="h2" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">{g.label}</Typography>
+                <Typography component="h2" sx={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">{g.label}</Typography>
               </ButtonBase>
               {expanded && (
                 <Box component="ul" sx={{ m: 0, p: 0, display: 'grid', gap: 0 }}>
@@ -112,6 +151,7 @@ export default function SideNav({ view, tab, onNavigate, open, onClose }: { view
           )
         })}
       </Box>
+      <ThemeChoice />
     </Drawer>
   )
 }

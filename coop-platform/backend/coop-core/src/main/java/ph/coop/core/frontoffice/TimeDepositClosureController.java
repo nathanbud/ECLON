@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.connection.DatabaseChanges;
 import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -101,7 +102,7 @@ class TimeDepositClosureController {
                 WHERE d.TDBR_CODE = ? AND d.ClientIDTD = ? AND d.TDSLC_CODE = ? AND d.TDSLT_CODE = ? AND d.TDREF_NO = ?
                 """, (rs, i) -> new Cert(rs.getInt(1), rs.getBigDecimal(2), rs.getInt(3), rs.getDate(4) == null ? null : rs.getDate(4).toLocalDate(), rs.getString(5), rs.getString(6),
                 rs.getBigDecimal(7), rs.getBigDecimal(8), rs.getLong(9) > 0, rs.getDate(10) == null ? null : rs.getDate(10).toLocalDate()), branch, r.clientId(), CLASS_TD, r.typeCode(), r.refNo());
-        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That client has no such time deposit.");
+        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member has no such time deposit.");
         return found.get(0);
     }
 
@@ -153,7 +154,7 @@ class TimeDepositClosureController {
         Amounts a = pre ? TimeDepositClosureRules.pretermAmounts(r.typeCode(), balance, daysHeld, c.accrued(), r.pretermRate(), r.interestPaid()) : lockIn ? TimeDepositClosureRules.lockInAmounts(balance, c.rate(), years, c.accrued()) : TimeDepositClosureRules.amounts(balance, c.rate(), c.termDays(), c.accrued());
         String status = c.status() == 17 ? "CLOSED" : !c.hasLedger() ? "NO_LEDGER" : balance.compareTo(new BigDecimal("0.005")) < 0 ? "CLOSED" : c.maturity() != null && c.maturity().isBefore(today) ? "MATURED" : "ACTIVE";
         List<String> problems = new ArrayList<>(TimeDepositClosureRules.problems(r.typeCode(), status, c.maturity(), today, a, payableAccount(p.branch(), r.clientId()) != null, voucherWaiting(p.branch(), today.getYear(), r)));
-        if (client.status() == 3 || client.status() == 98 || client.status() == 99) problems.add("This client's account is closed, disapproved or not yet approved.");
+        if (client.status() == 3 || client.status() == 98 || client.status() == 99) problems.add("This member's account is closed, disapproved or not yet approved.");
         problems.addAll(pre ? TimeDepositClosureRules.pretermProblems(r.typeCode(), c.rate(), r.pretermRate(), r.interestPaid(), c.accrued(), c.placed(), today)
             : TimeDepositClosureRules.yearsProblems(r.typeCode(), years, c.termDays()));
         int nt = newType(r);
@@ -239,7 +240,7 @@ class TimeDepositClosureController {
         var amounts = TimeDepositClosureRules.interestAmounts(amount.signum() > 0 ? amount : BigDecimal.ZERO, c.accrued());
         List<String> problems = new ArrayList<>(TimeDepositClosureRules.interestProblems(r.typeCode(), status, c.maturity(), today, amount, available, payableAccount(p.branch(), r.clientId()) != null,
             voucherWaiting(p.branch(), today.getYear(), asClosure)));
-        if (client.status() == 3 || client.status() == 98 || client.status() == 99) problems.add("This client's account is closed, disapproved or not yet approved.");
+        if (client.status() == 3 || client.status() == 98 || client.status() == 99) problems.add("This member's account is closed, disapproved or not yet approved.");
         String kycProblem = kyc.withdrawalProblem(p.branch(), r.clientId(), today);
         if (kycProblem != null) problems.add(kycProblem);
         return new InterestQuote(r.clientId(), client.name(), r.typeCode(), c.type(), r.refNo(), c.certificate(), balance, c.rate(), c.placed(), TimeDepositClosureRules.completedYears(c.placed(), today),
@@ -251,7 +252,7 @@ class TimeDepositClosureController {
     Encoded interestEncode(@RequestBody InterestRequest req, Authentication auth) {
         access.requireNew(access.of(auth), ShareWithdrawalRules.CASH_VOUCHER);
         Person p = poster.person(auth.getName());
-        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be encoded.");
+        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be encoded (every entry carries the department of the person who makes it). Ask an administrator to set your department in Settings > Users, then try again.");
         if (!db.canInsertInto("transsum", "transdt"))
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Writing vouchers is not set up on this database.");
         return tx.execute((st) -> {
@@ -295,9 +296,9 @@ class TimeDepositClosureController {
         Perms perms = access.of(auth);
         access.requireNew(perms, ShareWithdrawalRules.CASH_VOUCHER);
         Person p = poster.person(auth.getName());
-        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be encoded.");
+        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be encoded (every entry carries the department of the person who makes it). Ask an administrator to set your department in Settings > Users, then try again.");
         if (!db.canInsertInto("transsum", "transdt", "td", "slmastersum"))
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Renewing time deposits is not set up yet. An administrator has to run database/migrations/V027_time_deposit_placement.sql.");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, DatabaseChanges.notSetUp("renewing time deposits"));
         return tx.execute((st) -> {
             Quote q = build(p, req);
             if (!q.problems().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", q.problems()));

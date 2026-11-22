@@ -39,12 +39,14 @@ class TemporaryPasswordSignInTest {
     @Autowired ph.coop.core.db.Db db;
 
     private String person;
+    private int changesBefore;
 
     @BeforeEach
     void ready() {
-        List<String> p = jdbc.queryForList("SELECT AccessUserName FROM access WHERE UPPER(AccessLevel) = 'USER' AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1", String.class);
+        List<String> p = jdbc.queryForList("SELECT AccessUserName FROM access WHERE UPPER(AccessLevel) = 'USER' AND COALESCE(AccessIsDisabled, 0) = 0 ORDER BY AccessID LIMIT 1", String.class);
         assumeTrue(!p.isEmpty());
         person = p.get(0);
+        changesBefore = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'PASSWORD_CHANGED' AND entity_id = ?", Integer.class, person);
     }
 
     private void issue(LocalDateTime expires) {
@@ -82,6 +84,7 @@ class TemporaryPasswordSignInTest {
         mvc.perform(get("/api/accounts?branchCode=1").with(httpBasic(person, "My-own-secret-77"))).andExpect(status().isOk());
         // the temporary one is dead
         mvc.perform(get("/api/me").with(httpBasic(person, TEMP))).andExpect(status().isUnauthorized());
-        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'PASSWORD_CHANGED' AND entity_id = ?", Integer.class, person));
+        // one more than before: the person may have changed their password for real earlier
+        assertEquals(changesBefore + 1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = 'PASSWORD_CHANGED' AND entity_id = ?", Integer.class, person));
     }
 }

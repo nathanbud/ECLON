@@ -1,0 +1,8 @@
+defertypeid,defertypedesc
+0,"0-PrinForwarded, IntForwarded"
+1,"1-PrinZeroed, IntZeroed"
+2,"2-PrinZeroed, IntForwarded"
+3,"3-PrinZeroed, IntDistributed"
+4,"4-PrinDistributed, IntDistributed"
+5,"5-PrinZeroed, IntDue"
+7,7-PrinIntForwarded Last Amort

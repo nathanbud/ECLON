@@ -9,6 +9,7 @@ import { appBackground, glass, LIGHT } from './glass'
 import { tileFill } from './theme'
 import { useLeaveGuard } from './leaveGuard'
 import { useMe } from './session'
+import { ScreenTitle } from './appleUi'
 
 const NAME_MAX = 80
 const TAGLINE_MAX = 140
@@ -53,10 +54,9 @@ export default function BrandingPage() {
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
-        <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}>Sign-in screen</Typography>
-        <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
+        <ScreenTitle title="Sign-in screen" sx={{ mb: 2 }}>
           The logo, name and tagline on the left of the sign-in screen. Everyone sees them, including people who have not signed in yet.
-        </Typography>
+        </ScreenTitle>
         {!superadmin && <Alert severity="info" sx={{ mb: 2 }}>Only a SUPERADMIN can change this. You can see how it looks.</Alert>}
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
         {saved.isError && <Alert severity="error" sx={{ mb: 2 }}>The current settings could not be read.</Alert>}

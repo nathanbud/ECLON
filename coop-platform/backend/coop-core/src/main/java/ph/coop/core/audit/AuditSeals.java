@@ -1,5 +1,6 @@
 package ph.coop.core.audit;
 
+import ph.coop.core.connection.DatabaseChanges;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -188,7 +189,7 @@ public class AuditSeals {
 
     /** Re-reads every sealed block and the chain of seals, and reports anything that does not match what was sealed. */
     public Verification verify() {
-        if (!installed()) return new Verification(false, 0, 0, 0, List.of("The audit seals are not installed (V045)."));
+        if (!installed()) return new Verification(false, 0, 0, 0, List.of(DatabaseChanges.notSetUp("the audit seals")));
         List<String> problems = new ArrayList<>();
         String version = versioned() ? "fingerprint_version" : String.valueOf(TO_THE_SECOND);
         List<Object[]> seals = jdbc.query("SELECT id, from_id, to_id, row_count, block_hash, prev_seal_hash, seal_hash, " + version + " FROM ecis_audit_seal ORDER BY id",

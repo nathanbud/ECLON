@@ -13,7 +13,7 @@ const toKey = (r: DormancyRow): DormancyKey => ({ clientId: r.clientId, typeCode
 const account = (r: DormancyRow) => `${r.typeName ?? `Type ${r.typeCode}`} ${r.accountNo ?? r.refNo}`
 
 /**
- * Savings dormancy: the savings accounts whose member has not deposited or withdrawn for the period set on their type (Settings > Account Types), for an administrator to mark
+ * Savings dormancy: the savings accounts whose member has not deposited or withdrawn for the period set on their type (Settings > Products), for an administrator to mark
  * dormant with a reason; and the dormant accounts, which an administrator or a Membership Officer reactivates with a reason. Nothing is marked by itself.
  */
 export default function SavingsDormancyPage() {
@@ -63,7 +63,7 @@ function Review() {
       {review.data && (
         <Typography color="text.secondary" sx={{ fontSize: 13 }}>
           {periods.length === 0
-            ? 'No savings type has a dormancy period, so no account goes dormant. Set one under Settings > Account Types.'
+            ? 'No savings type has a dormancy period, so no account goes dormant. Set one under Settings > Products.'
             : `As of ${review.data.asOf}. Periods: ${periods.map((t) => `${t.typeName ?? t.typeCode} ${t.months} months`).join(', ')}.`}
         </Typography>
       )}
@@ -119,7 +119,7 @@ function Dormant() {
   return (
     <Stack spacing={1.5}>
       {done && <Alert severity="success" onClose={() => setDone(null)}>{done}</Alert>}
-      <SearchField value={q} onChange={setQ} placeholder="Client number or at least 3 letters of a name" width={360} />
+      <SearchField value={q} onChange={setQ} placeholder="Member number or at least 3 letters of a name" width={360} />
       {found.error && <Alert severity="error">{(found.error as Error).message}</Alert>}
       {ready && (
         <Surface label="Dormant accounts">

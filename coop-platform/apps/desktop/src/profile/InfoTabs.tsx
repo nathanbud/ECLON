@@ -156,7 +156,7 @@ export function DetailsTab({ id, tab, title, lk }: { id: Id; tab: string; title:
   // While editing, empty fields are shown too so a value can be added where there is none yet.
   const sections = (data?.[tab] ?? []).filter((s) => editing || s.fields.some((f) => f.value != null))
   if (sections.length === 0) {
-    return <EmptyState icon={<FiInfo />} title="Nothing recorded" hint={`There is no ${title.toLowerCase()} information for this client.`} />
+    return <EmptyState icon={<FiInfo />} title="Nothing recorded" hint={`There is no ${title.toLowerCase()} information for this member.`} />
   }
   const card = (sec: (typeof sections)[number]) => (
     <Section key={sec.title} title={sec.title}>
@@ -197,11 +197,11 @@ export function HistoryTab({ id }: { id: Id }) {
   if (q.error) return <Alert severity="error">{(q.error as Error).message}</Alert>
   if (q.isLoading) return <Skeleton variant="rounded" height={220} />
   const rows = q.data?.pages.flat() ?? []
-  if (rows.length === 0) return <EmptyState icon={<FiInfo />} title="No history" hint="No activity has been logged for this client." />
+  if (rows.length === 0) return <EmptyState icon={<FiInfo />} title="No history" hint="No activity has been logged for this member." />
   return (
     <>
       <TableCard>
-        <Table size="small" aria-label="Client activity history">
+        <Table size="small" aria-label="Member activity history">
           <TableHead><TableRow><TableCell>When</TableCell><TableCell>User</TableCell><TableCell>Activity</TableCell><TableCell>Details</TableCell></TableRow></TableHead>
           <TableBody>
             {rows.map((r, i) => (
@@ -233,7 +233,7 @@ export function BillingTab({ id }: { id: Id }) {
   const { data, error, isLoading } = useQuery({ queryKey: ['member-billing', id], queryFn: () => getMemberBilling(id.branchCode, id.clientId), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
   if (isLoading) return <Skeleton variant="rounded" height={160} />
-  if (!data || data.length === 0) return <EmptyState icon={<FiInfo />} title="No billing records" hint="Nothing has been billed to this client." />
+  if (!data || data.length === 0) return <EmptyState icon={<FiInfo />} title="No billing records" hint="Nothing has been billed to this member." />
   return (
     <TableCard>
       <Table size="small" aria-label="Billing">

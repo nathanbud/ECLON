@@ -100,7 +100,7 @@ class LoanPaymentController {
         access.requireNew(perms, SharePaymentRules.CASH_RECEIPT);
         Person p = poster.person(auth.getName());
         if (req.amount() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter an amount above zero.");
-        if (req.amount().stripTrailingZeros().scale() > 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The amount can have at most 2 decimal places.");
+        if (req.amount().stripTrailingZeros().scale() > 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An amount can have at most 2 decimal places (centavos). Round it and try again.");
         BigDecimal amount = req.amount().setScale(2, java.math.RoundingMode.UNNECESSARY);
         return tx.execute((st) -> {
             Client c = poster.client(p.branch(), req.clientId());
@@ -148,14 +148,14 @@ class LoanPaymentController {
 
     private Breakdown breakdown(Person p, Request req, BigDecimal amount, Client c, LocalDate today) {
         LoanBook.Terms t = book.terms(p.branch(), req.clientId(), req.typeCode(), req.refNo())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "That client has no such loan."));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "That member has no such loan."));
         LoanBook.Quote q = book.quote(p.branch(), req.clientId(), req.typeCode(), req.refNo(), t, today);
         List<String> problems = new ArrayList<>();
         if (amount == null || amount.signum() <= 0) problems.add("Enter an amount above zero.");
         if (t.outstanding().signum() <= 0) problems.add("This loan has nothing left to pay.");
         if (t.status() == 13) problems.add("This loan is in litigation, so payments cannot be taken at the window.");
         if (t.status() != 11 && t.status() != 12 && t.status() != 13 && t.status() != 14) problems.add("This loan has an unknown status (" + t.status() + ").");
-        if (c.status() == 3 || c.status() == 98 || c.status() == 99) problems.add("This client's account is closed, disapproved or not yet approved.");
+        if (c.status() == 3 || c.status() == 98 || c.status() == 99) problems.add("This member's account is closed, disapproved or not yet approved.");
 
         // the penalty: the suggestion unless the cashier typed another figure
         BigDecimal suggested = q.suggestedPenalty();

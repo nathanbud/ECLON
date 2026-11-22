@@ -109,3 +109,49 @@ export const acceptFoHandover = (id: number, counts: Record<number, number>, che
 export const cancelFoHandover = (id: number) => send<FoHandover>('POST', `/api/front-office/handover/${id}/cancel`)
 export const getFoDuplicates = (clientId: number, date: string, amount: string) =>
   getJson<FoSummary[]>(`/api/front-office/duplicates?clientId=${clientId}&date=${date}&amount=${encodeURIComponent(amount)}`)
+
+// ---- posting drafts (documentation/general-voucher-map.md) ------------------------------------------------------------
+
+export type DraftPostKind = 'OTHER_RECEIPT' | 'MIXED_PAYMENT' | 'CASH_VOUCHER' | 'CHECK_VOUCHER'
+export interface DraftPostNeed { kind: string; title: string; description: string; amount: number; limit: number | null; status: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' }
+export interface DraftPostPlan {
+  kind: DraftPostKind | null; kindWords: string | null; postsHow: string | null
+  lines: { account: string; description: string; amount: number }[]; amount: number; drawerCash: number | null
+  problems: string[]; needs: DraftPostNeed[]; ready: boolean
+}
+/** The cooperative's own cheque on a Check Voucher: the bank and its ledger account, number, date, payee. */
+export interface OwnChequeIn { bankId: number | null; account: string | null; number: string; date: string; payee: string }
+export interface DraftPostIn {
+  cheques?: { number: string; bankCode: number | null; date: string | null; kind: number | null; amount: number | null }[]
+  cheque?: OwnChequeIn | null; receiptNo?: string; confirmDuplicate?: boolean
+}
+export interface DraftPosted { kind: DraftPostKind; year: number; code: number; controlNo: number; documentNo: string; date: string; amount: number; status: string }
+export const checkFoDraftPost = (id: number, b: DraftPostIn) => send<DraftPostPlan>('POST', `/api/front-office/drafts/${id}/check`, b)
+export const postFoDraft = (id: number, b: DraftPostIn, key?: string) => send<DraftPosted>('POST', `/api/front-office/drafts/${id}/post`, b, key)
+
+// ---- Cash and Check Vouchers waiting for approval ----------------------------------------------------------------------
+
+export interface WaitingVoucher {
+  year: number; code: 21 | 22; type: string; controlNo: number; documentNo: string; date: string; clientId: number; clientName: string | null; explanation: string
+  amount: number; status: 'WAITING FOR APPROVAL' | 'APPROVED' | 'POSTED'; encodedBy: number; encodedByName: string | null; approvedBy: number | null; approvedByName: string | null
+  cheque: { bankCode: number; bank: string; number: string; date: string; payee: string } | null
+}
+export interface WaitingVoucherDetail {
+  voucher: WaitingVoucher; lines: { seq: number; account: string; description: string; slc: number | null; slt: number | null; refNo: number | null; amount: number }[]
+  mayApprove: boolean; mayPost: boolean; problems: string[]
+}
+export const getWaitingVouchers = () => getJson<WaitingVoucher[]>('/api/front-office/vouchers/waiting')
+export const getWaitingVoucher = (code: number, year: number, ctl: number) => getJson<WaitingVoucherDetail>(`/api/front-office/vouchers/${code}/${year}/${ctl}`)
+export const approveWaitingVoucher = (code: number, year: number, ctl: number) => send<WaitingVoucherDetail>('POST', `/api/front-office/vouchers/${code}/${year}/${ctl}/approve`)
+export const postWaitingVoucher = (code: number, year: number, ctl: number) => send<WaitingVoucherDetail>('POST', `/api/front-office/vouchers/${code}/${year}/${ctl}/post`)
+
+// ---- opening the drawer at the start of the day ----------------------------------------------------------------------------
+
+export interface DrawerOpenState { event: number; number: number; label: string; opened: boolean; openedAt: string | null; counted: number | null; difference: number | null; reason: string | null }
+export interface DrawerOpenMine { required: boolean; policyOn: boolean; available: boolean; businessDate: string; drawers: DrawerOpenState[] }
+export interface DrawerOpened { label: string; expected: number; counted: number; difference: number; openedAt: string }
+export interface DrawerOpenRow { label: string; person: string; openedAt: string; expected: number; counted: number; difference: number; reason: string | null }
+export const getDrawerOpen = () => getJson<DrawerOpenMine>('/api/front-office/drawer-open')
+export const openDrawer = (event: number, counts: Record<number, number>, reason: string) => send<DrawerOpened>('POST', '/api/front-office/drawer-open', { event, counts, reason })
+export const getDrawersOpenedToday = () => getJson<DrawerOpenRow[]>('/api/front-office/drawer-open/day')
+export const setDrawerOpenPolicy = (on: boolean, reason: string) => send<DrawerOpenMine>('PUT', '/api/front-office/drawer-open/policy', { on, reason })

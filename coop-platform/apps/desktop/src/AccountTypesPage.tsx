@@ -1,13 +1,13 @@
 import {
-  Alert, Autocomplete, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, List, ListItemButton, ListSubheader, MenuItem, Stack, Switch,
-  Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
+  Alert, Autocomplete, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, List, ListItemButton, ListSubheader, MenuItem, Stack, Switch,
+  Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FiPlus, FiTrash2 } from 'react-icons/fi'
 import {
   addAccountTypeLink, addCashDrawer, changeAccountTypeLink, createAccountType, createFirstAccountType, getAccountTypeLinkOptions, getAccountTypeLinks, getAccountTypes, getCashDrawers,
-  checkAccountTypeDelete, deleteAccountType, getChart, removeAccountTypeLink, updateAccountType,
+  checkAccountTypeDelete, deleteAccountType, getChart, getLinkSuggestions, removeAccountTypeLink, updateAccountType,
   type AccountType, type AccountTypeClass, type AccountTypeForm, type AccountTypeLink, type ChartAccount,
 } from './api'
 import { Dot, listTable, PageTitle, ReasonDialog, SectionLabel, Surface } from './appleUi'
@@ -45,9 +45,23 @@ const HELP: Record<number, { interestRate?: string; minBalance?: string }> = {
  * Account types outside loans (the old S/L Type Table): the savings, time deposit, share capital, receivable and payable types and the chart accounts each posts to.
  * Administrators only. Loan types are kept in Loan Setup and shown read only; the cash class keeps its fixed types, but its links can be repointed and a drawer added.
  */
-export default function AccountTypesPage() {
+/**
+ * The product kinds Settings > Products (and Accounting) open this screen on: the classes each covers, and its title and words. Without one, every
+ * class is listed, as before.
+ */
+export const PRODUCT_KINDS: Record<string, { title: string; text: string; classes: number[] }> = {
+  deposits: { title: 'Savings and deposit products', classes: [22, 24, 25], text: 'The savings, time deposit and investment deposit plan types members hold: their interest rates, minimum and maximum balances, dormancy period, and the chart accounts each posts to.' },
+  shares: { title: 'Share capital products', classes: [31], text: 'The share capital types members subscribe to: the share capital a member of the type must hold, and the chart accounts each posts to.' },
+  funds: { title: 'Fund and payable products', classes: [26, 29], text: 'Member funds (such as mutual benefit and hospitalization assistance) and payables kept per member, and the chart accounts each posts to.' },
+  receivables: { title: 'Receivable products', classes: [13, 14], text: 'Receivables kept per member, such as cash advances, and the chart accounts each posts to. Loans are kept in Loan products.' },
+  cash: { title: 'Cash and teller drawers', classes: [11], text: 'The cash accounts and each cashier’s and teller’s drawer. Their types are fixed; the chart accounts they post to can be repointed and a drawer added.' },
+}
+
+export default function AccountTypesPage({ kind }: { kind?: string | null } = {}) {
   const qc = useQueryClient()
-  const classes = useQuery({ queryKey: ['account-types'], queryFn: getAccountTypes })
+  const all = useQuery({ queryKey: ['account-types'], queryFn: getAccountTypes })
+  const product = kind ? PRODUCT_KINDS[kind] : undefined
+  const classes = { ...all, data: product ? all.data?.filter((c) => product.classes.includes(c.id)) : all.data }
   const [picked, setPicked] = useState<{ cls: number; code: number | null } | null>(null)
   const [adding, setAdding] = useState<AccountTypeClass | null>(null)
   const [done, setDone] = useState<string | null>(null)
@@ -65,9 +79,10 @@ export default function AccountTypesPage() {
   return (
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1180, mx: 'auto' }}>
-        <PageTitle title="Account Types">
-          The kinds of savings, time deposit, share capital, receivable and payable accounts, and the chart accounts each one posts to. A type is never deleted, only switched off; every change needs a reason and is kept in the audit log.
+        <PageTitle title={product ? product.title : 'Account Types'}>
+          {product ? product.text : 'The kinds of savings, time deposit, share capital, receivable and payable accounts, and the chart accounts each one posts to.'} A type is never deleted, only switched off; every change needs a reason and is kept in the audit log.
         </PageTitle>
+        {product && all.data && classes.data?.length === 0 && <Alert severity="info" sx={{ mb: 1.5 }}>This database has none of these accounts set up.</Alert>}
         {done && <Alert severity="success" onClose={() => setDone(null)} sx={{ mb: 1.5 }}>{done}</Alert>}
         {classes.error && <Alert severity="error" sx={{ mb: 1.5 }}>{(classes.error as Error).message}</Alert>}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '300px 1fr' }, gap: 2, alignItems: 'start' }}>
@@ -201,7 +216,7 @@ function TypePanel({ cls, type, onAdd, onSaved, onDeleted }: { cls: AccountTypeC
           {!editable && (
             <Alert severity="info" sx={{ mb: 1.5 }}>
               {cls.managed === 'LOAN_SETUP'
-                ? 'Loan types are kept in Settings > Loan Setup, where their terms, rates, ledger links and deductions are changed. They are shown here for reference.'
+                ? 'Loan types are kept in Settings > Products > Loan products, where their terms, rates, ledger links and deductions are changed. They are shown here for reference.'
                 : 'The cash types are fixed: the system posts cash, cheques and bank money through them. A ledger link can be pointed at another account, and a cashier’s or teller’s drawer can be added below.'}
             </Alert>
           )}
@@ -335,6 +350,35 @@ function NewTypeDialog({ cls, onClose, onSaved }: { cls: AccountTypeClass; onClo
   )
 }
 
+/**
+ * The chart accounts the server suggests for a ledger link (what the class's other types use for the same posting, then accounts whose names match), as chips that fill in the
+ * account; why each is suggested shows on hover. Only those among `options` are shown, so a suggestion is always one the field accepts.
+ */
+function Suggested({ cls, event, number, type, name, options, chosen, onPick }: {
+  cls: number; event: number | null; number: number; type?: number; name?: string; options: ChartAccount[]; chosen: string | null; onPick: (a: ChartAccount) => void
+}) {
+  // the name typed so far, once typing pauses
+  const [typed, setTyped] = useState(name ?? '')
+  useEffect(() => { const t = setTimeout(() => setTyped(name ?? ''), 400); return () => clearTimeout(t) }, [name])
+  const q = useQuery({
+    queryKey: ['link-suggestions', cls, event, number, type ?? null, typed.trim()],
+    queryFn: () => getLinkSuggestions(cls, event!, number, type, typed.trim() || undefined),
+    enabled: event != null && (type != null || typed.trim() !== ''), staleTime: 60_000,
+  })
+  const shown = (q.data ?? []).flatMap((s) => { const a = options.find((o) => o.code === s.account); return a ? [{ s, a }] : [] }).slice(0, 3)
+  if (shown.length === 0) return null
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
+      <Typography color="text.secondary" sx={{ fontSize: 12 }}>Suggested:</Typography>
+      {shown.map(({ s, a }) => (
+        <Tooltip key={s.account} title={s.why} describeChild>
+          <Chip size="small" label={label(a)} onClick={() => onPick(a)} color={chosen === a.code ? 'primary' : 'default'} variant={chosen === a.code ? 'filled' : 'outlined'} />
+        </Tooltip>
+      ))}
+    </Box>
+  )
+}
+
 /** Posting accounts that are in use. */
 function usePostingAccounts() {
   const chart = useQuery({ queryKey: ['chart'], queryFn: getChart })
@@ -360,6 +404,7 @@ function FirstTypeDialog({ cls, onClose, onSaved }: { cls: AccountTypeClass; onC
             <TextField label="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} slotProps={{ htmlInput: { maxLength: 30 } }} />
             <Autocomplete options={options} value={account} onChange={(_, v) => setAccount(v)} loading={chart.isLoading} getOptionLabel={label} isOptionEqualToValue={(a, b) => a.code === b.code}
               renderInput={(p) => <TextField {...p} required label="Balance posts to" helperText="The chart account that carries the balance of accounts of this type" />} />
+            <Suggested cls={cls.id} event={11} number={99} name={[fullName, name].join(' ').trim()} options={options} chosen={account?.code ?? null} onPick={setAccount} />
             <TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} helperText="Kept in the audit log. A type cannot be deleted afterwards, only switched off." />
             {(save.error || chart.error) && <Alert severity="error">{((save.error ?? chart.error) as Error).message}</Alert>}
           </Stack>
@@ -393,6 +438,7 @@ function LinkDialog({ cls, type, link, onClose, onSaved }: { cls: AccountTypeCla
             </Typography>
             <Autocomplete options={options} value={account} onChange={(_, v) => setAccount(v)} loading={all.isLoading} getOptionLabel={label} isOptionEqualToValue={(a, b) => a.code === b.code}
               renderInput={(p) => <TextField {...p} required autoFocus label="Post to" helperText="Accounts of the same kind that take postings and are in use" />} />
+            <Suggested cls={cls.id} event={link.event} number={link.number} type={type.code} options={options} chosen={account?.code ?? null} onPick={setAccount} />
             <TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} helperText="Kept in the audit log" />
             {(save.error || all.error) && <Alert severity="error">{((save.error ?? all.error) as Error).message}</Alert>}
           </Stack>
@@ -443,6 +489,8 @@ function AddLinkDialog({ cls, type, existing, onClose, onSaved }: {
             )}
             <Autocomplete options={options} value={account} onChange={(_, v) => setAccount(v)} loading={chart.isLoading} getOptionLabel={label} isOptionEqualToValue={(a, b) => a.code === b.code}
               renderInput={(p) => <TextField {...p} required label="Post to" helperText="An account that takes postings and is in use" />} />
+            <Suggested cls={cls.id} event={event === '' || (byStatus && status === '') ? null : Number(event)} number={byStatus ? Number(status || 0) : 99} type={type.code}
+              options={options} chosen={account?.code ?? null} onPick={setAccount} />
             <TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} helperText="Kept in the audit log" />
             {(save.error || chart.error || choices.error) && <Alert severity="error">{((save.error ?? chart.error ?? choices.error) as Error).message}</Alert>}
           </Stack>

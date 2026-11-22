@@ -1,5 +1,6 @@
 import { getMember, type Lookups, type Member } from '../api'
 import { BLANK_MEMBER, FRESH_GROUPS, GROUPS, GROUP_KEYS, TABS, TAB_KEYS, groupForKey } from './constants'
+import { SECTION_FEATURE, featureOn, useFeaturesOff } from '../ui/features'
 import { BillingTab, DetailsTab, HistoryTab, MembershipTab, PersonalTab } from './InfoTabs'
 import { BeneficiariesTab } from './Beneficiaries'
 import { KycTab } from './Kyc'
@@ -9,7 +10,7 @@ import { TimeDepositsTab } from './TimeDeposits'
 import DocumentsPanel from '../DocumentsPanel'
 import LoansTab from '../LoansTab'
 import { type Id } from '../clients'
-import { type ReactElement, type ReactNode, useEffect, useState } from 'react'
+import { type ReactElement, type ReactNode, useEffect, useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Alert, Box, ButtonBase, Skeleton, Tab, Tabs } from '@mui/material'
 import { FiChevronDown, FiChevronRight, FiDatabase, FiList, FiUser } from 'react-icons/fi'
@@ -18,7 +19,7 @@ import { tabIcon } from './navIcons'
 import { ProfileHeader, SideFrame, SideScroll } from './ProfileHeader'
 import { ProfileStrip } from './ProfileStrip'
 import { StatTiles } from './StatTiles'
-import { takePendingSection, VOICE_SECTION, type SectionRequest } from '../voice/bus'
+import { takePendingSection } from './sectionRequest'
 
 function TabContent({ tab, m, lk, canImages }: { tab: number; m: Member; lk?: Lookups; canImages: boolean }) {
   const key = TAB_KEYS[tab]
@@ -114,7 +115,10 @@ function SideTabs({ groups, tab, onChange }: { groups: { label: string; tabs: nu
 }
 
 export function Profile({ id, lk, canPhoto = false, onNotice, fresh = false, newHeader, newIdentity }: { id: Id; lk?: Lookups; canPhoto?: boolean; onNotice?: (msg: string) => void; fresh?: boolean; newHeader?: ReactNode; newIdentity?: ReactNode }) {
-  const groups = fresh ? FRESH_GROUPS : GROUPS
+  const off = useFeaturesOff()
+  const groups = useMemo(() => (fresh ? FRESH_GROUPS : GROUPS)
+    .map((g) => ({ ...g, tabs: g.tabs.filter((i) => featureOn(off, SECTION_FEATURE[TABS[i]])) }))
+    .filter((g) => g.tabs.length > 0), [fresh, off])
   const [tab, setTab] = useState(groups[0].tabs[0])
   const group = Math.max(0, groups.findIndex((g) => g.tabs.includes(tab)))
   const loaded = useQuery({
@@ -130,17 +134,6 @@ export function Profile({ id, lk, canPhoto = false, onNotice, fresh = false, new
     const want = takePendingSection(id)
     if (want !== null && groups.some((g) => g.tabs.includes(want))) setTab(want)
   }, [id, groups])
-
-  // "open savings" or "accounts" by voice shows that section, or the first section of that menu group.
-  useEffect(() => {
-    const on = (e: Event) => {
-      const want = (e as CustomEvent<SectionRequest>).detail
-      if (want.tab !== undefined && groups.some((g) => g.tabs.includes(want.tab as number))) setTab(want.tab)
-      else if (want.group) { const g = groups.find((x) => x.label === want.group); if (g) setTab(g.tabs[0]) }
-    }
-    window.addEventListener(VOICE_SECTION, on)
-    return () => window.removeEventListener(VOICE_SECTION, on)
-  }, [groups])
 
   // I, A and O open Member info, Accounts and Other (their first section). Like H and M, they do nothing while typing or with a dialog or menu open.
   useEffect(() => {

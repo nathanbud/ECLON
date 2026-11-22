@@ -28,11 +28,11 @@ function renderFind(onPick = vi.fn()) {
   return onPick
 }
 
-describe('Find Client', () => {
+describe('Find Member', () => {
   it('invites a search before anything is typed', () => {
     renderFind()
     expect(screen.getByText('Who are you looking for?')).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /client name or member id/i })).toHaveFocus()
+    expect(screen.getByRole('combobox', { name: /name or member id/i })).toHaveFocus()
   })
 
   it('shows the keys to move and choose only while a search has results', async () => {
@@ -46,7 +46,7 @@ describe('Find Client', () => {
     expect(screen.getByText('open')).toBeInTheDocument()
     await user.clear(screen.getByRole('combobox'))
     await user.type(screen.getByRole('combobox'), 'zzzz')
-    await screen.findByText('No clients found')
+    await screen.findByText('No members found')
     expect(screen.queryByText('move')).not.toBeInTheDocument()
   })
 
@@ -66,7 +66,7 @@ describe('Find Client', () => {
     const user = userEvent.setup()
     const box = screen.getByRole('combobox')
     await user.type(box, 'zzzz')
-    expect(await screen.findByText('No clients found')).toBeInTheDocument()
+    expect(await screen.findByText('No members found')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /clear search/i }))
     expect(box).toHaveValue('')
     await user.type(box, 'bud')
@@ -83,7 +83,7 @@ describe('Find Client', () => {
     expect(screen.getByText(/there are more matches/i)).toBeInTheDocument()
   })
 
-  it('lists active clients only until Include inactive is turned on', async () => {
+  it('lists active members only until Include inactive is turned on', async () => {
     renderFind()
     const user = userEvent.setup()
     await user.type(screen.getByRole('combobox'), 'budik')
@@ -102,7 +102,7 @@ describe('Find Client', () => {
   })
 })
 
-describe('Find Client pop-up (Ctrl+F)', () => {
+describe('Find Member pop-up (Ctrl+F)', () => {
   it('puts the cursor in the search field when it opens, even if a button had focus', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { rerender } = render(
@@ -112,7 +112,7 @@ describe('Find Client pop-up (Ctrl+F)', () => {
     rerender(
       <QueryClientProvider client={qc}><AppThemeProvider><button>Edit</button><FindClientDialog open onClose={() => {}} onPick={() => {}} /></AppThemeProvider></QueryClientProvider>,
     )
-    const field = await screen.findByRole('combobox', { name: /client name or member id/i })
+    const field = await screen.findByRole('combobox', { name: /name or member id/i })
     await waitFor(() => expect(field).toHaveFocus())
   })
 })

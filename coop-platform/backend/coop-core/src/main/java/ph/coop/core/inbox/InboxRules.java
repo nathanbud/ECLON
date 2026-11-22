@@ -40,4 +40,37 @@ final class InboxRules {
     static boolean mayPostMemo(String maker, String approver, String user) {
         return !own(maker, user) && !own(approver, user);
     }
+
+    /** The loan application steps a person may do (Settings > Users > Receivables > Loan process). */
+    record LoanRights(boolean deduct, boolean verify, boolean approve) {}
+
+    /**
+     * What a waiting loan application asks of this person, or null: DEDUCTION while it waits for its deductions, VERIFY when it is new, APPROVE when it is verified.
+     * Nobody verifies or approves an application they encoded. {@code status}: 1 new, 2 verified.
+     */
+    static String loanStep(int status, boolean waitingForDeductions, int encoder, int me, LoanRights r) {
+        if (status == 1 && waitingForDeductions) return r.deduct() ? "LOAN_DEDUCTION" : null;
+        if (encoder == me) return null;
+        if (status == 1) return r.verify() ? "LOAN_VERIFY" : null;
+        if (status == 2) return r.approve() ? "LOAN_APPROVE" : null;
+        return null;
+    }
+
+    /**
+     * What a waiting voucher asks of this person, or null: APPROVE when nobody has approved it and they did not encode it; POST when approved, by a third person
+     * (neither its encoder nor its approver). {@code approver} is null until approved.
+     */
+    static String voucherStep(int encoder, Integer approver, int me) {
+        if (encoder == me) return null;
+        if (approver == null) return "APPROVE";
+        return approver == me ? null : "POST";
+    }
+
+    /** Who decides a supervisor request (ecis_fo_override), by its kind: penalty waivers accountants; returned cheques also the head cashier; the rest the head cashier. */
+    static boolean decidesOverride(String kind, boolean head, boolean accountant, boolean admin) {
+        if (admin) return true;
+        if ("PENALTY_WAIVER".equals(kind)) return accountant;
+        if ("CHEQUE_RETURN".equals(kind)) return head || accountant;
+        return head;
+    }
 }

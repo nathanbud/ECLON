@@ -118,9 +118,9 @@ export default function PenaltyWaiversTab() {
           This is the accountant&apos;s journal for a penalty that was waived. It does not change what the member owes; a different accountant or administrator has to approve it.
         </Typography>
         <Box sx={{ display: 'grid', gap: 1, maxWidth: 560 }}>
-          <TextField size="small" label="Client ID" value={clientText} onChange={(e) => { setClientText(e.target.value.replace(/[^0-9]/g, '')); setLoanKey('') }} />
+          <TextField size="small" label="Member ID" value={clientText} onChange={(e) => { setClientText(e.target.value.replace(/[^0-9]/g, '')); setLoanKey('') }} />
           <TextField select size="small" label="Loan" value={loanKey} onChange={(e) => setLoanKey(e.target.value)} disabled={!loans.data}
-            helperText={clientId > 0 && loans.isError ? (loans.error as Error).message : loans.data && loans.data.loans.length === 0 ? 'This client has no open loans.' : undefined}>
+            helperText={clientId > 0 && loans.isError ? (loans.error as Error).message : loans.data && loans.data.loans.length === 0 ? 'This member has no open loans.' : undefined}>
             {(loans.data?.loans ?? []).map((l) => <MenuItem key={`${l.typeCode}/${l.refNo}`} value={`${l.typeCode}/${l.refNo}`}>{l.type ?? l.typeCode} · {l.refNo} · outstanding {money(l.outstanding)}</MenuItem>)}
           </TextField>
           <MoneyField size="small" label="Penalty waived" value={amount} onValueChange={(v) => setAmount(v)}

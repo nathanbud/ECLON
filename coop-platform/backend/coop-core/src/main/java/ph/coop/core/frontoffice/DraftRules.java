@@ -35,7 +35,7 @@ final class DraftRules {
         String batch = limit(p.batchNo(), 8, "Batch number");
         String ref = limit(p.refNo(), 200, "Reference number");
         String explanation = limit(p.explanation(), 2000, "Explanation");
-        String clientName = limit(p.clientName(), 100, "Client name");
+        String clientName = limit(p.clientName(), 100, "Member name");
 
         if (p.lines() == null || p.lines().isEmpty()) throw new IllegalArgumentException("Add at least one entry.");
         if (p.lines().size() > 200) throw new IllegalArgumentException("A transaction can have at most 200 entries.");

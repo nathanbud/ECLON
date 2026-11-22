@@ -15,7 +15,7 @@ describe('member display helpers', () => {
 
   it('prefers an account name and never returns an empty string', () => {
     expect(displayName({ ...base, accountName: 'Baguio Teachers Coop', lastName: 'X' })).toBe('Baguio Teachers Coop')
-    expect(displayName(base)).toBe('Unnamed client')
+    expect(displayName(base)).toBe('Unnamed member')
   })
 
   it('takes initials from the first and last name', () => {

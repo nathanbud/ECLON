@@ -22,7 +22,7 @@ final class ShareWithdrawalRules {
         if (amount == null || amount.signum() <= 0) {
             p.add("Enter an amount above zero.");
         } else {
-            if (amount.stripTrailingZeros().scale() > 2) p.add("The amount can have at most 2 decimal places.");
+            if (amount.stripTrailingZeros().scale() > 2) p.add("An amount can have at most 2 decimal places (centavos). Round it and try again.");
             if (amount.compareTo(SharePaymentRules.MAX_PAYMENT) > 0) p.add("The amount is too large.");
             BigDecimal available = balance.subtract(held).subtract(pending);
             if (amount.compareTo(available) > 0) {
@@ -32,7 +32,7 @@ final class ShareWithdrawalRules {
             }
         }
         if (accountStatus != SharePaymentRules.ACTIVE) p.add("This share capital account is not active, so nothing can be withdrawn.");
-        if (clientStatus == 3 || clientStatus == 98 || clientStatus == 99) p.add("This client's account is closed, disapproved or not yet approved.");
+        if (clientStatus == 3 || clientStatus == 98 || clientStatus == 99) p.add("This member's account is closed, disapproved or not yet approved.");
         return p;
     }
 }

@@ -5,6 +5,14 @@ import { listReports, logExport, runReport, type ReportColumn, type ReportInfo, 
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
+import ReceivablesAging from './reports/ReceivablesAging'
+import SlReconciliation from './reports/SlReconciliation'
+import { ScreenTitle } from './appleUi'
+
+/** Reports with a screen of their own, listed above the others (the tab name is how the menu opens one). */
+const AGING = 'aging'
+const RECONCILIATION = 'sl-reconciliation'
+const OWN = [AGING, RECONCILIATION]
 
 const fmt = (c: ReportColumn, v: string | number | null): string => {
   if (v === null || v === undefined || v === '') return ''
@@ -62,11 +70,12 @@ function ResultTable({ r }: { r: ReportResult }) {
  * Reports (guide phase 20): the membership, loan, accounting, inventory and POS reports a person's roles allow. Each report says what it asks for, the screen builds the form,
  * shows the table, and can print it or save it as a CSV file for a spreadsheet. Running a report is written to the audit log.
  */
-export default function ReportsPage({ onOpen }: { onOpen: (v: View) => void }) {
+export default function ReportsPage({ onOpen, initialTab }: { onOpen: (v: View) => void; initialTab?: string | null }) {
   const me = useMe()
   const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
   const list = useQuery({ queryKey: ['reports'], queryFn: listReports })
   const [picked, setPicked] = useState<ReportInfo | null>(null)
+  const [own, setOwn] = useState<string | null>(accountant && initialTab && OWN.includes(initialTab) ? initialTab : null)
   const [values, setValues] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const run = useMutation({ mutationFn: () => runReport(picked!.id, values), onError: (e) => setError((e as Error).message) })
@@ -74,6 +83,7 @@ export default function ReportsPage({ onOpen }: { onOpen: (v: View) => void }) {
 
   const pick = (r: ReportInfo) => {
     setPicked(r)
+    setOwn(null)
     setValues(Object.fromEntries(r.params.map((p) => [p.name, p.defaultValue])))
     setError(null)
     run.reset()
@@ -82,10 +92,22 @@ export default function ReportsPage({ onOpen }: { onOpen: (v: View) => void }) {
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1350, mx: 'auto', display: 'grid', gridTemplateColumns: { xs: '1fr', md: '300px 1fr' }, gap: 2, alignItems: 'start' }}>
         <Box sx={(t) => ({ p: 1, ...glass(t) })} className="no-print">
-          {accountant && <Button fullWidth sx={{ justifyContent: 'flex-start', mb: 1 }} onClick={() => onOpen('accounting')}>Trial balance, statements, journals, memos, periods →</Button>}
+          {accountant && <Button fullWidth sx={{ justifyContent: 'flex-start', mb: 1 }} onClick={() => onOpen('accounting')}>Trial balance, statements, periods →</Button>}
           {list.isLoading && <Skeleton variant="rounded" height={160} />}
           {list.data?.length === 0 && <Typography sx={{ p: 1 }} color="text.secondary">No reports are open to your roles.</Typography>}
           <List dense disablePadding>
+            {accountant && (
+              <Box>
+                <ListSubheader disableSticky sx={{ background: 'transparent', lineHeight: '30px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: 12 }}>Receivables</ListSubheader>
+                <ListItemButton selected={own === AGING} onClick={() => { setOwn(AGING); setPicked(null) }}>
+                  <ListItemText primary="Aging of receivables" secondary="PAR or maturity, grouped and filtered" slotProps={{ secondary: { sx: { fontSize: 12 } } }} />
+                </ListItemButton>
+                <ListSubheader disableSticky sx={{ background: 'transparent', lineHeight: '30px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: 12 }}>Accounting</ListSubheader>
+                <ListItemButton selected={own === RECONCILIATION} onClick={() => { setOwn(RECONCILIATION); setPicked(null) }}>
+                  <ListItemText primary="SL reconciliation" secondary="Control accounts against the members' accounts" slotProps={{ secondary: { sx: { fontSize: 12 } } }} />
+                </ListItemButton>
+              </Box>
+            )}
             {groups.map((g) => (
               <Box key={g}>
                 <ListSubheader disableSticky sx={{ background: 'transparent', lineHeight: '30px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: 12 }}>{g}</ListSubheader>
@@ -97,11 +119,12 @@ export default function ReportsPage({ onOpen }: { onOpen: (v: View) => void }) {
           </List>
         </Box>
         <Box sx={(t) => ({ p: 2, minHeight: 300, ...glass(t) })}>
-          {!picked && <Typography color="text.secondary">Choose a report on the left.</Typography>}
+          {own === AGING && <ReceivablesAging />}
+          {own === RECONCILIATION && <SlReconciliation />}
+          {!picked && !own && <Typography color="text.secondary">Choose a report on the left.</Typography>}
           {picked && (
             <>
-              <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>{picked.title}</Typography>
-              <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">{picked.description}</Typography>
+              <ScreenTitle title={picked.title} sx={{ mb: 1.5 }}>{picked.description}</ScreenTitle>
               <Stack direction="row" spacing={1.5} sx={{ mb: 1.5, flexWrap: 'wrap', rowGap: 1.5, alignItems: 'flex-start' }} className="no-print">
                 {picked.params.map((p) => (
                   <TextField key={p.name} size="small" label={p.label} type={p.type === 'date' ? 'date' : 'text'} value={values[p.name] ?? ''} onChange={(e) => setValues({ ...values, [p.name]: e.target.value })}

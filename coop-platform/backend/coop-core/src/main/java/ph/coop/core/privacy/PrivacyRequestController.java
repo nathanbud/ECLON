@@ -197,7 +197,7 @@ public class PrivacyRequestController {
 
     private Map<String, Object> one(long id) {
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM ecis_privacy_request WHERE id = ?", id);
-        if (rows.isEmpty()) throw notFound("Request not found.");
+        if (rows.isEmpty()) throw notFound("That request was not found; it may have been withdrawn or decided already. Reload the list to see where it stands.");
         return PrivacyController.plain(rows.get(0));
     }
 

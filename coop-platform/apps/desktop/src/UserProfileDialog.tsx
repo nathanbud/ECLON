@@ -13,11 +13,12 @@ import {
 } from './api'
 import { glass } from './glass'
 import PasswordChip from './PasswordChip'
+import { nameCase } from './ui/format'
 import { tileFill } from './theme'
 
 const TABS = [
   { label: 'General', key: 'general' }, { label: 'Transaction Types', key: 'transaction-types' }, { label: 'Transactions', key: 'transactions' },
-  { label: 'POS / Priority Queue', key: 'pos' }, { label: 'Client', key: 'client' }, { label: 'Receivables', key: 'receivables' },
+  { label: 'POS / Priority Queue', key: 'pos' }, { label: 'Member', key: 'client' }, { label: 'Receivables', key: 'receivables' },
   { label: 'Deposits', key: 'deposits' }, { label: 'Others', key: 'others' },
 ]
 
@@ -333,7 +334,7 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
             {(profile?.name ?? username).split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography id="user-profile-title" component="h2" noWrap sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{profile?.name ?? username} <Typography component="span" sx={{ fontSize: 13, fontWeight: 400 }} color="text.secondary">{username}</Typography></Typography>
+            <Typography id="user-profile-title" component="h2" noWrap sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{profile?.name ? nameCase(profile.name) : username} <Typography component="span" sx={{ fontSize: 13, fontWeight: 400 }} color="text.secondary">{username}</Typography></Typography>
           </Box>
           {/* Toolbar, as in the old window */}
           <Box role="toolbar" aria-label="Account actions" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

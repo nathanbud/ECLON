@@ -1,0 +1,7 @@
+amortypeid,amortypedesc,amortypeoldid
+1,Diminishing Balance,D
+2,Straight Line,S
+3,Annuity,A
+4,AnnuityRate5,""
+5,AnnuityRate7,""
+6,AnnuityEffRate,""

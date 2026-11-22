@@ -59,8 +59,8 @@ public final class AuditChanges {
         if (own != null) return own;
         String known = KNOWN.get(field.toLowerCase());
         if (known != null) return known;
-        // camelCase or snake_case taken apart: minBalance -> Min balance, client_type -> Client type
-        String words = field.replace('_', ' ').replaceAll("([a-z0-9])([A-Z])", "$1 $2").trim().toLowerCase();
+        // camelCase or snake_case taken apart: minBalance -> Min balance, client_type -> Member type (the app says member where the old tables say client)
+        String words = field.replace('_', ' ').replaceAll("([a-z0-9])([A-Z])", "$1 $2").trim().toLowerCase().replaceAll("\\bclients\\b", "members").replaceAll("\\bclient\\b", "member");
         return words.isEmpty() ? field : Character.toUpperCase(words.charAt(0)) + words.substring(1);
     }
 

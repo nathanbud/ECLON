@@ -11,6 +11,11 @@ $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $results = [ordered]@{}
 
 Push-Location (Join-Path $root 'coop-platform\backend\coop-core')
+# The tests are written for the server's own coop database. data/connections.json may have another database saved as the
+# default (coop_bgempc, nearly empty), which the tests would follow; pointing at a file that does not exist makes them use coop.
+# Set COOP_CONNECTIONS_FILE yourself to run them elsewhere.
+$setConnections = -not $env:COOP_CONNECTIONS_FILE
+if ($setConnections) { $env:COOP_CONNECTIONS_FILE = Join-Path ([IO.Path]::GetTempPath()) 'coop-tests-no-saved-connections.json' }
 if (-not $Quick) {
   $env:DB_USER = 'coop_app'
   # Each test application context opens its own connection pool; a small pool keeps the whole run under the server's connection limit.
@@ -21,6 +26,7 @@ $mvnArgs = @('test'); if ($SkipRealData) { $mvnArgs += '-DexcludedGroups=realdat
 mvn @mvnArgs 2>&1 | Tee-Object -Variable mvnOut | Select-String -Pattern 'Tests run:|FAIL|ERROR\]' | Select-Object -Last 15
 $results['Backend tests'] = if ($LASTEXITCODE -eq 0) { 'passed' } else { 'FAILED' }
 $summary = ($mvnOut | Select-String -Pattern 'Tests run:.*Skipped' | Select-Object -Last 1)
+if ($setConnections) { Remove-Item Env:COOP_CONNECTIONS_FILE }
 Pop-Location
 
 Push-Location (Join-Path $root 'coop-platform\apps\desktop')

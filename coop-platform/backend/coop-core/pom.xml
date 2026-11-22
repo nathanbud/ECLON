@@ -99,6 +99,20 @@
   </dependencies>
 
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <!-- The PostgreSQL database changes, packaged so the server can tell whether its database has them all (ph.coop.core.connection.SchemaCheck). Copied byte for byte (no filtering): their fingerprints must match what scripts/migrate-postgres.ps1 records. -->
+      <resource>
+        <directory>../../database/postgres/migrations</directory>
+        <targetPath>db/postgres-migrations</targetPath>
+        <filtering>false</filtering>
+        <includes>
+          <include>V*.sql</include>
+        </includes>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>

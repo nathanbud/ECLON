@@ -1,21 +1,15 @@
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, MenuItem, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, MenuItem, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { FiPlus, FiTrash2 } from 'react-icons/fi'
 import {
-  createJournal, createPeriod, searchPostingAccounts, getFinancialCondition, getJournal, getOperations, journalStep, listJournals, listPeriods, reverseJournal, setPeriodStatus,
-  type JournalLineIn, type JournalSummary, type PeriodStatus, type StatementSection,
+  createPeriod, getFinancialCondition, getOperations, listPeriods, setPeriodStatus, type PeriodStatus, type StatementSection,
 } from './api'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
 import BanksTab from './BanksTab'
-import MemosTab from './MemosTab'
-import PenaltyWaiversTab from './PenaltyWaiversTab'
 import TrialBalancePage from './TrialBalancePage'
-import { AccountPicker } from './ui/AccountPicker'
 import { BranchSelect } from './ui/BranchSelect'
 import YearEndCloseTab from './YearEndCloseTab'
-import MoneyField from './MoneyField'
 import { money } from './ui/format'
 import { ConfirmButton } from './ui/dialogs'
 import { labelOf } from './ui/labels'
@@ -23,11 +17,11 @@ import { labelOf } from './ui/labels'
 const today = () => new Date().toLocaleDateString('en-CA')
 const yearStart = () => `${new Date().getFullYear()}-01-01`
 
-/** Reports and bookkeeping: trial balance for everyone; statements, journals and periods for accountants and administrators. */
+/** The books: trial balance for everyone; statements, periods, banks and the year-end close for accountants and administrators. Entries (journals, memos, waivers) are on Back Office. */
 export default function AccountingPage({ initialTab }: { initialTab?: string }) {
   const me = useMe()
   const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
-  const tabs = ['Trial balance', ...(accountant ? ['Statements', 'Journals', 'Memos', 'Periods', 'Banks', 'Penalty waivers', 'Year-end close'] : [])]
+  const tabs = ['Trial balance', ...(accountant ? ['Statements', 'Periods', 'Banks', 'Year-end close'] : [])]
   // a tab named by the side menu or the search opens first
   const [tab, setTab] = useState(() => Math.max(0, tabs.indexOf(initialTab ?? '')))
   const [branchCode, setBranchCode] = useState(me.branchCode ?? 1)
@@ -43,12 +37,9 @@ export default function AccountingPage({ initialTab }: { initialTab?: string }) 
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>{tabs.map((t) => <Tab key={t} label={t} />)}</Tabs>
         {tab === 0 && <Box sx={{ mx: -3, mt: -3 }}><TrialBalancePage /></Box>}
         {tab === 1 && ok && <Statements branchCode={branchCode} />}
-        {tab === 2 && ok && <Journals branchCode={branchCode} />}
-        {tab === 3 && ok && <MemosTab branchCode={branchCode} />}
-        {tab === 4 && ok && <Periods branchCode={branchCode} />}
-        {tab === 5 && ok && <BanksTab branchCode={branchCode} />}
-        {tab === 6 && <PenaltyWaiversTab />}
-        {tab === 7 && ok && <YearEndCloseTab branchCode={branchCode} />}
+        {tab === 2 && ok && <Periods branchCode={branchCode} />}
+        {tab === 3 && ok && <BanksTab branchCode={branchCode} />}
+        {tab === 4 && ok && <YearEndCloseTab branchCode={branchCode} />}
       </Box>
     </Box>
   )
@@ -147,156 +138,6 @@ function Statements({ branchCode }: { branchCode: number }) {
         </Box>
       )}
     </Box>
-  )
-}
-
-// ---- journals ------------------------------------------------------------------------------------------------------
-
-const statusColor: Record<JournalSummary['status'], 'default' | 'info' | 'warning' | 'success'> = { DRAFT: 'default', FOR_REVIEW: 'info', APPROVED: 'warning', POSTED: 'success' }
-
-function Journals({ branchCode }: { branchCode: number }) {
-  const qc = useQueryClient()
-  const me = useMe()
-  const [openId, setOpenId] = useState<number | null>(null)
-  const [creating, setCreating] = useState(false)
-  const list = useQuery({ queryKey: ['journals', branchCode], queryFn: () => listJournals(branchCode) })
-  const refresh = () => qc.invalidateQueries({ queryKey: ['journals'] })
-  return (
-    <Box>
-      <Stack direction="row" sx={{ mb: 1.5 }}>
-        <Box sx={{ flex: 1 }} />
-        <Button variant="contained" startIcon={<FiPlus />} onClick={() => setCreating(true)}>New journal</Button>
-      </Stack>
-      {list.error && <Alert severity="error" sx={{ mb: 2 }}>{(list.error as Error).message}</Alert>}
-      {list.data && list.data.length === 0 && <Alert severity="info">No journals yet.</Alert>}
-      {list.data && list.data.length > 0 && (
-        <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
-          <Table size="small" aria-label="Journals">
-            <TableHead>
-              <TableRow><TableCell>Reference</TableCell><TableCell>Date</TableCell><TableCell>Description</TableCell><TableCell align="right">Amount</TableCell><TableCell>Status</TableCell><TableCell>By</TableCell></TableRow>
-            </TableHead>
-            <TableBody>
-              {list.data.map((j) => (
-                <TableRow key={j.id} hover onClick={() => setOpenId(j.id)} sx={{ cursor: 'pointer' }}>
-                  <TableCell>{j.reference}</TableCell>
-                  <TableCell>{j.journalDate}</TableCell>
-                  <TableCell>{j.description}</TableCell>
-                  <TableCell align="right">{money(j.total)}</TableCell>
-                  <TableCell><Chip size="small" label={labelOf(j.status)} color={statusColor[j.status]} /></TableCell>
-                  <TableCell>{j.createdBy}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Box>
-      )}
-      {creating && <NewJournal branchCode={branchCode} onClose={() => setCreating(false)} onDone={() => { setCreating(false); refresh() }} />}
-      {openId !== null && <JournalView id={openId} user={me.username} onClose={() => setOpenId(null)} onChanged={refresh} />}
-    </Box>
-  )
-}
-
-interface DraftLine { account: string; accountName: string; debit: string; credit: string }
-const blankLine = (): DraftLine => ({ account: '', accountName: '', debit: '', credit: '' })
-
-function NewJournal({ branchCode, onClose, onDone }: { branchCode: number; onClose: () => void; onDone: () => void }) {
-  const [reference, setReference] = useState('')
-  const [date, setDate] = useState(today())
-  const [description, setDescription] = useState('')
-  const [lines, setLines] = useState<DraftLine[]>([blankLine(), blankLine()])
-  const set = (i: number, k: keyof DraftLine, v: string) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)))
-  const dr = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0)
-  const cr = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0)
-  const balanced = dr === cr && dr > 0
-  const m = useMutation({ meta: { done: 'Journal saved as a draft.' },
-    mutationFn: () => createJournal({
-      branchCode, reference: reference.trim(), journalDate: date, description,
-      lines: lines.filter((l) => l.account.trim()).map<JournalLineIn>((l) => ({ accountCode: l.account.trim(), debit: Number(l.debit) || 0, credit: Number(l.credit) || 0 })),
-    }),
-    onSuccess: onDone,
-  })
-  return (
-    <Dialog open onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>New journal</DialogTitle>
-      <DialogContent>
-        <Stack direction="row" spacing={2} sx={{ my: 1 }}>
-          <TextField size="small" label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} />
-          <TextField size="small" type="date" label="Date" value={date} onChange={(e) => setDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField size="small" label="Description" value={description} onChange={(e) => setDescription(e.target.value)} sx={{ flex: 1 }} />
-        </Stack>
-        {lines.map((l, i) => (
-          <Stack key={i} direction="row" spacing={1} sx={{ mb: 1 }}>
-            <AccountPicker code={l.account} desc={l.accountName} label={`Line ${i + 1} account`} width={260} placeholder="Account number or name"
-              search={(q) => searchPostingAccounts(branchCode, q)} recentKey="coop.journalRecentAccounts"
-              onPick={(a) => setLines((ls) => ls.map((x, j) => (j === i ? { ...x, account: a?.code ?? '', accountName: a?.description ?? '' } : x)))} />
-            <MoneyField size="small" label="Debit" value={l.debit} onValueChange={(v) => set(i, 'debit', v)} sx={{ flex: 1 }} />
-            <MoneyField size="small" label="Credit" value={l.credit} onValueChange={(v) => set(i, 'credit', v)} sx={{ flex: 1 }} />
-            <IconButton aria-label="Remove line" disabled={lines.length <= 2} onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}><FiTrash2 /></IconButton>
-          </Stack>
-        ))}
-        <Button size="small" onClick={() => setLines((ls) => [...ls, blankLine()])}>Add line</Button>
-        <Alert severity={balanced ? 'success' : 'warning'} sx={{ mt: 2 }}>
-          Debits {money(dr)} / credits {money(cr)}{balanced ? '' : '. They must be equal before the journal can be submitted.'}
-        </Alert>
-        {m.error && <Alert severity="error" sx={{ mt: 1 }}>{(m.error as Error).message}</Alert>}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" disabled={m.isPending || !reference.trim()} onClick={() => m.mutate()}>Save draft</Button>
-      </DialogActions>
-    </Dialog>
-  )
-}
-
-function JournalView({ id, user, onClose, onChanged }: { id: number; user: string; onClose: () => void; onChanged: () => void }) {
-  const qc = useQueryClient()
-  const { data } = useQuery({ queryKey: ['journal', id], queryFn: () => getJournal(id) })
-  const [reason, setReason] = useState('')
-  const [reversing, setReversing] = useState(false)
-  const done = () => { qc.invalidateQueries({ queryKey: ['journal', id] }); onChanged() }
-  const step = useMutation({ meta: { done: (_, s) => ({ submit: 'Journal sent for review.', approve: 'Approved. Someone else can now post it.', post: 'Journal posted to the ledger.' } as Record<string, string>)[s as string] ?? null }, mutationFn: (s: 'submit' | 'approve' | 'post') => journalStep(id, s), onSuccess: done })
-  const rev = useMutation({ meta: { done: 'Reversal draft made. It goes through review and approval like any journal.' }, mutationFn: () => reverseJournal(id, reason), onSuccess: () => { setReversing(false); setReason(''); done() } })
-  const s = data?.summary
-  const error = (step.error ?? rev.error) as Error | null
-  return (
-    <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        {s?.reference ?? 'Journal'} {s && <Chip size="small" sx={{ ml: 1 }} label={labelOf(s.status)} color={statusColor[s.status]} />}
-      </DialogTitle>
-      <DialogContent>
-        {s && (
-          <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">
-            {s.journalDate} - {s.description} - created by {s.createdBy}{s.approvedBy ? `, approved by ${s.approvedBy}` : ''}
-          </Typography>
-        )}
-        <Table size="small">
-          <TableHead><TableRow><TableCell>Account</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell></TableRow></TableHead>
-          <TableBody>
-            {data?.lines.map((l, i) => (
-              <TableRow key={i}>
-                <TableCell>{l.accountCode}</TableCell>
-                <TableCell align="right">{l.debit ? money(l.debit) : ''}</TableCell>
-                <TableCell align="right">{l.credit ? money(l.credit) : ''}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {s?.status === 'FOR_REVIEW' && s.createdBy === user && <Alert severity="info" sx={{ mt: 2 }}>Someone other than the creator has to approve this journal.</Alert>}
-        {reversing && <TextField fullWidth size="small" label="Reason for reversal" value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mt: 2 }} />}
-        {error && <Alert severity="error" sx={{ mt: 2 }}>{error.message}</Alert>}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-        {s?.status === 'DRAFT' && <Button variant="contained" disabled={step.isPending} onClick={() => step.mutate('submit')}>Submit for review</Button>}
-        {s?.status === 'FOR_REVIEW' && s.createdBy !== user && <Button variant="contained" disabled={step.isPending} onClick={() => step.mutate('approve')}>Approve</Button>}
-        {s?.status === 'APPROVED' && (
-          <ConfirmButton variant="contained" disabled={step.isPending} onConfirm={() => step.mutate('post')} title={`Post journal ${s.reference}?`}
-            message={<>It writes <b>{money(s.total)}</b> to the general ledger, dated {s.journalDate}. A posted journal cannot be edited; a mistake is corrected with a reversal.</>}>Post</ConfirmButton>
-        )}
-        {s?.status === 'POSTED' && !reversing && <Button color="warning" onClick={() => setReversing(true)}>Reverse...</Button>}
-        {s?.status === 'POSTED' && reversing && <Button color="warning" variant="contained" disabled={rev.isPending || !reason.trim()} onClick={() => rev.mutate()}>Create reversal draft</Button>}
-      </DialogActions>
-    </Dialog>
   )
 }
 

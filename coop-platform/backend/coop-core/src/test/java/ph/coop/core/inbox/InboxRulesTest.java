@@ -55,4 +55,37 @@ class InboxRulesTest {
         assertFalse(InboxRules.mayPostMemo("ana", "ben", "ana"));
         assertFalse(InboxRules.mayPostMemo("ana", "ben", "BEN"));
     }
+
+    @Test
+    void aLoanApplicationAsksForTheStepThePersonMayDoAndNeverOfItsEncoder() {
+        var all = new InboxRules.LoanRights(true, true, true);
+        assertEquals("LOAN_DEDUCTION", InboxRules.loanStep(1, true, 7, 9, all));
+        assertEquals("LOAN_DEDUCTION", InboxRules.loanStep(1, true, 9, 9, all), "the encoder may do the deductions of an application waiting for them");
+        assertEquals("LOAN_VERIFY", InboxRules.loanStep(1, false, 7, 9, all));
+        assertEquals("LOAN_APPROVE", InboxRules.loanStep(2, false, 7, 9, all));
+        assertEquals(null, InboxRules.loanStep(1, false, 9, 9, all), "not one's own to verify");
+        assertEquals(null, InboxRules.loanStep(2, false, 9, 9, all), "not one's own to approve");
+        assertEquals(null, InboxRules.loanStep(1, true, 7, 9, new InboxRules.LoanRights(false, true, true)), "deductions need the Deduction step");
+        assertEquals(null, InboxRules.loanStep(2, false, 7, 9, new InboxRules.LoanRights(true, true, false)), "approval needs the Approval step");
+    }
+
+    @Test
+    void aVoucherIsApprovedBySomeoneElseAndPostedByAThirdPerson() {
+        assertEquals("APPROVE", InboxRules.voucherStep(1, null, 2));
+        assertEquals(null, InboxRules.voucherStep(1, null, 1), "not one's own");
+        assertEquals("POST", InboxRules.voucherStep(1, 2, 3));
+        assertEquals(null, InboxRules.voucherStep(1, 2, 2), "the approver does not post it");
+        assertEquals(null, InboxRules.voucherStep(1, 2, 1), "the encoder does not post it");
+    }
+
+    @Test
+    void supervisorRequestsGoToWhoeverDecidesThatKind() {
+        assertTrue(InboxRules.decidesOverride("TD_RATE", true, false, false));
+        assertFalse(InboxRules.decidesOverride("TD_RATE", false, true, false), "an accountant does not decide teller limits");
+        assertTrue(InboxRules.decidesOverride("PENALTY_WAIVER", false, true, false));
+        assertFalse(InboxRules.decidesOverride("PENALTY_WAIVER", true, false, false), "the head cashier does not waive penalties");
+        assertTrue(InboxRules.decidesOverride("CHEQUE_RETURN", true, false, false));
+        assertTrue(InboxRules.decidesOverride("CHEQUE_RETURN", false, true, false));
+        assertTrue(InboxRules.decidesOverride("ANYTHING", false, false, true), "an administrator decides any");
+    }
 }

@@ -1,6 +1,7 @@
 package ph.coop.core.loan;
 
 
+import ph.coop.core.connection.DatabaseChanges;
 import ph.coop.core.audit.AuditLog;import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -63,7 +64,7 @@ public class SingleHandGrants {
     @PreAuthorize("hasRole('ADMIN')")
     Grant grant(@PathVariable String username, @RequestBody Reason in, Authentication auth) {
         if (in == null || in.reason() == null || in.reason().isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Give the reason for letting this person do a loan alone.");
-        if (!db.tableExists("ecis_single_hand")) throw new ResponseStatusException(HttpStatus.CONFLICT, "V017 has not been applied yet.");
+        if (!db.tableExists("ecis_single_hand")) throw new ResponseStatusException(HttpStatus.CONFLICT, DatabaseChanges.notSetUp("letting a person do a loan alone"));
         List<String> names = jdbc.queryForList("SELECT AccessUserName FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0", String.class, username);
         if (names.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such enabled user.");
         String name = names.get(0);

@@ -20,7 +20,7 @@ async function violations(ui: ReactElement) {
 }
 
 describe('accessibility (axe)', () => {
-  it('Find Client has no violations', async () => {
+  it('Find Member has no violations', async () => {
     expect(await violations(<FindBody onPick={() => {}} inline />)).toEqual([])
   })
 

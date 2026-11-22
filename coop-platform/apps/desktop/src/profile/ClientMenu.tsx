@@ -53,7 +53,7 @@ export function ClientMenu({ onFind, actions, editOn, pendingNote, onCloseMember
   )
   return (
     <>
-      <Tooltip title="Client Profile menu (Alt+C)">
+      <Tooltip title="Member Profile menu (Alt+C)">
         <Button
           ref={button} size="small" onClick={(e) => setAnchor(e.currentTarget)} endIcon={<FiChevronDown />}
           aria-haspopup="menu" aria-expanded={!!anchor} aria-keyshortcuts="Alt+C"
@@ -65,7 +65,7 @@ export function ClientMenu({ onFind, actions, editOn, pendingNote, onCloseMember
       <Menu anchorEl={anchor} open={!!anchor} onClose={close} slotProps={{ paper: { sx: { borderRadius: '5px', minWidth: 270, mt: 0.5 } } }}>
         <MenuItem onClick={() => { close(); onFind() }}>
           <ListItemIcon sx={{ minWidth: 32, fontSize: 15 }}><FiSearch /></ListItemIcon>
-          <ListItemText slotProps={{ primary: { sx: { fontSize: 13 } } }}>Find Client</ListItemText>
+          <ListItemText slotProps={{ primary: { sx: { fontSize: 13 } } }}>Find Member</ListItemText>
           <Shortcut>{SHORTCUT_FIND}</Shortcut>
         </MenuItem>
         <Divider />
@@ -81,7 +81,7 @@ export function ClientMenu({ onFind, actions, editOn, pendingNote, onCloseMember
         {(!editOn || pendingNote) && <Divider />}
         {(!editOn || pendingNote) && (
           <Typography sx={{ px: 2, py: 0.75, fontSize: 12, maxWidth: 270 }} color="text.secondary">
-            {pendingNote ?? 'You cannot edit clients with this account, or editing is turned off on this server.'}
+            {pendingNote ?? 'You cannot edit members with this account, or editing is turned off on this server.'}
           </Typography>
         )}
       </Menu>

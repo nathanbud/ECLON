@@ -65,7 +65,11 @@ export interface JournalDetail { summary: JournalSummary; lines: JournalLineIn[]
 
 export const listJournals = (branchCode: number) => send<JournalSummary[]>('GET', `/api/journals?branchCode=${branchCode}`)
 export const getJournal = (id: number) => send<JournalDetail>('GET', `/api/journals/${id}`)
-export const createJournal = (body: { branchCode: number; reference: string; journalDate: string; description: string; lines: JournalLineIn[] }) =>
+/**
+ * controlAccountReason: only for a journal that changes a control account's balance (the server refuses one otherwise): an administrator's written
+ * reason, such as an opening balance or an approved correction. Audited.
+ */
+export const createJournal = (body: { branchCode: number; reference: string; journalDate: string; description: string; lines: JournalLineIn[]; controlAccountReason?: string | null }) =>
   send<JournalSummary>('POST', '/api/journals', body)
 export const journalStep = (id: number, step: 'submit' | 'approve' | 'post') => send<JournalSummary>('POST', `/api/journals/${id}/${step}`)
 export const reverseJournal = (id: number, reason: string) => send<JournalSummary>('POST', `/api/journals/${id}/reverse`, { reason })
@@ -227,7 +231,11 @@ export const changeAccountTypeLink = (cls: number, code: number, event: number, 
   send<AccountTypeLink[]>('PUT', `${TYPES}/${cls}/${code}/accounts`, { event, number, account, reason })
 export interface AccountTypeLinkOptions { events: { id: number; name: string }[]; statuses: { id: number; name: string }[] }
 export const getAccountTypeLinkOptions = (cls: number) => getJson<AccountTypeLinkOptions>(`${TYPES}/${cls}/link-options`)
-export const addAccountTypeLink = (cls: number, code: number, event: number, number: number, account: string, reason: string) =>
+export interface LinkSuggestion { account: string; accountName: string | null; why: string }
+/** Chart accounts to suggest for a ledger link, best first, with why. Leave `type` out for a type not made yet and give the name typed so far. */
+export const getLinkSuggestions = (cls: number, event: number, number: number, type?: number, name?: string) =>
+  getJson<LinkSuggestion[]>(`${TYPES}/${cls}/link-suggestions?event=${event}&number=${number}${type != null ? `&type=${type}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}`)
+export const addAccountTypeLink =(cls: number, code: number, event: number, number: number, account: string, reason: string) =>
   send<AccountTypeLink[]>('POST', `${TYPES}/${cls}/${code}/accounts`, { event, number, account, reason })
 export const removeAccountTypeLink = (cls: number, code: number, event: number, number: number, reason: string) =>
   send<AccountTypeLink[]>('DELETE', `${TYPES}/${cls}/${code}/accounts?event=${event}&number=${number}&reason=${encodeURIComponent(reason)}`)
@@ -252,3 +260,13 @@ export const getDormancyReview = () => getJson<DormancyReview>(`${DORMANCY}/revi
 export const markDormant = (accounts: DormancyKey[], reason: string) => send<{ marked: number; skipped: string[] }>('POST', `${DORMANCY}/mark`, { accounts, reason })
 export const findDormant = (q: string) => getJson<DormancyRow[]>(`${DORMANCY}/dormant?q=${encodeURIComponent(q)}`)
 export const reactivateDormant = (k: DormancyKey, reason: string) => send<DormancyRow>('POST', `${DORMANCY}/reactivate`, { ...k, reason })
+
+// ---- back office: the old system's transaction types ---------------------------------------------------------------
+
+/** A back-office transaction type of the old system: entry is GJ or DCM when the Back Office window makes it, madeElsewhere says where else it is made. */
+export interface BackOfficeType { id: number; name: string; code: string; entries: number; lastUsed: string | null; entry: 'GJ' | 'DCM' | 'CV' | 'CKV' | null; madeElsewhere: string | null }
+/** Module 1: General Journal Transactions; module 2: Disbursement Transactions. */
+export const listBackOfficeTypes = (module: 1 | 2 = 1) => send<BackOfficeType[]>('GET', `/api/backoffice/types?module=${module}`)
+/** What the Disbursement Transactions window needs: the account a Cash Voucher credits, the person's department, and whether they may make each voucher. */
+export interface VoucherSetup { payableAccount: string | null; payableAccountName: string | null; dept: number | null; mayCashVoucher: boolean; mayCheckVoucher: boolean; problem: string | null }
+export const getVoucherSetup = () => send<VoucherSetup>('GET', '/api/backoffice/voucher-setup')

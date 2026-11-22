@@ -36,13 +36,13 @@ describe('the screen registry', () => {
 describe('who sees what', () => {
   it('shows a person with no special role only the everyday screens', () => {
     const l = labels(me())
-    expect(l).toEqual(expect.arrayContaining(['Waiting for you', 'Client Profile', 'Front Office', 'Loan Module', 'New loan application', 'Chart of Accounts', 'Reports', 'Documentation']))
-    for (const hidden of ['Accounting', 'Debit/credit memos', 'Users', 'Audit Log', 'Purchasing', 'Inventory', 'Point of Sale', 'Fixed Assets', 'Data privacy', 'CIC submission', 'Settings']) expect(l).not.toContain(hidden)
+    expect(l).toEqual(expect.arrayContaining(['Waiting for you', 'Member Profile', 'Front Office', 'Loan Module', 'New loan application', 'Chart of Accounts', 'Reports', 'Documentation']))
+    for (const hidden of ['Accounting', 'Back Office', 'Debit/credit memos', 'Users', 'Audit Log', 'Purchasing', 'Inventory', 'Point of Sale', 'Fixed Assets', 'Data privacy', 'CIC submission', 'Settings']) expect(l).not.toContain(hidden)
   })
 
   it('shows an accountant the books, the memos and the credit file, but not the administrator controls', () => {
     const l = labels(me(['ROLE_ACCOUNTANT']))
-    expect(l).toEqual(expect.arrayContaining(['Accounting', 'Journals', 'Debit/credit memos', 'Accounting periods', 'CIC submission', 'Fixed Assets', 'Settings', 'Approval workflows', 'Documents']))
+    expect(l).toEqual(expect.arrayContaining(['Accounting', 'Back Office', 'General journal', 'Debit/credit memos', 'Accounting periods', 'CIC submission', 'Fixed Assets', 'Settings', 'Approval workflows', 'Documents']))
     for (const hidden of ['Users', 'Audit Log', 'Loan Setup', 'Sign-in screen']) expect(l).not.toContain(hidden)
   })
 
@@ -76,11 +76,13 @@ describe('grouping and finding a screen', () => {
   it('can list only the tiles', () => {
     const tiles = byDomain(me([], true), (s) => !!s.tile).flatMap((d) => d.screens)
     expect(tiles.every((s) => s.tile)).toBe(true)
-    expect(tiles.map((s) => s.label)).not.toContain('Journals')
+    expect(tiles.map((s) => s.label)).not.toContain('General journal')
+    expect(tiles.map((s) => s.label)).toContain('Back Office')
   })
 
   it('finds the entry for a place in the app, preferring the tab-specific one', () => {
-    expect(screenFor('accounting', 'Memos')?.label).toBe('Debit/credit memos')
+    expect(screenFor('backoffice', 'Debit/credit memos')?.label).toBe('Debit/credit memos')
+    expect(screenFor('backoffice')?.label).toBe('Back Office')
     expect(screenFor('accounting')?.label).toBe('Accounting')
     expect(screenFor('accounting', 'Nonsense')?.label).toBe('Accounting')
     expect(screenFor('approvals')?.label).toBe('Waiting for you')

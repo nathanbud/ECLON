@@ -131,7 +131,7 @@ class SaleReturnController {
         if (own != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, own);
         String note = in == null || in.note() == null || in.note().isBlank() ? null : in.note().trim();
         if (!approve && note == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say why the return is rejected.");
-        if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long (255 characters at most).");
+        if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long: it can have at most 255 characters. Shorten it and try again.");
         if (approve) {
             Long warehouse = jdbc.queryForObject("SELECT warehouse_id FROM ecis_sale WHERE id = ?", Long.class, r.saleId());
             List<Object[]> lines = jdbc.query("""

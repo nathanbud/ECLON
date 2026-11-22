@@ -34,7 +34,7 @@ export function LoanReleasePanel() {
           onKeyDown={(e) => { if (e.key === 'Enter') { setOpen(r); setError(null) } }}
           sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 13 }}>{r.clientName ?? `Client ${r.clientId}`} · {money(r.loanAmount)}</Typography>
+            <Typography sx={{ fontSize: 13 }}>{r.clientName ?? `Member ${r.clientId}`} · {money(r.loanAmount)}</Typography>
             <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{r.documentNo} · {r.date} · {r.explanation}</Typography>
           </Box>
           <Chip size="small" variant="outlined" color={statusColor(r.status)} label={r.status === 'WAITING FOR APPROVAL' ? 'Waiting for approval' : r.status === 'APPROVED' ? 'Approved' : 'Posted'} />
@@ -45,7 +45,7 @@ export function LoanReleasePanel() {
         <DialogContent>
           {v && (
             <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">
-              {v.clientName ?? `Client ${v.clientId}`} · dated {v.date} · encoded by {v.encodedByName ?? v.encodedBy}{v.approvedByName ? ` · approved by ${v.approvedByName}` : ''}
+              {v.clientName ?? `Member ${v.clientId}`} · dated {v.date} · encoded by {v.encodedByName ?? v.encodedBy}{v.approvedByName ? ` · approved by ${v.approvedByName}` : ''}
             </Typography>
           )}
           {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}

@@ -51,7 +51,7 @@ public class BusinessDay implements OnConnectionSwitch {
         Boolean a = available;
         if (a == null) {
             a = db.tableExists("ecis_business_day") && db.tableExists("ecis_business_day_log");
-            if (!a && required) LOG.warn("No business day table in this database: postings use the calendar date. Apply the business day migration (PostgreSQL V027, MySQL V064).");
+            if (!a && required) LOG.warn("No business day table in this database: postings use the calendar date. Apply the missing database changes in " + ph.coop.core.connection.DatabaseChanges.WHERE + ".");
             available = a;
         }
         return a;

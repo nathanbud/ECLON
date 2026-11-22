@@ -70,9 +70,9 @@ class ShareWithdrawalController {
         Perms perms = access.of(auth);
         access.requireNew(perms, ShareWithdrawalRules.CASH_VOUCHER);
         Person p = poster.person(auth.getName());
-        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be encoded.");
+        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be encoded (every entry carries the department of the person who makes it). Ask an administrator to set your department in Settings > Users, then try again.");
         if (req.amount() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter an amount above zero.");
-        if (req.amount().stripTrailingZeros().scale() > 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The amount can have at most 2 decimal places.");
+        if (req.amount().stripTrailingZeros().scale() > 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An amount can have at most 2 decimal places (centavos). Round it and try again.");
         BigDecimal amount = req.amount().setScale(2, java.math.RoundingMode.UNNECESSARY);
         return tx.execute((st) -> {
             int branch = p.branch();

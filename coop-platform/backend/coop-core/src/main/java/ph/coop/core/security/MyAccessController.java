@@ -71,8 +71,16 @@ class MyAccessController {
         return new MyAccess(fp, since != null, items, since == null ? null : lastChange(auth.getName()));
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ph.coop.core.feature.Features features;
+
     private List<Item> items(Authentication auth) {
         List<Item> out = new ArrayList<>();
+        // the areas this cooperative uses: switching one makes the window refresh its menu and tiles
+        if (features != null) {
+            Map<String, Boolean> on = features.all();
+            for (var f : ph.coop.core.feature.FeatureRules.ALL) out.add(new Item("feature." + f.key(), "Features", f.label(), on.getOrDefault(f.key(), true) ? "On" : "Off"));
+        }
         List<String> columns = new ArrayList<>(List.of("AccessLevel"));
         UserProfileController.TABS.values().forEach((sections) -> sections.forEach((section, specs) -> specs.forEach((s) -> {
             if (!section.equals(PERSON) && !SKIP.contains(s.column()) && !s.kind().equals("note") && present(s)) columns.add(s.column());
@@ -96,7 +104,7 @@ class MyAccessController {
         String cols = String.join(", ", UserProfileController.TRANSACTION_COLUMNS.stream().map((c) -> "x." + c).toList());
         jdbc.query("SELECT x.TR_CODE, COALESCE(t.TransTypeDesc, CONCAT('Type ', x.TR_CODE)), " + cols
                 + " FROM access a JOIN access_trans x ON x.BR_CODE = a.AccessBR_CODE AND x.USERID = a.AccessID"
-                + " LEFT JOIN transtype t ON t.TransTypeID = x.TR_CODE WHERE a.AccessUserName = ? ORDER BY x.TR_CODE", (rs) -> {
+                + " LEFT JOIN transtype t ON t.TransTypeID = x.TR_CODE WHERE a.AccessUserName = ? ORDER BY x.TR_CODE", (org.springframework.jdbc.core.RowCallbackHandler) (rs) -> {
             int code = rs.getInt(1);
             String type = rs.getString(2) == null ? "Type " + code : rs.getString(2).trim();
             for (int k = 0; k < UserProfileController.TRANSACTION_COLUMNS.size(); k++) {
@@ -159,7 +167,7 @@ class MyAccessController {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(s.toString().getBytes(StandardCharsets.UTF_8))).substring(0, 32);
         } catch (NoSuchAlgorithmException e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "No SHA-256 here.");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "This computer's Java cannot work out SHA-256 fingerprints, so your access could not be checked. Tell your administrator: the server's Java installation needs repair.");
         }
     }
 }

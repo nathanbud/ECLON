@@ -38,8 +38,8 @@ describe('Waiting for you', () => {
     inbox = {
       total: 3, byKind: {},
       items: [
-        { kind: 'JOURNAL_REVIEW', label: 'Journal to review', summary: 'J-1 - Month end', by: 'maker', at: '2026-10-30T09:00:00', view: 'accounting', tab: 'Journals' },
-        { kind: 'MEMO_POST', label: 'Memo ready to post', summary: 'MEMO-2026-0007 - Transfer', by: 'maker', at: '2026-10-31T09:00:00', view: 'accounting', tab: 'Memos' },
+        { kind: 'JOURNAL_REVIEW', label: 'Journal to review', summary: 'J-1 - Month end', by: 'maker', at: '2026-10-30T09:00:00', view: 'backoffice', tab: 'General journal' },
+        { kind: 'MEMO_POST', label: 'Memo ready to post', summary: 'MEMO-2026-0007 - Transfer', by: 'maker', at: '2026-10-31T09:00:00', view: 'backoffice', tab: 'Debit/credit memos' },
         { kind: 'MEMBER_REQUEST', label: 'Close membership', summary: 'Close 100 (Reyes, Ana)', by: 'teller', at: '2026-10-31T10:00:00', view: 'approvals', tab: null },
       ],
     }
@@ -49,7 +49,7 @@ describe('Waiting for you', () => {
     expect(rows).toHaveLength(4)
     const user = userEvent.setup()
     await user.click(within(rows[2]).getByRole('button', { name: 'Open' }))
-    expect(open).toHaveBeenCalledWith('accounting', 'Memos')
+    expect(open).toHaveBeenCalledWith('backoffice', 'Debit/credit memos')
     expect(within(rows[3]).getByText('Decide below')).toBeInTheDocument()
     expect(within(rows[3]).queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
   })

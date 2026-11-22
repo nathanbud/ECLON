@@ -10,6 +10,7 @@ import { IconChip } from './appleUi'
 import { glass } from './glass'
 import LoansTab from './LoansTab'
 import { useMemberImage } from './memberImage'
+import { SECTION_FEATURE, featureOn, useFeaturesOff } from './ui/features'
 import { fmtDate } from './profile/format'
 import { SavingsTab } from './profile/Savings'
 import TellerTransaction, { type TellerOnly, type TellerPreset } from './TellerTransaction'
@@ -309,12 +310,17 @@ function TodayCard({ setup }: { setup: FoSetup }) {
  * drawer, limits, holds, supervisor approvals) belong to the cashier signed in here. The right side keeps the drawer and the day's work in view.
  */
 export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
-  const { data: lk } = useQuery({ queryKey: ['lookups'], queryFn: getLookups, staleTime: Infinity })
+  const { data: lk } = useQuery({ queryKey: ['lookups'], queryFn: getLookups, staleTime: 300_000 /* re-read every 5 minutes, like the server, so a value added to a lookup table appears */ })
   const [id, setIdState] = useState<Id | null>(null)
   /** The kind chosen under Go to account; the transaction panel then offers only accounts of that kind. A new member starts with all of them. */
   const [only, setOnly] = useState<TellerOnly>(null)
   const setId = (next: Id | null) => { setIdState(next); setOnly(null) }
-  const [section, setSection] = useState<Section>('Savings')
+  const off = useFeaturesOff()
+  // the sections and quick tiles of an area this cooperative switched off (Settings > System > Features) are left out
+  const sections = SECTIONS.filter((x) => featureOn(off, SECTION_FEATURE[x]))
+  const quick = QUICK.filter((q) => featureOn(off, SECTION_FEATURE[q.section]))
+  const [picked, setSection] = useState<Section>(sections[0] ?? 'Share Capital')
+  const section = sections.includes(picked) ? picked : (sections[0] ?? 'Share Capital')
   const [preset, setPreset] = useState<TellerPreset | null>(null)
   const [cols, setColsState] = useState<number[]>(storedCols)
   const container = useRef<HTMLDivElement>(null)
@@ -331,7 +337,7 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
           )}
           <Card title="Go to account" icon={<FiGrid />} color={tileFill.purple}>
             <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-              {QUICK.map((q) => (
+              {quick.map((q) => (
                 <ButtonBase
                   key={q.label} disabled={!id} aria-label={q.label} aria-pressed={only === q.only}
                   onClick={() => {
@@ -369,7 +375,7 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
             <>
               <TellerTransaction id={id} preset={preset} only={only} onShowAll={() => setOnly(null)} />
               <Box role="tablist" aria-label="Member accounts" sx={(t) => ({ display: 'flex', gap: '2px', p: '3px', mb: 1.25, borderRadius: '9px', bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' })}>
-                {SECTIONS.map((x) => (
+                {sections.map((x) => (
                   <ButtonBase
                     key={x} role="tab" aria-selected={section === x} onClick={() => setSection(x)}
                     sx={(t) => ({

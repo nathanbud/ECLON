@@ -31,7 +31,10 @@ public class StockService {
     private final Db db;
     private final InventorySupport support;
 
-    StockService(JdbcTemplate jdbc, Db db, InventorySupport support) {
+    private final ph.coop.core.businessday.BusinessDay businessDay;
+
+    StockService(JdbcTemplate jdbc, Db db, InventorySupport support, ph.coop.core.businessday.BusinessDay businessDay) {
+        this.businessDay = businessDay;
         this.jdbc = jdbc;
         this.db = db;
         this.support = support;
@@ -69,6 +72,8 @@ public class StockService {
 
     /** Posts one movement, or throws with the reason. Call inside a transaction. */
     public Posted post(Move m, String user) {
+        // stock moves (receipts, sales, returns, adjustments, counts, transfers) only while the branch has a business day open
+        businessDay.requireStarted(InventorySupport.BRANCH);
         if (!InventoryRules.TYPES.contains(m.type())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown movement type " + m.type() + ".");
         if (m.quantity() == null || m.quantity().signum() == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The quantity cannot be zero.");
         int sign = InventoryRules.sign(m.type());
@@ -79,10 +84,10 @@ public class StockService {
 
         List<Product> products = jdbc.query("SELECT name, track_batch, track_expiry, active, cost FROM ecis_product WHERE branch_code = ? AND id = ? FOR UPDATE",
             (rs, i) -> new Product(rs.getString(1), rs.getInt(2) == 1, rs.getInt(3) == 1, rs.getInt(4) == 1, rs.getBigDecimal(5)), InventorySupport.BRANCH, m.productId());
-        if (products.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such product.");
+        if (products.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That product was not found; it may have been switched off or the code mistyped. Choose the product from the list.");
         Product p = products.get(0);
         Integer wh = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_warehouse WHERE branch_code = ? AND id = ? AND active = 1", Integer.class, InventorySupport.BRANCH, m.warehouseId());
-        if (wh == null || wh == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such active warehouse.");
+        if (wh == null || wh == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That warehouse was not found or is switched off. Choose an active warehouse from the list.");
         if (!p.active() && m.quantity().signum() > 0 && !m.type().equals("ADJUSTMENT")) throw conflict(p.name() + " is switched off.");
 
         boolean in = m.quantity().signum() > 0;

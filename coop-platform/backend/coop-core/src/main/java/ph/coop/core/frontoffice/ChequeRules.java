@@ -53,6 +53,15 @@ public final class ChequeRules {
         return kindDays > 0 ? kindDays + 2 : 0;
     }
 
+    /**
+     * The countdown to a cheque's expected clearing day, in days (0 on the day, negative once it is past due). The old ledger's CLRG_DAYS column
+     * counted down too, but by a rule nobody wrote down and it is part of the insert-only ledger, so the app works the countdown out instead of
+     * changing that column.
+     */
+    static int daysLeft(LocalDate clearsOn, LocalDate today) {
+        return (int) ChronoUnit.DAYS.between(today, clearsOn);
+    }
+
     /** Problems with one cheque, empty when it is fine. {@code kindDays} is null when the kind is not in chktype, {@code bankKnown} says if the bank exists. */
     static List<String> check(Input c, int position, LocalDate today, Integer kindDays, boolean bankKnown) {
         String who = "Cheque " + position;

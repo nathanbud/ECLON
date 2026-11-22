@@ -1,6 +1,6 @@
 # Data privacy (ECIS.pdf phase 19, built)
 
-Migration `V046_data_privacy.sql` (applied). Package `ph.coop.core.privacy`. Screen: Settings > Data privacy (`PrivacyPage`), for administrators and the `DATA_PROTECTION_OFFICER` role (granted like `MEMBERSHIP_OFFICER`; that role also opens Settings).
+Migration `V046_data_privacy.sql` (applied). Package `ph.coop.core.privacy`. Screen: Settings > Compliance and Audit > Data privacy (`PrivacyPage`), for administrators and the `DATA_PROTECTION_OFFICER` role (granted like `MEMBERSHIP_OFFICER`; that role also opens Settings).
 
 - **Requests from people** (`PrivacyRequestController`, `/api/privacy/requests`, `DSR-yyyy-nnnn`): access, correction, erasure, objection, portability, withdraw consent, other. Due date = received + `coop.privacy.request-days` (default 30; a placeholder to confirm with the DPO, not a stated legal deadline). Identity must be checked before fulfilment, a data package, or biometric erasure. Steps (check identity, start, fulfil, refuse, withdraw) are audited with the note.
 - **Member data package** (`GET .../{id}/package`): JSON of the member row, accounts, ledger sums, fingerprint details (never templates), consent, photo count, notices given, change history. Each download is written to `ecis_data_export` and the audit log.

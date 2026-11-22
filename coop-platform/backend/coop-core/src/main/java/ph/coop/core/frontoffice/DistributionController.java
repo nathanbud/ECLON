@@ -422,13 +422,13 @@ class DistributionController {
 
     private Batch found(long id, int branch) {
         Batch b = store.find(id, branch, false);
-        if (b == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no such distribution.");
+        if (b == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That dividend distribution was not found; it may have been replaced by a newer version. Reload the list and open it from there.");
         return b;
     }
 
     private Batch locked(long id, int branch) {
         Batch b = store.find(id, branch, true);
-        if (b == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "There is no such distribution.");
+        if (b == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That dividend distribution was not found; it may have been replaced by a newer version. Reload the list and open it from there.");
         return b;
     }
 

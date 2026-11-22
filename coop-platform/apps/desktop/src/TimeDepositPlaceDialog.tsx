@@ -131,7 +131,7 @@ export default function TimeDepositPlaceDialog({ clientId, onClose }: { clientId
           {check?.rateApproval === 'NONE' && <Alert severity="warning" action={<Button color="inherit" size="small" disabled={busy} onClick={() => void ask()}>Ask a supervisor</Button>}>This rate is outside what has been used for this term. A supervisor has to allow it.</Alert>}
           {check?.rateApproval === 'PENDING' && <Alert severity="info">Waiting for a supervisor to allow this rate.</Alert>}
           {check?.rateApproval === 'REJECTED' && <Alert severity="error" action={<Button color="inherit" size="small" disabled={busy} onClick={() => void ask()}>Ask again</Button>}>A supervisor did not allow this rate.</Alert>}
-          {askConfirm && <Alert severity="warning" action={<Button color="inherit" size="small" onClick={() => void submit(true)}>Post anyway</Button>}>A receipt for this client was posted in the last minute (or a cheque was received before). Post another?</Alert>}
+          {askConfirm && <Alert severity="warning" action={<Button color="inherit" size="small" onClick={() => void submit(true)}>Post anyway</Button>}>A receipt for this member was posted in the last minute (or a cheque was received before). Post another?</Alert>}
         </Box>
       </DialogContent>
       <DialogActions>

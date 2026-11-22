@@ -1,4 +1,4 @@
-import { currentCredentials, getJson, http, send, setCredentials } from './http'
+import { ACCOUNT_DISABLED_SIGN_IN, currentCredentials, getJson, http, send, setCredentials } from './http'
 import { apiUrl } from './server'
 
 export interface Me {
@@ -12,12 +12,15 @@ export interface Me {
   mustChangePassword: boolean
   /** The person's own branch; screens start on it. */
   branchCode?: number
+  /** The areas this cooperative switched off (Settings > System > Features); their screens and tabs are hidden. */
+  featuresOff?: string[]
 }
 
 export async function signIn(username: string, password: string): Promise<Me> {
   const token = btoa(unescape(encodeURIComponent(`${username}:${password}`)))
   const res = await fetch(apiUrl('/api/me'), { headers: { Authorization: `Basic ${token}` } })
   if (res.status === 401) {
+    if (res.headers.get('X-Auth-Reason') === 'ACCOUNT_DISABLED') throw new Error(ACCOUNT_DISABLED_SIGN_IN)
     if (res.headers.get('X-Auth-Reason') === 'TEMPORARY_PASSWORD_EXPIRED') throw new Error('Your temporary password has expired. Ask an administrator to issue a new one.')
     if (res.headers.get('X-Auth-Reason') === 'ACCOUNT_LOCKED') {
       const minutes = Math.max(1, Math.ceil(Number(res.headers.get('Retry-After') ?? '900') / 60))

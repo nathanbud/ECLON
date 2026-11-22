@@ -42,8 +42,15 @@ public class LookupController implements ph.coop.core.connection.OnConnectionSwi
         Map.entry("billType", new String[] {"billtype", "BillTypeID", "BillTypeDesc"}),
         Map.entry("billStatus", new String[] {"billstat", "BillStatID", "BillStatDesc"}));
 
+    /**
+     * How long the lists are kept. They used to be kept until the server restarted, so a value added to a lookup table afterwards (a gender added to a new
+     * database by hand) never appeared in the dropdowns; now it appears within this time.
+     */
+    static final long KEEP_MS = 5 * 60_000L;
+
     private final JdbcTemplate jdbc;
     private volatile Map<String, Map<Integer, String>> cache;
+    private volatile long cachedAt;
 
     LookupController(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -55,10 +62,15 @@ public class LookupController implements ph.coop.core.connection.OnConnectionSwi
         cache = null;
     }
 
+    /** Read the lists again on the next request: called after a screen changes one of them (Settings > Organization > Offices). */
+    public void forget() {
+        cache = null;
+    }
+
     @GetMapping
     public Map<String, Map<Integer, String>> all() {
         Map<String, Map<Integer, String>> c = cache;
-        if (c == null) {
+        if (c == null || System.currentTimeMillis() - cachedAt > KEEP_MS) {
             c = new LinkedHashMap<>();
             for (var e : SOURCES.entrySet()) {
                 String[] src = e.getValue();
@@ -69,6 +81,7 @@ public class LookupController implements ph.coop.core.connection.OnConnectionSwi
             }
             c.put("yesNo", new LinkedHashMap<>(Map.of(0, "No", 1, "Yes")));
             cache = c;
+            cachedAt = System.currentTimeMillis();
         }
         return c;
     }

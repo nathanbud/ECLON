@@ -1,0 +1,30 @@
+sle_typecode,sle_typedesc,sle_typedesc2,sle_typeactive,sle_typewithcts,sle_typeoldid
+11,Principal,PA,"12xx,13xx,22xx,24xx,26xx,29xx,31xx,14xx,14xx,25xx,",1,""
+11,Principal,PA,"41xx,51xx,",1,""
+21,Acc. Int. Recvble,AI,"12xx,13xx,",0,""
+22,Unearned Interest,UI,"12xx,13xx,",0,""
+23,Interest Paid,IP,"12xx,13xx,",0,""
+24,Interest Earned,IE,"12xx,13xx,",0,""
+25,Interest Waived,IW,"12xx,13xx,",0,""
+26,Interest Rebate,IR,"12xx,13xx,",0,""
+30,Unearned Service Fee,US,"12xx,13xx,",0,""
+31,Service Fee,SF,"12xx,13xx,",0,""
+32,Termination Fee,TF,"12xx,13xx,",0,""
+35,Unearned Collection Fee,UC,"12xx,13xx,",0,""
+36,Collection Fee,CF,"12xx,13xx,",0,""
+37,Insurance,IN,"12xx,13xx,",0,""
+41,Penalty/Fines,PF,"12xx,13xx,",0,""
+42,Penalty Waived,PW,"12xx,13xx,",0,""
+43,Prin. Discount,PD,"12xx,13xx,",0,""
+50,Vault,VL,1101,0,1
+51,On Hand,OH,"11xx,1103",0,1
+52,Cashier,CS,"11xx,1101,1103",1,2
+53,Teller,TE,"11xx,1101,1103",1,3
+61,Current Acct,CA,1102,1,1
+62,Savings Acct,SA,1102,1,2
+63,Time Deposit,TD,1102,1,3
+71,Acc. Int. TD,AI,24xx,0,""
+72,Acc.Int. Earned TD,AE,24xx,0,""
+73,WTax TD,WT,24xx,0,""
+74,Compd Int,CI,25xx,0,""
+75,Acc. Int. SD,AI,22xx,0,""

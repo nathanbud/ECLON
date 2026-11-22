@@ -3,6 +3,7 @@ package ph.coop.core.accounting.journal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.math.BigDecimal;
@@ -71,9 +72,56 @@ class JournalPostingTest {
         return a;
     }
 
+    /**
+     * 2010201 (Time deposit - short term) is a control account, so this journal changes its balance and is made as an administrator with a reason
+     * (the override path); the rows it writes are the golden snapshot's, unchanged.
+     */
+    @Test
+    void aJournalThatChangesAControlAccountIsRefusedWithoutAnAdministratorsReason() {
+        List<LineIn> lines = List.of(new LineIn("50105", BigDecimal.TEN, BigDecimal.ZERO), new LineIn("2010201", BigDecimal.ZERO, BigDecimal.TEN));
+        // without a reason: refused, and the message points to a debit/credit memo
+        ResponseStatusException none = assertThrows(ResponseStatusException.class,
+            () -> journals.create(new NewJournal(branch, "ITEST-CTL-1", DAY, "control account", lines, null), as(maker)));
+        assertEquals(400, none.getStatusCode().value());
+        assertTrue(none.getReason().contains("2010201") && none.getReason().contains("debit/credit memo"), none.getReason());
+        // an accountant who is not an administrator cannot give the reason
+        ResponseStatusException notAdmin = assertThrows(ResponseStatusException.class,
+            () -> journals.create(new NewJournal(branch, "ITEST-CTL-2", DAY, "control account", lines, OVERRIDE_REASON), as(maker)));
+        assertEquals(403, notAdmin.getStatusCode().value());
+        // an administrator with a reason: made, and the reason is in the audit log
+        long id = journals.create(new NewJournal(branch, "ITEST-CTL-3", DAY, "control account", lines, OVERRIDE_REASON), asAdmin(maker)).id();
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = ? AND entity_id = ? AND reason = ?", Integer.class,
+            JournalController.OVERRIDE, String.valueOf(id), OVERRIDE_REASON));
+    }
+
+    @Test
+    void movingAnAmountBetweenAccountsOfTheSameMembersAccountsIsAllowed() {
+        // two accounts of one loan type's group (current and past due): the group nets to zero, so no reason is needed
+        List<java.util.Map<String, Object>> pair = jdbc.queryForList("""
+                SELECT g1.GLControlACCT_CODE AS a, g2.GLControlACCT_CODE AS b FROM glcontrol g1
+                JOIN glcontrol g2 ON g2.GLControlBR_CODE = g1.GLControlBR_CODE AND g2.GLControlSLC_CODE = g1.GLControlSLC_CODE AND g2.GLControlSLT_CODE = g1.GLControlSLT_CODE
+                  AND g2.GLControlSLE_CODE = 11 AND g2.GLControlACCT_CODE <> g1.GLControlACCT_CODE
+                JOIN coa c1 ON c1.COABR_CODE = g1.GLControlBR_CODE AND c1.COAID = g1.GLControlACCT_CODE AND c1.COAacct_type = 1 AND c1.COAacct_tag = 'D'
+                JOIN coa c2 ON c2.COABR_CODE = g2.GLControlBR_CODE AND c2.COAID = g2.GLControlACCT_CODE AND c2.COAacct_type = 1 AND c2.COAacct_tag = 'D'
+                WHERE g1.GLControlBR_CODE = ? AND g1.GLControlSLC_CODE = 12 AND g1.GLControlSLE_CODE = 11
+                ORDER BY g1.GLControlACCT_CODE, g2.GLControlACCT_CODE LIMIT 1
+                """, branch);
+        org.junit.jupiter.api.Assumptions.assumeTrue(!pair.isEmpty(), "no loan type with two status accounts");
+        String current = String.valueOf(pair.get(0).get("a")).trim(), pastDue = String.valueOf(pair.get(0).get("b")).trim();
+        long id = journals.create(new NewJournal(branch, "ITEST-CTL-4", DAY, "move to past due", List.of(
+            new LineIn(pastDue, BigDecimal.TEN, BigDecimal.ZERO), new LineIn(current, BigDecimal.ZERO, BigDecimal.TEN)), null), as(maker)).id();
+        assertTrue(id > 0);
+    }
+
     private long newJournal(String ref, BigDecimal amount) {
         return journals.create(new NewJournal(branch, ref, DAY, "integration test", List.of(
-                new LineIn("50105", amount, BigDecimal.ZERO), new LineIn("2010201", BigDecimal.ZERO, amount))), as(maker)).id();
+                new LineIn("50105", amount, BigDecimal.ZERO), new LineIn("2010201", BigDecimal.ZERO, amount)), OVERRIDE_REASON), asAdmin(maker)).id();
+    }
+
+    private static final String OVERRIDE_REASON = "integration test of the ledger rows";
+
+    private Authentication asAdmin(String name) {
+        return new TestingAuthenticationToken(name, null, "ROLE_ACCOUNTANT", "ROLE_ADMIN");
     }
 
     @Test
@@ -188,7 +236,7 @@ class JournalPostingTest {
     @Test
     void aJournalOutsideAnOpenPeriodIsNotPosted() {
         long id = journals.create(new NewJournal(branch, "ITEST-4", LocalDate.of(2098, 6, 1), "no period", List.of(
-                new LineIn("50105", BigDecimal.ONE, BigDecimal.ZERO), new LineIn("2010201", BigDecimal.ZERO, BigDecimal.ONE))), as(maker)).id();
+                new LineIn("50105", BigDecimal.ONE, BigDecimal.ZERO), new LineIn("2010201", BigDecimal.ZERO, BigDecimal.ONE)), OVERRIDE_REASON), asAdmin(maker)).id();
         journals.submit(id, as(maker));
         journals.approve(id, as(checker));
         ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> journals.post(id, as(checker)));

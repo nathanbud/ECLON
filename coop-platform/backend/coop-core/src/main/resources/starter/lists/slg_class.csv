@@ -1,0 +1,9 @@
+slg_classid,slg_classdesc,slg_classactive
+1,Regular Loan,12
+2,Commodity Loan,12
+3,Back-to-Back Loan,12
+4,Commercial Loan,12
+5,Financing Loan,12
+6,Housing Loan,12
+7,Agricultural Loan,12
+99,Other Loans,12

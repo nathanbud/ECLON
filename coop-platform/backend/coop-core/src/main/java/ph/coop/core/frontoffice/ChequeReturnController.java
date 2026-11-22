@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.connection.DatabaseChanges;
 import ph.coop.core.accounting.close.PostingPeriods;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -24,7 +25,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.db.Db;
 import ph.coop.core.frontoffice.HandoverRules.Drawer;
-import ph.coop.core.frontoffice.MemberLedgerPoster.Master;
 import ph.coop.core.frontoffice.MemberLedgerPoster.MemberLine;
 import ph.coop.core.frontoffice.MemberLedgerPoster.Person;
 
@@ -33,7 +33,8 @@ import ph.coop.core.frontoffice.MemberLedgerPoster.Person;
  * the member's savings account is debited by the cheque (one ledger row, event 11, adjustment flag 1, no tender type) and the place the cheque
  * is now is credited: a teller's or cashier's cheque account (sub-ledger type 3), the vault's, or the bank account. The original receipt rows are
  * never touched, and the cheque stays marked cleared. The person who posts and a different supervisor, who approves through the same override
- * request used for loan penalties (kind CHEQUE_RETURN), are on the journal. Only cheques that paid a savings deposit are handled.
+ * request used for loan penalties (kind CHEQUE_RETURN), are on the journal. A cheque that paid a savings deposit, a loan payment (principal, interest,
+ * penalty) or a share capital payment of the receipt's member is handled; each line it paid is debited back with the account the receipt credited.
  */
 @RestController
 @RequestMapping("/api/front-office/cheque-returns")
@@ -41,8 +42,12 @@ class ChequeReturnController {
 
     static final String KIND = "CHEQUE_RETURN";
 
+    /** typeCode and refNo name the account when the cheque paid one savings account (null otherwise); paid lists every account line it paid. */
     record Candidate(int year, long ctlNo, int seq, String documentNo, String receiptDate, int clientId, String client, String number, String bank, BigDecimal amount,
-                     Integer typeCode, Integer refNo, boolean returned, String problem) {}
+                     Integer typeCode, Integer refNo, boolean returned, String problem, List<Paid> paid) {}
+
+    /** One account line a cheque paid on its receipt: the class (12 loan, 22 savings, 31 share capital), type, account, event, its ledger account and status, and how much. */
+    record Paid(int slc, int typeCode, int refNo, int event, String account, int cts, BigDecimal amount, String what) {}
 
     /** where: DRAWER (event 52 or 53 and its number), VAULT, or BANK (bankId). */
     record Request(int year, long ctlNo, int seq, String where, Integer event, Integer number, Integer bankId) {}
@@ -112,30 +117,58 @@ class ChequeReturnController {
                 rs.getString(8), rs.getString(9), rs.getBigDecimal(10)), p.branch(), from, n);
     }
 
-    /** What the cheque paid, from the ledger rows of its receipt. A cheque that paid anything but a savings deposit is not handled yet. */
+    /**
+     * What the cheque paid, from the ledger rows of its receipt (in their order): savings deposits, loan payments (principal, interest, penalty and
+     * other charges) and share capital payments of the receipt's member. Each line is debited back on the return with the ledger account the receipt
+     * credited (documentation/cheque-receipt-posting-map.md, returned cheques).
+     */
     private Candidate candidate(int branch, int year, long ctl, int seq, String doc, LocalDate date, int clientId, String clientName, String number, String bank, BigDecimal amount) {
         List<Object[]> rows = jdbc.query("""
                 SELECT SL_CLIENTID, SLC_CODE, SLT_CODE, REF_NO, SLE_CODE, AMT FROM sldtl
-                WHERE SL_BRCODE = ? AND TR_CODE = 10 AND TR_CTLNO = ? AND CHECKNO = ? AND COCI_TYPE = 2 AND TR_DATE = ?
+                WHERE SL_BRCODE = ? AND TR_CODE = 10 AND TR_CTLNO = ? AND CHECKNO = ? AND COCI_TYPE = 2 AND TR_DATE = ? ORDER BY SEQNO, SLC_CODE, SLT_CODE, REF_NO, SLE_CODE
                 """, (rs, i) -> new Object[] {rs.getInt(1), rs.getInt(2), rs.getInt(3), rs.getInt(4), rs.getInt(5), rs.getBigDecimal(6)}, branch, ctl, number, date.toString());
         String problem = null;
-        Integer type = null, ref = null;
         BigDecimal paid = BigDecimal.ZERO;
+        java.util.Map<String, Paid> lines = new java.util.LinkedHashMap<>();
         if (rows.isEmpty()) problem = "The ledger has no row paid by this cheque.";
         for (Object[] r : rows) {
-            if ((int) r[1] != 22 || (int) r[4] != 11) { problem = "This cheque paid something other than a savings deposit. Returning those is not built yet."; break; }
-            if (type != null && (!type.equals(r[2]) || !ref.equals(r[3]))) { problem = "This cheque paid more than one account. Returning it is not built yet."; break; }
-            type = (Integer) r[2];
-            ref = (Integer) r[3];
-            paid = paid.add(((BigDecimal) r[5]).negate());
+            int slc = (int) r[1], slt = (int) r[2], ref = (int) r[3], sle = (int) r[4];
+            if (slc != 12 && slc != 22 && slc != 31) { problem = "This cheque paid an account that is not a loan, savings or share capital. Return it with a General Journal."; break; }
+            if ((int) r[0] != clientId) { problem = "This cheque paid another member's account. Return it with a General Journal."; break; }
+            String key = slc + "/" + slt + "/" + ref + "/" + sle;
+            BigDecimal a = ((BigDecimal) r[5]).negate();
+            paid = paid.add(a);
+            Paid before = lines.get(key);
+            if (before != null) { lines.put(key, new Paid(slc, slt, ref, sle, before.account(), before.cts(), before.amount().add(a), before.what())); continue; }
+            // the ledger account and status the receipt used for this line
+            List<Object[]> line = jdbc.query("""
+                    SELECT DTACCT_CODE, COALESCE(DTCTS_NUM, 0) FROM transdt WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = 3 AND DTTR_CODE = 10 AND DTTR_CTLNO = ?
+                      AND DTSLC_CODE = ? AND DTSLT_CODE = ? AND DTREF_NO = ? AND DTSLE_CODE = ? ORDER BY DTSEQ_NO LIMIT 1
+                    """, (rs, i) -> new Object[] {rs.getString(1), rs.getInt(2)}, branch, year, ctl, slc, slt, ref, sle);
+            if (line.isEmpty()) { problem = "The receipt has no entry for one of the accounts this cheque paid."; break; }
+            lines.put(key, new Paid(slc, slt, ref, sle, (String) line.get(0)[0], (int) line.get(0)[1], a, words(slc, sle) + " " + ref));
         }
         if (problem == null && paid.compareTo(amount) != 0) problem = "The ledger shows " + paid.toPlainString() + " paid by this cheque, not " + amount.toPlainString() + ".";
+        List<Paid> list = List.copyOf(lines.values());
+        boolean oneSavings = problem == null && list.size() == 1 && list.get(0).slc() == 22 && list.get(0).event() == 11;
         String name = clientName;
         if (name == null || name.isBlank()) {
             name = jdbc.queryForList("SELECT COALESCE(NULLIF(AccountName, ''), CONCAT_WS(', ', LName, FName)) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", String.class, branch, clientId)
                 .stream().findFirst().orElse("");
         }
-        return new Candidate(year, ctl, seq, doc, date.toString(), clientId, name, number, bank, amount, type, ref, isReturned(key(year, ctl, seq)), problem);
+        return new Candidate(year, ctl, seq, doc, date.toString(), clientId, name, number, bank, amount, oneSavings ? list.get(0).typeCode() : null,
+            oneSavings ? list.get(0).refNo() : null, isReturned(key(year, ctl, seq)), problem, list);
+    }
+
+    private static String words(int slc, int event) {
+        if (slc == 22) return "Savings";
+        if (slc == 31) return "Share capital";
+        return switch (event) {
+            case 11 -> "Loan principal";
+            case 23 -> "Loan interest";
+            case 41 -> "Loan penalty";
+            default -> "Loan charge (event " + event + ")";
+        };
     }
 
     private boolean isReturned(String key) {
@@ -196,7 +229,7 @@ class ChequeReturnController {
         if (c.returned()) out.add("This cheque has already been recorded as returned.");
         if (pl.held() != null && pl.held().compareTo(c.amount()) < 0)
             out.add(pl.text() + " holds only " + pl.held().setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + " in cheques. Choose where the cheque really is, or move the cheques there first.");
-        if (p.dept() <= 0) out.add("Your account has no department set, so this cannot be posted.");
+        if (p.dept() <= 0) out.add("Your account has no department set, so this cannot be posted (every entry carries the department of the person who makes it). Ask an administrator to set your department in Settings > Users, then try again.");
         return out;
     }
 
@@ -227,7 +260,7 @@ class ChequeReturnController {
     Posted post(@RequestBody Request req, Authentication auth) {
         Person p = who(auth);
         if (!db.canUpdateColumn("transck", "CKISCLEARED") || !db.canInsertInto("transsum", "transdt", "gltrans", "sldtl"))
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Returned cheques are not set up yet. An administrator has to run database/migrations/V026_cheque_clearing.sql.");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, DatabaseChanges.notSetUp("returned cheques"));
         return tx.execute((st) -> {
             Candidate c = one(p, req);
             Place pl = place(p, req, auth);
@@ -241,7 +274,6 @@ class ChequeReturnController {
             if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "A supervisor has to approve this return first.");
             long approver = found.get(0)[1];
 
-            MemberLedgerPoster.Account acct = poster.account(Master.SAVINGS, p.branch(), c.clientId(), c.typeCode(), c.refNo());
             LocalDateTime now = LocalDateTime.now(clock).withNano(0);
             LocalDate day = businessDay.postingDate(p.branch());
             int year = day.getYear();
@@ -256,18 +288,22 @@ class ChequeReturnController {
                     """, p.branch(), year, ctl, docNo, c.clientId(), day.toString(), now.format(DateTimeFormatter.ofPattern("HH:mm:ss")), day.format(DateTimeFormatter.BASIC_ISO_DATE),
                 explanation.substring(0, Math.min(explanation.length(), 200)), stamp);
 
-            String memberAccount = poster.glAccount(p.branch(), 22, c.typeCode(), 11, acct.status());
             String sql = """
-                    INSERT INTO transdt (DTTR_BRCODE, DTTR_YEAR, DTTR_MODULE, DTTR_CODE, DTTR_CTLNO, DTSEQ_NO, DTDEPT, DTACCT_CODE, DTSLC_CODE, DTSLT_CODE, DTREF_NO, DTSLE_CODE, DTCTS_NUM,
-                      DTSL_DATE, DTAMT, DTAMTDUE, DTENCDBY, DTAPPRVBY, DTPOSTBY, DTUPD_TAG, DTREFERENCE, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
-                    VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 1, '', 0, 0, 0)
+                    INSERT INTO transdt (DTTR_BRCODE, DTTR_YEAR, DTTR_MODULE, DTTR_CODE, DTTR_CTLNO, DTSEQ_NO, DTDEPT, DTACCT_CODE, ClientIDDT, DTSLC_CODE, DTSLT_CODE, DTREF_NO, DTSLE_CODE, DTCTS_NUM,
+                      DTSL_DATE, DTADJ_FLAG, DTAMT, DTAMTDUE, DTENCDBY, DTAPPRVBY, DTPOSTBY, DTUPD_TAG, DTREFERENCE, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
+                    VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 1, '', 0, 0, 0)
                     """;
-            jdbc.update(sql, p.branch(), year, ctl, 0, p.dept(), memberAccount, 22, c.typeCode(), c.refNo(), 11, acct.status(), day.toString(), c.amount(), p.id(), approver, p.id());
-            jdbc.update(sql, p.branch(), year, ctl, 1, p.dept(), pl.account(), pl.slt() == null ? null : 11, pl.slt(), pl.slt() == null ? null : 1, pl.event(), pl.number(), day.toString(),
-                c.amount().negate(), p.id(), approver, p.id());
-            poster.writeGlLine(p.branch(), memberAccount, day, 1, p.dept(), c.amount(), stamp);
+            // each line the cheque paid is debited back (savings out, the loan's principal and charges owed again, share capital out); then the place it is now is credited
+            int seqNo = 0;
+            for (Paid l : c.paid()) {
+                jdbc.update(sql, p.branch(), year, ctl, seqNo++, p.dept(), l.account(), c.clientId(), l.slc(), l.typeCode(), l.refNo(), l.event(), l.cts(), day.toString(), 1, l.amount(),
+                    p.id(), approver, p.id());
+                poster.writeGlLine(p.branch(), l.account(), day, 1, p.dept(), l.amount(), stamp);
+                poster.writeLedgerRow(p.branch(), c.clientId(), new MemberLine(l.slc(), l.typeCode(), l.refNo(), l.event(), l.cts(), l.account(), l.amount()), day, 1, ctl, docNo, null, null);
+            }
+            jdbc.update(sql, p.branch(), year, ctl, seqNo, p.dept(), pl.account(), null, pl.slt() == null ? null : 11, pl.slt(), pl.slt() == null ? null : 1, pl.event(), pl.number(), day.toString(),
+                null, c.amount().negate(), p.id(), approver, p.id());
             poster.writeGlLine(p.branch(), pl.account(), day, 1, p.dept(), c.amount().negate(), stamp);
-            poster.writeLedgerRow(p.branch(), c.clientId(), new MemberLine(22, c.typeCode(), c.refNo(), 11, acct.status(), memberAccount, c.amount()), day, 1, ctl, docNo, null, null);
 
             // the cheque is cleared in the old data even when it came back; this also releases the hold on uncleared money (the debit above already took it away)
             jdbc.update("UPDATE transck SET CKISCLEARED = 1 WHERE CKTR_BRCODE = ? AND CKTR_YEAR = ? AND CKTR_CODE = 10 AND CKTR_CTLNO = ? AND CKSEQ_NO = ? AND COALESCE(CKISCLEARED, 0) = 0",

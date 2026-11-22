@@ -100,7 +100,7 @@ function ClientPicker({ id, name, onPick }: { id: number | null; name: string; o
       getOptionLabel={(o) => o.name} isOptionEqualToValue={(a, b) => a.id === b.id}
       onChange={(_, v) => onPick(v ? { id: v.id, name: v.name } : null)} onInputChange={(_, v, reason) => { if (reason === 'input') setInput(v) }}
       noOptionsText="Type at least 2 letters of the name, or a member ID"
-      renderInput={(params) => <TextField {...params} label="Client" slotProps={{ ...params.slotProps, inputLabel: { shrink: true } }} placeholder="Name or member ID" sx={box} />}
+      renderInput={(params) => <TextField {...params} label="Member" slotProps={{ ...params.slotProps, inputLabel: { shrink: true } }} placeholder="Name or member ID" sx={box} />}
     />
   )
 }
@@ -125,7 +125,7 @@ function QuickEntry({ clientId, side, onAdd, cashName }: { clientId: number | nu
   return (
     <Card title="Quick entry">
       {clientId == null
-        ? <Typography sx={{ fontSize: 13 }} color="text.secondary">Pick the client above, then choose the account and amount.</Typography>
+        ? <Typography sx={{ fontSize: 13 }} color="text.secondary">Pick the member above, then choose the account and amount.</Typography>
         : (
           <Box sx={{ display: 'grid', gap: 1.25 }}>
             <TextField
@@ -224,7 +224,7 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
             <Box sx={{ gridColumn: '1 / -1' }}>
               {editing
                 ? <ClientPicker id={form.clientId} name={form.clientName} onPick={(c) => onChange({ clientId: c?.id ?? null, clientName: c?.name ?? '' })} />
-                : <Text label="Client" value={form.clientId != null ? `${form.clientName || ''}  (${form.clientId})` : form.clientName} editing={false} />}
+                : <Text label="Member" value={form.clientId != null ? `${form.clientName || ''}  (${form.clientId})` : form.clientName} editing={false} />}
             </Box>
             <Text label="Ref. number" value={form.refNo} onChange={(v) => onChange({ refNo: v })} editing={editing} />
             <Text label="Trans. date" value={form.date} onChange={(v) => onChange({ date: v })} editing={editing} type="date" />

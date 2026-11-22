@@ -54,7 +54,7 @@ class SharePaymentController {
         access.requireNew(perms, SharePaymentRules.CASH_RECEIPT);
         Person p = poster.person(auth.getName());
         if (req.amount() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter an amount above zero.");
-        if (req.amount().stripTrailingZeros().scale() > 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The amount can have at most 2 decimal places.");
+        if (req.amount().stripTrailingZeros().scale() > 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An amount can have at most 2 decimal places (centavos). Round it and try again.");
         BigDecimal amount = req.amount().setScale(2, java.math.RoundingMode.UNNECESSARY);
         return tx.execute((st) -> {
             Account a = poster.account(Master.SHARE_CAPITAL, p.branch(), req.clientId(), req.typeCode(), req.refNo());

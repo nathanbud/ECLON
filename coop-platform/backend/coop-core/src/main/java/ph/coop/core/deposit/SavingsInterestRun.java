@@ -90,7 +90,7 @@ public class SavingsInterestRun {
             if (end.compareTo(BigDecimal.ONE) < 0) continue;
             BigDecimal interest = SavingsInterest.interest(SavingsInterest.balanceDays(start, m, from, to), days, rate.get(k.type()), MINIMUM_ADB);
             if (interest.signum() <= 0) continue;
-            if (dept <= 0) held.add(new Held(k.client(), k.type(), k.ref(), interest, "the client has no department"));
+            if (dept <= 0) held.add(new Held(k.client(), k.type(), k.ref(), interest, "the member has no department"));
             else if (interest.compareTo(CHECK_ABOVE) >= 0) held.add(new Held(k.client(), k.type(), k.ref(), interest, "the interest is " + CHECK_ABOVE.toPlainString() + " or more; check the account's ledger"));
             else credits.add(new Credit(k.client(), k.type(), k.ref(), status, dept, interest));
         }

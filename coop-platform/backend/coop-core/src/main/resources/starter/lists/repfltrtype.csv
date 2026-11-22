@@ -1,0 +1,6 @@
+br_code,id,desc1
+1,1,fltrRptTransList
+1,2,formBatchUIDAmortization
+1,3,formBatchUpdateLoanStatus
+1,4,fltrRptSLReceivables
+1,5,formBatchAccountingWizard

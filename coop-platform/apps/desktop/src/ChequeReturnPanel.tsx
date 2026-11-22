@@ -11,8 +11,8 @@ import { ConfirmButton } from './ui/dialogs'
 
 /**
  * A cheque the bank sent back. Find it by number, say where it is now (with a cashier or teller, in the vault, or in the bank), ask a different
- * supervisor to approve, then post: the member savings account is debited and the place holding the cheque is credited, as a General Journal.
- * Only cheques that paid a savings deposit are handled. Hidden for people who may not do this.
+ * supervisor to approve, then post: each line the cheque paid (a savings deposit, a loan payment's principal, interest and penalty, a share capital
+ * payment) is debited back and the place holding the cheque is credited, as a General Journal. Hidden for people who may not do this.
  */
 export function ChequeReturnPanel() {
   const qc = useQueryClient()
@@ -47,7 +47,7 @@ export function ChequeReturnPanel() {
   const post = useMutation({
     mutationFn: () => postChequeReturn(r!),
     onSuccess: (p) => {
-      setError(null); setNote(`Recorded. Journal ${p.documentNo}: ${money(p.amount)} taken back from the savings of ${p.client}, cheque taken out of ${p.where}.`)
+      setError(null); setNote(`Recorded. Journal ${p.documentNo}: ${money(p.amount)} put back on the accounts of ${p.client} the cheque paid, cheque taken out of ${p.where}.`)
       setPicked(null); setSearched(''); setNumber('')
       void qc.invalidateQueries({ queryKey: ['fo-handover-drawers'] }); void qc.invalidateQueries({ queryKey: ['cheque-return-find'] })
     },
@@ -94,15 +94,23 @@ export function ChequeReturnPanel() {
             {(banks.data ?? []).map((b) => <MenuItem key={b.bankId} value={`B:${b.bankId}`}>Deposited in the bank · {b.name}</MenuItem>)}
           </TextField>
           <Typography sx={{ fontSize: 13 }}>
-            Takes <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(picked.amount)}</b> back from the savings account of {picked.client}.
+            Puts <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(picked.amount)}</b> back on what the cheque paid for {picked.client}:
           </Typography>
+          <Box component="ul" sx={{ m: 0, pl: 2.5, fontSize: 13 }}>
+            {picked.paid.map((l) => (
+              <li key={`${l.slc}-${l.typeCode}-${l.refNo}-${l.event}`}>
+                {l.what}: <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(l.amount)}</span>
+                {l.slc === 12 ? (l.event === 11 ? ' owed again on the loan' : ' owed again') : l.slc === 22 ? ' taken out of the savings' : ' taken out of the share capital'}
+              </li>
+            ))}
+          </Box>
           {s?.problems.map((p) => <Alert key={p} severity="warning">{p}</Alert>)}
           {s?.approval === 'PENDING' && <Alert severity="info">Waiting for a supervisor to approve.</Alert>}
           {s?.approval === 'REJECTED' && <Alert severity="error">A supervisor rejected this. You can ask again.</Alert>}
           <Box sx={{ display: 'flex', gap: 1 }}>
             {s?.approval === 'APPROVED'
               ? <ConfirmButton variant="contained" disabled={!s.ready || post.isPending} onConfirm={() => post.mutate()} title="Post the returned cheque?" confirmLabel="Post the return"
-                  message={<>It takes <b>{money(picked.amount)}</b> back from the savings account of {picked.client} and writes it to the ledger dated today. This cannot be edited afterwards.</>}>
+                  message={<>It puts <b>{money(picked.amount)}</b> back on the accounts of {picked.client} the cheque paid and writes it to the ledger, dated the open business day. This cannot be edited afterwards.</>}>
                   {post.isPending ? 'Posting…' : 'Post the return'}
                 </ConfirmButton>
               : <Button variant="contained" disabled={!s || s.problems.length > 0 || s.approval === 'PENDING' || ask.isPending} onClick={() => ask.mutate()}>Ask a supervisor</Button>}

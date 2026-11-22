@@ -55,8 +55,8 @@ class InboxFlowTest {
         assertFalse(has(box, "PURCHASE_REQUEST", "ZZPR-1"), "an accountant does not approve purchases");
         assertFalse(has(box, "MEMBER_REQUEST", "ZZINBOX"), "an accountant does not decide member requests");
         var memo = box.items().stream().filter((i) -> i.summary().contains("ZZINBOX-M1")).findFirst().orElseThrow();
-        assertEquals("accounting", memo.view());
-        assertEquals("Memos", memo.tab());
+        assertEquals("backoffice", memo.view());
+        assertEquals("Debit/credit memos", memo.tab());
     }
 
     @Test
@@ -98,5 +98,49 @@ class InboxFlowTest {
             String a = items.get(i - 1).at() == null ? "9999" : items.get(i - 1).at(), b = items.get(i).at() == null ? "9999" : items.get(i).at();
             assertTrue(a.compareTo(b) <= 0, "oldest first");
         }
+    }
+
+    @Test
+    void anotherOfficerSeesAMemberListAndTheUploaderDoesNot() {
+        assumeTrue(db.tableExists("ecis_member_import"), "no member import table");
+        jdbc.update("INSERT INTO ecis_member_import (branch_code, file_name, total_rows, ok_rows, uploaded_by, uploaded_at, status) VALUES (1, 'zzinbox-list.csv', 3, 3, 'zz_maker', ?, 'PENDING')", LocalDateTime.now());
+        assertTrue(has(inbox.inbox(as("zz_other", "ROLE_MEMBERSHIP_OFFICER")), "MEMBER_LIST", "zzinbox-list.csv"));
+        assertFalse(has(inbox.inbox(as("zz_maker", "ROLE_MEMBERSHIP_OFFICER")), "MEMBER_LIST", "zzinbox-list.csv"));
+        assertFalse(has(inbox.inbox(as("zz_other", "ROLE_ACCOUNTANT")), "MEMBER_LIST", "zzinbox-list.csv"), "only Membership Officers decide lists");
+    }
+
+    @Test
+    void aDistributionWaitsForAReviewerWhoDidNotPrepareIt() {
+        assumeTrue(db.tableExists("ecis_distribution_batch"), "no distribution table");
+        Integer live = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_distribution_batch WHERE branch_code = 1 AND year = 2098", Integer.class);
+        assumeTrue(live == 0, "2098 already has a distribution");
+        jdbc.update("""
+                INSERT INTO ecis_distribution_batch (branch_code, year, cutoff, method, status, dividend_rate, patronage_rate, overrides, total_average_share, total_patronage, members,
+                  total_isc, total_pr, total, held, excluded, policy, prepared_by, prepared_at, submitted_by, submitted_at)
+                VALUES (1, 2098, ?, 'RATES', 'SUBMITTED', 8, 8.23, 0, 1000, 500, 12, 80, 41.15, 121.15, 0, 0, 'test', 'zz_maker', ?, 'zz_maker', ?)
+                """, LocalDate.of(2099, 2, 21), LocalDateTime.now(), LocalDateTime.now());
+        var admin = inbox.inbox(as("zz_other", "ROLE_ADMIN"));
+        assertTrue(has(admin, "DISTRIBUTION_REVIEW", "2098 distribution"));
+        assertEquals("dividends", admin.items().stream().filter((i) -> i.kind().equals("DISTRIBUTION_REVIEW") && i.summary().contains("2098")).findFirst().orElseThrow().view());
+        assertFalse(has(inbox.inbox(as("zz_maker", "ROLE_ADMIN")), "DISTRIBUTION_REVIEW", "2098 distribution"), "not the one who prepared it");
+    }
+
+    @Test
+    void supervisorRequestsGoToTheHeadCashierAndPenaltyWaiversToAccountants() {
+        assumeTrue(db.tableExists("ecis_fo_override"), "no supervisor request table");
+        var heads = jdbc.queryForList("SELECT AccessUserName, AccessID FROM access WHERE AccessBR_CODE = 1 AND COALESCE(AccessIsHeadCashier, 0) = 1 AND COALESCE(AccessIsDisabled, 0) = 0 ORDER BY AccessID LIMIT 1");
+        var others = jdbc.queryForList("SELECT AccessID FROM access WHERE AccessBR_CODE = 1 AND COALESCE(AccessIsHeadCashier, 0) = 0 AND COALESCE(AccessIsDisabled, 0) = 0 ORDER BY AccessID LIMIT 1", Integer.class);
+        assumeTrue(!heads.isEmpty() && !others.isEmpty(), "no head cashier, or nobody else");
+        String head = (String) heads.get(0).get("AccessUserName");
+        int asker = others.get(0);
+        jdbc.update("INSERT INTO ecis_fo_override (branch_code, draft_id, kind, description, amount, limit_amount, requested_by, requested_at) VALUES (1, NULL, 'TD_RATE', 'zzinbox rate', 1000, NULL, ?, ?)", asker, LocalDateTime.now());
+        jdbc.update("INSERT INTO ecis_fo_override (branch_code, draft_id, kind, description, amount, limit_amount, requested_by, requested_at) VALUES (1, NULL, 'PENALTY_WAIVER', 'zzinbox waiver', 50, NULL, ?, ?)", asker, LocalDateTime.now());
+        var h = inbox.inbox(as(head));
+        assertTrue(has(h, "SUPERVISOR", "zzinbox rate"));
+        assertFalse(has(h, "PENALTY_WAIVER", "zzinbox waiver"), "the head cashier does not waive penalties");
+        var accountant = inbox.inbox(as("zz_other", "ROLE_ACCOUNTANT"));
+        assertTrue(has(accountant, "PENALTY_WAIVER", "zzinbox waiver"));
+        assertEquals("Penalty waivers", accountant.items().stream().filter((i) -> i.summary().contains("zzinbox waiver")).findFirst().orElseThrow().tab());
+        assertFalse(has(accountant, "SUPERVISOR", "zzinbox rate"), "an accountant does not decide teller limits");
     }
 }

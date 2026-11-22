@@ -3,3 +3,6 @@ coop:
   # The tests post through the real code on the server's own date; the business day's own tests (BusinessDayTest) switch it back on.
   business-day:
     required: false
+  # Tests cause errors on purpose (ServerErrorsTest); keep them out of the administrators' error log (logs/errors.jsonl).
+  errors:
+    file: target/test-errors.jsonl

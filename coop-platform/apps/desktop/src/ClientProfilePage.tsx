@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useMe } from './session'
 import { getCapabilities, getLookups, getMember, getPendingChange, submitChange } from './api'
 import { useLeaveGuard } from './leaveGuard'
-import { hasPendingFind, VOICE_FIND } from './voice/bus'
 import { ACTIONS, ClientMenu, closeMatch, mod } from './profile/ClientMenu'
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Snackbar } from '@mui/material'
 import { appBackground, glass } from './glass'
@@ -13,7 +12,7 @@ import FindClientDialog, { FindBody } from './FindClientDialog'
 import AdvancedRegistration from './AdvancedRegistration'
 import { DraftsList } from './profile/DraftsList'
 import type { MemberDraft } from './api'
-import { Gated, NEEDS_ADMIN, NEEDS_EDIT } from './ui/Gated'
+import { Gated, NEEDS_EDIT, NEEDS_OFFICER } from './ui/Gated'
 import { NewMemberScreen } from './profile/NewMember'
 import { EditCtx } from './profile/editing'
 import { EditBar, PendingBanner } from './profile/Changes'
@@ -35,10 +34,12 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
   const [resumed, setResumed] = useState<MemberDraft | null>(null)
   const [advanced, setAdvanced] = useState(false)
   const me = useMe()
+  // Advanced mode (importing a list of members) is for Membership Officers only, not every administrator
+  const officer = me.roles.some((r) => r.replace('ROLE_', '') === 'MEMBERSHIP_OFFICER')
   const [closing, setClosing] = useState(false)
   const [reactivating, setReactivating] = useState(false)
 
-  const { data: lk } = useQuery({ queryKey: ['lookups'], queryFn: getLookups, staleTime: Infinity })
+  const { data: lk } = useQuery({ queryKey: ['lookups'], queryFn: getLookups, staleTime: 300_000 /* re-read every 5 minutes, like the server, so a value added to a lookup table appears */ })
   const { data: caps } = useQuery({ queryKey: ['capabilities'], queryFn: getCapabilities, staleTime: 60_000 })
   const { data: member } = useQuery({
     queryKey: ['member', selected],
@@ -114,14 +115,6 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
   const actions = ACTIONS.map((a) => ({ ...a, run: runs[a.label] }))
   const closeRun = caps?.edit && selected && member && (member.accountStatus ?? 1) !== 3 && !editing && !registering && !advanced ? () => setClosing(true) : undefined
 
-  // With a member open, "find client X" by voice opens the finder pop-up (the finder screen is already there when none is open).
-  useEffect(() => {
-    if (selected && hasPendingFind()) setFinding(true)
-    const on = () => { if (selected && !advanced && !registering) setFinding(true) }
-    window.addEventListener(VOICE_FIND, on)
-    return () => window.removeEventListener(VOICE_FIND, on)
-  }, [selected, advanced, registering])
-
   // Keyboard: Ctrl/Cmd+F runs Find; the other shortcuts run their action while it is possible.
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
@@ -157,7 +150,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
       </Dialog>
       <Snackbar open={!!notice}autoHideDuration={3000} onClose={() => setNotice(null)} message={notice} />
 
-      <Box component="section" aria-label="Client profile" sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, maxWidth: 1600, width: '100%', mx: 'auto', p: 1.5 }}>
+      <Box component="section" aria-label="Member profile" sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, maxWidth: 1600, width: '100%', mx: 'auto', p: 1.5 }}>
         {advanced
           ? <AdvancedRegistration onClose={() => setAdvanced(false)} onDone={setNotice} />
           : registering
@@ -183,8 +176,8 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
               <Box sx={(t) => ({ width: '100%', maxWidth: 580, overflow: 'hidden', ...glass(t, { elevated: true }) })}>
                 <FindBody inline lk={lk} onPick={onSelect} />
                 <Box sx={{ p: 1, textAlign: 'center' }}>
-                  <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => { setRegistering(true); setError(null) }}>New Client</Button></Gated>
-                  <Gated allowed={!!caps?.edit && me.admin} reason={caps?.edit ? NEEDS_ADMIN : NEEDS_EDIT}><Button size="small" color="warning" onClick={() => setAdvanced(true)}>Advanced mode: import a list</Button></Gated>
+                  <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => { setRegistering(true); setError(null) }}>New Member</Button></Gated>
+                  <Gated allowed={!!caps?.edit && officer} reason={caps?.edit ? NEEDS_OFFICER : NEEDS_EDIT}><Button size="small" color="warning" onClick={() => setAdvanced(true)}>Advanced mode: import a list</Button></Gated>
                 </Box>
                 {caps?.edit && <DraftsList onResume={(d) => { setResumed(d); setRegistering(true); setError(null) }} />}
               </Box>

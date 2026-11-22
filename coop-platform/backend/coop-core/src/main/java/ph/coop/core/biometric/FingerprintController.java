@@ -1,6 +1,7 @@
 package ph.coop.core.biometric;
 
 
+import ph.coop.core.connection.DatabaseChanges;
 import ph.coop.core.audit.AuditLog;import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -188,12 +189,12 @@ public class FingerprintController {
     }
 
     private void requireInstalled() {
-        if (!db.allTablesExist("ecis_member_fingerprint", "ecis_biometric_consent", "ecis_audit_log")) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Fingerprints are not installed on this server (V040).");
+        if (!db.allTablesExist("ecis_member_fingerprint", "ecis_biometric_consent", "ecis_audit_log")) throw new ResponseStatusException(HttpStatus.FORBIDDEN, DatabaseChanges.notSetUp("fingerprints"));
     }
 
     private void requireMember(int branch, int client) {
         Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", Integer.class, branch, client);
-        if (n == null || n == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found.");
+        if (n == null || n == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
     }
 
     private static byte[] decode(String base64) {

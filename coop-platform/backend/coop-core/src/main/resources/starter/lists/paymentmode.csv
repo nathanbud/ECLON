@@ -1,0 +1,10 @@
+paymentmodeid,paymentmodedesc,paymentmodeoldid
+1,Daily,D
+2,Weekly,W
+3,Semi-Monthly,H
+4,Monthly,M
+5,Quarterly,Q
+6,Semestral,S
+7,Yearly,Y
+8,Every nP,E
+9,Lumpsum,L

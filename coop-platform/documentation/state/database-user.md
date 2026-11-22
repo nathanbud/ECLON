@@ -8,3 +8,5 @@ Its password is in `db.txt` as `app_password`.
 Root is for administration only.
 The MySQL server's `read_only` was switched OFF at runtime so the app can write; it reverts on a MySQL restart unless `my.ini` is changed.
 New tables are in `coop-platform/database/migrations` (V001 to V003), applied by hand with the `mysql` client.
+
+Since PostgreSQL V032 (MySQL V069, not applied) the app may also INSERT into `access` (with its AccessID sequence) and `access_trans`, to create users (Settings > Users > New user); it still never reads or writes the password or one-time-code columns.

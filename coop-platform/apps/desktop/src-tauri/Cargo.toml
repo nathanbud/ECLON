@@ -23,6 +23,10 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.12.3", features = [] }
 tauri-plugin-log = "2"
+# One copy of the app per PC: opening it again brings the running window forward.
+tauri-plugin-single-instance = "2"
+# The main window opens where and as large as it was left.
+tauri-plugin-window-state = "2"
 
 # Printing straight to the default printer (no print window) goes through the Windows web view.
 [target.'cfg(windows)'.dependencies]

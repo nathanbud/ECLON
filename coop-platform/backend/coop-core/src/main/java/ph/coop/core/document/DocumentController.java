@@ -252,7 +252,7 @@ class DocumentController {
         if (!DocumentRules.canUpload(type, r)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not attach documents to this kind of record.");
         String eid = entityId == null ? "" : entityId.trim();
         if (eid.isEmpty() || eid.length() > 40) throw bad("Give the record number (40 characters at most).");
-        if (type.equals("MEMBER") && (!eid.matches("[0-9]{1,9}") || jdbc.queryForObject("SELECT COUNT(*) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", Integer.class, BRANCH, Integer.parseInt(eid)) == 0)) throw bad("No such member.");
+        if (type.equals("MEMBER") && (!eid.matches("[0-9]{1,9}") || jdbc.queryForObject("SELECT COUNT(*) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", Integer.class, BRANCH, Integer.parseInt(eid)) == 0)) throw bad("That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
         if (title == null || title.isBlank() || title.length() > 120) throw bad("Give the document a title (120 characters at most).");
         if (description != null && description.length() > 255) throw bad("The description is too long (255 characters at most).");
         String cls = classification == null || classification.isBlank() ? DocumentRules.defaultClassification(type) : classification.trim().toUpperCase();

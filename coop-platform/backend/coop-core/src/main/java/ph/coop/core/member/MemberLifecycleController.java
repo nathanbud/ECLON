@@ -61,7 +61,6 @@ public class MemberLifecycleController {
     public record BeneficiaryRequest(int branchCode, int clientId, String action, Long benefId, String name, Integer relation, String dateOfBirth, String occupation, Integer type, String note) {}
 
     private static final String SELECT = "SELECT id, branch_code, kind, client_id, summary, status, requested_by, requested_at, decided_by, decided_at, decision_note, payload FROM ecis_member_request";
-    private static final int DEFAULT_DEPT = 2;
 
     private final JdbcTemplate jdbc;
     private final Db db;
@@ -73,8 +72,11 @@ public class MemberLifecycleController {
     private final ClientDetailController details;
     private final BiometricStaging staging;
     private final BeneficiaryChanges beneficiaries;
+    private final SlControlController slControls;
+    private final MemberDefaults defaults;
 
     MemberLifecycleController(JdbcTemplate jdbc, Db db, LookupController lookups, ObjectMapper json, PlatformTransactionManager txManager, MembershipPolicyController policy, ClientDetailController details, BiometricStaging staging, BeneficiaryChanges beneficiaries,
+                              SlControlController slControls, MemberDefaults defaults,
                               @Value("${coop.edit.enabled:false}") boolean enabled) {
         this.jdbc = jdbc;
         this.db = db;
@@ -86,6 +88,8 @@ public class MemberLifecycleController {
         this.details = details;
         this.staging = staging;
         this.beneficiaries = beneficiaries;
+        this.slControls = slControls;
+        this.defaults = defaults;
     }
 
     private static boolean has(Authentication auth, String authority) {
@@ -128,11 +132,11 @@ public class MemberLifecycleController {
     public Request register(@RequestBody Register req, Authentication auth) {
         requireAvailable();
         Map<String, String> fields = cleanFields(req.fields());
-        List<String> problems = LifecycleRules.registrationProblems(req.clientType(), fields, LocalDate.now());
+        List<String> problems = LifecycleRules.registrationProblems(req.clientType(), fields, LocalDate.now(), defaults.types());
         if (!problems.isEmpty()) throw bad(String.join(" ", problems));
         String key = LifecycleRules.duplicateKey(fields);
         if (req.staged() != null && !req.staged().isEmpty() && !has(auth, "PERM_MEMBER_IMAGES")) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You need the edit-client-images permission to take a photo or fingerprints.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You need the edit-member-images permission to take a photo or fingerprints.");
         }
         staging.validate(req.staged());
         return tx.execute((s) -> {
@@ -144,13 +148,34 @@ public class MemberLifecycleController {
             }
             Map<String, String> payload = new LinkedHashMap<>(fields);
             payload.put("_clientType", Integer.toString(req.clientType()));
-            String summary = fields.get("LName") + ", " + fields.get("FName") + " (" + LifecycleRules.TYPES.get(req.clientType()) + ")" + staging.describe(req.staged());
+            String summary = fields.get("LName") + ", " + fields.get("FName") + " (" + defaults.typeName(req.clientType()) + ")" + staging.describe(req.staged());
             long id = db.insertReturningId("INSERT INTO ecis_member_request (branch_code, kind, client_id, summary, payload, status, requested_by, requested_at) VALUES (?, 'REGISTER', NULL, ?, ?, 'PENDING', ?, NOW())", "id",
                 req.branchCode(), summary, write(payload), auth.getName());
             staging.stage(id, req.staged());
             audit(auth.getName(), "MEMBER_REGISTER_REQUESTED", req.branchCode() + "-new", null, summary, "Request #" + id);
+            // A super administrator may let a Membership Officer's own registration apply at once (Settings > Membership > Membership policy);
+            // otherwise it waits for a second officer, as before.
+            if (policy.officerRegistersDirectly() && has(auth, "ROLE_MEMBERSHIP_OFFICER")) registerDirectly(load(id), auth.getName());
             return load(id);
         });
+    }
+
+    /** Whether this is a Membership Officer approving their own registration while a super administrator allows officers to register directly. */
+    private boolean ownRegistrationMayBeApproved(Request r, Authentication auth) {
+        return r.kind().equals("REGISTER") && r.requestedBy().equalsIgnoreCase(auth.getName()) && has(auth, "ROLE_MEMBERSHIP_OFFICER") && policy.officerRegistersDirectly();
+    }
+
+    /**
+     * Opens the member at once, with the same steps as an approval (the member, the accounts SL Controls name, the photo and fingerprints), the officer
+     * recorded as both requester and approver, and audited as MEMBER_REGISTERED_DIRECTLY so it can be told apart from a two-person approval.
+     */
+    private void registerDirectly(Request r, String officer) {
+        int clientId = openMember(r, officer);
+        staging.release(r.id(), r.branchCode(), clientId, officer, officer);
+        String note = "Approved at once: a Membership Officer's own registration (allowed by a super administrator)";
+        jdbc.update("UPDATE ecis_member_request SET client_id = ?, status = 'APPROVED', decided_by = ?, decided_at = NOW(), decision_note = ? WHERE id = ?", clientId, officer, note, r.id());
+        audit(officer, "MEMBER_REGISTERED_DIRECTLY", r.branchCode() + "-" + clientId, null, "Member " + clientId + " opened",
+            "Request #" + r.id() + ". No second approval: a super administrator allows Membership Officers to register members directly.");
     }
 
     @PostMapping("/closures")
@@ -163,7 +188,7 @@ public class MemberLifecycleController {
             List<String> problems = new ArrayList<>(LifecycleRules.closeProblems(((Number) c.get("AccountStatus")).intValue(), req.reason(), deceased, LocalDate.now()));
             if (problems.isEmpty()) problems.addAll(blockers(req.branchCode(), req.clientId(), req.reason()));
             if (!problems.isEmpty()) throw bad(String.join(" ", problems));
-            if (!pendingFor(req.branchCode(), req.clientId()).isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "This member already has a request waiting for approval.");
+            if (!pendingFor(req.branchCode(), req.clientId()).isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "This member already has a request waiting for approval, so a second one was not sent. Wait for a Membership Officer to decide it, or withdraw it first.");
             Map<String, String> payload = new LinkedHashMap<>();
             payload.put("reason", Integer.toString(req.reason()));
             if (deceased != null) payload.put("dateDeceased", deceased.toString());
@@ -196,12 +221,12 @@ public class MemberLifecycleController {
         requireAvailable();
         return tx.execute((s) -> {
             Map<String, Object> c = jdbc.queryForList("SELECT AccountStatus, ClosedReason, ClientType, DateDeceased, CONCAT_WS(', ', LName, FName) AS Name FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", req.branchCode(), req.clientId())
-                .stream().findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found."));
+                .stream().findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again."));
             Integer reason = c.get("ClosedReason") == null ? null : ((Number) c.get("ClosedReason")).intValue();
             LocalDate deceased = c.get("DateDeceased") == null ? null : LocalDate.parse(c.get("DateDeceased").toString().substring(0, 10));
-            List<String> problems = LifecycleRules.reactivateProblems(((Number) c.get("AccountStatus")).intValue(), reason, ((Number) c.get("ClientType")).intValue(), deceased, req.clientType(), req.note());
+            List<String> problems = LifecycleRules.reactivateProblems(((Number) c.get("AccountStatus")).intValue(), reason, ((Number) c.get("ClientType")).intValue(), deceased, req.clientType(), req.note(), defaults.types());
             if (!problems.isEmpty()) throw bad(String.join(" ", problems));
-            if (!pendingFor(req.branchCode(), req.clientId()).isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "This member already has a request waiting for approval.");
+            if (!pendingFor(req.branchCode(), req.clientId()).isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "This member already has a request waiting for approval, so a second one was not sent. Wait for a Membership Officer to decide it, or withdraw it first.");
             Map<String, String> payload = new LinkedHashMap<>();
             payload.put("clientType", Integer.toString(req.clientType()));
             payload.put("note", req.note().trim());
@@ -222,7 +247,10 @@ public class MemberLifecycleController {
         String note = d == null ? null : d.note();
         return tx.execute((s) -> {
             Request r = lockPending(id);
-            String problem = ChangeRules.approvalProblem(r.requestedBy(), auth.getName(), has(auth, "ROLE_MEMBERSHIP_OFFICER"));
+            // A Membership Officer may approve their own registration while a super administrator allows officers to register directly; this also
+            // covers registrations they sent before it was switched on. Everything else still needs another officer.
+            boolean ownDirect = ownRegistrationMayBeApproved(r, auth);
+            String problem = ownDirect ? null : ChangeRules.approvalProblem(r.requestedBy(), auth.getName(), has(auth, "ROLE_MEMBERSHIP_OFFICER"));
             if (problem != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, problem);
             if ("true".equals(r.payload().get("adminOnly")) && !has(auth, "ROLE_ADMIN")) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This member left owing money (bad debts or offset), so an administrator must approve the return.");
@@ -245,6 +273,11 @@ public class MemberLifecycleController {
             jdbc.update("UPDATE ecis_member_request SET status = 'APPROVED', decided_by = ?, decided_at = NOW(), decision_note = ? WHERE id = ?", auth.getName(), blank(note), id);
             audit(auth.getName(), "MEMBER_" + r.kind() + "_APPROVED", r.branchCode() + "-" + (r.clientId() == null ? "new" : r.clientId()), null, done,
                 "Request #" + id + " by " + r.requestedBy() + (blank(note) == null ? "" : ". " + note.trim()));
+            if (ownDirect) {
+                Integer opened = jdbc.queryForObject("SELECT client_id FROM ecis_member_request WHERE id = ?", Integer.class, id);
+                audit(auth.getName(), "MEMBER_REGISTERED_DIRECTLY", r.branchCode() + "-" + opened, null, done,
+                    "Request #" + id + ", approved by the officer who sent it. No second approval: a super administrator allows Membership Officers to register members directly.");
+            }
             return load(id);
         });
     }
@@ -282,7 +315,7 @@ public class MemberLifecycleController {
         Map<String, String> fields = new LinkedHashMap<>(r.payload());
         int clientType = Integer.parseInt(fields.remove("_clientType"));
         // Re-check on approval: the stored request is data, and the world may have moved on since it was made.
-        List<String> problems = LifecycleRules.registrationProblems(clientType, fields, LocalDate.now());
+        List<String> problems = LifecycleRules.registrationProblems(clientType, fields, LocalDate.now(), defaults.types());
         if (!problems.isEmpty()) throw bad(String.join(" ", problems));
         int branch = r.branchCode();
         List<Long> same = jdbc.queryForList("SELECT ClientID FROM client WHERE ClientIDBrCode = ? AND LOWER(TRIM(LName)) = ? AND LOWER(TRIM(FName)) = ? AND DateOfBirth = ? LIMIT 1", Long.class,
@@ -297,31 +330,75 @@ public class MemberLifecycleController {
 
         List<String> cols = new ArrayList<>(List.of("ClientIDBrCode", "ClientID", "ClientIDChkDgt", "DateOpened", "AccountType", "ClientType", "AccountStatus", "AlertLevel", "EncdBy"));
         List<Object> args = new ArrayList<>(List.of(branch, clientId, LifecycleRules.checkDigit(clientId), today.toString(), 1, clientType, 1, 1, user.get(0)));
-        if (!fields.containsKey("ClientDEPT")) {
+        // the department and office: the ones chosen, else this cooperative's defaults (Settings > Membership > Member defaults)
+        String who = fields.get("LName") + ", " + fields.get("FName");
+        if (fields.get("ClientDEPT") == null || fields.get("ClientDEPT").isBlank()) {
+            Integer d = defaults.department();
+            if (d == null) throw bad(LifecycleRules.noDefault(who, "department"));
             cols.add("ClientDEPT");
-            args.add(DEFAULT_DEPT);
+            args.add(d);
+        }
+        if (fields.get("RestrikID") == null || fields.get("RestrikID").isBlank()) {
+            Integer o = defaults.office();
+            if (o == null) throw bad(LifecycleRules.noDefault(who, "office"));
+            cols.add("RestrikID");
+            args.add(o);
         }
         for (var e : fields.entrySet()) {
             if (!ClientDetailController.EDITABLE.containsKey(e.getKey()) || e.getKey().equals("ClientType") || e.getKey().equals("AccountType")) continue;
             cols.add(e.getKey());
             args.add(e.getValue());
         }
+        // everything the row points to must exist here (a new database may lack departments, offices or a standard list): one clear refusal naming them all
+        List<LifecycleRules.Missing> missing = missingLinks(cols, args, fields.keySet());
+        if (!missing.isEmpty()) throw bad(LifecycleRules.missingLinks(fields.get("LName") + ", " + fields.get("FName"), missing));
         jdbc.update("INSERT INTO client (" + String.join(", ", cols) + ") VALUES (" + "?, ".repeat(cols.size() - 1) + "?)", args.toArray());
 
-        openAccounts(branch, clientId, clientType, today, false);
+        openAccounts(branch, clientId, clientType, today, false,
+            new Opening(fields.get("LName") + ", " + fields.get("FName"), "registered", defaults.typeName(clientType)));
         audit(approver, "MEMBER_CREATED", branch + "-" + clientId, null, r.summary(), "Request #" + r.id() + " by " + r.requestedBy());
         return clientId;
     }
 
 
-    /** Opens the standard accounts. With {@code reuse}, an account type the member already holds as active (status 15) is kept as it is and only the missing ones are opened. */
-    private void openAccounts(int branch, int clientId, int clientType, LocalDate today, boolean reuse) {
-        for (LifecycleRules.Acct a : LifecycleRules.accountsFor(clientType)) {
+    /** The client row's links (from the database's own foreign keys) whose values, as about to be written, have no row to point to. */
+    private List<LifecycleRules.Missing> missingLinks(List<String> cols, List<Object> args, java.util.Set<String> chosen) {
+        Map<String, Object> values = new org.springframework.util.LinkedCaseInsensitiveMap<>();
+        for (int i = 0; i < cols.size(); i++) values.put(cols.get(i), args.get(i));
+        var layout = db.tableLayouts(List.of("client")).get("client");
+        List<LifecycleRules.Missing> out = new ArrayList<>();
+        if (layout == null) return out;
+        for (var fk : layout.links()) {
+            if (fk.parent().equalsIgnoreCase("client")) continue; // a link to another member (recruiter, primary): checked by the screens
+            List<Object> key = new ArrayList<>();
+            for (String c : fk.columns()) key.add(values.get(c));
+            if (key.stream().anyMatch((v) -> v == null || v.toString().isBlank())) continue;
+            StringBuilder where = new StringBuilder();
+            for (String pc : fk.parentColumns()) where.append(where.length() == 0 ? "" : " AND ").append(pc).append(" = ?");
+            Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM " + fk.parent() + " WHERE " + where, Integer.class, key.toArray());
+            if (n != null && n > 0) continue;
+            String column = fk.columns().get(fk.columns().size() - 1);
+            var spec = ClientDetailController.EDITABLE.get(column);
+            String what = column.equalsIgnoreCase("RestrikID") ? "office" : column.equalsIgnoreCase("ClientDEPT") ? "department"
+                : spec != null ? spec.label().toLowerCase(java.util.Locale.ROOT) : column;
+            boolean byDefault = chosen.stream().noneMatch((c) -> c.equalsIgnoreCase(column));
+            out.add(new LifecycleRules.Missing(what, String.valueOf(values.get(column)), byDefault, LifecycleRules.whereToAdd(column)));
+        }
+        return out;
+    }
+
+    /** "Cruz, Ana cannot be registered yet" or "... reactivated yet": who and what, for the refusal when an account type is missing. */
+    private record Opening(String who, String what, String memberType) {}
+
+    /** Opens the accounts SL Controls say open with this member type (Settings > Products > Account opening (SL Controls)). With {@code reuse}, an account type the member already holds as active (status 15) is kept as it is and only the missing ones are opened. */
+    private void openAccounts(int branch, int clientId, int clientType, LocalDate today, boolean reuse, Opening opening) {
+        if (slControls.accountsFor(branch, clientType).isEmpty()) throw bad(LifecycleRules.noAccountsChosen(opening.who(), opening.what(), opening.memberType()));
+        for (LifecycleRules.Acct a : slControls.accountsFor(branch, clientType)) {
             if (reuse && holdsActive(branch, clientId, a)) continue;
             List<Integer> last = jdbc.queryForList("SELECT MREF_NO FROM slmastersum WHERE MBR_CODE = ? AND MSLC_CODE = ? AND MSLT_CODE = ? ORDER BY MREF_NO DESC LIMIT 1 FOR UPDATE", Integer.class, branch, a.slc(), a.slt());
             int ref = last.isEmpty() ? 1 : last.get(0) + 1;
             Map<String, Object> type = jdbc.queryForList("SELECT COALESCE(SLTypeMIN_BAL, 0) mn, COALESCE(SLTypeINT_RATE, 0) rt FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", branch, a.slc(), a.slt())
-                .stream().findFirst().orElseThrow(() -> bad("The account type " + a.slc() + "/" + a.slt() + " is not set up."));
+                .stream().findFirst().orElseThrow(() -> bad(LifecycleRules.missingAccountType(opening.who(), opening.what(), opening.memberType(), a.slc(), a.slt())));
             jdbc.update("INSERT INTO slmastersum (MBR_CODE, MSLC_CODE, MSLT_CODE, MREF_NO, MCLIENTID) VALUES (?, ?, ?, ?, ?)", branch, a.slc(), a.slt(), ref, clientId);
             switch (a.table()) {
                 case "sc" -> jdbc.update("INSERT INTO sc (SCBR_CODE, SCSLC_CODE, SCSLT_CODE, SCREF_NO, ClientIDSC, SCTR_DATE, SCSTATUS, SCMIN_BAL) VALUES (?, ?, ?, ?, ?, ?, 15, ?)",
@@ -349,18 +426,20 @@ public class MemberLifecycleController {
         int clientId = r.clientId();
         int newType = Integer.parseInt(r.payload().get("clientType"));
         List<Map<String, Object>> found = jdbc.queryForList("SELECT AccountStatus, ClosedReason, ClientType, DateDeceased, ClosedDate FROM client WHERE ClientIDBrCode = ? AND ClientID = ? FOR UPDATE", branch, clientId);
-        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found.");
+        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
         Map<String, Object> c = found.get(0);
         Integer reason = c.get("ClosedReason") == null ? null : ((Number) c.get("ClosedReason")).intValue();
         LocalDate deceased = c.get("DateDeceased") == null ? null : LocalDate.parse(c.get("DateDeceased").toString().substring(0, 10));
         int status = ((Number) c.get("AccountStatus")).intValue();
-        List<String> problems = LifecycleRules.reactivateProblems(status, reason, ((Number) c.get("ClientType")).intValue(), deceased, newType, r.payload().get("note"));
+        List<String> problems = LifecycleRules.reactivateProblems(status, reason, ((Number) c.get("ClientType")).intValue(), deceased, newType, r.payload().get("note"), defaults.types());
         if (!problems.isEmpty()) throw bad(String.join(" ", problems));
         String shareDue = policy.returningPaysShareCapital() ? shareCapitalShortfall(branch, clientId, newType) : null;
         if (shareDue != null && shareDue.startsWith("BLOCK:")) throw new ResponseStatusException(HttpStatus.CONFLICT, shareDue.substring(6));
         jdbc.update("UPDATE client SET AccountStatus = 1, ClientType = ?, ClosedDate = NULL, ClosedReason = NULL, DateDeceased = NULL, UpdDateTime = NOW() WHERE ClientIDBrCode = ? AND ClientID = ?", newType, branch, clientId);
         // Accounts never formally closed are kept; a type the member no longer holds as active gets a new account, so the closed one keeps its final history.
-        openAccounts(branch, clientId, newType, LocalDate.now(), true);
+        String name = jdbc.queryForList("SELECT CONCAT_WS(', ', LName, FName) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", String.class, branch, clientId)
+            .stream().findFirst().orElse("Member " + clientId);
+        openAccounts(branch, clientId, newType, LocalDate.now(), true, new Opening(name, "reactivated", defaults.typeName(newType)));
         audit(approver, "MEMBER_REACTIVATED", branch + "-" + clientId, "status " + status + (reason == null ? "" : ", closed " + c.get("ClosedDate") + " (" + LifecycleRules.REASONS.get(reason) + ")"), "status 1",
             "Request #" + r.id() + " by " + r.requestedBy() + ". " + r.payload().get("note") + (shareDue == null ? "" : ". " + shareDue));
     }
@@ -371,7 +450,7 @@ public class MemberLifecycleController {
      * the payment can only follow it.
      */
     private String shareCapitalShortfall(int branch, int clientId, int newType) {
-        for (LifecycleRules.Acct a : LifecycleRules.accountsFor(newType)) {
+        for (LifecycleRules.Acct a : slControls.accountsFor(branch, newType)) {
             if (!a.table().equals("sc")) continue;
             List<java.math.BigDecimal> min = jdbc.queryForList("SELECT COALESCE(SLTypeMIN_BAL, 0) FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", java.math.BigDecimal.class, branch, a.slc(), a.slt());
             java.math.BigDecimal required = min.isEmpty() ? java.math.BigDecimal.ZERO : min.get(0);
@@ -417,7 +496,7 @@ public class MemberLifecycleController {
     // ---- helpers ------------------------------------------------------------------------------------------------
 
     private void requireAvailable() {
-        if (!enabled || !db.allTablesExist("ecis_audit_log", "ecis_member_request")) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Editing is not enabled on this server.");
+        if (!enabled || !db.allTablesExist("ecis_audit_log", "ecis_member_request")) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Changes are switched off on this server, so nothing can be saved. Ask your administrator to switch editing on (the server setting COOP_EDIT_ENABLED).");
     }
 
     private Map<String, String> cleanFields(Map<String, String> raw) {
@@ -442,7 +521,7 @@ public class MemberLifecycleController {
 
     private Map<String, Object> member(int branch, int clientId) {
         List<Map<String, Object>> found = jdbc.queryForList("SELECT AccountStatus, CONCAT_WS(', ', LName, FName) AS Name FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", branch, clientId);
-        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found.");
+        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
         return found.get(0);
     }
 
@@ -456,14 +535,14 @@ public class MemberLifecycleController {
 
     private Request lockPending(long id) {
         List<String> status = jdbc.query("SELECT status FROM ecis_member_request WHERE id = ? FOR UPDATE", (rs, i) -> rs.getString(1), id);
-        if (status.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Request not found.");
+        if (status.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That request was not found; it may have been withdrawn or decided already. Reload the list to see where it stands.");
         if (!"PENDING".equals(status.get(0))) throw new ResponseStatusException(HttpStatus.CONFLICT, "This request has already been " + status.get(0).toLowerCase() + ".");
         return load(id);
     }
 
     private Request load(long id) {
         List<Request> found = jdbc.query(SELECT + " WHERE id = ?", (rs, i) -> map(rs), id);
-        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Request not found.");
+        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That request was not found; it may have been withdrawn or decided already. Reload the list to see where it stands.");
         return found.get(0);
     }
 

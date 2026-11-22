@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.connection.DatabaseChanges;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -71,7 +72,7 @@ class OverrideController {
     }
 
     private ResponseStatusException notSetUp() {
-        return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Overrides are not set up yet. An administrator has to run database/migrations/V007_drawer_controls.sql.");
+        return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, DatabaseChanges.notSetUp("overrides"));
     }
 
     /** Ask a supervisor to approve something over the person's limit. */

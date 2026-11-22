@@ -12,6 +12,8 @@ const deleteMemberDraft = vi.fn()
 const listMemberDrafts = vi.fn()
 const getMemberDraft = vi.fn()
 const registerMember = vi.fn()
+let officerDirect = false
+let roles: string[] = []
 vi.mock('../api', async (orig) => ({
   ...(await orig<typeof import('../api')>()),
   saveMemberDraft: (...a: unknown[]) => saveMemberDraft(...a),
@@ -19,7 +21,9 @@ vi.mock('../api', async (orig) => ({
   listMemberDrafts: () => listMemberDrafts(),
   getMemberDraft: (...a: unknown[]) => getMemberDraft(...a),
   registerMember: (...a: unknown[]) => registerMember(...a),
+  getMembershipPolicy: async () => ({ returningPaysShareCapital: false, kycBlocksWithdrawals: false, officerRegistersDirectly: officerDirect }),
 }))
+vi.mock('../session', () => ({ useMe: () => ({ username: 'clerk', name: 'Clerk', roles, canEdit: true, canApprove: false, admin: false, mustChangePassword: false, branchCode: 1 }) }))
 // the profile tabs reach for data this test does not need
 vi.mock('./Profile', async () => {
   const { useEdit } = await import('./editing')
@@ -103,6 +107,34 @@ describe('saving a new member as a draft', () => {
     await user.click(screen.getByRole('button', { name: /Send for approval/ }))
     await waitFor(() => expect(onDone).toHaveBeenCalled())
     await waitFor(() => expect(deleteMemberDraft).toHaveBeenCalledWith(7))
+    expect(onDone).toHaveBeenCalledWith('Registration sent for approval: Cruz, Ana')
+  })
+
+  it('registers at once when a super administrator lets Membership Officers do so, and says so before and after', async () => {
+    officerDirect = true
+    roles = ['MEMBERSHIP_OFFICER']
+    try {
+      registerMember.mockResolvedValue({ summary: 'Cruz, Ana', status: 'APPROVED', clientId: 501 })
+      const user = userEvent.setup()
+      const { onDone } = renderNew({ id: 7, title: 'Cruz, Ana', clientType: 1, branchCode: 1, updatedAt: '2026-11-10T09:00:00', fields: { LName: 'Cruz', FName: 'Ana' } })
+      expect(await screen.findByText(/sending opens the member at once/)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Register member' }))
+      await waitFor(() => expect(onDone).toHaveBeenCalledWith('Member 501 opened: Cruz, Ana'))
+    } finally {
+      officerDirect = false
+      roles = []
+    }
+  })
+
+  it('still sends for approval when the switch is on but the person is not a Membership Officer', async () => {
+    officerDirect = true
+    try {
+      renderNew({ id: 7, title: 'Cruz, Ana', clientType: 1, branchCode: 1, updatedAt: '2026-11-10T09:00:00', fields: { LName: 'Cruz', FName: 'Ana' } })
+      expect(await screen.findByRole('button', { name: /Send for approval/ })).toBeInTheDocument()
+      expect(screen.getByText(/Sending asks a Membership Officer other than you to approve/)).toBeInTheDocument()
+    } finally {
+      officerDirect = false
+    }
   })
 })
 

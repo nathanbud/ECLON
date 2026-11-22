@@ -68,7 +68,7 @@ export default function TransactionDialog({ id, tx, onClose }: { id: Id; tx: TxK
               <Box>
                 <Fact label="Trans. type" value={h.type ? `${h.type}${h.typeShort ? ` (${h.typeShort})` : ''}` : null} />
                 <Fact label="Control no." value={h.controlNo} />
-                <Fact label="Client" value={[h.clientNo, h.client].filter(Boolean).join('  ')} />
+                <Fact label="Member" value={[h.clientNo, h.client].filter(Boolean).join('  ')} />
                 <Fact label="Dept" value={h.department} />
                 <Fact label="And/Or" value={h.andOr} />
               </Box>
@@ -88,7 +88,7 @@ export default function TransactionDialog({ id, tx, onClose }: { id: Id; tx: TxK
                   <TableHead>
                     <TableRow>
                       <TableCell>P</TableCell><TableCell>SC</TableCell><TableCell>ST</TableCell><TableCell>SE</TableCell><TableCell>SN</TableCell><TableCell>G/L Acct.</TableCell><TableCell>Account title</TableCell>
-                      <TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell><TableCell>ClientID</TableCell><TableCell>Name of client</TableCell>
+                      <TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell><TableCell>Member ID</TableCell><TableCell>Name of member</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>

@@ -93,7 +93,7 @@ class MemberLedgerPoster {
 
     Account account(Master m, int branch, int clientId, int typeCode, int refNo) {
         String p = m.prefix();
-        // share capital carries its own limit on the account; a savings account takes the limit of its type (Settings > Account Types)
+        // share capital carries its own limit on the account; a savings account takes the limit of its type (Settings > Products)
         String maxCol = m.slc() == 31 ? "s.SCMAX_BAL" : m.slc() == 22 ? "t.SLTypeMAXBAL" : "NULL";
         // savings and share capital both carry holds (a co-maker's agreed amount sits on share capital)
         String uncleared = m.slc() == 22 ? " + " + ChequeRules.unclearedSql("s") : "";
@@ -105,14 +105,14 @@ class MemberLedgerPoster {
             + " WHERE s." + p + "BR_CODE = ? AND s.ClientID" + p + " = ? AND s." + p + "SLC_CODE = ? AND s." + p + "SLT_CODE = ? AND s." + p + "REF_NO = ?",
             (rs, i) -> new Account(rs.getInt(1), rs.getBigDecimal(2), rs.getBigDecimal(3), rs.getString(4), rs.getString(5), rs.getBigDecimal(6), rs.getBigDecimal(7)),
             branch, clientId, m.slc(), typeCode, refNo);
-        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That client has no such " + (m.slc() == 31 ? "share capital" : "savings") + " account.");
+        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member has no such " + (m.slc() == 31 ? "share capital" : "savings") + " account.");
         return found.get(0);
     }
 
     Client client(int branch, int clientId) {
         List<Client> rows = jdbc.query("SELECT AccountStatus, COALESCE(NULLIF(AccountName, ''), CONCAT_WS(', ', LName, FName)) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?",
             (rs, i) -> new Client(rs.getInt(1), rs.getString(2)), branch, clientId);
-        if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such client.");
+        if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
         return rows.get(0);
     }
 
@@ -161,10 +161,16 @@ class MemberLedgerPoster {
      */
     Posted postVoucher(Direction direction, Person p, int clientId, String explanationText, String receiptNo, boolean confirmDuplicate, List<MemberLine> lines,
                        String auditAction, String username, String auditDetail, List<Cheque> cheques) {
+        return postVoucher(direction, p, clientId, null, explanationText, receiptNo, confirmDuplicate, lines, auditAction, username, auditDetail, cheques);
+    }
+
+    /** As above; with client 0 the money is from or to someone who is not a member, named by {@code payorName} (an other receipt: only plain lines). */
+    Posted postVoucher(Direction direction, Person p, int clientId, String payorName, String explanationText, String receiptNo, boolean confirmDuplicate, List<MemberLine> lines,
+                       String auditAction, String username, String auditDetail, List<Cheque> cheques) {
         int branch = p.branch();
         List<Integer> events = HandoverController.eventsOf(p.head(), p.assignment());
         if (p.number() <= 0 || events.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only a cashier or teller with a drawer can take or pay out cash.");
-        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be posted.");
+        if (p.dept() <= 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Your account has no department set, so this cannot be posted (every entry carries the department of the person who makes it). Ask an administrator to set your department in Settings > Users, then try again.");
         int event = events.get(0);
         try {
             SharePaymentRules.documentNo(receiptNo, 1); // the receipt number's form is a window rule
@@ -175,7 +181,7 @@ class MemberLedgerPoster {
         CashVoucher.Teller teller = new CashVoucher.Teller(p.id(), p.dept(), p.number(), event, HandoverRules.account(event), event == 52 ? "100112" : "100113");
         Ledger.Posted v = ledger.writeCash(new CashVoucher(RequestKeys.current(auditAction, username), username, branch, direction.module, direction.code,
             direction == Direction.IN, clientId, explanationText, receiptNo, confirmDuplicate, teller, lines.stream().map(MemberLedgerPoster::toLedger).toList(),
-            cheques.stream().map(MemberLedgerPoster::toLedger).toList(), auditAction, auditDetail));
+            cheques.stream().map(MemberLedgerPoster::toLedger).toList(), auditAction, auditDetail, payorName));
         // the same press sent again (a retry after a lost answer): refused, so everything else this request would write (a new time deposit, a spent
         // supervisor approval) is rolled back with it, and the first voucher stands alone
         if (v.repeated()) throw new ResponseStatusException(HttpStatus.CONFLICT, "This was already posted as document " + v.documentNo() + " on " + v.date()

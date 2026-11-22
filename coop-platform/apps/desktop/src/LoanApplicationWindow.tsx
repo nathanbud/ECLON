@@ -41,7 +41,7 @@ function Summary({ d }: { d: LoanApplicationDetail }) {
   const a = d.item
   return (
     <Box sx={{ mb: 1.5 }}>
-      <Typography sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em' }}>{a.clientName ?? `Client ${a.clientId}`} · {money(a.amount)}</Typography>
+      <Typography sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em' }}>{a.clientName ?? `Member ${a.clientId}`} · {money(a.amount)}</Typography>
       <Typography sx={{ fontSize: 13 }} color="text.secondary">
         {a.documentNo} · {a.typeName} · {a.terms} months · loan ref {a.refNo} · encoded by {a.encodedByName ?? '—'} on {a.date}
       </Typography>
@@ -50,7 +50,7 @@ function Summary({ d }: { d: LoanApplicationDetail }) {
           <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }} color="text.secondary">Co-maker holds</Typography>
           {d.coMakerHolds.map((h) => (
             <Typography key={h.clientId} sx={{ fontSize: 13, ...cell }}>
-              {h.name ?? `Client ${h.clientId}`} · {money(h.amount)} on {h.accountType ?? h.slt} {h.refNo} · {h.placed ? 'held' : 'held when the release is posted'}
+              {h.name ?? `Member ${h.clientId}`} · {money(h.amount)} on {h.accountType ?? h.slt} {h.refNo} · {h.placed ? 'held' : 'held when the release is posted'}
             </Typography>
           ))}
         </Box>
@@ -245,7 +245,7 @@ export default function LoanApplicationWindow() {
         {v && (
           <>
             <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">
-              Voucher {v.documentNo} · {v.clientName ?? `Client ${v.clientId}`} · dated {v.date} · {labelOf(v.status).toLowerCase()}{v.approvedByName ? ` · approved by ${v.approvedByName}` : ''}
+              Voucher {v.documentNo} · {v.clientName ?? `Member ${v.clientId}`} · dated {v.date} · {labelOf(v.status).toLowerCase()}{v.approvedByName ? ` · approved by ${v.approvedByName}` : ''}
             </Typography>
             {voucher.data?.problems.map((p) => <Alert key={p} severity="warning" sx={{ mb: 1 }}>{p}</Alert>)}
             <Table size="small">

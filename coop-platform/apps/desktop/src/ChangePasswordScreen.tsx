@@ -4,6 +4,7 @@ import { FiCheck, FiEye, FiEyeOff } from 'react-icons/fi'
 import { changeOwnPassword, currentPassword, signIn, signOut, type Me } from './api'
 import { appBackground, glass } from './glass'
 import { Logo, WindowControls } from './TopBar'
+import { nameCase } from './ui/format'
 
 const MIN = 8
 
@@ -61,7 +62,7 @@ export default function ChangePasswordScreen({ me, onDone }: { me: Me; onDone: (
             <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>Choose your password</Typography>
           </Box>
           <Typography sx={{ fontSize: 13, mb: 2.5 }} color="text.secondary">
-            Welcome, {me.name}. You signed in with a temporary password. Choose one only you know to continue.
+            Welcome, {nameCase(me.name)}. You signed in with a temporary password. Choose one only you know to continue.
           </Typography>
           <TextField
             label="New password" type={show ? 'text' : 'password'} value={next} onChange={(e) => setNext(e.target.value)} fullWidth autoFocus

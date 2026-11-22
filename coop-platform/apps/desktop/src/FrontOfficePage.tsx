@@ -4,12 +4,12 @@ import {
 } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { FiChevronLeft, FiChevronRight, FiCopy, FiEdit2, FiPlus, FiPrinter, FiSave, FiSearch, FiTrash2, FiX } from 'react-icons/fi'
+import { FiChevronLeft, FiChevronRight, FiCopy, FiEdit2, FiPlus, FiPrinter, FiSave, FiSearch, FiSend, FiTrash2, FiX } from 'react-icons/fi'
 import PassbookPanel from './PassbookPanel'
 import {
   createFoDraft, deleteFoDraft, getFoDraft, getFoDuplicates, getFoSetup, getFoTellerTotals, getFoTransaction, getLookups, listFoTransactions, updateFoDraft,
   type FoClientAccount, type FoColumn, type FoDraftPayload, type FoDraftRow, type FoSetup, type FoSummary,
-  getTdMaturityCount, getBusinessDayStatus,
+  getTdMaturityCount, getBusinessDayStatus, getFoHandoverMine,
 } from './api'
 import CashHandoverPanel from './CashHandoverPanel'
 import { BankCashPanel } from './BankCashPanel'
@@ -22,6 +22,9 @@ import SavingsTellerPanel from './SavingsTellerPanel'
 import { useLeaveGuard } from './leaveGuard'
 import { LoanReleasePanel } from './LoanReleasePanel'
 import { VoucherPayoutPanel } from './VoucherPayoutPanel'
+import { WaitingVouchersPanel } from './WaitingVouchersPanel'
+import DraftPostDialog from './DraftPostDialog'
+import DrawerOpen from './DrawerOpen'
 import { TimeDepositAccrualPanel } from './TimeDepositAccrualPanel'
 import { OverrideAsk, OverridesCard } from './Overrides'
 import { usePulse } from './pulse'
@@ -30,6 +33,7 @@ import TemplatesMenu, { useTemplates, type FoTemplate } from './Templates'
 import FoTransactionForm, { emptyForm, formTotals, money, newLine, type FoExtras, type FoForm } from './FoTransactionForm'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
+import { featureOn, useFeaturesOff, type Feature } from './ui/features'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 const MOD = isMac ? '⌘' : 'Ctrl+'
@@ -45,14 +49,18 @@ const GROUPS: { key: string; label: string; tabs: string[] }[] = [
   { key: 'members', label: 'Teller', tabs: ['accounts'] },
   { key: 'passbook', label: 'Passbook', tabs: ['passbook'] },
   { key: 'summary', label: 'Summary', tabs: ['summary'] },
-  { key: 'cash', label: 'Cash', tabs: ['disburse', 'encashment', 'otc', 'handover', 'bank'] },
+  { key: 'cash', label: 'Cash', tabs: ['receipt', 'disburse', 'encashment', 'otc', 'handover', 'bank'] },
   { key: 'sales', label: 'Sales', tabs: ['sales', 'salesReturn'] },
   { key: 'td', label: 'Time Deposits', tabs: ['tdmaturity', 'tdaccrual'] },
 ]
-/** Tabs that open an entry form (the others are panels with their own screens). */
-const FORM_TABS = ['encashment', 'otc', 'bank', 'sales', 'salesReturn']
-/** Left out of the window: member cash receipts and withdrawals are posted in the Teller area; these two tabs only ever saved drafts that were never posted. */
-const HIDDEN_TABS = ['receipt', 'withdrawal', 'dividend']
+/** Tabs that open an entry form (the others are panels with their own screens). Receipt is for other receipts (fees, rent, collections). */
+/** Areas of the window that belong to an area a cooperative can switch off (Settings > System > Features). */
+const GROUP_FEATURE: Record<string, Feature> = { passbook: 'passbook', td: 'timedeposits' }
+const FORM_TABS = ['receipt', 'encashment', 'otc', 'bank', 'sales', 'salesReturn']
+/** Left out of the window: member withdrawals are posted in the Teller area, dividends on Accounting > Dividends. */
+const HIDDEN_TABS = ['withdrawal', 'dividend']
+/** The draft types that can be posted (documentation/general-voucher-map.md): Cash Receipt, Cash Voucher, Check Voucher, Misc Disbursement. */
+const POSTABLE = [10, 21, 22, 24]
 
 const NO_EXTRAS: FoExtras = { ctl: '', time: '', cheques: [], allocations: [], cash: [] }
 const num = (s: string) => {
@@ -173,7 +181,7 @@ function SummaryPanel({ setup, onOpen }: { setup: FoSetup; onOpen: (t: FoSummary
         <Box sx={(t) => ({ flex: 1, minHeight: 0, overflow: 'auto', ...glass(t) })}>
           <Table size="small" stickyHeader aria-label="Transactions of the day">
             <TableHead>
-              <TableRow><TableCell>Time</TableCell><TableCell>Type</TableCell><TableCell>Control no.</TableCell><TableCell>Client</TableCell><TableCell align="right">Amount</TableCell></TableRow>
+              <TableRow><TableCell>Time</TableCell><TableCell>Type</TableCell><TableCell>Control no.</TableCell><TableCell>Member</TableCell><TableCell align="right">Amount</TableCell></TableRow>
             </TableHead>
             <TableBody>
               {rows.map((r) => (
@@ -210,15 +218,15 @@ function Count({ n }: { n: number }) {
   )
 }
 
-/** Says so above the transactions while no business day is open (nothing can be posted), or while the open one is not today. */
+/**
+ * Says so above the transactions while the open business day is not today. While no day is open at all, the notice across the top of every screen
+ * (`BusinessDayClosedNotice` in App) says so instead, so it is not shown twice here.
+ */
 function BusinessDayNotice({ onOpen }: { onOpen?: () => void }) {
   const q = useQuery({ queryKey: ['business-day-status'], queryFn: getBusinessDayStatus, refetchInterval: 60_000, retry: false, staleTime: 15_000 })
   const s = q.data
-  if (!s || !s.inUse) return null
+  if (!s || !s.inUse || !s.openDate) return null
   const action = onOpen && <Button color="inherit" size="small" onClick={onOpen}>Business Day</Button>
-  if (!s.openDate) {
-    return <Alert severity="warning" sx={{ flexShrink: 0 }} action={action}>No business day is open, so nothing can be posted. Someone with the Start Day right starts it in Business Day.</Alert>
-  }
   if (s.openDate !== s.calendarDate) {
     return <Alert severity="info" sx={{ flexShrink: 0 }} action={action}>Postings are dated on the open business day, {s.openWords}, not today. End Day closes it.</Alert>
   }
@@ -228,8 +236,9 @@ function BusinessDayNotice({ onOpen }: { onOpen?: () => void }) {
 export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () => void } = {}) {
   const qc = useQueryClient()
   const me = useMe()
+  const off = useFeaturesOff()
   const { data: setup, error, isLoading } = useQuery({ queryKey: ['fo-setup'], queryFn: getFoSetup, staleTime: 5 * 60_000 })
-  const { data: lk } = useQuery({ queryKey: ['lookups'], queryFn: getLookups, staleTime: Infinity })
+  const { data: lk } = useQuery({ queryKey: ['lookups'], queryFn: getLookups, staleTime: 300_000 /* re-read every 5 minutes, like the server, so a value added to a lookup table appears */ })
 
   const [tab, setTab] = useState('accounts')
   const [shown, setShown] = useState<Shown>({ kind: 'none' })
@@ -258,6 +267,9 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
     setRecoverable(null)
   }, [setup, recoverable])
   const [receipt, setReceipt] = useState(false)
+  const [posting, setPosting] = useState(false)
+  const handoverMine = useQuery({ queryKey: ['fo-handover-mine'], queryFn: getFoHandoverMine, staleTime: 15_000, retry: false })
+  const headCashier = handoverMine.data?.headCashier ?? false
   // Live: a short poll of a cheap endpoint tells this screen when cash has been handed to this person or a supervisor is asked.
   const { data: tdCount } = useQuery({ queryKey: ['td-maturity-count'], queryFn: getTdMaturityCount, refetchInterval: 60_000, retry: false })
   const pulse = usePulse((p) => setNotice(`Cash from ${p.latestFrom} is waiting for you to count: ${money(p.latestAmount ?? 0)}`))
@@ -472,10 +484,10 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
   const groups = useMemo(() => {
     const known = new Set(GROUPS.flatMap((g) => g.tabs))
     const have = (keys: string[]) => keys.filter((k) => setup?.tabs.some((t) => t.key === k))
-    const list = GROUPS.map((g) => ({ ...g, tabs: have(g.tabs) })).filter((g) => g.tabs.length > 0)
+    const list = GROUPS.filter((g) => featureOn(off, GROUP_FEATURE[g.key])).map((g) => ({ ...g, tabs: have(g.tabs) })).filter((g) => g.tabs.length > 0)
     const other = (setup?.tabs ?? []).map((t) => t.key).filter((k) => !known.has(k) && !HIDDEN_TABS.includes(k))
     return other.length ? [...list, { key: 'other', label: 'Other', tabs: other }] : list
-  }, [setup])
+  }, [setup, off])
   const group = groups.find((g) => g.tabs.includes(tab))
   // A badge shows what needs attention: cash to count (or a count that differs) on Cash Handover, requests to approve on Summary.
   const waitingOf = (key: string) => (key === 'handover' ? (pulse?.incoming ?? 0) + (pulse?.disputed ?? 0) : key === 'summary' ? (pulse?.overrides ?? 0) : key === 'tdmaturity' ? (tdCount?.[0] ?? 0) : 0)
@@ -497,7 +509,8 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
   }
 
   // The draft-entry buttons (Find, New, Copy, Templates, Receipt, Save, Cancel) only mean something where a transaction form is shown.
-  const entryTab = FORM_TABS.includes(tab) || shown.kind !== 'none'
+  // Disburse shows its panels (releases, vouchers waiting, payouts) and also starts Cash Voucher, Check Voucher and Misc Disbursement drafts.
+  const entryTab = FORM_TABS.includes(tab) || tab === 'disburse' || shown.kind !== 'none'
 
   const runs = {
     find: hasFind ? () => setFinding(true) : undefined,
@@ -629,31 +642,51 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
         <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 0.75, flexShrink: 0, ...glass(t) })} role="status">
           <FiEdit2 aria-hidden />
           <Typography sx={{ flex: 1, fontSize: 13 }}>
-            Draft. Nothing is posted to the ledger, and posting is not available yet.
+            Draft. Nothing is posted to the ledger until you press Post.
             {dirty ? ' Changes not saved.' : ''}
             {overLimit && <b style={{ marginLeft: 8, color: 'inherit' }}>Over your limit of {money(limit ?? 0)}.</b>}
           </Typography>
           <Chip size="small" variant="outlined" color={Math.abs(totals.difference) < 0.005 && totals.debit > 0 ? 'success' : 'warning'}
             label={Math.abs(totals.difference) < 0.005 && totals.debit > 0 ? 'Balanced' : 'Out of balance'} />
+          {POSTABLE.includes(form?.trCode ?? -1) && (
+            <Tooltip title={!(shown.kind === 'draft' && shown.id) || dirty ? 'Save the draft first.' : Math.abs(totals.difference) >= 0.005 || totals.debit <= 0 ? 'Debits and credits must be equal.' : ''}>
+              <span>
+                <Button size="small" variant="contained" color="success" startIcon={<FiSend />}
+                  disabled={!(shown.kind === 'draft' && shown.id) || dirty || saving || Math.abs(totals.difference) >= 0.005 || totals.debit <= 0}
+                  onClick={() => setPosting(true)}>Post…</Button>
+              </span>
+            </Tooltip>
+          )}
           {overLimit && (shown.kind === 'draft' && shown.id
             ? <OverrideAsk draftId={shown.id} amount={totals.debit} limit={limit ?? 0} summary={`${form?.clientName || 'Draft'}: ${money(totals.debit)} over a limit of ${money(limit ?? 0)}`} />
             : <Typography sx={{ fontSize: 12 }} color="text.secondary">Save the draft to ask a supervisor.</Typography>)}
         </Box>
       )}
       {problem && <Alert severity="error" sx={{ flexShrink: 0 }}>{problem}</Alert>}
+      {posting && shown.kind === 'draft' && shown.id && (
+        <DraftPostDialog draftId={shown.id} payor={form?.clientName ?? ''} onClose={() => setPosting(false)}
+          onPosted={(p) => {
+            setPosting(false)
+            leaveDraft()
+            setNotice(p.status === 'POSTED' ? `Posted as ${p.documentNo.trim()}, ${money(p.amount)}` : `Voucher ${p.documentNo.trim()} sent for approval (Disburse > Vouchers waiting)`)
+            void qc.invalidateQueries({ queryKey: ['fo-drafts'] })
+            void qc.invalidateQueries({ queryKey: ['waiting-vouchers'] })
+            void qc.invalidateQueries({ queryKey: ['fo-list'] })
+          }} />
+      )}
 
       {summary
         ? <SummaryPanel setup={setup} onOpen={openTxn} />
         : tab === 'handover' && shown.kind === 'none'
-          ? <><CashHandoverPanel setup={setup} onNotice={setNotice} /><BankCashPanel setup={setup} /><ChequeClearingPanel /><ChequeReturnPanel /></>
+          ? <><DrawerOpen setup={setup} head={headCashier} /><CashHandoverPanel setup={setup} onNotice={setNotice} /><BankCashPanel setup={setup} /><ChequeClearingPanel /><ChequeReturnPanel /></>
           : tab === 'disburse' && shown.kind === 'none'
-          ? <><LoanReleasePanel /><VoucherPayoutPanel /></>
+          ? <><LoanReleasePanel /><WaitingVouchersPanel /><VoucherPayoutPanel /></>
           : tab === 'tdaccrual'
           ? <TimeDepositAccrualPanel />
           : tab === 'tdmaturity'
           ? <TimeDepositNoticesPanel />
           : tab === 'accounts'
-          ? <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}><SavingsTellerPanel setup={setup} /></Box>
+          ? <><DrawerOpen setup={setup} head={false} /><Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}><SavingsTellerPanel setup={setup} /></Box></>
           : tab === 'passbook'
           ? <PassbookPanel />
           : txn.isLoading && shown.kind === 'txn'

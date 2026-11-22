@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Me } from './api'
+import { ACCOUNT_DISABLED_SIGN_IN, ACCOUNT_DISABLED_SIGNED_OUT, signOut } from './api/http'
 import { brand } from './brand'
 import SignInPage from './SignInPage'
 import { versionLabel } from './version'
@@ -88,6 +89,27 @@ describe('sign-in screen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('The username or password is wrong.')
     expect(screen.getByLabelText('Password')).toHaveValue('')
     expect(done).not.toHaveBeenCalled()
+  })
+
+  it('says plainly when the account is disabled, not as a wrong password', async () => {
+    signIn.mockRejectedValue(new Error(ACCOUNT_DISABLED_SIGN_IN))
+    show()
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Username'), 'nathan')
+    await user.type(screen.getByLabelText('Password'), 'secret')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    const notice = await screen.findByRole('alert')
+    expect(notice).toHaveTextContent('Account disabled')
+    expect(notice).toHaveTextContent('Your account is disabled.')
+    expect(notice).not.toHaveTextContent('wrong')
+  })
+
+  it('says once, after being signed out, that the account was disabled', async () => {
+    signOut(ACCOUNT_DISABLED_SIGNED_OUT)
+    show()
+    const notice = screen.getByRole('alert')
+    expect(notice).toHaveTextContent('Account disabled')
+    expect(notice).toHaveTextContent('switched it off while you were signed in')
   })
 
   it('can show the typed password', async () => {

@@ -1,0 +1,86 @@
+# The system's standard lists, loaded by Settings > System > Starter setup (StarterSetupController) into a database that lacks them.
+# One list per line: table | group | what it is, in load order (a list another one points to comes first). Each list is starter/lists/<table>.csv,
+# exported with a header from the coop database (the old system's own lists). Rows are added only when their key is missing; nothing is changed.
+loanclass|Loans|Loan classes
+acctstat|Members|Account statuses of a member (active, dormant and so on)
+accttype|Members|Kinds of member (individual, organization)
+alertlevel|Members|Alert levels
+billstat|Members|Billing statuses
+billtype|Members|Billing kinds
+buslevel|Members|Job levels
+busstatus|Members|Employment statuses
+civilstat|Members|Civil statuses
+closedreason|Members|Reasons a membership is closed
+dosritag|Members|Directors, officers and related interests
+educattained|Members|Education attained
+gender|Members|Genders
+geo|Members|Places (barangays and areas)
+mailingaddress|Members|Mailing address choices
+relation|Members|Relationships (beneficiaries and dependants)
+religion|Members|Religions
+restype|Members|Kinds of residence
+sector|Members|Sectors
+slclass|Accounts and ledger|Account classes (savings, loans, share capital and the rest)
+transtype|Accounts and ledger|Transaction types
+actvtlist|System|Activities recorded in the old activity log
+adjflag|Loans|Adjustment kinds
+amortype|Loans|Amortization methods
+attstatus|Members|Attendance statuses
+beneftype|Members|Beneficiary kinds
+borrowerclass|Loans|Borrower classes (new, renewal)
+check_status|Cash and cheques|Cheque statuses
+check_type|Cash and cheques|Cheque kinds (personal, commercial)
+checkbook_status|Cash and cheques|Chequebook statuses
+chktype|Cash and cheques|Cheque clearing kinds (local, regional) and their days
+cic_contyp|Loans|CIC contract types
+client_tempstat|Members|Statuses of a membership application
+clstat|Members|Remarks on a member's record
+cocitype|Cash and cheques|Cash and other cash items
+collateraltype|Loans|Collateral types
+collecttype|Loans|Collection channels
+creditortype|Loans|Creditor kinds
+cts_type|Accounts and ledger|Account statuses that balances are posted under (current, past due and so on)
+defertype|Loans|Deferment kinds
+denomtype|Cash and cheques|Notes and coins
+dimfreq|Loans|Interest frequencies
+duedatetype|Loans|Due date rules
+hold_code|Accounts and ledger|Reasons for a hold on savings
+idpfreq|Loans|Interest payment frequencies
+inv_adjreason|Inventory and sales|Stock adjustment reasons
+inv_batchnostatus|Inventory and sales|Batch statuses
+inv_clstatus|Inventory and sales|Stock list statuses
+inv_cltype|Inventory and sales|Stock list kinds
+inv_disctype|Inventory and sales|Sales discounts (senior citizen and others)
+inv_itemstatus|Inventory and sales|Item statuses
+inv_pistatus|Inventory and sales|Purchase invoice statuses
+inv_postatus|Inventory and sales|Purchase order statuses
+inv_productrecipestatus|Inventory and sales|Product recipe statuses
+inv_sttstatus|Inventory and sales|Stock transfer statuses
+jnttype|Accounts and ledger|Joint account kinds (and, or)
+loanappstatus|Loans|Loan application statuses
+loanpayrepclass|Loans|Loan payment parts (principal, interest and so on)
+loanpledgetype|Loans|Pledge kinds
+loanpurpose|Loans|Loan purposes
+loanslbehavior|Loans|How a loan's accounts are opened
+numdays|Loans|Day count rules
+occu|Members|Occupations
+occupation|Members|Occupation groups
+onlinetranspostingtag|System|Online transaction posting tags
+onlinetransstatus|System|Online transaction statuses
+onlinetranstype|System|Online transaction kinds
+passbktype|Accounts and ledger|Passbook kinds
+paymentmode|Loans|Payment modes (daily, weekly, monthly and so on)
+profession|Members|Professions
+repfltrtype|System|Report filter kinds
+reqcode|System|Text message request codes
+reqstatus|System|Text message request statuses
+sle_type|Accounts and ledger|Ledger postings (principal, interest and so on)
+slg_class|Loans|Loan groups
+sms_status|System|Text message statuses
+sms_type|System|Text message kinds
+term|Loans|Term units (days, weeks, months, years)
+tr_module|Accounts and ledger|Transaction modules
+transtypeatm|System|ATM transaction kinds
+updtag|System|Update tags
+workflow_activity_statuses|System|Workflow activity statuses
+workflow_activity_types|System|Workflow activity kinds

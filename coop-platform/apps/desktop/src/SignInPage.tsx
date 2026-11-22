@@ -1,8 +1,19 @@
-import { Alert, Box, Button, CircularProgress, IconButton, InputAdornment, TextField, Typography, type Theme } from '@mui/material'
+import { Alert, AlertTitle, Box, Button, CircularProgress, IconButton, InputAdornment, TextField, Typography, type Theme } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { FiAlertTriangle, FiDatabase, FiEye, FiEyeOff } from 'react-icons/fi'
+import { FiAlertTriangle, FiDatabase, FiEye, FiEyeOff, FiLock } from 'react-icons/fi'
 import { activeServer, apiUrl, getPublicConnections, signIn, type Me, takeSignOutReason } from './api'
+import { ACCOUNT_DISABLED_SIGN_IN, ACCOUNT_DISABLED_SIGNED_OUT } from './api/http'
+
+/** The notice for an account an administrator has switched off: a heading and a lock, so it is not taken for a mistyped password. */
+function DisabledNotice({ text }: { text: string }) {
+  return (
+    <Alert severity="error" role="alert" icon={<FiLock />} sx={{ mb: 2 }}>
+      <AlertTitle sx={{ fontSize: 13, fontWeight: 600, mb: 0.25 }}>Account disabled</AlertTitle>
+      {text}
+    </Alert>
+  )
+}
 import { BrandBlock, Mark, SystemLine, useBranding } from './BrandBlock'
 import { brand } from './brand'
 import ConnectionDialog from './ConnectionDialog'
@@ -142,7 +153,7 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
           <Typography component="h2" sx={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.15, mb: 0.75 }}>Welcome back</Typography>
           <Typography sx={{ fontSize: 15, mb: 3.5 }} color="text.secondary">Sign in to {brand.product} with your own account.</Typography>
 
-          {endedBecause && <Alert severity="info" sx={{ mb: 2 }}>{endedBecause}</Alert>}
+          {endedBecause === ACCOUNT_DISABLED_SIGNED_OUT ? <DisabledNotice text={endedBecause} /> : endedBecause && <Alert severity="info" sx={{ mb: 2 }}>{endedBecause}</Alert>}
           {status === 'offline' && (
             <Alert severity="warning" icon={<FiAlertTriangle />} sx={{ mb: 2 }}>The server cannot be reached right now. Check the connection, or ask an administrator.</Alert>
           )}
@@ -170,7 +181,7 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
             sx={{ mb: 2.5, '& .MuiOutlinedInput-root': { fontSize: 15 }, '& .MuiInputLabel-root': { fontSize: 15 } }}
           />
 
-          {error && <Alert severity="error" sx={{ mb: 2 }} role="alert">{error}</Alert>}
+          {error === ACCOUNT_DISABLED_SIGN_IN ? <DisabledNotice text={error} /> : error && <Alert severity="error" sx={{ mb: 2 }} role="alert">{error}</Alert>}
 
           <Button type="submit" variant="contained" fullWidth size="large" disabled={busy || !username.trim() || !password} sx={{ py: 1.4, fontSize: 15, mb: 2.5 }}>
             {busy ? <CircularProgress size={22} color="inherit" aria-label="Signing in" /> : 'Sign in'}

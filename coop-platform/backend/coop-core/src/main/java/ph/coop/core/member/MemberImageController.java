@@ -72,7 +72,7 @@ class MemberImageController {
         MediaType type = detect(data);
         if (!type.equals(MediaType.IMAGE_JPEG) && !type.equals(MediaType.IMAGE_PNG)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only JPEG and PNG pictures are accepted.");
         Integer exists = jdbc.queryForObject("SELECT COUNT(*) FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", Integer.class, branchCode, clientId);
-        if (exists == null || exists == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found.");
+        if (exists == null || exists == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
         jdbc.update("INSERT INTO image (ImageBR_CODE, ClientIDimg, ImageType, ImageFileSize, ImageFile, ImageRemarks, ImageDateTimeAdded) VALUES (?, ?, ?, ?, ?, ?, NOW())",
             branchCode, clientId, imageType, data.length, data, "Set by " + auth.getName());
         AuditLog.write(jdbc, auth.getName(), action, "client", branchCode + "-" + clientId, null, data.length + " bytes, " + type, reason);

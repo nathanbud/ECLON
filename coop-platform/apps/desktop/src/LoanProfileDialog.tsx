@@ -56,12 +56,12 @@ export default function LoanProfileDialog({ branchCode, clientId, typeCode, refN
           <Box sx={{ display: 'grid', gap: 2, pt: 1 }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2 }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 2fr 2fr 1fr', gap: 1 }}>
-                <Box sx={{ gridColumn: '1 / -1' }}><F label="Client ID" value={h.clientNo} /></Box>
+                <Box sx={{ gridColumn: '1 / -1' }}><F label="Member ID" value={h.clientNo} /></Box>
                 <F label="Last name" value={h.lastName} /><F label="First name" value={h.firstName} /><F label="Middle name" value={h.middleName} /><F label="Suffix" value={h.suffix} />
                 <Box sx={{ gridColumn: '1 / 2' }}><F label="Date opened" value={h.dateOpened} /></Box>
               </Box>
               <Box sx={{ display: 'grid', gap: 1 }}>
-                <F label="Acct type" value={h.accountType} /><F label="Joint type" value={h.jointType} /><F label="Client type" value={h.clientType} /><F label="Acct status" value={h.accountStatus} />
+                <F label="Acct type" value={h.accountType} /><F label="Joint type" value={h.jointType} /><F label="Member type" value={h.clientType} /><F label="Acct status" value={h.accountStatus} />
               </Box>
             </Box>
 
@@ -123,7 +123,7 @@ export default function LoanProfileDialog({ branchCode, clientId, typeCode, refN
                     <F label="Collection type" value={s.collectionType} />
                     <Typography sx={{ fontSize: 12, fontWeight: 700 }} color="text.secondary">Pledges</Typography>
                     <Table size="small" aria-label="Pledges">
-                      <TableHead><TableRow><TableCell>Pledge profile</TableCell><TableCell align="right">Amount</TableCell><TableCell>Client pledge</TableCell></TableRow></TableHead>
+                      <TableHead><TableRow><TableCell>Pledge profile</TableCell><TableCell align="right">Amount</TableCell><TableCell>Member pledge</TableCell></TableRow></TableHead>
                       <TableBody>
                         {data.pledges.map((p, i) => <TableRow key={i}><TableCell>{p.profile}</TableCell><TableCell align="right">{money(p.amount)}</TableCell><TableCell>{p.clientPledge ?? ''}</TableCell></TableRow>)}
                         {data.pledges.length === 0 && <TableRow><TableCell colSpan={3} sx={{ color: 'text.secondary' }}>No pledges.</TableCell></TableRow>}
@@ -135,7 +135,7 @@ export default function LoanProfileDialog({ branchCode, clientId, typeCode, refN
                   <Table size="small" aria-label="Co-makers">
                     <TableHead><TableRow><TableCell>Name</TableCell><TableCell>Address</TableCell></TableRow></TableHead>
                     <TableBody>
-                      {data.coMakers.map((c, i) => <TableRow key={i}><TableCell>{c.name ?? `Client ${c.clientId}`}</TableCell><TableCell>{c.address ?? ''}</TableCell></TableRow>)}
+                      {data.coMakers.map((c, i) => <TableRow key={i}><TableCell>{c.name ?? `Member ${c.clientId}`}</TableCell><TableCell>{c.address ?? ''}</TableCell></TableRow>)}
                       {data.coMakers.length === 0 && <TableRow><TableCell colSpan={2} sx={{ color: 'text.secondary' }}>No co-makers.</TableCell></TableRow>}
                     </TableBody>
                   </Table>

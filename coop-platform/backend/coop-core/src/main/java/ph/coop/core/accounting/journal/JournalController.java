@@ -37,7 +37,13 @@ class JournalController {
 
     record LineIn(String accountCode, BigDecimal debit, BigDecimal credit) {}
 
-    record NewJournal(int branchCode, String reference, LocalDate journalDate, String description, List<LineIn> lines) {}
+    /**
+     * controlAccountReason: only when the journal changes a control account's balance (see {@link ph.coop.core.accounting.ControlAccountRules}): an
+     * administrator's written reason (an opening balance, an approved correction), audited as journal.control-account.override. Otherwise left out.
+     */
+    record NewJournal(int branchCode, String reference, LocalDate journalDate, String description, List<LineIn> lines, String controlAccountReason) {}
+
+    static final String OVERRIDE = "journal.control-account.override";
 
     record Summary(long id, int branchCode, String reference, LocalDate journalDate, String description, String status,
                    String createdBy, String approvedBy, BigDecimal total) {}
@@ -57,8 +63,10 @@ class JournalController {
     private final JdbcTemplate jdbc;
     private final ClosedBooks books;
     private final Ledger ledger;
+    private final ph.coop.core.accounting.ControlAccounts controlAccounts;
 
-    JournalController(JdbcTemplate jdbc, ClosedBooks books, Ledger ledger) {
+    JournalController(JdbcTemplate jdbc, ClosedBooks books, Ledger ledger, ph.coop.core.accounting.ControlAccounts controlAccounts) {
+        this.controlAccounts = controlAccounts;
         this.jdbc = jdbc;
         this.books = books;
         this.ledger = ledger;
@@ -88,9 +96,41 @@ class JournalController {
         List<JournalLine> lines = toLines(in.lines());
         build(in.reference(), auth.getName(), lines);
         requireKnownAccounts(in.branchCode(), lines);
+        // a journal may not change a control account's balance, unless an administrator gives a written reason
+        String problem = controlAccounts.journalProblem(in.branchCode(), effects(lines));
+        String reason = in.controlAccountReason() == null ? "" : in.controlAccountReason().trim();
+        if (problem != null) {
+            if (reason.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, problem);
+            if (!admin(auth)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only an administrator can make a journal that changes a control account's balance. " + problem);
+            if (reason.length() < 10) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say why this journal changes a control account (at least 10 characters).");
+        }
         long id = insert(in.branchCode(), in.reference(), in.journalDate(), in.description(), auth.getName(), null, lines);
         audit(auth, "JOURNAL_CREATE", id, null, "DRAFT", null);
+        if (problem != null) audit(auth, OVERRIDE, id, null, problem, reason.substring(0, Math.min(reason.length(), 250)));
         return get(id).summary();
+    }
+
+    private static boolean admin(Authentication auth) {
+        return auth.getAuthorities().stream().anyMatch((a) -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    private static List<ph.coop.core.accounting.ControlAccountRules.Effect> effects(List<JournalLine> lines) {
+        return lines.stream().map((l) -> new ph.coop.core.accounting.ControlAccountRules.Effect(l.accountCode(), l.debit().subtract(l.credit()))).toList();
+    }
+
+    /**
+     * Refuses to post a journal that changes a control account's balance unless an administrator allowed it when it was made (an audit row), or it
+     * reverses another journal (it undoes an entry already in both ledgers' history). Checked again here, so a journal made before this rule, or by
+     * another route (depreciation drafts), is held to it too.
+     */
+    private void requireControlAccountsKept(Row r) {
+        String problem = controlAccounts.journalProblem(r.branch(), effects(lines(r.id())));
+        if (problem == null) return;
+        Long reverses = jdbc.queryForObject("SELECT reverses_id FROM ecis_journal WHERE id = ?", Long.class, r.id());
+        if (reverses != null) return;
+        Integer allowed = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_audit_log WHERE action = ? AND entity = 'journal' AND entity_id = ?", Integer.class, OVERRIDE, String.valueOf(r.id()));
+        if (allowed != null && allowed > 0) return;
+        throw new ResponseStatusException(HttpStatus.CONFLICT, problem);
     }
 
     @PostMapping("/{id}/submit")
@@ -108,6 +148,7 @@ class JournalController {
     @PostMapping("/{id}/post")
     @Transactional
     Summary post(@PathVariable long id, Authentication auth) {
+        requireControlAccountsKept(row(id));
         step(id, auth, "JOURNAL_POST", (j, r) -> j.post(periodFor(r.branch(), r.date())));
         postToLegacyLedger(id, auth);
         return get(id).summary();

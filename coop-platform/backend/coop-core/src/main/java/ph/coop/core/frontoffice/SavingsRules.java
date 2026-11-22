@@ -33,7 +33,7 @@ final class SavingsRules {
         if (amount == null || amount.signum() <= 0) {
             p.add("Enter an amount above zero.");
         } else {
-            if (amount.stripTrailingZeros().scale() > 2) p.add("The amount can have at most 2 decimal places.");
+            if (amount.stripTrailingZeros().scale() > 2) p.add("An amount can have at most 2 decimal places (centavos). Round it and try again.");
             if (amount.compareTo(SharePaymentRules.MAX_PAYMENT) > 0) p.add("The amount is too large.");
         }
     }
@@ -42,7 +42,7 @@ final class SavingsRules {
         if (accountStatus == DORMANT) p.add("This savings account is dormant, so it cannot " + doing + " until it is reactivated.");
         else if (accountStatus == CLOSED) p.add("This savings account is closed, so it cannot " + doing + ".");
         else if (accountStatus != ACTIVE) p.add("This savings account is not active, so it cannot " + doing + ".");
-        if (clientStatus == 3 || clientStatus == 98 || clientStatus == 99) p.add("This client's account is closed, disapproved or not yet approved.");
+        if (clientStatus == 3 || clientStatus == 98 || clientStatus == 99) p.add("This member's account is closed, disapproved or not yet approved.");
     }
 
     static List<String> checkDeposit(BigDecimal amount, int accountStatus, int clientStatus) {

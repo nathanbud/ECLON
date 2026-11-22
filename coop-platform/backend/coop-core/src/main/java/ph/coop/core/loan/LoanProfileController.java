@@ -53,7 +53,7 @@ class LoanProfileController {
                 WHERE k.ClientIDBrCode = ? AND k.ClientID = ?
                 """, (rs, i) -> new Header(String.format("%02d-%07d", branchCode, rs.getInt(1)), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
                     rs.getTimestamp(6) == null ? null : rs.getTimestamp(6).toLocalDateTime().toLocalDate(), rs.getString(7), jointType(rs.getInt(8)), rs.getString(9), rs.getString(10)), branchCode, clientId);
-        if (h.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such client.");
+        if (h.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
 
         List<Setup> s = jdbc.query("""
                 SELECT t.SLTypeM_DESC, bc.BorrowerClassDesc, l.LoanREF_NO, l.LoanPAMT, l.LoanTR_DATE, l.LoanPRIN_GP, l.LoanTERMS, tm.TermDesc, pm.PaymentModeDesc, l.LoanSTATUS,

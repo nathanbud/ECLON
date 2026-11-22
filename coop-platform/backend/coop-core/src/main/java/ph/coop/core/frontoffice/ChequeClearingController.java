@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.connection.DatabaseChanges;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -31,7 +32,7 @@ import ph.coop.core.db.Db;
 class ChequeClearingController {
 
     record Row(int year, long ctlNo, int seq, String documentNo, String receiptDate, String client, String number, String bank, String chequeDate,
-               String kind, BigDecimal amount, String clearsOn, boolean due, boolean cleared, String clearedOn, String clearedBy, String bankReference) {}
+               String kind, BigDecimal amount, String clearsOn, boolean due, boolean cleared, String clearedOn, String clearedBy, String bankReference, int daysLeft) {}
 
     record Item(int year, long ctlNo, int seq) {}
 
@@ -92,7 +93,7 @@ class ChequeClearingController {
                 java.sql.Date cd = rs.getDate(9);
                 return new Row(rs.getInt(1), rs.getLong(2), rs.getInt(3), rs.getString(4), received.toString(), rs.getString(6), rs.getString(7), rs.getString(8),
                     cd == null ? null : cd.toLocalDate().toString(), rs.getString(10), rs.getBigDecimal(11), on.toString(), !today.isBefore(on), rs.getInt(13) == 1,
-                    rs.getDate(14) == null ? null : rs.getDate(14).toLocalDate().toString(), rs.getString(15), rs.getString(16));
+                    rs.getDate(14) == null ? null : rs.getDate(14).toLocalDate().toString(), rs.getString(15), rs.getString(16), ChequeRules.daysLeft(on, today));
             }, today.getYear() - 1, all ? 1 : 0);
     }
 
@@ -102,9 +103,9 @@ class ChequeClearingController {
         if (!mayClear(auth)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the head cashier, an accountant or an administrator clears cheques.");
         if (req.items() == null || req.items().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose the cheques to clear.");
         if (!db.canUpdateColumn("transck", "CKISCLEARED"))
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Clearing is not set up yet. An administrator has to run database/migrations/V026_cheque_clearing.sql.");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, DatabaseChanges.notSetUp("cheque clearing"));
         if (!db.tableExists("ecis_cheque_clearing"))
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Clearing records are not set up yet. An administrator has to run database/migrations/V048_cheque_clearing_record.sql.");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, DatabaseChanges.notSetUp("cheque clearing records"));
         String reason = req.reason() == null ? "" : req.reason().trim();
         LocalDate today = LocalDate.now(clock);
         LocalDate clearedOn;

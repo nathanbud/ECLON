@@ -1,6 +1,7 @@
 package ph.coop.core.frontoffice;
 
 
+import ph.coop.core.connection.DatabaseChanges;
 import ph.coop.core.audit.AuditLog;import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
@@ -175,7 +176,7 @@ class TimeDepositPlacementController {
     @PostMapping
     Receipt place(@RequestBody Request req, Authentication auth) {
         if (!db.canInsertInto("td", "slmastersum", "sldtl", "transsum", "transdt", "gltrans", "slsum"))
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Placing time deposits is not set up yet. An administrator has to run database/migrations/V027_time_deposit_placement.sql.");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, DatabaseChanges.notSetUp("placing time deposits"));
         Ctx x = context(req, auth);
         Person p = x.p();
         return tx.execute((st) -> {

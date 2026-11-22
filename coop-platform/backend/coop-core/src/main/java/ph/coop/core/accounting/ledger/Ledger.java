@@ -1,5 +1,6 @@
 package ph.coop.core.accounting.ledger;
 
+import ph.coop.core.connection.DatabaseChanges;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -39,13 +40,15 @@ public class Ledger implements OnConnectionSwitch {
     private final Db db;
     private final Clock clock;
     private final BusinessDay businessDay;
+    private final ph.coop.core.businessday.DrawerOpening drawers;
     private volatile Boolean keysKept;
 
-    public Ledger(JdbcTemplate jdbc, Db db, Clock clock, BusinessDay businessDay) {
+    public Ledger(JdbcTemplate jdbc, Db db, Clock clock, BusinessDay businessDay, ph.coop.core.businessday.DrawerOpening drawers) {
         this.jdbc = jdbc;
         this.db = db;
         this.clock = clock;
         this.businessDay = businessDay;
+        this.drawers = drawers;
     }
 
     @Override
@@ -70,6 +73,8 @@ public class Ledger implements OnConnectionSwitch {
                 (rs, i) -> new Posted(rs.getInt(1), rs.getInt(2), rs.getInt(3), rs.getInt(4), rs.getLong(5), rs.getString(6), rs.getDate(7).toLocalDate(), true), v.requestKey());
             if (!earlier.isEmpty()) return earlier.get(0);
         }
+        // Journals, memos and the year-end close carry dates of their own, but are posted only while the branch has a business day open, like everything else.
+        businessDay.requireStarted(v.branch());
         check(v);
 
         LocalDateTime now = LocalDateTime.now(clock).withNano(0);
@@ -147,26 +152,32 @@ public class Ledger implements OnConnectionSwitch {
         int year = day.getYear();
 
         PostingPeriods.requireOpen(jdbc, branch, day);
+        // the drawer is counted at the start of the business day before any cash crosses the window
+        drawers.requireOpen(branch, day, p.event(), p.drawerNumber());
         long ctl = db.nextControlNumber(branch, module, code, year);
-        if (!v.confirmDuplicate()) {
+        // no member (an other receipt): the client columns stay empty and the payor is named on the header instead
+        Integer client = clientId > 0 ? clientId : null;
+        String payor = client == null && v.payorName() != null && !v.payorName().isBlank() ? v.payorName().trim().substring(0, Math.min(v.payorName().trim().length(), 40)) : null;
+        if (!v.confirmDuplicate() && client != null) {
             Integer same = jdbc.queryForObject("""
                     SELECT COUNT(*) FROM transsum WHERE TR_BRCODE = ? AND TR_YEAR = ? AND TR_MODULE = ? AND TR_CODE = ? AND TR_CTLNO > ?
                       AND TR_CLIENTID = ? AND DATETIMEADDED >= ?
                     """, Integer.class, branch, year, module, code, ctl - 500, clientId, Timestamp.valueOf(now.minusSeconds(DUPLICATE_SECONDS)));
             if (same != null && same > 0) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "A " + (in ? "receipt" : "withdrawal") + " for this client was posted in the last minute. If you really mean to post another, confirm it.");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "A " + (in ? "receipt" : "withdrawal") + " for this member was posted in the last minute. If you really mean to post another, confirm it.");
             }
         }
         String docNo = LedgerRules.receiptDocumentNo(v.receiptNo(), ctl);
         String explanation = v.explanation() == null ? "" : v.explanation().trim();
         explanation = explanation.substring(0, Math.min(explanation.length(), 200));
 
+        if (client == null && v.lines().stream().anyMatch((l) -> l.slc() != 0)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A line on a member's account needs the member.");
         BigDecimal memberTotal = v.lines().stream().map((l) -> l.amount().value()).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal received = memberTotal.negate();
         BigDecimal chequeTotal = v.cheques().stream().map((c) -> c.amount().value()).reduce(BigDecimal.ZERO, BigDecimal::add);
         if (!v.cheques().isEmpty()) {
             if (!in) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cheques can be received here, not paid out.");
-            if (!db.canInsertInto("transck")) throw new ResponseStatusException(HttpStatus.CONFLICT, "Cheques cannot be taken yet: the database user needs V024_cheque_receipts.sql.");
+            if (!db.canInsertInto("transck")) throw new ResponseStatusException(HttpStatus.CONFLICT, DatabaseChanges.notSetUp("taking cheques"));
             if (p.event() != 52 && p.event() != 53) throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a cashier or a teller takes cheques at the window.");
             if (chequeTotal.compareTo(received) > 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The cheques add up to " + chequeTotal.toPlainString() + ", more than the payment of " + received.toPlainString() + ".");
         }
@@ -175,9 +186,9 @@ public class Ledger implements OnConnectionSwitch {
         if (memberTotal.add(chequeTotal).add(cashAmount).signum() != 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The voucher does not balance.");
 
         jdbc.update("""
-                INSERT INTO transsum (TR_BRCODE, TR_YEAR, TR_MODULE, TR_CODE, TR_CTLNO, TR_DOCNO, TR_DATE, TR_TIME, TR_CLIENTID, BATCH_NO, EXPLANATION, IS_FO, DATETIMEADDED)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-                """, branch, year, module, code, ctl, docNo, day.toString(), now.format(DateTimeFormatter.ofPattern("HH:mm:ss")), clientId,
+                INSERT INTO transsum (TR_BRCODE, TR_YEAR, TR_MODULE, TR_CODE, TR_CTLNO, TR_DOCNO, TR_DATE, TR_TIME, TR_CLIENTID, CLIENTNAME, BATCH_NO, EXPLANATION, IS_FO, DATETIMEADDED)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                """, branch, year, module, code, ctl, docNo, day.toString(), now.format(DateTimeFormatter.ofPattern("HH:mm:ss")), client, payor,
             day.format(DateTimeFormatter.BASIC_ISO_DATE), explanation, Timestamp.valueOf(now));
 
         String cashSql = """
@@ -205,7 +216,7 @@ public class Ledger implements OnConnectionSwitch {
         for (CashVoucher.MemberLine l : v.lines()) {
             // a line with class 0 is a plain general ledger line (a fee into an income account): the same entry with no sub-ledger fields
             boolean plain = l.slc() == 0;
-            jdbc.update(memberSql, branch, year, module, code, ctl, seq++, p.dept(), l.account(), clientId, plain ? null : l.slc(), plain ? null : l.typeCode(), plain ? null : l.refNo(),
+            jdbc.update(memberSql, branch, year, module, code, ctl, seq++, p.dept(), l.account(), client, plain ? null : l.slc(), plain ? null : l.typeCode(), plain ? null : l.refNo(),
                 plain ? null : l.event(), plain ? null : l.cts(), day.toString(), memberTender, l.amount().value(), p.id(), p.id());
         }
         if (!in) jdbc.update(cashSql, branch, year, module, code, ctl, seq, p.dept(), p.cashAccount(), p.event(), p.drawerNumber(), cashAmount, p.id(), p.id());
@@ -251,8 +262,129 @@ public class Ledger implements OnConnectionSwitch {
         for (Object[] g : glCredits) glLine(branch, (String) g[0], day, code, p.dept(), (BigDecimal) g[1], stamp);
 
         if (v.requestKey() != null && keysKept()) remember(v.requestKey(), v.username(), branch, year, module, code, ctl, docNo, day, now);
-        AuditLog.write(jdbc, v.username(), v.auditAction(), "transsum", branch + "/" + year + "/" + module + "/" + code + "/" + ctl, null, "client " + clientId + " " + v.auditDetail() + " doc " + docNo, null);
+        AuditLog.write(jdbc, v.username(), v.auditAction(), "transsum", branch + "/" + year + "/" + module + "/" + code + "/" + ctl, null,
+            (client == null ? "payor " + payor : "client " + clientId) + " " + v.auditDetail() + " doc " + docNo, null);
         return new Posted(branch, year, module, code, ctl, docNo, day, false);
+    }
+
+    // ---- vouchers that wait for approval (Cash Voucher 21, Check Voucher 22) -------------------------------------------
+
+    /**
+     * Encodes a voucher that waits for approval: the header and its lines marked waiting (tag 2), dated the branch's open business day, numbered in the
+     * type's own series; nothing in the general ledger or a member's ledger yet. Refused when it does not balance or names an unknown, summary or
+     * switched-off account. The same request key twice gives back the first voucher.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Posted encodeWaiting(WaitingVoucher v) {
+        if (keysKept()) {
+            Posted earlier = earlier(v.requestKey());
+            if (earlier != null) return earlier;
+        }
+        LocalDate day = businessDay.postingDate(v.branch());
+        PostingPeriods.requireOpen(jdbc, v.branch(), day);
+        List<Voucher.Line> check = v.lines().stream().map((l) -> new Voucher.Line(l.account(), l.dept(), l.amount())).toList();
+        String problem = LedgerRules.problem(check);
+        if (problem != null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, problem);
+        requirePostable(v.branch(), check.stream().map(Voucher.Line::account).distinct().toList());
+
+        LocalDateTime now = LocalDateTime.now(clock).withNano(0);
+        int year = day.getYear();
+        long ctl = db.nextControlNumber(v.branch(), 2, v.code(), year);
+        String docNo = String.format("*%07d", ctl);
+        jdbc.update("""
+                INSERT INTO transsum (TR_BRCODE, TR_YEAR, TR_MODULE, TR_CODE, TR_CTLNO, TR_DOCNO, TR_DATE, TR_TIME, TR_CLIENTID, BATCH_NO, EXPLANATION, IS_FO, DATETIMEADDED)
+                VALUES (?, ?, 2, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                """, v.branch(), year, v.code(), ctl, docNo, day.toString(), now.format(DateTimeFormatter.ofPattern("HH:mm:ss")), v.clientId() > 0 ? v.clientId() : null,
+            day.format(DateTimeFormatter.BASIC_ISO_DATE), LedgerRules.explanation(v.explanation()), Timestamp.valueOf(now));
+        int seq = 0;
+        for (WaitingVoucher.Line l : v.lines()) {
+            boolean m = l.member();
+            jdbc.update("""
+                    INSERT INTO transdt (DTTR_BRCODE, DTTR_YEAR, DTTR_MODULE, DTTR_CODE, DTTR_CTLNO, DTSEQ_NO, DTDEPT, DTACCT_CODE, ClientIDDT, DTSLC_CODE, DTSLT_CODE, DTREF_NO,
+                      DTSLE_CODE, DTCTS_NUM, DTSL_DATE, DTADJ_FLAG, DTAMT, DTENCDBY, DTUPD_TAG, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
+                    VALUES (?, ?, 2, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2, 0, 0, 0)
+                    """, v.branch(), year, v.code(), ctl, seq++, l.dept(), l.account(), m ? v.clientId() : null, m ? l.slc() : null, m ? l.slt() : null, m ? l.refNo() : null,
+                m ? l.event() : null, m ? l.cts() : null, day.toString(), m ? 1 : null, l.amount().value(), v.encodedBy());
+        }
+        if (keysKept()) remember(v.requestKey(), v.username(), v.branch(), year, 2, v.code(), ctl, docNo, day, now);
+        AuditLog.write(jdbc, v.username(), "ledger.voucher.encode", "transsum", v.branch() + "/" + year + "/2/" + v.code() + "/" + ctl, null,
+            "waiting for approval, client " + v.clientId() + ", " + v.lines().size() + " lines, " + LedgerRules.total(check).toPlainString() + " debits, key " + v.requestKey(), null);
+        return new Posted(v.branch(), year, 2, v.code(), ctl, docNo, day, false);
+    }
+
+    /** One line of a module 2 voucher as stored: + debit, - credit; slc null for a plain line; tag 2 waiting, 1 posted. */
+    public record StoredLine(int seq, String account, int dept, Integer slc, Integer slt, Integer refNo, Integer event, Integer cts, BigDecimal amount, Integer tag,
+                             Integer encodedBy, Integer approvedBy) {}
+
+    /** The lines of a module 2 voucher, locked for the rest of the transaction when {@code lock}. */
+    public List<StoredLine> voucherLines(int branch, int year, int code, long ctl, boolean lock) {
+        return jdbc.query("""
+                SELECT DTSEQ_NO, DTACCT_CODE, COALESCE(DTDEPT, 0), DTSLC_CODE, DTSLT_CODE, DTREF_NO, DTSLE_CODE, DTCTS_NUM, DTAMT, DTUPD_TAG, DTENCDBY, DTAPPRVBY
+                FROM transdt WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = 2 AND DTTR_CODE = ? AND DTTR_CTLNO = ? ORDER BY DTSEQ_NO
+                """ + (lock ? " FOR UPDATE" : ""), (rs, i) -> new StoredLine(rs.getInt(1), rs.getString(2), rs.getInt(3), (Integer) rs.getObject(4), (Integer) rs.getObject(5),
+                (Integer) rs.getObject(6), (Integer) rs.getObject(7), (Integer) rs.getObject(8), rs.getBigDecimal(9), (Integer) rs.getObject(10), (Integer) rs.getObject(11),
+                (Integer) rs.getObject(12)), branch, year, code, ctl);
+    }
+
+    /** Marks a waiting voucher approved (DTAPPRVBY on every waiting line). The caller has checked who may approve. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void approveWaiting(int branch, int year, int code, long ctl, int approverId, String username) {
+        int n = jdbc.update("UPDATE transdt SET DTAPPRVBY = ? WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = 2 AND DTTR_CODE = ? AND DTTR_CTLNO = ? AND DTUPD_TAG = 2 AND DTAPPRVBY IS NULL",
+            approverId, branch, year, code, ctl);
+        if (n == 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher is not waiting for approval.");
+        AuditLog.write(jdbc, username, "ledger.voucher.approve", "transsum", branch + "/" + year + "/2/" + code + "/" + ctl, null, "approved by user " + approverId, null);
+    }
+
+    /**
+     * Posts an approved waiting voucher: its lines move to posted (tag 1) with the poster, each member line gets its ledger row (no tender type, as the
+     * old vouchers have) and every line its general-ledger row, dated the branch's open business day. A Check Voucher also gets its cheque's tender
+     * row (transck: seq 0, cheque, kind 5 "On Us", no clearing days, cleared, the payee), as the old Check Vouchers have. The caller has checked who may post.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public LocalDate postWaiting(int branch, int year, int code, long ctl, String docNo, int clientId, int posterId, WaitingVoucher.OwnCheque cheque, int chequeDept,
+                                 String username) {
+        List<StoredLine> lines = voucherLines(branch, year, code, ctl, true);
+        if (lines.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That voucher was not found. It may have been cancelled or the number mistyped: reload the list and open it from there.");
+        if (lines.stream().anyMatch((l) -> l.tag() == null || l.tag() != 2)) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher is not waiting to be posted.");
+        if (lines.stream().anyMatch((l) -> l.approvedBy() == null)) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher cannot be posted yet because nobody has approved it. Another person with the right to approve vouchers must approve it first.");
+        if (lines.stream().map(StoredLine::amount).reduce(BigDecimal.ZERO, BigDecimal::add).signum() != 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "The voucher does not balance.");
+        if (code == 22 && cheque == null) throw new ResponseStatusException(HttpStatus.CONFLICT, "A Check Voucher needs its cheque.");
+        LocalDate day = businessDay.postingDate(branch);
+        PostingPeriods.requireOpen(jdbc, branch, day);
+        requirePostable(branch, lines.stream().map(StoredLine::account).distinct().toList());
+        Timestamp stamp = Timestamp.valueOf(LocalDateTime.now(clock).withNano(0));
+        int n = jdbc.update("UPDATE transdt SET DTPOSTBY = ?, DTUPD_TAG = 1 WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = 2 AND DTTR_CODE = ? AND DTTR_CTLNO = ? AND DTUPD_TAG = 2",
+            posterId, branch, year, code, ctl);
+        if (n != lines.size()) throw new ResponseStatusException(HttpStatus.CONFLICT, "The voucher changed while posting; try again.");
+        for (StoredLine l : lines) {
+            if (l.slc() != null && l.slc() > 0) {
+                memberLedgerRow(branch, clientId, new CashVoucher.MemberLine(l.slc(), l.slt(), l.refNo(), l.event(), l.cts() == null ? 99 : l.cts(), l.account(), Money.of(l.amount())),
+                    day, code, ctl, docNo, null, null);
+            }
+            glLine(branch, l.account(), day, code, l.dept(), l.amount(), stamp);
+        }
+        if (cheque != null) {
+            StoredLine first = lines.get(0);
+            jdbc.update("""
+                    INSERT INTO transck (CKTR_BRCODE, CKTR_YEAR, CKTR_MODULE, CKTR_CODE, CKTR_CTLNO, CKSEQ_NO, CKDEPT, CKCOCI_TYPE, CKCHECKTYPE, CKCLRG_DAYS, CKCHECKNO, CKBANK_CODE,
+                      CKCHECKDATE, CKAMT, CKUPD_TAG, CKENCDBY, CKAPPRVBY, CKPOSTBY, CKISCLEARED, CKPAYEE)
+                    VALUES (?, ?, 2, ?, ?, 0, ?, 2, 5, 0, ?, ?, ?, ?, 1, ?, ?, ?, 1, ?)
+                    """, branch, year, code, ctl, chequeDept, cheque.number(), cheque.bankCode(), cheque.date().toString(), cheque.amount().value(),
+                first.encodedBy(), first.approvedBy(), posterId, cheque.payee() == null ? "" : cheque.payee().substring(0, Math.min(cheque.payee().length(), 60)));
+        }
+        AuditLog.write(jdbc, username, "ledger.voucher.post", "transsum", branch + "/" + year + "/2/" + code + "/" + ctl, null,
+            "posted by user " + posterId + ", " + lines.size() + " lines" + (cheque == null ? "" : ", cheque " + cheque.number() + " bank " + cheque.bankCode() + " " + cheque.amount().value().toPlainString()), null);
+        return day;
+    }
+
+    /** Refuses an unknown, summary or switched-off account. */
+    private void requirePostable(int branch, List<String> accounts) {
+        for (String account : accounts) {
+            List<Map<String, Object>> a = jdbc.queryForList("SELECT COAacct_tag, COALESCE(COAisdisabled, 0) AS off FROM coa WHERE COABR_CODE = ? AND COAID = ?", branch, account);
+            if (a.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown account " + account + ".");
+            if ("S".equals(a.get(0).get("COAacct_tag"))) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account " + account + " is a summary account and takes no postings.");
+            if (((Number) a.get(0).get("off")).intValue() != 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account " + account + " is switched off.");
+        }
     }
 
     /**

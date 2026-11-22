@@ -72,7 +72,7 @@ class SavingsPostingController {
 
     private static BigDecimal amountOf(Request req) {
         if (req.amount() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter an amount above zero.");
-        if (req.amount().stripTrailingZeros().scale() > 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The amount can have at most 2 decimal places.");
+        if (req.amount().stripTrailingZeros().scale() > 2) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An amount can have at most 2 decimal places (centavos). Round it and try again.");
         return req.amount().setScale(2, java.math.RoundingMode.UNNECESSARY);
     }
 

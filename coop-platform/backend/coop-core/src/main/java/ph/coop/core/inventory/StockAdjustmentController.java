@@ -105,7 +105,7 @@ class StockAdjustmentController {
         if (in.lines() == null || in.lines().isEmpty()) problems.add("Add at least one line.");
         if (!problems.isEmpty()) throw InventorySupport.bad(problems);
         Integer wh = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_warehouse WHERE branch_code = ? AND id = ? AND active = 1", Integer.class, InventorySupport.BRANCH, in.warehouseId());
-        if (wh == null || wh == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such active warehouse.");
+        if (wh == null || wh == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That warehouse was not found or is switched off. Choose an active warehouse from the list.");
         List<long[]> resolved = new ArrayList<>();
         int n = 0;
         for (LineIn l : in.lines()) {
@@ -142,7 +142,7 @@ class StockAdjustmentController {
         if (own != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, own);
         String note = in == null || in.note() == null || in.note().isBlank() ? null : in.note().trim();
         if (!approve && note == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say why the adjustment is rejected.");
-        if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long (255 characters at most).");
+        if (note != null && note.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long: it can have at most 255 characters. Shorten it and try again.");
         if (approve) {
             // the usual approver's approval may be only the first: a workflow can ask for more when the adjustment's value reaches its limits
             Gate gate = workflow.gate(WORKFLOW, String.valueOf(id), posting.value(id), a.requestedBy(), auth.getName());

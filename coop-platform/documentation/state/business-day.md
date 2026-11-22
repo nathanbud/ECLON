@@ -54,8 +54,30 @@ Nothing can be posted while no day is open.
 - The title bar shows the business date (`BusinessDayChip`): green while the open day is today, orange with the date when it is not, "Posting closed" when none is open.
 - Front Office shows a banner while no day is open, or the open day is not today.
 
-## Not done yet (part 2)
+## Part 2: drawer opening and end-of-day jobs (PostgreSQL `V030` applied; MySQL `V067` written, not applied)
 
-- End of day jobs: accruals, loan ageing and penalties, maturities, balance snapshots, run from End Day and restartable.
-- Point of sale's own day (`SemPOSStartDay`), per-teller drawer opening at Start Day, back-dating as a right with limits.
+- **Opening a drawer** (`DrawerOpening`, `DrawerOpenController`, `/api/front-office/drawer-open`; screen `DrawerOpen`, Open my drawer on Front Office > Teller and Cash Handover):
+  each teller and cashier counts their own drawer once per business day, blind (the ledger's figure is shown after the count), by note and coin.
+  A difference needs a reason and is kept in `ecis_drawer_open` (insert only, `deny_update`); the drawer opens either way and the count cannot be changed.
+  Cash at the window (`Ledger.writeCash`) is refused with 409 from a drawer not opened on the business day.
+  Hand-offs between drawers do not need it (receiving cash is itself counted). The head cashier and administrators see every drawer opened that day (`/day`).
+  The rule is the setting `teller.require_drawer_open` (`ecis_setting`) (on by default; `PUT /policy`, administrators, with a reason, audited; switch on the Business Day screen).
+- **End-of-day jobs** (`DayEndJobs`, `GET /api/business-day/jobs`, `POST /api/business-day/jobs/run`; panel on the Business Day screen with Run the jobs now): five steps, each kept in
+  `ecis_eod_run` / `ecis_eod_step` so a failed one is tried again without redoing the others; one run per branch at a time; nothing is posted.
+  1. **balances**: each drawer's cash and the balance of every savings, time deposit, share capital, vouchers-payable and loan type as of the day (`ecis_eod_balance`).
+     The first snapshot sums the whole ledger once (about 50 s on the full data); later ones add the days since the last (under a second).
+  2. **loan_aging**: every open loan (statuses 11, 12, 14) aged on the day by `LoanAging`, with the rules the payment window quotes by: owed, principal past due and since when,
+     interest due, the penalty by the formula where the penalty mode is 4 (empty elsewhere), and the bucket (`ecis_loan_aging`). About 30 s on the full data.
+  3. **maturities**: time deposits matured and still holding money, counted (they are paid out or renewed on TD Maturities).
+  4. **accruals**: interest runs whose period ended in the last 31 days and are not encoded yet (time deposit Lock In each month end, Short Term on 31 December,
+     savings each quarter end) are encoded to wait for approval, as when run by hand; one that cannot be made yet is noted and tried at the next End Day. Done once per day.
+  5. **cheques**: cheques on receipts past their expected clearing day and not marked cleared, counted.
+  The balance, aging, maturity and cheque steps read the day, so End Day runs them again even when already done.
+- **End Day order**: the checks first (refused at once when one must pass and no reason is given), then the jobs, then the checks again, then the day is closed.
+  Tested by `BusinessDayPostingTest` (including that a refused End Day runs no job) and `TellerCompletion.test.tsx`.
+
+## Not done yet
+
+- Point of sale's own day (`SemPOSStartDay`), back-dating as a right with limits.
+- The jobs run inside the End Day request (a minute or two the first time); they are not moved to the background.
 - The signed-in browser tests (`npm run e2e`) that post need a day started first.

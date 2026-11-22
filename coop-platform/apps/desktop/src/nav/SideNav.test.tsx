@@ -8,7 +8,7 @@ import SideNav from './SideNav'
 
 let roles: string[] = []
 let admin = false
-vi.mock('../session', () => ({ useMe: () => ({ username: 'u', name: 'U', roles, canEdit: false, canApprove: false, admin, mustChangePassword: false }) as Me }))
+vi.mock('../session', () => ({ useMe: () => ({ username: 'jdcruz', name: 'JUAN DELA CRUZ', roles, canEdit: false, canApprove: false, admin, mustChangePassword: false }) as Me }))
 vi.mock('../api', async (orig) => ({ ...(await orig<typeof import('../api')>()), getInboxCount: vi.fn(async () => ({ count: 3 })) }))
 
 function renderNav(view: Parameters<typeof SideNav>[0]['view'] = 'home', tab?: string, open = true) {
@@ -28,8 +28,23 @@ describe('the side menu', () => {
     expect(within(nav).getByRole('link', { name: 'Home' })).toBeInTheDocument()
     expect(within(nav).getByRole('region', { name: 'Members' })).toBeInTheDocument()
     expect(within(nav).getByRole('region', { name: 'Teller and cash' })).toBeInTheDocument()
-    expect(within(nav).getByRole('link', { name: 'Client Profile' })).toBeInTheDocument()
-    expect(within(nav).queryByRole('button', { name: 'Client Profile' })).not.toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Member Profile' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('button', { name: 'Member Profile' })).not.toBeInTheDocument()
+  })
+
+  it('says who is signed in, the name with each word capitalised', () => {
+    renderNav()
+    const who = screen.getByRole('group', { name: 'Signed in as' })
+    expect(who).toHaveTextContent('Juan Dela Cruz')
+    expect(who).toHaveTextContent('jdcruz')
+  })
+
+  it('chooses the theme at the foot of the menu', async () => {
+    renderNav()
+    const themes = screen.getByRole('radiogroup', { name: 'Theme' })
+    await userEvent.setup().click(within(themes).getByRole('radio', { name: /Dark/ }))
+    expect(within(themes).getByRole('radio', { name: /Dark/ })).toBeChecked()
+    expect(within(themes).getByRole('radio', { name: /Light/ })).not.toBeChecked()
   })
 
   it('shows only what the roles allow', () => {
@@ -39,20 +54,20 @@ describe('the side menu', () => {
     expect(within(nav).queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
   })
 
-  it('shows an accountant the memos, on their own tab of Accounting', async () => {
+  it('shows an accountant the memos, on their own tab of Back Office', async () => {
     roles = ['ROLE_ACCOUNTANT']
     const go = renderNav()
     const user = userEvent.setup()
     await user.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: 'Debit/credit memos' }))
-    expect(go).toHaveBeenCalledWith('accounting', 'Memos')
+    expect(go).toHaveBeenCalledWith('backoffice', 'Debit/credit memos')
   })
 
   it('marks where you are, using the tab when there is one', () => {
     roles = ['ROLE_ACCOUNTANT']
-    renderNav('accounting', 'Memos')
+    renderNav('backoffice', 'Debit/credit memos')
     const nav = screen.getByRole('navigation', { name: 'Main' })
     expect(within(nav).getByRole('link', { name: 'Debit/credit memos' })).toHaveAttribute('aria-current', 'page')
-    expect(within(nav).getByRole('link', { name: 'Journals' })).not.toHaveAttribute('aria-current')
+    expect(within(nav).getByRole('link', { name: 'General journal' })).not.toHaveAttribute('aria-current')
   })
 
   it('says how many things are waiting, in its label', async () => {
@@ -68,7 +83,7 @@ describe('the side menu', () => {
   it('goes to the screen chosen and closes itself', async () => {
     roles = ['ROLE_ACCOUNTANT']
     const go = renderNav()
-    await userEvent.setup().click(screen.getByRole('link', { name: 'Journals' }))
+    await userEvent.setup().click(screen.getByRole('link', { name: 'General journal' }))
     expect(go).toHaveBeenCalled()
     expect(go.close).toHaveBeenCalledTimes(1)
   })

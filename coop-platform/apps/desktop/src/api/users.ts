@@ -20,7 +20,9 @@ export interface TemporaryPassword { username: string; password: string; validit
 /** The system makes the password; it is in this reply only. */
 export const issueTemporaryPassword = (username: string, validityHours: number) =>
   send<TemporaryPassword>('PUT', `/api/admin/users/${encodeURIComponent(username)}/password`, { validityHours })
-export const grantRole = (username: string, role: string) => send<void>('PUT', `/api/admin/users/${encodeURIComponent(username)}/roles/${role}`)
+/** switchedOn: for Membership Officer, the Member tab permissions the grant switched on (by label); empty when all were on already. */
+export interface RoleGranted { role: string; switchedOn?: string[] }
+export const grantRole = (username: string, role: string) => send<RoleGranted | undefined>('PUT', `/api/admin/users/${encodeURIComponent(username)}/roles/${role}`)
 export const revokeRole = (username: string, role: string) => send<void>('DELETE', `/api/admin/users/${encodeURIComponent(username)}/roles/${role}`)
 
 // ---- a person's legacy account setup (administrators only, read-only) ---------------------------------------------
@@ -68,7 +70,20 @@ export const getUserTransactionTypes = (username: string) =>
 export const saveUserProfile = (username: string, changes: Record<string, { from: string | null; to: string | null }>) =>
   send<{ changed: number }>('PATCH', `/api/admin/users/${encodeURIComponent(username)}/profile`, { changes })
 
-export const saveUserTransactionTypes = (username: string, changes: { code: number; column: string; allowed: boolean }[]) =>
+/**
+ * Switches a person's account on or off (the old `AccessIsDisabled` flag), through the same save as the account setup, so it is checked, guarded
+ * against a clash and audited the same way. The stored value is read first: the list only knows enabled or not, and "not disabled" may be stored
+ * as 0 or left blank, which the save tells apart. Someone switched off is signed out on their next action.
+ */
+export async function setUserEnabled(username: string, enabled: boolean) {
+  const profile = await getUserProfile(username)
+  if (!profile.canEdit) throw new Error(profile.editNote || 'You cannot change this account.')
+  const field = Object.values(profile.tabs).flat().flatMap((s) => s.fields).find((f) => f.key === 'AccessIsDisabled')
+  if (!field) throw new Error('This server does not offer switching an account off.')
+  return saveUserProfile(username, { AccessIsDisabled: { from: field.raw ?? null, to: enabled ? '0' : '1' } })
+}
+
+export const saveUserTransactionTypes =(username: string, changes: { code: number; column: string; allowed: boolean }[]) =>
   send<{ changed: number }>('PUT', `/api/admin/users/${encodeURIComponent(username)}/transaction-types`, { changes })
 
 // ---- audit log (administrators) -----------------------------------------------------------------------------------
@@ -96,3 +111,19 @@ export interface AuditVerification { ok: boolean; sealsChecked: number; rowsChec
 export const getAuditIntegrity = () => getJson<AuditIntegrity>('/api/admin/audit/integrity')
 export const sealAuditLog = () => send<AuditIntegrity>('POST', '/api/admin/audit/integrity/seal')
 export const verifyAuditLog = () => send<AuditVerification>('POST', '/api/admin/audit/integrity/verify')
+
+// ---- creating a user (administrators; an administrator only by a super administrator) ------------------------------
+export interface NewUser {
+  username: string; firstName: string; middleName: string | null; lastName: string
+  branchCode: number; level: 'USER' | 'ADMIN' | 'SUPERADMIN'
+  /** whose permissions to start from (their access flags, transaction rights and roles), or null for none */
+  copyFrom: string | null
+  validityHours: number
+}
+export interface CreatedUser {
+  username: string; accessId: number; level: string; branchCode: number; copiedFrom: string | null
+  transactionRights: number; roles: string[]
+  /** the first, temporary password: in this reply only */
+  password: TemporaryPassword
+}
+export const createUser = (u: NewUser) => send<CreatedUser>('POST', '/api/admin/users', u)

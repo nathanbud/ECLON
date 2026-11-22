@@ -208,8 +208,10 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
               borderRadius: RADIUS, fontSize: TYPE.body, backgroundColor: fieldBg, transition: `box-shadow ${quick}, background-color ${quick}`,
               '& .MuiOutlinedInput-notchedOutline': { borderColor: edge, borderWidth: 1, transition: `border-color ${quick}`, '& legend': { fontSize: `${TYPE.caption / TYPE.body}em` } },
               '&:hover:not(.Mui-focused):not(.Mui-error):not(.Mui-disabled) .MuiOutlinedInput-notchedOutline': { borderColor: edgeHover },
-              '&.Mui-focused': { boxShadow: ring(accent), '& .MuiOutlinedInput-notchedOutline': { borderColor: accent, borderWidth: 1 } },
-              '&.Mui-error': { '& .MuiOutlinedInput-notchedOutline': { borderColor: danger }, '&.Mui-focused': { boxShadow: ring(danger) } },
+              // Focus shows on the border itself, made heavier, not as a halo around the box: the border has a gap where a floating label sits,
+              // and a halo cannot follow that gap, so it ran on behind the label and showed it sitting in a hole cut out of the frame.
+              '&.Mui-focused': { '& .MuiOutlinedInput-notchedOutline': { borderColor: accent, borderWidth: 2 } },
+              '&.Mui-error': { '& .MuiOutlinedInput-notchedOutline': { borderColor: danger }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: danger, borderWidth: 2 } },
               '&.Mui-disabled': { backgroundColor: fill, '& .MuiOutlinedInput-notchedOutline': { borderColor: line } },
               // An icon inside the field already keeps its own distance from the text.
               '&.MuiInputBase-adornedStart': { paddingLeft: INPUT_PAD.x, '& .MuiOutlinedInput-input': { paddingLeft: 0 } },

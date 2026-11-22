@@ -75,7 +75,9 @@ class LoanReleaseController {
                  WHERE s.TR_BRCODE = ? AND s.TR_YEAR >= ? AND s.TR_MODULE = ? AND s.TR_CODE = ?
                    AND EXISTS (SELECT 1 FROM transdt d WHERE d.DTTR_BRCODE = s.TR_BRCODE AND d.DTTR_YEAR = s.TR_YEAR AND d.DTTR_MODULE = s.TR_MODULE
                                AND d.DTTR_CODE = s.TR_CODE AND d.DTTR_CTLNO = s.TR_CTLNO AND d.DTUPD_TAG = ?)
-                 ORDER BY s.TR_YEAR DESC, s.TR_CTLNO DESC LIMIT 200
+                   AND NOT (1 = 1
+                """ + GeneralVoucherController.NOT_A_RELEASE + """
+                   ) ORDER BY s.TR_YEAR DESC, s.TR_CTLNO DESC LIMIT 200
                 """, (rs, i) -> voucher(rs), perms.branch(), year - 1, MODULE, CODE, PENDING).stream().map((v) -> named(v)).toList();
     }
 
@@ -94,7 +96,7 @@ class LoanReleaseController {
         return tx.execute((st) -> {
             Detail d = load(p.branch(), year, controlNo, true);
             Voucher v = d.voucher();
-            if (v.approvedBy() != null) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher is already approved.");
+            if (v.approvedBy() != null) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher was already approved, so there is nothing to approve. Reload the list to see where it stands; it can now be posted.");
             if (!d.problems().isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, String.join(" ", d.problems()));
             boolean alone = single.has(auth.getName());
             if (v.encodedBy() == p.id() && !alone) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You encoded this voucher, so someone else must approve it.");
@@ -115,7 +117,7 @@ class LoanReleaseController {
             Detail d = load(p.branch(), year, controlNo, true);
             Voucher v = d.voucher();
             if (!d.problems().isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, String.join(" ", d.problems()));
-            if (v.approvedBy() == null) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher has not been approved yet.");
+            if (v.approvedBy() == null) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher cannot be posted yet because nobody has approved it. Another person with the right to approve vouchers must approve it first.");
             if ((v.approvedBy() == p.id() || v.encodedBy() == p.id()) && !single.has(auth.getName())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "The person who encoded or approved a release voucher cannot post it.");
             }
@@ -166,7 +168,7 @@ class LoanReleaseController {
     private Detail load(int branch, int year, long ctl, boolean lock) {
         List<Voucher> found = jdbc.query(VOUCHER_SQL + " WHERE s.TR_BRCODE = ? AND s.TR_YEAR = ? AND s.TR_MODULE = ? AND s.TR_CODE = ? AND s.TR_CTLNO = ?",
             (rs, i) -> voucher(rs), branch, year, MODULE, CODE, ctl);
-        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such voucher.");
+        if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That voucher was not found. It may have been cancelled or the number mistyped: reload the list and open it from there.");
         List<Line> lines = jdbc.query("""
                 SELECT DTSEQ_NO, DTACCT_CODE, DTSLC_CODE, DTSLT_CODE, DTREF_NO, DTSLE_CODE, DTCTS_NUM, DTAMT, COALESCE(DTDEPT, 0)
                 FROM transdt WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTTR_CTLNO = ? ORDER BY DTSEQ_NO
@@ -186,7 +188,7 @@ class LoanReleaseController {
         if (lines.stream().map(Line::amount).reduce(BigDecimal.ZERO, BigDecimal::add).signum() != 0) problems.add("The voucher does not balance.");
         if (lines.stream().noneMatch((l) -> l.slc() != null && ((l.slc() == 12 || l.slc() == 24 || l.slc() == 31) && l.event() != null && l.event() == 11 || l.slc() == 24 && l.event() != null && l.event() == 71) && l.amount().signum() > 0)) problems.add("This is not a loan release, share withdrawal or time deposit voucher.");
         if (lines.stream().anyMatch((l) -> l.slc() != null && l.slc() > 0 && (l.slt() == null || l.refNo() == null || l.event() == null))) problems.add("A line has an incomplete ledger account.");
-        if (v.clientId() <= 0) problems.add("The voucher has no client.");
+        if (v.clientId() <= 0) problems.add("The voucher has no member.");
         Integer cancelled = jdbc.queryForObject("SELECT COUNT(*) FROM loanapp WHERE BR_CODE = ? AND TR_CODE = ? AND TR_CTLNO = ? AND STATUSID = 5 AND APPRV_DATE >= ? AND APPRV_DATE < ?",
             Integer.class, branch, CODE, ctl, LocalDate.of(year, 1, 1), LocalDate.of(year + 1, 1, 1));
         if (cancelled != null && cancelled > 0 && !"POSTED".equals(v.status())) problems.add("The loan application for this voucher was cancelled, so the voucher cannot be approved or posted.");

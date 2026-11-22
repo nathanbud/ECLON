@@ -156,7 +156,7 @@ public class ConnectionController {
     @PreAuthorize("hasRole('SUPERADMIN')")
     public Row update(@PathVariable String id, @RequestBody In in, Authentication auth) {
         if (ConnectionStore.STARTUP_ID.equals(id)) throw bad("The server's startup setting cannot be changed here. Save a connection of your own instead.");
-        DbConnection before = store.find(id).orElseThrow(() -> notFound("There is no such connection."));
+        DbConnection before = store.find(id).orElseThrow(() -> notFound("That saved connection was not found; it may have been removed. Reload the list of connections and choose again."));
         DbConnection saved = store.update(id, checked(in, id));
         audit(auth, "connection.update", id, describe(before), describe(saved), null);
         return row(saved);
@@ -166,7 +166,7 @@ public class ConnectionController {
     @PreAuthorize("hasRole('SUPERADMIN')")
     public void delete(@PathVariable String id, Authentication auth) {
         if (ConnectionStore.STARTUP_ID.equals(id)) throw bad("The server's startup setting cannot be deleted.");
-        DbConnection c = store.find(id).orElseThrow(() -> notFound("There is no such connection."));
+        DbConnection c = store.find(id).orElseThrow(() -> notFound("That saved connection was not found; it may have been removed. Reload the list of connections and choose again."));
         if (id.equals(dataSource.activeId())) throw conflict("This connection is in use now. Switch to another one first.");
         store.remove(id);
         audit(auth, "connection.delete", id, describe(c), null, null);
@@ -176,7 +176,7 @@ public class ConnectionController {
     @PostMapping("/api/admin/connections/{id}/activate")
     @PreAuthorize("hasRole('SUPERADMIN')")
     public PublicList activate(@PathVariable String id, Authentication auth) {
-        DbConnection target = ConnectionStore.STARTUP_ID.equals(id) ? ConnectionRules.fromStartupUrl(startupUrl) : store.find(id).orElseThrow(() -> notFound("There is no such connection."));
+        DbConnection target = ConnectionStore.STARTUP_ID.equals(id) ? ConnectionRules.fromStartupUrl(startupUrl) : store.find(id).orElseThrow(() -> notFound("That saved connection was not found; it may have been removed. Reload the list of connections and choose again."));
         String before = describeActive();
         if (id.equals(dataSource.activeId())) return publicList();
         Probe p = probe(target.host(), target.port(), target.dbName());

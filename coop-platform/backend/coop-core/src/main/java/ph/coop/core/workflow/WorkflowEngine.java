@@ -155,7 +155,7 @@ public class WorkflowEngine {
         String problem = WorkflowRules.segregationProblem(r.requestedBy(), earlier, actor);
         if (problem != null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, problem);
         String clean = note == null || note.isBlank() ? null : note.trim();
-        if (clean != null && clean.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long (255 characters at most).");
+        if (clean != null && clean.length() > 255) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The note is too long: it can have at most 255 characters. Shorten it and try again.");
         if (!approve) {
             if (clean == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Say why it is turned down.");
             action(r.id(), step.no(), step.name(), actor, "REJECTED", clean);

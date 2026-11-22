@@ -1,21 +1,18 @@
 import { LIGHT } from './glass'
-import { Badge, Box, IconButton, Tooltip, Typography } from '@mui/material'
+import { Badge, Box, IconButton, Tooltip, Typography, alpha, type Theme } from '@mui/material'
 import { useEffect, useState } from 'react'
-import { FiChevronRight, FiHome, FiMoon, FiMonitor, FiPower, FiSun } from 'react-icons/fi'
+import { FiChevronRight, FiHome, FiPower } from 'react-icons/fi'
 import { VscChromeClose, VscChromeMaximize, VscChromeMinimize, VscChromeRestore } from 'react-icons/vsc'
 import type { Id } from './clients'
 import type { View } from './Dashboard'
 import GlobalSearch from './GlobalSearch'
 import { signOut } from './api'
 import { useInboxCount } from './nav/SideNav'
-import { VoiceControl, type Handled } from './voice/VoiceControl'
 import { BusinessDayChip } from './BusinessDayChip'
 import { useMe } from './session'
-import { tileFill, useThemeMode, type ThemeMode } from './theme'
+import { tileFill } from './theme'
 import { ToolbarSlotTarget, useHasMenu } from './toolbarSlot'
-
-const order: ThemeMode[] = ['light', 'dark', 'system']
-const icons = { light: <FiSun />, dark: <FiMoon />, system: <FiMonitor /> }
+import { nameCase } from './ui/format'
 
 // Empty areas of the bar drag the window; interactive children are left out so they stay clickable.
 const drag = { 'data-tauri-drag-region': '' }
@@ -70,14 +67,37 @@ export function WindowControls() {
   }, [])
 
   if (!inTauri) return null
+  // The panel contrasts with the theme: near-black in the light theme, near-white in the dark one, with the icons in the opposite colour.
+  const panel = (t: Theme) => (t.palette.mode === 'dark' ? t.palette.grey[100] : t.palette.grey[900])
+  const ink = (t: Theme) => (t.palette.mode === 'dark' ? t.palette.grey[900] : t.palette.grey[50])
+  // The icons glow: white light on the dark panel; on the light panel (dark theme) a dark glow would read as a shadow, so it glows in the accent blue.
+  const glow = (t: Theme) => (t.palette.mode === 'dark' ? t.palette.primary.main : ink(t))
+  const halo = (c: string, strong: boolean) => `drop-shadow(0 0 ${strong ? 3 : 2}px ${alpha(c, strong ? 0.95 : 0.6)}) drop-shadow(0 0 ${strong ? 8 : 5}px ${alpha(c, strong ? 0.7 : 0.35)})`
   const btn = (label: string, onClick: () => void, icon: React.ReactNode, danger = false) => (
-    <IconButton aria-label={label} title={label} onClick={onClick} disableRipple sx={{
-      width: 46, height: 44, borderRadius: 0, color: 'inherit', fontSize: 15,
-      '&:hover': { bgcolor: danger ? '#C42B1C' : 'action.hover', color: danger ? '#fff' : undefined },
-    }}>{icon}</IconButton>
+    <IconButton aria-label={label} title={label} onClick={onClick} disableRipple sx={(t) => ({
+      width: 30, minWidth: 30, p: 0, height: 26, borderRadius: '6px', color: ink(t), fontSize: 13, opacity: 0.9,
+      transition: 'background-color 120ms ease, color 120ms ease, opacity 120ms ease, box-shadow 160ms ease',
+      '& svg': { filter: halo(glow(t), false), transition: 'filter 160ms ease' },
+      '&:hover svg, &.Mui-focusVisible svg': { filter: halo(danger ? t.palette.error.main : glow(t), true) },
+      '&:hover': {
+        opacity: 1, bgcolor: danger ? t.palette.error.main : alpha(ink(t), 0.16), color: danger ? t.palette.error.contrastText : undefined,
+        boxShadow: `0 0 10px ${alpha(danger ? t.palette.error.main : glow(t), 0.45)}`,
+      },
+      '&:active': { bgcolor: danger ? t.palette.error.dark : alpha(ink(t), 0.26) },
+      '&.Mui-focusVisible': { outline: `2px solid ${ink(t)}`, outlineOffset: -2 },
+    })}>{icon}</IconButton>
   )
+  // The three sit on that panel at the right end of the bar. Its left edge is an S-shaped curve (drawn as an SVG in the same colour),
+  // wider at the top and sweeping in to the bottom, so the panel meets the sign-out button with a bend instead of a hard line.
   return (
-    <Box sx={{ display: 'flex', ml: 0.5 }}>
+    <Box role="group" aria-label="Window" sx={(t) => ({
+      position: 'relative', display: 'flex', alignItems: 'center', height: 44, flexShrink: 0, gap: '2px', ml: '30px', pl: 0.25, pr: 0.75,
+      bgcolor: panel(t),
+    })}>
+      <Box component="svg" aria-hidden viewBox="0 0 28 44" preserveAspectRatio="none"
+        sx={(t) => ({ position: 'absolute', top: 0, left: -27, width: 28, height: '100%', color: panel(t), pointerEvents: 'none' })}>
+        <path d="M0 0 H28 V44 H18 C8 44 10 0 0 0 Z" fill="currentColor" />
+      </Box>
       {btn('Minimize', () => win?.minimize(), <VscChromeMinimize />)}
       {btn(maximized ? 'Restore' : 'Maximize', () => win?.toggleMaximize(), maximized ? <VscChromeRestore /> : <VscChromeMaximize />)}
       {btn('Close', () => win?.close(), <VscChromeClose />, true)}
@@ -85,16 +105,12 @@ export function WindowControls() {
   )
 }
 
-export default function TopBar({ title, onHome, onNavigate, onOpenClient, onMenu, menuOpen, onVoice }: {
+export default function TopBar({ title, onHome, onNavigate, onOpenClient, onMenu, menuOpen }: {
   title: string; onHome?: () => void; onNavigate: (v: View, tab?: string) => void; onOpenClient: (id: Id) => void; onMenu: () => void; menuOpen: boolean
-  /** Carries out a spoken sentence; without it there is no microphone button. */
-  onVoice?: (heard: string) => Handled
 }) {
-  const { mode, setMode } = useThemeMode()
   const hasMenu = useHasMenu()
   const me = useMe()
   const waiting = useInboxCount()
-  const next = order[(order.indexOf(mode) + 1) % order.length]
   return (
     <Box component="header" {...drag} sx={(t) => ({
       position: 'sticky', top: 0, zIndex: 10, display: 'grid', alignItems: 'center', gap: 1.5, pl: 1.75, pr: 0, height: 44,
@@ -126,17 +142,13 @@ export default function TopBar({ title, onHome, onNavigate, onOpenClient, onMenu
       {/* Centre: search for the whole app. */}
       <GlobalSearch onNavigate={onNavigate} onOpenClient={onOpenClient} />
 
-      {/* Right: clock, theme, session and window controls. */}
+      {/* Right: clock, session and window controls (the theme is chosen at the foot of the side menu). */}
       <Box {...drag} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5, minWidth: 0 }}>
         <BusinessDayChip onOpen={() => onNavigate('businessday')} />
         <Clock />
-        {onVoice && <VoiceControl handle={onVoice} />}
-        <Tooltip title={`Theme: ${mode} (switch to ${next})`}>
-          <IconButton aria-label={`Theme ${mode}, switch to ${next}`} onClick={() => setMode(next)} size="small" sx={flatIcon}>{icons[mode]}</IconButton>
-        </Tooltip>
-        <Typography {...drag} noWrap sx={{ fontSize: 12, opacity: 0.8, display: { xs: 'none', md: 'block' }, maxWidth: 160 }}>{me.name}</Typography>
-        <Tooltip title={`Sign out (${me.name})`}>
-          <IconButton aria-label={`Sign out ${me.name}`} size="small" sx={flatIcon} onClick={() => signOut()}><FiPower /></IconButton>
+        <Typography {...drag} noWrap sx={{ fontSize: 12, opacity: 0.8, display: { xs: 'none', md: 'block' }, maxWidth: 160 }}>{nameCase(me.name)}</Typography>
+        <Tooltip title={`Sign out (${nameCase(me.name)})`}>
+          <IconButton aria-label={`Sign out ${nameCase(me.name)}`} size="small" sx={flatIcon} onClick={() => signOut()}><FiPower /></IconButton>
         </Tooltip>
         <WindowControls />
       </Box>

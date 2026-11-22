@@ -19,7 +19,7 @@ export function SavingsTab({ id, teller = false }: { id: Id; teller?: boolean })
   const { data, error, isLoading } = useQuery({ queryKey: ['member-savings', id], queryFn: () => getSavings(id.branchCode, id.clientId), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
   if (isLoading) return <Skeleton variant="rounded" height={160} />
-  if (!data || data.accounts.length === 0) return <EmptyState icon={<FiInfo />} title="No savings" hint="This client has no savings accounts." />
+  if (!data || data.accounts.length === 0) return <EmptyState icon={<FiInfo />} title="No savings" hint="This member has no savings accounts." />
   const num = { fontVariantNumeric: 'tabular-nums' } as const
   const closedCount = data.accounts.filter((a) => a.status !== 15).length
   const shown = showClosed ? data.accounts : data.accounts.filter((a) => a.status === 15)

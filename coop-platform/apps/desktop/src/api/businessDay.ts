@@ -22,3 +22,9 @@ export const checkStartDay = (date: string) => getJson<StartCheck>(`/api/busines
 export const startDay = (date: string, confirmed: boolean) => send<BusinessDayState>('POST', '/api/business-day/start', { date, confirmed })
 export const endDay = (reason: string | null) => send<BusinessDayState>('POST', '/api/business-day/end', { reason })
 export const reopenDay = (reason: string) => send<BusinessDayState>('POST', '/api/business-day/reopen', { reason })
+
+/** One end-of-day job step: NOT RUN, DONE or FAILED (run again until done). */
+export interface DayJobStep { key: string; label: string; status: 'NOT RUN' | 'DONE' | 'FAILED'; attempts: number; finishedAt: string | null; result: string | null; error: string | null }
+export interface DayJobs { date: string; available: boolean; status: string; startedBy: string | null; finishedAt: string | null; steps: DayJobStep[] }
+export const getDayJobs = (date?: string) => getJson<DayJobs>(`/api/business-day/jobs${date ? `?date=${encodeURIComponent(date)}` : ''}`)
+export const runDayJobs = () => send<DayJobs>('POST', '/api/business-day/jobs/run')

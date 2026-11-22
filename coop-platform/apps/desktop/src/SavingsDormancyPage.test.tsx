@@ -59,7 +59,7 @@ describe('Savings dormancy', () => {
     const user = userEvent.setup()
     expect(screen.queryByRole('table', { name: 'Accounts due to go dormant' })).not.toBeInTheDocument()
     expect(review).not.toHaveBeenCalled()
-    await user.type(screen.getByPlaceholderText(/Client number/), '7')
+    await user.type(screen.getByPlaceholderText(/Member number/), '7')
     const table = await screen.findByRole('table', { name: 'Dormant accounts' })
     await user.click(await within(table).findByRole('button', { name: 'Reactivate' }))
     const dialog = await screen.findByRole('dialog')

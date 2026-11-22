@@ -34,7 +34,7 @@ export default function LoansTab({ branchCode, clientId }: { branchCode: number;
         </Box>
         <FormControlLabel control={<Switch size="small" checked={paid} onChange={(e) => setPaid(e.target.checked)} />} label="Show paid loans" />
       </Box>
-      {data && data.loans.length === 0 && <Alert severity="info">{paid ? 'This client has no loans.' : 'This client has no loans with a balance.'}</Alert>}
+      {data && data.loans.length === 0 && <Alert severity="info">{paid ? 'This member has no loans.' : 'This member has no loans with a balance.'}</Alert>}
       {data && data.loans.length > 0 && (
         <Table size="small" aria-label="Loans">
           <TableHead>

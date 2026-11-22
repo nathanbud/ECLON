@@ -1,13 +1,13 @@
 import { Box, Button, CircularProgress, TextField, Typography } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
-import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { restoreSession, signIn, signOut, SIGNED_OUT, type Me } from './api'
 import { appBackground } from './glass'
 import ChangePasswordScreen from './ChangePasswordScreen'
 import SignInPage from './SignInPage'
 import AccessWatcher from './AccessWatcher'
-
-const SessionCtx = createContext<Me | null>(null)
+import { SessionCtx } from './sessionContext'
+import { nameCase } from './ui/format'
 
 /** The signed-in person. Only available inside {@link SessionGate}. */
 export function useMe(): Me {
@@ -56,7 +56,7 @@ function LockScreen({ me, onUnlock }: { me: Me; onUnlock: () => void }) {
             boxShadow: '0 10px 30px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.35)',
           })}
         >{initials}</Box>
-        <Typography component="h1" sx={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>{me.name}</Typography>
+        <Typography component="h1" sx={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>{nameCase(me.name)}</Typography>
         <Typography sx={{ fontSize: 13, mt: 0.5, mb: 2.5 }} color="text.secondary">Locked after a while away. Nothing was lost.</Typography>
         <TextField
           type="password" label="Password" size="small" value={password} onChange={(e) => setPassword(e.target.value)} fullWidth autoFocus autoComplete="current-password"

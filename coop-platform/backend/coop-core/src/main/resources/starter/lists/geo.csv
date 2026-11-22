@@ -1,0 +1,510 @@
+geoid,geodesc,geobr_code,geoupduser,geoupddatetime,geocollchartid
+1,CAMP DANGWA,1,,,9
+2,LUBAS,1,,,9
+3,BSU,1,,,17
+4,BAGUIO,1,,,6
+5,BALILI,1,,,7
+6,BUYAGAN,1,,,8
+7,TAWANG,1,,,9
+8,WANGAL,1,,,8
+9,PICO,1,,,10
+10,BAHONG,1,,,9
+11,ITOGON,1,,,9
+12,CRUZ,1,,,10
+13,BSU BUGUIAS CAMPUS,1,,,16
+14,BSU BOKOD CAMPUS,1,,,15
+15,BUGUIAS,1,,,11
+16,TUBA,1,,,9
+17,KAPANGAN,1,,,8
+18,PUGUIS,1,,,8
+19,BETAG,1,,,10
+20,KIBUNGAN,1,,,8
+21,AMBIONG,1,,,9
+22,ATOK,1,,,8
+23,TUBLAY,1,,,8
+24,BUGUIAS LGU,1,,,16
+25,ALNO,1,,,9
+26,BOKOD,1,,,9
+27,SABLAN,1,,,9
+28,SHILAN,1,,,8
+29,BAYABAS,1,,,8
+30,ALAPANG,1,,,9
+31,BUGUIAS DEP-ED,1,,,16
+32,TOMAY,1,,,9
+33,MANKAYAN,1,,,11
+34,LONGLONG,1,,,8
+35,KESBENG,1,,,10
+36,BINENG,1,,,8
+37,BAKUN,1,,,8
+38,ABRA,1,,,8
+39,BAUKO,1,,,13
+40,ABATAN BAUKO,1,,,11
+41,SAGADA,1,,,13
+42,ABATAN,1,,,16
+43,LENGAOAN,1,,,5
+44,BACULONGAN SUR,1,,,5
+45,MANKAYAN LGU,1,,,16
+46,SABANGAN,1,,,13
+47,POBLACION-BUYAGAN,1,,,10
+48,BOKOD LGU,1,,,17
+49,BECKEL,1,,,8
+50,BONTOC,1,,,13
+51,LA UNION,1,,,8
+52,BAUKO LGU,1,,,18
+53,KABAYAN,1,,,9
+54,DPWH NATUBLENG,1,,,16
+55,SISAI SAN ISIDRO,1,,,16
+56,BESAO MOUNTAIN PROVINCE,1,,,13
+57,ILOCOS,1,,,8
+58,ITOGON - LGU,1,,,15
+59,KALINGA,1,,,8
+60,DPWH WANGAL,1,,,17
+61,IFUGAO,1,,,13
+62,BUYACAOAN,1,,,5
+63,LOO,1,,,5
+64,BANGAO,1,,,5
+65,GUINAOANG,1,,,5
+66,TANEG,1,,,13
+67,CATLUBONG,1,,,5
+68,BACULONGAN NORTE,1,,,5
+69,TABIO,1,,,5
+70,POBLACION-BUGUIAS,1,,,16
+71,AMGALEYGUEY,1,,,5
+72,LOAKAN,1,,,6
+73,PANGASINAN,1,,,9
+74,NUEVA VIZCAYA,1,,,8
+75,ATM BAUKO,1,,,18
+76,APAYAO,1,,,13
+77,NATUBLENG,1,,,5
+78,ALEJO ITOGON,1,,,9
+79,"BESAO, MOUNTAIN PROVINCE",1,,,13
+80,POBLACION,1,,,10
+81,LA TRINIDAD,1,,,8
+82,QUIRINO HILL,1,,,6
+83,GIBRALTAR,1,,,6
+84,AURORA HILL,1,,,6
+85,CDA- CAR,1,,,15
+86,SLU PACDAL,1,,,15
+87,DA-CAR,1,,,15
+88,CERVANTES,1,,,11
+89,BSU BUGUIAS,1,,,16
+90,ATM DEP-ED,1,,,16
+91,BSU S.D,1,,,17
+92,BSU BOKOD SD,1,,,17
+94,BCS- BAUKO,1,,,18
+95,ATM LUIS HORA,1,,,18
+96,PANGASINAN,1,,,8
+99,Default,1,,,1
+101,BAG - A. Bonifacio-Caguioa-Rimando,1,,,10
+102,BAG - Abanao-Zandueta-Kayong-Chugum-Otek,1,,,10
+103,BAG - Alfonso Tabora,1,,,10
+104,BAG - Ambiong,1,,,10
+105,BAG - Andres Bonifacio,1,,,10
+106,BAG - Apugan-Loakan,1,,,10
+107,BAG - Asin Road,1,,,10
+108,BAG - Atok Trail,1,,,10
+109,BAG - Aurora Hill Proper,1,,,10
+110,"BAG - Aurora Hill, North Central",1,,,10
+111,"BAG - Aurora Hill, South Central",1,,,10
+112,BAG - Bagong Lipunan,1,,,10
+113,BAG - Bakakeng Central,1,,,10
+114,BAG - Bakakeng North,1,,,10
+115,BAG - Bal-Marcoville,1,,,10
+116,BAG - Balsigan,1,,,10
+117,BAG - Bayan Park East,1,,,10
+118,BAG - Bayan Park Village,1,,,10
+119,BAG - Bayan Park West,1,,,10
+120,BAG - BGH Compound,1,,,10
+121,BAG - Brookside,1,,,10
+122,BAG - Brookspoint,1,,,10
+123,BAG - Cabinet Hill-Teacher's Camp,1,,,10
+124,BAG - Camdas Subdivision,1,,,10
+125,BAG - Camp 7,1,,,10
+126,BAG - Camp 8,1,,,10
+127,BAG - Camp Allen,1,,,10
+128,BAG - Campo Filipino,1,,,10
+129,BAG - City Camp Central,1,,,10
+130,BAG - City Camp Proper,1,,,10
+131,BAG - Country Club Village,1,,,10
+132,BAG - Cresencia Village,1,,,10
+133,"BAG - Dagsian, Lower",1,,,10
+134,"BAG - Dagsian, Upper",1,,,10
+135,BAG - Dizon Subdivision,1,,,10
+136,BAG - Dominican Hill-Mirador,1,,,10
+137,BAG - Dontogan,1,,,10
+138,BAG - DPS Area,1,,,10
+139,BAG - Engineers' Hill,1,,,10
+140,BAG - Fairview Village,1,,,10
+141,BAG - Ferdinand,1,,,10
+142,BAG - Fort del Pilar,1,,,10
+143,BAG - Gabriela Silang,1,,,10
+144,BAG - General Emilio F. Aguinaldo,1,,,10
+145,"BAG - General Luna, Lower",1,,,10
+146,"BAG - General Luna, Upper",1,,,10
+147,BAG - Gibraltar,1,,,10
+148,BAG - Greenwater Village,1,,,10
+149,BAG - Guisad Central,1,,,10
+150,BAG - Guisad Sorong,1,,,10
+151,BAG - Happy Hollow,1,,,10
+152,BAG - Happy Homes,1,,,10
+153,BAG - Harrison-Claudio Carantes,1,,,10
+154,BAG - Hillside,1,,,10
+155,BAG - Holy Ghost Extension,1,,,10
+156,BAG - Holy Ghost Proper,1,,,10
+157,BAG - Honeymoon,1,,,10
+158,BAG - Imelda R. Marcos,1,,,10
+159,BAG - Imelda Village,1,,,10
+160,BAG - Irisan,1,,,10
+161,BAG - Kabayanihan,1,,,10
+162,BAG - Kagitingan,1,,,10
+163,BAG - Kayang Extension,1,,,10
+164,BAG - Kayang-Hilltop,1,,,10
+165,BAG - Kias,1,,,10
+166,BAG - Legarda-Burnham-Kisad,1,,,10
+167,BAG - Liwanag-Loakan,1,,,10
+168,BAG - Loakan Proper,1,,,10
+169,BAG - Lopez Jaena,1,,,10
+170,BAG - Lourdes Subdivision Extension,1,,,10
+171,"BAG - Lourdes Subdivision, Lower",1,,,10
+172,"BAG - Lourdes Subdivision, Proper",1,,,10
+173,BAG - Lualhati,1,,,10
+174,BAG - Lucnab,1,,,10
+175,BAG - Magsaysay Private Road,1,,,10
+176,"BAG - Magsaysay, Lower",1,,,10
+177,"BAG - Magsaysay, Upper",1,,,10
+178,BAG - Malcolm Square-Perfecto,1,,,10
+179,BAG - Manuel A. Roxas,1,,,10
+180,"BAG - Market Subdivision, Upper",1,,,10
+181,BAG - Middle Quezon Hill Subdivision,1,,,10
+182,BAG - Military Cut-off,1,,,10
+183,BAG - Mines View Park,1,,,10
+184,"BAG - Modern Site, East",1,,,10
+185,"BAG - Modern Site, West",1,,,10
+186,BAG - MRR-Queen of Peace,1,,,10
+187,BAG - New Lucban,1,,,10
+188,BAG - Outlook Drive,1,,,10
+189,BAG - Pacdal,1,,,10
+190,BAG - Padre Burgos,1,,,10
+191,BAG - Padre Zamora,1,,,10
+192,BAG - Palma-Urbano,1,,,10
+193,BAG - Phil-Am,1,,,10
+194,BAG - Pinget,1,,,10
+195,BAG - Pinsao Pilot Project,1,,,10
+196,BAG - Pinsao Proper,1,,,10
+197,BAG - Poliwes,1,,,10
+198,BAG - Pucsusan,1,,,10
+199,BAG - Quezon Hill Proper,1,,,10
+200,"BAG - Quezon Hill, Upper",1,,,10
+201,"BAG - Quirino Hill, East",1,,,10
+202,"BAG - Quirino Hill, Lower",1,,,10
+203,"BAG - Quirino Hill, Middle",1,,,10
+204,"BAG - Quirino Hill, West",1,,,10
+205,"BAG - Quirino-Magsaysay, Upper",1,,,10
+206,BAG - Rizal Monument Area,1,,,10
+207,"BAG - Rock Quarry, Lower",1,,,10
+208,"BAG - Rock Quarry, Middle",1,,,10
+209,"BAG - Rock Quarry, Upper",1,,,10
+210,BAG - Saint Joseph Village,1,,,10
+211,BAG - Salud Mitra,1,,,10
+212,BAG - San Antonio Village,1,,,10
+213,BAG - San Luis Village,1,,,10
+214,BAG - San Roque Village,1,,,10
+215,BAG - San Vicente,1,,,10
+216,"BAG - Sanitary Camp, North",1,,,10
+217,"BAG - Sanitary Camp, South",1,,,10
+218,BAG - Santa Escolastica,1,,,10
+219,BAG - Santo Rosario,1,,,10
+220,BAG - Santo Tomas Proper,1,,,10
+221,BAG - Santo Tomas School Area,1,,,10
+222,BAG - Scout Barrio,1,,,10
+223,BAG - Session Road Area,1,,,10
+224,BAG - Slaughter House Area,1,,,10
+225,BAG - SLU-SVP Housing Village,1,,,10
+226,BAG - South Drive,1,,,10
+227,BAG - Teodora Alonzo,1,,,10
+228,BAG - Trancoville,1,,,10
+229,BAG - Victoria Village,1,,,10
+230,BAU - Abatan,1,,,13
+231,BAU - Bagnen Oriente,1,,,13
+232,BAU - Bagnen Proper,1,,,13
+233,BAU - Balintaugan,1,,,13
+234,BAU - Banao,1,,,13
+235,BAU - Bila,1,,,13
+236,BAU - Guinzadan Central,1,,,13
+237,BAU - Guinzadan Norte,1,,,13
+238,BAU - Guinzadan Sur,1,,,13
+239,BAU - Lagawa,1,,,13
+240,BAU - Leseb,1,,,3
+241,BAU - Mabaay,1,,,3
+242,BAU - Mayag,1,,,13
+243,BAU - Monamon Norte,1,,,3
+244,BAU - Monamon Sur,1,,,3
+245,BAU - Mount Data,1,,,3
+246,BAU - Otucan Norte,1,,,13
+247,BAU - Otucan Sur,1,,,13
+248,BAU - Poblacion,1,,,13
+249,BAU - Sadsadan,1,,,3
+250,BAU - Sinto,1,,,3
+251,BAU - Tapapan,1,,,3
+252,BUG - Abatan,1,,,14
+253,BUG - Amgaleyguey,1,,,14
+254,BUG - Amlimay,1,,,14
+255,BUG - Baculongan Norte,1,,,12
+256,BUG - Baculongan Sur,1,,,12
+257,BUG - Bangao,1,,,12
+258,BUG - Buyacaoan,1,,,12
+259,BUG - Calamagan,1,,,14
+260,BUG - Catlubong,1,,,14
+261,BUG - Lengaoan,1,,,14
+262,BUG - Loo,1,,,12
+263,BUG - Natubleng,1,,,14
+264,BUG - Poblacion,1,,,14
+265,BUG - Sebang,1,,,14
+266,LTB - Alapang,1,,,6
+267,LTB - Alno,1,,,6
+268,LTB - Ambiong,1,,,9
+269,LTB - Bahong,1,,,6
+270,LTB - Balili,1,,,20
+271,LTB - Beckel,1,,,9
+272,LTB - Betag,1,,,2
+273,LTB - Bineng,1,,,8
+274,LTB - Cruz,1,,,2
+275,LTB - Lubas,1,,,7
+276,LTB - Pico,1,,,2
+277,LTB - Poblacion,1,,,8
+278,LTB - Puguis,1,,,8
+279,LTB - Shilan,1,,,6
+280,LTB - Tawang,1,,,7
+281,LTB - Wangal,1,,,8
+282,ITO - Ampucao,1,,,9
+283,ITO - Dalupirip,1,,,9
+284,ITO - Gumatdang,1,,,9
+285,ITO - Loacan,1,,,9
+286,ITO - Poblacion,1,,,9
+287,ITO - Tinongdan,1,,,9
+288,ITO - Tuding,1,,,9
+289,ITO - Ucab,1,,,9
+290,ITO - Virac,1,,,9
+291,TBY - Ambassador,1,,,6
+292,TBY - Ambongdolan,1,,,6
+293,TBY - Ba-ayan,1,,,6
+294,TBY - Basil,1,,,6
+295,TBY - Caponga,1,,,6
+296,TBY - Daclan,1,,,6
+297,TBY - Tublay Central,1,,,6
+298,TBY - Tuel,1,,,6
+299,SBN - Bagong,1,,,9
+301,SBN - Balluay,1,,,9
+302,SBN - Banangan,1,,,9
+303,SBN - Banengbeng,1,,,9
+304,SBN - Bayabas,1,,,9
+305,SBN - Kamog,1,,,9
+306,SBN - Pappa,1,,,9
+307,SBN - Poblacion,1,,,9
+308,TBA - Ansagan,1,,,9
+309,TBA - Camp 3,1,,,9
+310,TBA - Camp 4,1,,,9
+311,TBA - Camp One,1,,,9
+312,TBA - Nangalisan,1,,,9
+313,TBA - Poblacion,1,,,9
+314,TBA - San Pascual,1,,,9
+315,TBA - Tabaan Norte,1,,,9
+316,TBA - Tabaan Sur,1,,,9
+317,TBA - Tadiangan,1,,,9
+318,TBA - Taloy Norte,1,,,9
+319,TBA - Taloy Sur,1,,,9
+320,TBA - Twin Peaks,1,,,9
+321,ATK - Abiang,1,,,8
+322,ATK - Caliking,1,,,8
+323,ATK - Cattubo,1,,,8
+324,ATK - Naguey,1,,,8
+325,ATK - Paoay,1,,,8
+326,ATK - Pasdong,1,,,8
+327,ATK - Poblacion,1,,,8
+328,ATK - Topdac,1,,,8
+329,BAK - Ampusongan,1,,,8
+330,BAK - Bagu,1,,,8
+331,BAK - Dalipey,1,,,8
+332,BAK - Gambang,1,,,8
+333,BAK - Kayapa,1,,,8
+334,BAK - Poblacion,1,,,8
+335,BAK - Sinacbat,1,,,8
+336,BOK - Ambuclao,1,,,9
+337,BOK - Bila,1,,,9
+338,BOK - Bobok-Bisal,1,,,9
+339,BOK - Daclan,1,,,9
+340,BOK - Ekip,1,,,9
+341,BOK - Karao,1,,,9
+342,BOK - Nawal,1,,,9
+343,BOK - Pito,1,,,9
+344,BOK - Poblacion,1,,,9
+345,BOK - Tikey,1,,,9
+346,KAB - Adaoay,1,,,9
+347,KAB - Anchukey,1,,,9
+348,KAB - Ballay,1,,,9
+349,KAB - Bashoy,1,,,9
+350,KAB - Batan,1,,,9
+351,KAB - Duacan,1,,,9
+352,KAB - Eddet,1,,,9
+353,KAB - Gusaran,1,,,9
+354,KAB - Kabayan Barrio,1,,,9
+355,KAB - Lusod,1,,,9
+356,KAB - Pacso,1,,,9
+357,KAB - Poblacion,1,,,9
+358,KAB - Tawangan,1,,,9
+359,KAP - Balakbak,1,,,8
+360,KAP - Beleng-Belis,1,,,8
+361,KAP - Boklaoan,1,,,8
+362,KAP - Cayapes,1,,,8
+363,KAP - Cuba,1,,,8
+364,KAP - Datakan,1,,,8
+365,KAP - Gadang,1,,,8
+366,KAP - Gaswiling,1,,,8
+367,KAP - Labueg,1,,,8
+368,KAP - Paykek,1,,,8
+369,KAP - Poblacion Central,1,,,8
+370,KAP - Pongayan,1,,,8
+371,KAP - Pudong,1,,,8
+372,KAP - Sagubo,1,,,8
+373,KAP - Taba-ao,1,,,8
+374,KIB - Badeo,1,,,8
+375,KIB - Lubo,1,,,8
+376,KIB - Madaymen,1,,,8
+377,KIB - Palina,1,,,8
+378,KIB - Poblacion,1,,,8
+379,KIB - Sagpat,1,,,8
+380,KIB - Tacadang,1,,,8
+381,MAN - Balili,1,,,12
+382,MAN - Bedbed,1,,,12
+383,MAN - Bulalacao,1,,,12
+384,MAN - Cabiten,1,,,12
+385,MAN - Colalo,1,,,12
+386,MAN - Guinaoang,1,,,12
+387,MAN - Paco,1,,,12
+388,MAN - Palasaan,1,,,12
+389,MAN - Poblacion,1,,,12
+390,MAN - Sapid,1,,,12
+391,MAN - Tabio,1,,,12
+392,MAN - Taneg,1,,,12
+393,BAR - Chupac,1,,,1
+394,BAR - Fiangtin,1,,,
+395,BAR - Gawana,1,,,
+396,BAR - Kaleo,1,,,
+397,BAR - Latang,1,,,
+398,BAR - Lias Kanluran,1,,,
+399,BAR - Lias Silangan,1,,,
+400,BAR - Lingoy,1,,,
+401,BAR - Lunas,1,,,
+402,BAR - Macalana,1,,,
+403,BAR - Ogoog,1,,,
+404,BES - Agawa,1,,,
+405,BES - Ambaguio,1,,,
+406,BES - Banguitan,1,,,
+407,BES - Besao East,1,,,
+408,BES - Besao West,1,,,
+409,BES - Catengan,1,,,
+410,BES - Gueday,1,,,
+411,BES - Kin-iway,1,,,
+412,BES - Lacmaan,1,,,
+413,BES - Laylaya,1,,,
+414,BES - Padangan,1,,,
+415,BES - Payeo,1,,,
+416,BES - Suquib,1,,,
+417,BES - Tamboan,1,,,
+418,BON - Alab Oriente,1,,,13
+419,BON - Alab Proper,1,,,13
+420,BON - Balili,1,,,13
+421,BON - Bayyo,1,,,13
+422,BON - Bontoc Ili,1,,,13
+423,BON - Calutit,1,,,13
+424,BON - Caneo,1,,,13
+425,BON - Dalican,1,,,13
+426,BON - Gonogon,1,,,13
+427,BON - Guinaang,1,,,13
+428,BON - Mainit,1,,,13
+429,BON - Maligcong,1,,,13
+430,BON - Poblacion,1,,,13
+431,BON - Samoki,1,,,13
+432,BON - Talubin,1,,,13
+433,BON - Tocucan,1,,,13
+434,NAT - Alunogan,1,,,13
+435,NAT - Balangao,1,,,13
+436,NAT - Banao,1,,,13
+437,NAT - Banawal,1,,,
+438,NAT - Butac,1,,,
+439,NAT - Maducayan,1,,,
+440,NAT - Poblacion,1,,,
+441,NAT - Pudo,1,,,
+442,NAT - Saliok,1,,,
+443,NAT - Santa Isabel,1,,,
+444,NAT - Tonglayan,1,,,
+445,PAR - Anonat,1,,,
+446,PAR - Bacarni,1,,,
+447,PAR - Bananao,1,,,
+448,PAR - Bantay,1,,,
+449,PAR - Bunot,1,,,
+450,PAR - Buringal,1,,,
+451,PAR - Butigue,1,,,
+452,PAR - Palitod,1,,,
+453,PAR - Poblacion,1,,,
+454,SAB - Bao-angan,1,,,3
+455,SAB - Bun-ayan,1,,,3
+456,SAB - Busa,1,,,3
+457,SAB - Camatagan,1,,,3
+458,SAB - Capinitan,1,,,3
+459,SAB - Data,1,,,3
+460,SAB - Gayang,1,,,3
+461,SAB - Lagan,1,,,3
+462,SAB - Losad,1,,,3
+463,SAB - Namatec,1,,,3
+464,SAB - Napua,1,,,3
+465,SAB - Pingad,1,,,3
+466,SAB - Poblacion,1,,,3
+467,SAB - Supang,1,,,3
+468,SAB - Tambingan,1,,,3
+469,SAD - Anabel,1,,,
+470,SAD - Bekigan,1,,,
+471,SAD - Belwang,1,,,
+472,SAD - Betwagan,1,,,
+473,SAD - Demang,1,,,
+474,SAD - Poblacion,1,,,
+475,SAD - Sacasacan,1,,,
+476,SAD - Saclit,1,,,
+477,SAG - Aguid,1,,,13
+478,SAG - Ambasing,1,,,13
+479,SAG - Angkeling,1,,,13
+480,SAG - Antadao,1,,,13
+481,SAG - Balugan,1,,,13
+482,SAG - Bangaan,1,,,13
+483,SAG - Dagdag,1,,,13
+484,SAG - Demang,1,,,13
+485,SAG - Fidelisan,1,,,13
+486,SAG - Kilong,1,,,13
+487,SAG - Madongo,1,,,13
+488,SAG - Nacagang,1,,,13
+489,SAG - Pide,1,,,13
+490,SAG - Poblacion,1,,,13
+491,SAG - Suyo,1,,,13
+492,SAG - Taccong,1,,,13
+493,SAG - Tanulong,1,,,13
+494,SAG - Tetepan Norte,1,,,13
+495,SAG - Tetepan Sur,1,,,13
+496,TAD - Balaoa,1,,,13
+497,TAD - Banaao,1,,,13
+498,TAD - Bantey,1,,,13
+499,TAD - Batayan,1,,,13
+500,TAD - Bunga,1,,,13
+501,TAD - Cadad-anan,1,,,13
+502,TAD - Cagubatan,1,,,13
+503,TAD - Dacudac,1,,,13
+504,TAD - Duagan,1,,,13
+505,TAD - Kayan East,1,,,13
+506,TAD - Kayan West,1,,,13
+507,TAD - Lenga,1,,,13
+508,TAD - Lubon,1,,,13
+509,TAD - Mabalite,1,,,13
+510,TAD - Masla,1,,,13
+511,TAD - Pandayan,1,,,13
+512,TAD - Poblacion,1,,,13
+513,TAD - Sumadel,1,,,13
+514,TAD - Tue,1,,,13

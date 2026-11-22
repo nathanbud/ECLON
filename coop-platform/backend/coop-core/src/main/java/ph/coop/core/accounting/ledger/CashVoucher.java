@@ -12,13 +12,22 @@ import java.util.List;
  * @param receipt     money in (true) or out
  * @param receiptNo   a receipt number typed at the window (already checked), or blank for the next number
  * @param confirmDuplicate  false: refused when the same client had one of these in the last minute (the teller confirms to post it anyway)
+ * @param clientId    the member, or 0 for money from or to someone who is not one (an other receipt: rent, a collection); then {@code payorName} names them
+ * @param payorName   who paid or was paid when there is no member (the old header's CLIENTNAME); null otherwise
  */
 public record CashVoucher(String requestKey, String username, int branch, int module, int code, boolean receipt, int clientId, String explanation,
-                          String receiptNo, boolean confirmDuplicate, Teller teller, List<MemberLine> lines, List<Cheque> cheques, String auditAction, String auditDetail) {
+                          String receiptNo, boolean confirmDuplicate, Teller teller, List<MemberLine> lines, List<Cheque> cheques, String auditAction, String auditDetail,
+                          String payorName) {
 
     public CashVoucher {
         lines = List.copyOf(lines);
         cheques = cheques == null ? List.of() : List.copyOf(cheques);
+    }
+
+    /** A voucher for a member (no payor name). */
+    public CashVoucher(String requestKey, String username, int branch, int module, int code, boolean receipt, int clientId, String explanation,
+                       String receiptNo, boolean confirmDuplicate, Teller teller, List<MemberLine> lines, List<Cheque> cheques, String auditAction, String auditDetail) {
+        this(requestKey, username, branch, module, code, receipt, clientId, explanation, receiptNo, confirmDuplicate, teller, lines, cheques, auditAction, auditDetail, null);
     }
 
     /** The teller or cashier posting it: their old-system id, department and drawer (event 52 cashier or 53 teller, its number, its cash and cheque accounts). */

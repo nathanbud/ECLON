@@ -1,8 +1,10 @@
-import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Stack, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { DatabaseChangeNotice } from './DatabaseChangeNotice'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiAlertTriangle, FiCheckCircle, FiInfo, FiXCircle } from 'react-icons/fi'
-import { checkStartDay, endDay, getBusinessDay, reopenDay, startDay, type BusinessDayState, type DayCheck } from './api'
+import { checkStartDay, endDay, getBusinessDay, getDayJobs, getDrawerOpen, reopenDay, runDayJobs, setDrawerOpenPolicy, startDay, type BusinessDayState, type DayCheck, type DayJobs } from './api'
+import { useMe } from './session'
 import { listTable, PageTitle, SectionLabel, Surface } from './appleUi'
 import { appBackground } from './glass'
 import { ConfirmButton, ReasonDialog } from './ui/dialogs'
@@ -105,9 +107,87 @@ function EndPanel({ s }: { s: BusinessDayState }) {
       <ConfirmButton variant="contained" color={failing.length > 0 ? 'warning' : 'primary'} disabled={!ready || end.isPending} title="End the business day"
         message={<>Close <b>{s.open?.words}</b>. Nothing more can be posted on it, and nothing can be posted at all until the next day is started. Only an administrator can reopen it.{failing.length > 0 && <> It closes with {failing.length === 1 ? 'a check' : 'checks'} failing, for the reason given.</>}</>}
         onConfirm={() => end.mutate()}>
-        End Day
+        {end.isPending ? 'Running the jobs and ending…' : 'End Day'}
       </ConfirmButton>
       {end.error && <Alert severity="error" sx={{ mt: 1.5 }}>{(end.error as Error).message}</Alert>}
+    </Box>
+  )
+}
+
+/**
+ * The end-of-day jobs of the open day (balance snapshot, loan aging and penalties, time deposit maturities, interest accruals due, cheques past their
+ * clearing day). End Day runs them by itself before closing; they can be run earlier here. A step that failed is tried again on the next run; the
+ * steps that read the day are done again at End Day so they see the whole day.
+ */
+function JobsPanel({ s }: { s: BusinessDayState }) {
+  const qc = useQueryClient()
+  const q = useQuery({ queryKey: ['business-day-jobs', s.open?.date], queryFn: () => getDayJobs(s.open?.date), retry: false })
+  const run = useMutation({
+    meta: { done: (r: unknown) => ((r as DayJobs).status === 'FAILED' ? 'The end-of-day jobs ran; a step failed and is tried again on the next run.' : 'The end-of-day jobs ran.') },
+    mutationFn: runDayJobs,
+    onSuccess: (r) => { qc.setQueryData(['business-day-jobs', s.open?.date], r); void qc.invalidateQueries({ queryKey: ['business-day'] }) },
+  })
+  const j = q.data
+  if (q.isLoading || !j) return <LoadingBlock q={q} what="the end-of-day jobs" />
+  if (!j.available) return <DatabaseChangeNotice>The end-of-day jobs are not set up in this database yet.</DatabaseChangeNotice>
+  return (
+    <Box>
+      <Box component="ul" aria-label="End-of-day jobs" sx={{ listStyle: 'none', m: 0, p: 0 }}>
+        {j.steps.map((st) => {
+          const done = st.status === 'DONE', failed = st.status === 'FAILED'
+          return (
+            <Box component="li" key={st.key} aria-label={`${st.label}: ${st.status.toLowerCase()}`}
+              sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start', py: 1, px: 1.5, borderTop: 1, borderColor: 'divider', '&:first-of-type': { borderTop: 0 } }}>
+              <Box component="span" aria-hidden sx={{ color: done ? 'success.main' : failed ? 'error.main' : 'text.secondary', fontSize: 17, mt: '1px', flex: 'none' }}>
+                {done ? <FiCheckCircle /> : failed ? <FiXCircle /> : <FiInfo />}
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                  {st.label}
+                  <Typography component="span" sx={{ fontSize: 12, fontWeight: 400, ml: 1 }} color="text.secondary">
+                    {done ? `done ${st.finishedAt ?? ''}` : failed ? `failed (${st.attempts} ${st.attempts === 1 ? 'try' : 'tries'})` : 'not run yet'}
+                  </Typography>
+                </Typography>
+                {(st.error ?? st.result) && <Typography sx={{ fontSize: 12 }} color={failed ? 'error' : 'text.secondary'}>{st.error ?? st.result}</Typography>}
+              </Box>
+            </Box>
+          )
+        })}
+      </Box>
+      <Box sx={{ px: 2, pb: 1.5, pt: 0.5, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+        {s.mayEnd && <Button size="small" variant="outlined" disabled={run.isPending} onClick={() => run.mutate()}>{run.isPending ? 'Running… (this can take a minute)' : 'Run the jobs now'}</Button>}
+        <Typography sx={{ fontSize: 12 }} color="text.secondary">End Day runs them by itself before it closes the day. Nothing is posted by them except the interest runs that fall due, which wait for approval.</Typography>
+      </Box>
+      {run.error && <Alert severity="error" sx={{ mx: 2, mb: 1.5 }}>{(run.error as Error).message}</Alert>}
+    </Box>
+  )
+}
+
+/** Whether tellers and cashiers must count their drawer at the start of the day before taking or paying out cash (administrators change it). */
+function DrawerRule() {
+  const qc = useQueryClient()
+  const me = useMe()
+  const admin = me.admin
+  const q = useQuery({ queryKey: ['drawer-open'], queryFn: getDrawerOpen, retry: false })
+  const [asking, setAsking] = useState<boolean | null>(null)
+  const policyOn = q.data?.policyOn
+  if (!q.data?.available && !admin) return null
+  return (
+    <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+      <Box sx={{ flex: 1, minWidth: 240 }}>
+        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Open the drawer before cash</Typography>
+        <Typography sx={{ fontSize: 12 }} color="text.secondary">
+          {policyOn === false ? 'Off: tellers may take and pay out cash without counting their drawer first.'
+            : 'On: each teller and cashier counts their drawer once at the start of the business day (Cash Handover > Open my drawer) before any cash crosses the window.'}
+        </Typography>
+      </Box>
+      {admin && policyOn !== undefined && (
+        <FormControlLabel control={<Switch checked={policyOn} onChange={(e) => setAsking(e.target.checked)} />} label={<Typography sx={{ fontSize: 13 }}>{policyOn ? 'On' : 'Off'}</Typography>} />
+      )}
+      {asking !== null && (
+        <ReasonDialog title={asking ? 'Require opening the drawer' : 'Stop requiring the drawer count'} label="Why (kept in the audit log)" onClose={() => setAsking(null)}
+          onRun={(reason) => setDrawerOpenPolicy(asking, reason).then(() => { void qc.invalidateQueries({ queryKey: ['drawer-open'] }) })} />
+      )}
     </Box>
   )
 }
@@ -133,7 +213,7 @@ export default function BusinessDayPage() {
         </PageTitle>
         <LoadingBlock q={q} what="the business day" />
         {s && !s.available && (
-          <Alert severity="info">The business day is not set up in this database yet. An administrator has to apply the business day migration. Until then postings carry the calendar date.</Alert>
+          <DatabaseChangeNotice>The business day is not set up in this database yet; until it is, postings carry the calendar date.</DatabaseChangeNotice>
         )}
         {s && s.available && (
           <Stack spacing={2.5}>
@@ -181,6 +261,10 @@ export default function BusinessDayPage() {
                   </Box>
                 </Surface>
                 <Box sx={{ mt: 2.5 }}>
+                  <SectionLabel>End-of-day jobs</SectionLabel>
+                  <Surface label="End-of-day jobs"><JobsPanel s={s} /></Surface>
+                </Box>
+                <Box sx={{ mt: 2.5 }}>
                   <SectionLabel>End Day</SectionLabel>
                   <Surface label="End Day">
                     {s.mayEnd ? <EndPanel s={s} />
@@ -189,6 +273,11 @@ export default function BusinessDayPage() {
                 </Box>
               </Box>
             )}
+
+            <Box>
+              <SectionLabel>Rules</SectionLabel>
+              <Surface label="Business day rules"><DrawerRule /></Surface>
+            </Box>
 
             <Box>
               <SectionLabel>Recent days</SectionLabel>

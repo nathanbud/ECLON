@@ -86,14 +86,14 @@ public class CoMakerHolds {
         if (requests == null || requests.isEmpty()) return;
         Set<Integer> seen = new HashSet<>();
         for (Request r : requests) {
-            if (coMakers == null || !coMakers.contains(r.clientId())) throw bad("Client " + r.clientId() + " is not one of the co-makers.");
+            if (coMakers == null || !coMakers.contains(r.clientId())) throw bad("Member " + r.clientId() + " is not one of the co-makers.");
             if (r.clientId() == borrower) throw bad("A borrower cannot be their own co-maker.");
-            if (!seen.add(r.clientId())) throw bad("Client " + r.clientId() + " is listed twice.");
-            if (r.amount() == null || r.amount().signum() <= 0 || r.amount().scale() > 2) throw bad("The amount co-made by client " + r.clientId() + " must be more than zero, with at most 2 decimals.");
+            if (!seen.add(r.clientId())) throw bad("Member " + r.clientId() + " is listed twice.");
+            if (r.amount() == null || r.amount().signum() <= 0 || r.amount().scale() > 2) throw bad("The amount co-made by member " + r.clientId() + " must be more than zero, with at most 2 decimals.");
             if (r.slc() != SAVINGS && r.slc() != SHARE_CAPITAL) throw bad("A hold can only go on a savings or share capital account.");
             HoldAccount a = find(branch, r.clientId(), r.slc(), r.slt(), r.refNo())
-                .orElseThrow(() -> bad("Client " + r.clientId() + " has no active account " + r.slc() + "/" + r.slt() + "/" + r.refNo() + " to hold the amount on."));
-            if (r.amount().compareTo(a.available()) > 0) throw bad("Client " + r.clientId() + " has only " + a.available().toPlainString() + " free on that account, not " + r.amount().toPlainString() + ".");
+                .orElseThrow(() -> bad("Member " + r.clientId() + " has no active account " + r.slc() + "/" + r.slt() + "/" + r.refNo() + " to hold the amount on."));
+            if (r.amount().compareTo(a.available()) > 0) throw bad("Member " + r.clientId() + " has only " + a.available().toPlainString() + " free on that account, not " + r.amount().toPlainString() + ".");
         }
     }
 

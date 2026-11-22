@@ -1,5 +1,6 @@
 package ph.coop.core.audit;
 
+import ph.coop.core.connection.DatabaseChanges;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -34,7 +35,7 @@ class AuditIntegrityController {
     /** Seals what has settled since the last seal (the same work the nightly job does). */
     @PostMapping("/seal")
     AuditSeals.Status seal(Authentication auth) {
-        if (!seals.installed()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "The audit seals are not installed on this server (V045).");
+        if (!seals.installed()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, DatabaseChanges.notSetUp("the audit seals"));
         AuditSeals.Sealed s = seals.seal(auth.getName());
         // Recorded after the seal, so this row is the first of the next block.
         if (s != null) AuditLog.write(jdbc, auth.getName(), "audit.sealed", "audit_seal", String.valueOf(s.id()), null, s.rows() + " rows, ids " + s.fromId() + " to " + s.toId(), "Audit log sealed by request");

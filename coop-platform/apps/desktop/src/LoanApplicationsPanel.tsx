@@ -92,7 +92,7 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
         <Box key={r.id} onClick={() => { setOpen(r); setError(null); setCancelling(false); setDisapproving(false) }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') { setOpen(r); setError(null) } }}
           sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 13 }}>{r.clientName ?? `Client ${r.clientId}`} · {money(r.amount)}</Typography>
+            <Typography sx={{ fontSize: 13 }}>{r.clientName ?? `Member ${r.clientId}`} · {money(r.amount)}</Typography>
             <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{r.documentNo} · {r.typeName} · {r.terms} months · {r.date} · encoded by {r.encodedByName ?? '—'}{r.approvedOn ? ` · approved ${r.approvedOn}` : ''}{r.releasedOn ? ` · released ${r.releasedOn}` : ''}</Typography>
           </Box>
           <LoanStepStatus application={r} />
@@ -103,7 +103,7 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
         <DialogContent>
           {a && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
-              <Typography sx={{ fontSize: 13, flex: 1, minWidth: 240 }} color="text.secondary">{a.clientName ?? `Client ${a.clientId}`} · {a.typeName} · {money(a.amount)} over {a.terms} months · loan ref {a.refNo} · {a.statusName}</Typography>
+              <Typography sx={{ fontSize: 13, flex: 1, minWidth: 240 }} color="text.secondary">{a.clientName ?? `Member ${a.clientId}`} · {a.typeName} · {money(a.amount)} over {a.terms} months · loan ref {a.refNo} · {a.statusName}</Typography>
               <LoanStepStatus application={a} />
             </Box>
           )}

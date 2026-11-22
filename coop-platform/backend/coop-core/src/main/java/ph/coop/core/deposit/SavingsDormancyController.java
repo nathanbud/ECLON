@@ -27,7 +27,7 @@ import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.audit.AuditLog;
 
 /**
- * Dormant savings accounts. A savings type may carry a dormancy period (Settings > Account Types). Accounts of such a type whose member has not deposited or withdrawn for that long
+ * Dormant savings accounts. A savings type may carry a dormancy period (Settings > Products). Accounts of such a type whose member has not deposited or withdrawn for that long
  * are listed for review; an administrator marks the ones chosen as dormant, with a reason. Nothing is marked by itself. A dormant account takes no deposit or withdrawal until an
  * administrator or a Membership Officer reactivates it, again with a reason, after which the period starts over. Both are written to the audit log per account. No fee is charged:
  * the savings types carry none.
@@ -66,7 +66,7 @@ public class SavingsDormancyController {
 
     private int branch(Authentication auth) {
         List<Integer> r = jdbc.queryForList("SELECT AccessBR_CODE FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1", Integer.class, auth.getName());
-        if (r.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is not a staff account.");
+        if (r.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are signed in with an account that is not in the cooperative's staff list, so this cannot be done with it. Sign in with your own staff account, or ask an administrator to add you in Settings > Users.");
         return r.get(0);
     }
 
@@ -174,7 +174,7 @@ public class SavingsDormancyController {
         List<String> skipped = new ArrayList<>();
         for (Key k : new java.util.LinkedHashSet<>(in.accounts())) {
             Found f = one(branch, k);
-            if (f == null) { skipped.add("Client " + k.clientId() + " account " + k.refNo() + ": not found."); continue; }
+            if (f == null) { skipped.add("Member " + k.clientId() + " account " + k.refNo() + ": not found."); continue; }
             if (!DormancyRules.due(f.status(), f.opened(), f.lastActivity(), f.reactivated(), today, months.get(k.typeCode()))) {
                 skipped.add(f.row().clientName() + " " + (f.row().accountNo() == null ? k.refNo() : f.row().accountNo()) + ": no longer due.");
                 continue;
@@ -196,7 +196,7 @@ public class SavingsDormancyController {
         if (t.isEmpty()) return List.of();
         String base = SELECT + " AND s.SDSTATUS = " + DormancyRules.DORMANT;
         if (t.matches("[0-9]{1,9}")) return jdbc.query(base + " AND s.ClientIDSD = ? ORDER BY s.SDSLT_CODE, s.SDREF_NO LIMIT 100", (rs, i) -> found(rs).row(), branch, Integer.parseInt(t));
-        if (t.length() < 3) throw bad("Type at least 3 letters of the name, or the client number.");
+        if (t.length() < 3) throw bad("Type at least 3 letters of the name, or the member number.");
         String like = t.toLowerCase().replace("%", "").replace("_", "") + "%";
         return jdbc.query(base + " AND (LOWER(c.LName) LIKE ? OR LOWER(c.FName) LIKE ?) ORDER BY c.LName, c.FName, s.SDREF_NO LIMIT 100", (rs, i) -> found(rs).row(), branch, like, like);
     }

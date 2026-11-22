@@ -39,11 +39,11 @@ final class TimeDepositPlacementRules {
     static List<String> check(BigDecimal amount, BigDecimal minBalance, int termDays, BigDecimal rate, Map<Integer, TermRates> terms, int clientStatus, boolean typeEnabled) {
         List<String> p = new ArrayList<>();
         if (!typeEnabled) p.add("That type of time deposit is not available.");
-        if (clientStatus == 3 || clientStatus == 98 || clientStatus == 99) p.add("This client's account is closed, disapproved or not yet approved.");
+        if (clientStatus == 3 || clientStatus == 98 || clientStatus == 99) p.add("This member's account is closed, disapproved or not yet approved.");
         if (amount == null || amount.signum() <= 0) {
             p.add("Enter the amount to place.");
         } else {
-            if (amount.stripTrailingZeros().scale() > 2) p.add("The amount can have at most 2 decimal places.");
+            if (amount.stripTrailingZeros().scale() > 2) p.add("An amount can have at most 2 decimal places (centavos). Round it and try again.");
             if (amount.compareTo(SharePaymentRules.MAX_PAYMENT) > 0) p.add("The amount is too large.");
             if (minBalance != null && minBalance.signum() > 0 && amount.compareTo(minBalance) < 0)
                 p.add("The least this type takes is " + minBalance.setScale(2, RoundingMode.HALF_UP).toPlainString() + ".");

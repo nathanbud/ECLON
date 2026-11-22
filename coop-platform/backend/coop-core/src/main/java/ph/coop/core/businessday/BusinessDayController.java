@@ -1,5 +1,6 @@
 package ph.coop.core.businessday;
 
+import ph.coop.core.connection.DatabaseChanges;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -23,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 import ph.coop.core.audit.AuditLog;
 import ph.coop.core.businessday.BusinessDayRules.Check;
 import ph.coop.core.frontoffice.DayEndChecks;
+import ph.coop.core.frontoffice.DayEndJobs;
 
 /**
  * Start Day and End Day (Front Office > Business Day). Start Day opens one business date for the branch; postings then carry it (BusinessDay). End
@@ -58,13 +60,15 @@ public class BusinessDayController {
     private final JdbcTemplate jdbc;
     private final BusinessDay day;
     private final DayEndChecks dayEnd;
+    private final DayEndJobs jobs;
     private final TransactionTemplate tx;
     private final Clock clock;
 
-    BusinessDayController(JdbcTemplate jdbc, BusinessDay day, DayEndChecks dayEnd, PlatformTransactionManager txm, Clock clock) {
+    BusinessDayController(JdbcTemplate jdbc, BusinessDay day, DayEndChecks dayEnd, DayEndJobs jobs, PlatformTransactionManager txm, Clock clock) {
         this.jdbc = jdbc;
         this.day = day;
         this.dayEnd = dayEnd;
+        this.jobs = jobs;
         this.tx = new TransactionTemplate(txm);
         this.clock = clock;
     }
@@ -82,7 +86,7 @@ public class BusinessDayController {
     @GetMapping
     public State state(Authentication auth) {
         Person p = person(auth);
-        if (!p.maySee()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not work in the front office.");
+        if (!p.maySee()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not work in the front office, so you cannot do this. Ask an administrator to give you front office access in Settings > Users.");
         LocalDate today = day.calendarDate();
         if (!day.available()) {
             return new State(p.branch(), false, false, today.toString(), null, null, null, legacyDate(p.branch()), false, false, false, List.of(), List.of());
@@ -147,9 +151,16 @@ public class BusinessDayController {
         requireAvailable();
         LocalDate open = day.openDay(p.branch()).orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No business day is open."));
         String reason = in == null || in.reason() == null ? null : in.reason().trim();
-        // The checks only read; they run before the closing transaction so a table missing on an older database cannot spoil it.
+        // The checks only read; they run before the closing transaction so a table missing on an older database cannot spoil it. They run before the
+        // jobs too, so a day that cannot end yet (a drawer not counted, no reason given) is refused at once instead of after the jobs' minute or two.
         List<Check> checks = dayEnd.checks(p.branch(), open);
         String problem = BusinessDayRules.endProblem(checks, reason);
+        if (problem != null) throw new ResponseStatusException(HttpStatus.CONFLICT, problem);
+        // the end-of-day jobs run while the day is still open (a step that fails is kept and can be run again; it does not stop End Day)
+        jobs.run(p.branch(), open, auth, true);
+        // checked again: the jobs take a while and something may have changed meanwhile (they only add items to review, never a failing check)
+        checks = dayEnd.checks(p.branch(), open);
+        problem = BusinessDayRules.endProblem(checks, reason);
         if (problem != null) throw new ResponseStatusException(HttpStatus.CONFLICT, problem);
         List<Check> failed = BusinessDayRules.failing(checks);
         String why = failed.isEmpty() ? null : reason.substring(0, Math.min(reason.length(), 300));
@@ -159,12 +170,32 @@ public class BusinessDayController {
             LocalDateTime now = LocalDateTime.now(clock);
             int n = jdbc.update("UPDATE ecis_business_day SET status = 'CLOSED', closed_by = ?, closed_at = ?, override_reason = ?, failed_checks = ? WHERE branch_code = ? AND business_date = ? AND status = 'OPEN'",
                 p.username(), Timestamp.valueOf(now), why, failedText, p.branch(), java.sql.Date.valueOf(open));
-            if (n != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "The business day changed while ending it. Look again.");
+            if (n != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "Someone changed the business day while you were ending it, so it was not ended. Reload Business Day, check where it stands, and end it again if it is still open.");
             log(p, open, failed.isEmpty() ? "END" : "END_OVERRIDE", failedText, why, now);
             AuditLog.write(jdbc, p.username(), failed.isEmpty() ? "business.day.end" : "business.day.end.override", "ecis_business_day", p.branch() + "/" + open,
                 "OPEN", "CLOSED" + (failedText == null ? "" : "; failed: " + failedText), why);
         });
         return state(auth);
+    }
+
+    /** The end-of-day jobs of a day (the open one when no date is given). */
+    @GetMapping("/jobs")
+    public DayEndJobs.State jobs(@RequestParam(required = false) String date, Authentication auth) {
+        Person p = person(auth);
+        if (!p.maySee()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not work in the front office, so you cannot do this. Ask an administrator to give you front office access in Settings > Users.");
+        LocalDate d = date == null || date.isBlank() ? day.openDay(p.branch()).orElse(day.calendarDate()) : parse(date);
+        return jobs.state(p.branch(), d);
+    }
+
+    /** Runs the open day's end-of-day jobs now (steps already done are skipped; failed ones are tried again). End Day runs them too. */
+    @PostMapping("/jobs/run")
+    public DayEndJobs.State runJobs(Authentication auth) {
+        Person p = person(auth);
+        if (!p.end() && !p.admin()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not run the end-of-day jobs. They need the End Day right.");
+        requireAvailable();
+        if (!jobs.available()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, DatabaseChanges.notSetUp("the end-of-day jobs"));
+        LocalDate open = day.openDay(p.branch()).orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No business day is open."));
+        return jobs.run(p.branch(), open, auth, false);
     }
 
     @PostMapping("/reopen")

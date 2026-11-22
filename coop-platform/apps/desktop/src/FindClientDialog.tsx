@@ -6,7 +6,6 @@ import { searchMembers, type Lookups, type Member } from './api'
 import { displayName, initials, memberNo, statusOf, type Id } from './clients'
 import { LIGHT } from './glass'
 import { tileFill } from './theme'
-import { takePendingFind, VOICE_FIND } from './voice/bus'
 
 const MAX_RESULTS = 8
 
@@ -53,7 +52,7 @@ function LoadingRows() {
 /** The search field and results. Used inside the pop-up, and directly on the page when no client is open. */
 /** The words on a finder, so another screen (the loan application) can use the same layout with its own wording. */
 export interface FindWording { title: string; lead: string; hint: string; enter: string; queryTag: string }
-const MEMBER_WORDING: FindWording = { title: 'Find Client', lead: 'Who are you looking for?', hint: 'Type at least two letters of a name, or a member ID.', enter: 'open', queryTag: 'find' }
+const MEMBER_WORDING: FindWording = { title: 'Find Member', lead: 'Who are you looking for?', hint: 'Type at least two letters of a name, or a member ID.', enter: 'open', queryTag: 'find' }
 
 export function FindBody({ onPick, onPickMember, lk, inline = false, wording = MEMBER_WORDING, allowInactive = true }: { onPick: (id: Id) => void; onPickMember?: (member: Member) => void; lk?: Lookups; inline?: boolean; wording?: FindWording
   /** False where only active members may be chosen (a new loan application): the Include inactive switch is not shown and only active members are found. */
@@ -73,20 +72,6 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
       if (el && document.activeElement !== el) el.focus()
     }, ms))
     return () => timers.forEach(clearTimeout)
-  }, [])
-
-  // "find client Santos" by voice types the name in; the person still presses Enter to open a member.
-  useEffect(() => {
-    const take = () => {
-      const text = takePendingFind()
-      if (text === null) return
-      setInput(text)
-      setQ(text.trim())
-      setActive(0)
-    }
-    take()
-    window.addEventListener(VOICE_FIND, take)
-    return () => window.removeEventListener(VOICE_FIND, take)
   }, [])
 
   // Debounce typing so each keystroke doesn't hit the large member table.
@@ -150,7 +135,7 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
           placeholder="Search by name or member ID"
           slotProps={{
             htmlInput: {
-              role: 'combobox', 'aria-label': 'Client name or member ID', 'aria-expanded': results.length > 0, autoComplete: 'off', spellCheck: false,
+              role: 'combobox', 'aria-label': 'Name or member ID', 'aria-expanded': results.length > 0, autoComplete: 'off', spellCheck: false,
               'aria-controls': 'find-client-results', 'aria-activedescendant': results[active] ? `find-client-${active}` : undefined,
             },
             input: {
@@ -201,8 +186,8 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
 
         {!error && enabled && !isFetching && results.length === 0 && (
           <Box sx={{ px: 2.5, py: 3, textAlign: 'center' }}>
-            <Typography sx={{ fontSize: 15, fontWeight: 600, mb: 0.5 }}>No clients found</Typography>
-            <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing matches “{q}”. Check the spelling, or try the member ID.{!inactive && (allowInactive ? ' Only active clients are listed: turn on Include inactive to see dormant and closed ones.' : ' Only active members are listed: a dormant or closed member cannot apply.')}</Typography>
+            <Typography sx={{ fontSize: 15, fontWeight: 600, mb: 0.5 }}>No members found</Typography>
+            <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing matches “{q}”. Check the spelling, or try the member ID.{!inactive && (allowInactive ? ' Only active members are listed: turn on Include inactive to see dormant and closed ones.' : ' Only active members are listed: a dormant or closed member cannot apply.')}</Typography>
           </Box>
         )}
 
@@ -211,7 +196,7 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
             <Typography sx={{ px: 2.5, pt: 1.5, pb: 0.5, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">
               {hasMore ? `First ${results.length} matches` : `${results.length} client${results.length === 1 ? '' : 's'}`}
             </Typography>
-            <Box component="ul" id="find-client-results" role="listbox" aria-label="Matching clients" sx={{ listStyle: 'none', m: 0, px: 1, pb: 1, display: 'grid', gap: 0.25 }}>
+            <Box component="ul" id="find-client-results" role="listbox" aria-label="Matching members" sx={{ listStyle: 'none', m: 0, px: 1, pb: 1, display: 'grid', gap: 0.25 }}>
               {results.map((m, i) => {
                 const st = statusOf(m, lk)
                 const on = i === active
@@ -281,7 +266,7 @@ export default function FindClientDialog({ open, onClose, onPick, lk }: {
 }) {
   return (
     <Dialog
-      open={open} onClose={onClose} fullWidth maxWidth="sm" aria-label="Find Client"
+      open={open} onClose={onClose} fullWidth maxWidth="sm" aria-label="Find Member"
       slotProps={{
         // The scrim blurs the app behind, so the panel reads as a floating sheet of glass.
         backdrop: { sx: (t: Theme) => ({

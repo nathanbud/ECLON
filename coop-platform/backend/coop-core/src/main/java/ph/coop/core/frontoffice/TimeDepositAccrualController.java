@@ -251,7 +251,7 @@ class TimeDepositAccrualController {
 
     private List<String> problems(List<Line> lines) {
         List<String> problems = new ArrayList<>();
-        if (lines.isEmpty()) { problems.add("No such voucher."); return problems; }
+        if (lines.isEmpty()) { problems.add("That voucher was not found. It may have been cancelled or the number mistyped: reload the list and open it from there."); return problems; }
         if (lines.stream().anyMatch((l) -> l.tag() == POSTED)) problems.add("This voucher is already posted.");
         else if (lines.stream().anyMatch((l) -> l.tag() != PENDING)) problems.add("The lines of this voucher are not waiting to be posted.");
         if (lines.stream().map(Line::amount).reduce(BigDecimal.ZERO, BigDecimal::add).signum() != 0) problems.add("The voucher does not balance.");
@@ -268,7 +268,7 @@ class TimeDepositAccrualController {
             List<Line> lines = lines(p.branch(), year, controlNo, true);
             List<String> problems = problems(lines);
             if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, String.join(" ", problems));
-            if (lines.get(0).approver() != null) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher is already approved.");
+            if (lines.get(0).approver() != null) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher was already approved, so there is nothing to approve. Reload the list to see where it stands; it can now be posted.");
             if (lines.get(0).encoder() == p.id()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You encoded this voucher, so someone else must approve it.");
             jdbc.update("UPDATE transdt SET DTAPPRVBY = ? WHERE DTTR_BRCODE = ? AND DTTR_YEAR = ? AND DTTR_MODULE = ? AND DTTR_CODE = ? AND DTTR_CTLNO = ? AND DTUPD_TAG = ?",
                 p.id(), p.branch(), year, MODULE, CODE, controlNo, PENDING);
@@ -288,7 +288,7 @@ class TimeDepositAccrualController {
             List<String> problems = problems(lines);
             if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, String.join(" ", problems));
             Integer approver = lines.get(0).approver();
-            if (approver == null) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher has not been approved yet.");
+            if (approver == null) throw new ResponseStatusException(HttpStatus.CONFLICT, "This voucher cannot be posted yet because nobody has approved it. Another person with the right to approve vouchers must approve it first.");
             if (approver == p.id() || lines.get(0).encoder() == p.id()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "The person who encoded or approved an accrual voucher cannot post it.");
             List<Map<String, Object>> head = jdbc.queryForList("SELECT TR_DATE, TR_DOCNO FROM transsum WHERE TR_BRCODE = ? AND TR_YEAR = ? AND TR_MODULE = ? AND TR_CODE = ? AND TR_CTLNO = ?", p.branch(), year, MODULE, CODE, controlNo);
             LocalDate day = ((java.sql.Date) head.get(0).get("TR_DATE")).toLocalDate();

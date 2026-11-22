@@ -170,13 +170,13 @@ class InventoryMasterController {
     @GetMapping("/products/{id}")
     Product product(@PathVariable long id) {
         List<Product> p = jdbc.query(PRODUCT + " WHERE p.branch_code = ? AND p.id = ?", InventoryMasterController::product, InventorySupport.BRANCH, id);
-        if (p.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such product.");
+        if (p.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That product was not found; it may have been switched off or the code mistyped. Choose the product from the list.");
         return p.get(0);
     }
 
     private void checkProduct(ProductIn in, boolean creating) {
         if (in.name() == null || in.name().isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Give the product's name.");
-        if (in.name().length() > 120) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The name is too long (120 characters at most).");
+        if (in.name().length() > 120) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The name is too long: it can have at most 120 characters. Shorten it and try again.");
         if (creating && (in.sku() == null || !CODE.matcher(in.sku().trim()).matches())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The SKU is 1 to 30 letters, digits, dots, dashes or underscores.");
         Integer unit = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_unit WHERE code = ?", Integer.class, in.unit() == null ? "" : in.unit().trim().toLowerCase());
         if (unit == null || unit == 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a unit from the list.");

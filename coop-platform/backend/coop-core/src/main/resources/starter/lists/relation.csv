@@ -1,0 +1,52 @@
+relationid,relationdesc
+1,Husband
+2,Wife
+3,Father
+4,Mother
+5,Son
+6,Daughter
+7,Brother
+8,Sister
+9,Grandfather
+10,Grandmother
+11,Grandson
+12,Granddaughter
+13,Uncle
+14,Aunt
+15,Nephew
+16,Niece
+17,Cousin
+18,Father In-Law
+19,Mother-In-Law
+20,Son-In-Law
+21,Daughter-In-Law
+22,Brother In-Law
+23,Sister-In-Law
+24,Step-Father
+25,Step-Mother
+26,Step-Son
+27,Step-Daughter
+28,Step-Brother
+29,Step-Sister
+30,Godfather
+31,Godmother
+32,Godson
+33,Goddaughter
+34,Parent
+35,Spouse
+36,Child
+37,Grandparent
+38,Grandchild
+39,Fiancee 51
+40,Guardian 97
+41,Friend
+42,Co-Worker
+43,Supervisor
+44,Neighbor
+45,Colleague
+46,Professor
+47,Student
+48,Advisor
+49,Recruiter
+98,Other Relation
+99,No Relation

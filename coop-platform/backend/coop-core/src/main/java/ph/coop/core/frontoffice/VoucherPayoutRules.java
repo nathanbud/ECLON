@@ -35,7 +35,7 @@ final class VoucherPayoutRules {
         List<String> problems = new ArrayList<>();
         List<Need> needs = new ArrayList<>();
         if (accountStatus != ACTIVE) problems.add("This vouchers-payable account is not active, so nothing can be paid out of it.");
-        if (clientStatus == 3 || clientStatus == 98 || clientStatus == 99) problems.add("This client's account is closed, disapproved or not yet approved.");
+        if (clientStatus == 3 || clientStatus == 98 || clientStatus == 99) problems.add("This member's account is closed, disapproved or not yet approved.");
         if (balance == null || balance.signum() <= 0) {
             problems.add("This account has nothing to pay out.");
             return new Check(problems, needs);

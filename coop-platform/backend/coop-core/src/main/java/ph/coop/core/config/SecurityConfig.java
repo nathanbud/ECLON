@@ -18,6 +18,8 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.authentication.CredentialsExpiredException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -36,7 +38,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * HTTP Basic sign-in until Keycloak arrives (IAM phase).
  * <ul>
- *   <li>People and their enabled/disabled state come from the legacy {@code access} table.</li>
+ *   <li>People and their enabled/disabled state come from the legacy {@code access} table. A switched-off person with the right password is refused with
+ *       {@code X-Auth-Reason: ACCOUNT_DISABLED}, so the app can say so; with a wrong password they get the usual answer.</li>
  *   <li>Passwords are new: hashes in {@code ecis_user_credential}, because the legacy ones cannot be verified.</li>
  *   <li>Roles: {@code ROLE_ADMIN} for legacy ADMIN/SUPERADMIN levels, {@code PERM_MEMBER_EDIT} from the legacy
  *       "can edit client" flag, and any role granted in {@code ecis_user_role} (such as MEMBERSHIP_OFFICER).</li>
@@ -88,6 +91,8 @@ public class SecurityConfig {
             @Override
             public void commence(HttpServletRequest request, HttpServletResponse response, org.springframework.security.core.AuthenticationException ex) throws IOException {
                 if (ex instanceof CredentialsExpiredException) response.setHeader("X-Auth-Reason", "TEMPORARY_PASSWORD_EXPIRED");
+                // only ever raised after the password was checked (see authProvider), so it tells nothing to someone who merely typed a name
+                if (ex instanceof DisabledException) response.setHeader("X-Auth-Reason", "ACCOUNT_DISABLED");
                 if (ex instanceof LockedException) {
                     response.setHeader("X-Auth-Reason", "ACCOUNT_LOCKED");
                     String typed = ex.getAuthenticationRequest() == null ? null : ex.getAuthenticationRequest().getName();
@@ -126,6 +131,25 @@ public class SecurityConfig {
         }
     }
 
+    /**
+     * The usual password check, with one change in order: Spring checks "switched off" before the password, which would tell anyone who types a name
+     * that the account exists and is switched off. Here the lock is checked first (as before), then the password, and only then whether the account is
+     * switched off or its temporary password has run out, so those reasons reach only the person who knows the password.
+     */
+    @Bean
+    DaoAuthenticationProvider authProvider(UserDetailsService users, PasswordEncoder encoder) {
+        DaoAuthenticationProvider p = new DaoAuthenticationProvider(users);
+        p.setPasswordEncoder(encoder);
+        p.setPreAuthenticationChecks((u) -> {
+            if (!u.isAccountNonLocked()) throw new LockedException("This sign-in is locked.");
+        });
+        p.setPostAuthenticationChecks((u) -> {
+            if (!u.isEnabled()) throw new DisabledException("This account is switched off.");
+            if (!u.isCredentialsNonExpired()) throw new CredentialsExpiredException("The temporary password has run out.");
+        });
+        return p;
+    }
+
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -141,9 +165,10 @@ public class SecurityConfig {
             // would stop working after the first sign-in.
             if (username.equals(devUser)) return User.withUsername(devUser).password(devHash).roles("ADMIN", "SUPERADMIN").accountLocked(attempts.isLocked(devUser)).build();
             List<UserDetails> found = jdbc.query("""
-                    SELECT a.AccessUserName, c.password_hash, a.AccessLevel, a.AccessCanEditClient, c.must_change, c.expires_at, a.AccessCanEditClientImages
+                    SELECT a.AccessUserName, c.password_hash, a.AccessLevel, a.AccessCanEditClient, c.must_change, c.expires_at, a.AccessCanEditClientImages,
+                           a.AccessIsDisabled
                     FROM access a JOIN ecis_user_credential c ON c.username = a.AccessUserName
-                    WHERE a.AccessUserName = ? AND (a.AccessIsDisabled = 0 OR a.AccessIsDisabled IS NULL)
+                    WHERE a.AccessUserName = ?
                     LIMIT 1
                     """,
                 (rs, i) -> {
@@ -162,9 +187,11 @@ public class SecurityConfig {
                     Timestamp expires = rs.getTimestamp(6);
                     boolean expired = temporary && expires != null && expires.toLocalDateTime().isBefore(LocalDateTime.now(clock));
                     if (temporary && !expired) roles.add(new SimpleGrantedAuthority("PWD_CHANGE_REQUIRED"));
-                    return User.withUsername(name).password(rs.getString(2)).authorities(roles).credentialsExpired(expired).accountLocked(attempts.isLocked(name)).build();
+                    // switched off by an administrator: refused, with the reason given only once the password is right (see authProvider)
+                    boolean disabled = rs.getInt(8) == 1;
+                    return User.withUsername(name).password(rs.getString(2)).authorities(roles).credentialsExpired(expired).accountLocked(attempts.isLocked(name)).disabled(disabled).build();
                 }, username);
-            if (found.isEmpty()) throw new UsernameNotFoundException("Unknown or disabled user");
+            if (found.isEmpty()) throw new UsernameNotFoundException("Unknown user");
             return found.get(0);
         };
     }

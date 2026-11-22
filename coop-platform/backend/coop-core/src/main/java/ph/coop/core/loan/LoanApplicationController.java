@@ -196,7 +196,7 @@ public class LoanApplicationController {
     public Deducted deductions(@PathVariable int branchCode, @PathVariable int clientId, @PathVariable long appId, @RequestBody DeductionsIn in, Authentication auth) {
         Encoder enc = encoder(auth.getName());
         if (!enc.mayDeduct()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not do the Deduction step of loan applications.");
-        if (enc.branch() != branchCode) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This member belongs to another branch.");
+        if (enc.branch() != branchCode) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This member belongs to another branch, so it cannot be done from yours. Ask someone in the member's own branch to do it.");
         return tx.execute((st) -> {
             jdbc.queryForList("SELECT ID FROM loanapp WHERE BR_CODE = ? AND ID = ? FOR UPDATE", Long.class, branchCode, appId);
             List<Map<String, Object>> app = jdbc.queryForList("""
@@ -229,7 +229,7 @@ public class LoanApplicationController {
     public Created create(@PathVariable int branchCode, @PathVariable int clientId, @RequestBody Create in, Authentication auth) {
         Encoder enc = encoder(auth.getName());
         if (!enc.mayAdd()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not add loan applications.");
-        if (enc.branch() != branchCode) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This member belongs to another branch.");
+        if (enc.branch() != branchCode) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This member belongs to another branch, so it cannot be done from yours. Ask someone in the member's own branch to do it.");
         // Profiling and Deduction are separate permissions; a person with both does both in this one save, as before.
         boolean deducts = enc.mayDeduct();
         boolean typedDeductions = (in.deductions() != null && in.deductions().stream().anyMatch((a) -> a.amount() != null && a.amount().signum() != 0))
@@ -249,7 +249,7 @@ public class LoanApplicationController {
             throw bad("This loan type requires collateral: give its type, its value (more than zero) and a description.");
         }
         List<Integer> clients = jdbc.queryForList("SELECT ClientID FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", Integer.class, branchCode, clientId);
-        if (clients.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such client.");
+        if (clients.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
         Integer existingVp = memberRef(branchCode, clientId, 29, 1);
 
         Planned planned = plan(t, in, LocalDate.now(clock));
@@ -384,7 +384,7 @@ public class LoanApplicationController {
                                                                           @RequestParam(required = false) Integer refNo, Authentication auth) {
         Encoder enc = encoder(auth.getName());
         if (!enc.mayAdd()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You may not add loan applications, so you cannot print their schedules.");
-        if (enc.branch() != branchCode) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This member belongs to another branch.");
+        if (enc.branch() != branchCode) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This member belongs to another branch, so it cannot be done from yours. Ask someone in the member's own branch to do it.");
         if (in.amount() == null || in.amount().signum() <= 0 || in.amount().scale() > 2) throw bad("The loan amount must be more than zero, with at most 2 decimals.");
         Type t = type(branchCode, in.typeCode());
         Planned planned = plan(t, in, LocalDate.now(clock));
@@ -470,7 +470,7 @@ public class LoanApplicationController {
         List<Encoder> rows = jdbc.query("SELECT AccessID, AccessBR_CODE, COALESCE(AccessDepartment, 1), COALESCE(AccessCanAddLoanApplication, 0), " + steps.deductionFlagSql("")
                 + " FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1",
             (rs, i) -> new Encoder(rs.getInt(1), rs.getInt(2), rs.getInt(3), rs.getInt(4) == 1, rs.getInt(5) == 1), username);
-        if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is not a staff account.");
+        if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are signed in with an account that is not in the cooperative's staff list, so this cannot be done with it. Sign in with your own staff account, or ask an administrator to add you in Settings > Users.");
         return rows.get(0);
     }
 

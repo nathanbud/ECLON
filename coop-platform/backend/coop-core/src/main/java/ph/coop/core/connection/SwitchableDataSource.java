@@ -35,6 +35,11 @@ public class SwitchableDataSource extends AbstractDataSource implements AutoClos
         return activeId;
     }
 
+    /** The JDBC address of the database in use now (no user or password in it). */
+    public String activeUrl() {
+        return current.getJdbcUrl();
+    }
+
     @Override
     public Connection getConnection() throws SQLException {
         return current.getConnection();

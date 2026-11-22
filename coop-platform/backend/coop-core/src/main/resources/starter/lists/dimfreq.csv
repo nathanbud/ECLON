@@ -1,0 +1,5 @@
+dimfreqid,dimfreqdesc,dimfreqoldid
+1,E-DueDate,E
+5,Quarterly,Q
+6,Semestral,S
+7,Yearly,Y
