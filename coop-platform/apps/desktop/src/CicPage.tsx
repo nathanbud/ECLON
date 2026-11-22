@@ -10,6 +10,7 @@ import {
 import { appBackground, glass } from './glass'
 import { labelOf, CIC_WORDS } from './ui/labels'
 import { LoadingRow } from './ui/Loading'
+import { Hinted } from './appleUi'
 
 const STEPS: CicStatus[] = ['DRAFT', 'GENERATED', 'VALIDATED', 'APPROVED', 'SUBMITTED', 'RESULT', 'RECONCILED']
 const today = () => new Date().toISOString().slice(0, 10)
@@ -72,7 +73,7 @@ export default function CicPage() {
               {SUBMISSION_TYPES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
             <TextField label="Cut-off date" type="date" value={form.cutOffDate} onChange={(e) => setForm({ ...form, cutOffDate: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} />
-            <TextField label="Provider code" value={form.providerCode} onChange={(e) => setForm({ ...form, providerCode: e.target.value })} helperText="Assigned to the cooperative by the CIC" />
+            <Hinted tip="Assigned to the cooperative by the CIC"><TextField label="Provider code" value={form.providerCode} onChange={(e) => setForm({ ...form, providerCode: e.target.value })} /></Hinted>
             <TextField label="Version" value={form.version} onChange={(e) => setForm({ ...form, version: e.target.value })} />
             <TextField label="Remarks" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} sx={{ gridColumn: { md: 'span 3' } }} />
             <Button variant="contained" disabled={busy || !form.providerCode.trim()} onClick={() => act(() => createCicBatch(form))} sx={{ mt: { md: 0.5 } }}>Create batch</Button>

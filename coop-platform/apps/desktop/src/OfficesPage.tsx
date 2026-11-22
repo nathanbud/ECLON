@@ -6,7 +6,7 @@ import { FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi'
 import { addOffice, deleteOffice, getOffices, renameOffice, type OfficeRow, type Offices } from './api/offices'
 import { appBackground, glass } from './glass'
 import { LoadingRow } from './ui/Loading'
-import { ScreenTitle } from './appleUi'
+import { Hinted, ScreenTitle } from './appleUi'
 
 const KEY = ['offices']
 const MIN_REASON = 3
@@ -159,15 +159,15 @@ function OfficeDialog({ open, data, onClose }: { open: NonNullable<Open>; data: 
           ) : (
             <>
               {open.kind === 'add' && (
-                <TextField label="Office number" value={number} onChange={(e) => setNumber(e.target.value.replace(/\D/g, ''))} required
-                  error={!!numberProblem} helperText={numberProblem ?? 'Stays with the office for good.'} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+                <Hinted tip="Stays with the office for good."><TextField label="Office number" value={number} onChange={(e) => setNumber(e.target.value.replace(/\D/g, ''))} required
+                  error={!!numberProblem} helperText={numberProblem} slotProps={{ htmlInput: { inputMode: 'numeric' } }} /></Hinted>
               )}
               <TextField label="Office name" value={name} onChange={(e) => setName(e.target.value)} required autoFocus
                 error={!!nameProblem && name.length > 0} helperText={(name.length > 0 && nameProblem) || 'Such as MAIN OFFICE, or the town of a satellite office.'} />
             </>
           )}
-          <TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} required autoFocus={open.kind === 'delete'}
-            helperText="Kept in the audit log with the change." />
+          <Hinted tip="Kept in the audit log with the change."><TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} required autoFocus={open.kind === 'delete'}
+            /></Hinted>
         </Stack>
       </DialogContent>
       <DialogActions>

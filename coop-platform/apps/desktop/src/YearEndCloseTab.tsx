@@ -7,6 +7,7 @@ import { useMe } from './session'
 import { ReasonDialog, ConfirmButton } from './ui/dialogs'
 import { money, tabular } from './ui/format'
 import { labelOf } from './ui/labels'
+import { AboutNote } from './appleUi'
 
 const statusColor = { PREPARED: 'warning', POSTED: 'success', CANCELLED: 'default' } as const
 
@@ -32,11 +33,11 @@ export default function YearEndCloseTab({ branchCode }: { branchCode: number }) 
 
   return (
     <Box>
-      <Typography color="text.secondary" sx={{ mb: 2 }}>
+      <AboutNote sx={{ mb: 2 }}>
         Closing a year brings every income and expense account to zero, department by department, and moves the difference to undivided net surplus,
         in one entry dated 31 December, as the old system does. One person prepares it and another posts it. After that nothing more can be posted into the year;
         a mistake found later is corrected with a journal in an open year.
-      </Typography>
+      </AboutNote>
       <Stack direction="row" spacing={1.5} sx={{ mb: 2, alignItems: 'center' }}>
         <TextField select size="small" label="Year" value={year} onChange={(e) => setYear(Number(e.target.value))} sx={{ width: 120 }}>
           {years.map((y) => <MenuItem key={y} value={y}>{y}</MenuItem>)}

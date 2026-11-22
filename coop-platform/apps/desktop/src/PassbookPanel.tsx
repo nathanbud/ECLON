@@ -13,6 +13,7 @@ import MemberSearchBox from './MemberSearchBox'
 import { useMe } from './session'
 import { LoadingBlock } from './ui/Loading'
 import { printPdf } from './ui/printPdf'
+import { AboutNote } from './appleUi'
 
 type Acct = { typeCode: number; refNo: number }
 const cell = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' } as const
@@ -205,9 +206,9 @@ function LayoutDialog({ onClose, admin }: { onClose: () => void; admin: boolean 
         <LoadingBlock q={q} what="the layout" />
         {values && (
           <>
-            <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
+            <AboutNote sx={{ mb: 1.5 }}>
               In inches from the top left corner of the open passbook. Print the test page on a spare passbook: every line and column edge is marked. Move the numbers until the marks sit on the printed lines.
-            </Typography>
+            </AboutNote>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr' }, gap: 1.25 }}>
               {LAYOUT_FIELDS.map(([k, label]) => (
                 <TextField key={k} label={label} value={values[k]} disabled={!admin} inputMode="decimal"

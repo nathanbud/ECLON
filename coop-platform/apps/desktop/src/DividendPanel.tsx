@@ -10,6 +10,7 @@ import {
 } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
+import { AboutNote, Hinted } from './appleUi'
 
 const pct = (n: number) => `${Number(n.toFixed(6))}%`
 
@@ -145,10 +146,10 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
       {step === 0 && (
         <>
           {label('Step 1: identify the dividend and the patronage refund')}
-          <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
+          <AboutNote sx={{ mb: 1.5 }}>
             Interest on share capital is worked from each member&apos;s average month-end share capital in the year before the cut-off; the patronage refund from what they paid on their loans that year
             (the loan charges and who takes part are in Settings). Choose how the rates are set, then identify them. Nothing is stored yet.
-          </Typography>
+          </AboutNote>
           <ToggleButtonGroup exclusive size="small" value={method} aria-label="How the rates are set" sx={{ mb: 1.5 }}
             onChange={(_, v) => {
               if (!v) return
@@ -169,13 +170,13 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
           {method === 'allocation' && (
             <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '5px', p: 1.5, mb: 1.5 }}>
               {label('Net surplus and allocation')}
-              <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">
+              <AboutNote sx={{ mb: 1 }}>
                 Enter the approved net surplus, the statutory funds set aside from it (they start from Settings; name and percent as the Cooperative Code, the CDA rules and your bylaws
                 require; none are built in), and the amounts the general assembly allocated. Interest on share capital and patronage refund are then spread over the members.
-              </Typography>
+              </AboutNote>
               <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 1 }}>
                 <TextField size="small" label="Net surplus" value={netSurplus} onChange={num(setNetSurplus)} sx={{ width: 190 }} />
-                <TextField size="small" label="General assembly resolution" value={resolution} onChange={num(setResolution)} helperText="Its number or date" sx={{ width: 230 }} />
+                <Hinted tip="Its number or date"><TextField size="small" label="General assembly resolution" value={resolution} onChange={num(setResolution)} sx={{ width: 230 }} /></Hinted>
               </Box>
               {funds.map((f, i) => (
                 <Box key={i} sx={{ display: 'flex', gap: 1, mb: 0.75, alignItems: 'center' }}>
@@ -252,10 +253,10 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
       {step === 2 && p && (
         <>
           {label('Step 3: allocation')}
-          <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">
+          <AboutNote sx={{ mb: 1 }}>
             With the dividend and refund known, direct part of each member&apos;s share to the mutual benefit fund and to hospitalization assistance. What is left goes to the member&apos;s savings,
             or to share capital when there is no savings account. Leave both empty to send it all there.
-          </Typography>
+          </AboutNote>
           <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 1 }}>
             <TextField size="small" label="Mutual benefit per member" value={mutualBenefit} onChange={(e) => { setMutualBenefit(e.target.value); setSplitEdited(true) }} sx={{ width: 190 }} />
             <TextField size="small" label="Hospitalization per member" value={hospitalization} onChange={(e) => { setHospitalization(e.target.value); setSplitEdited(true) }} sx={{ width: 200 }} />

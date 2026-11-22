@@ -12,6 +12,7 @@ import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from '../Cheque
 import MoneyField from '../MoneyField'
 import PrintInvoice from '../ServiceInvoice'
 import { useRequestKey } from '../ui/requestKey'
+import { Hinted } from '../appleUi'
 
 export function SavingsTab({ id, teller = false }: { id: Id; teller?: boolean }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
@@ -140,7 +141,7 @@ export function SavingsCashDialog({ id, account, mode, initialAmount = '', initi
             <Box sx={{ fontSize: 13 }}>{account.type ?? 'Savings'} {account.refNoText ?? account.refNo} · balance {peso(account.balance)}{account.held ? ` · on hold ${peso(account.held)}` : ''} · available {peso(account.available)}</Box>
             <MoneyField label="Amount" autoFocus value={amount} onValueChange={(v) => { setAmount(v); setAskConfirm(false); setError(null) }} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
             {!withdraw && <ChequeFields rows={cheques} onChange={(r) => { setCheques(r); setAskConfirm(false); setError(null) }} total={value > 0 ? value : 0} />}
-            <TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} helperText="Up to 8 letters or digits. Left empty, the system numbers it." />
+            <Hinted tip="Up to 8 letters or digits. Left empty, the system numbers it."><TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} /></Hinted>
             <TextField label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder={withdraw ? 'SD WTH' : 'SD DEP'} />
             <Box sx={{ fontSize: 12 }}>{withdraw ? 'Cash is paid out of your own drawer and posted to the ledger at once.' : 'Cash goes into your own drawer and is posted to the ledger at once.'}</Box>
             {withdraw && check && check.problems.map((p) => <Alert key={p} severity="error">{p}</Alert>)}

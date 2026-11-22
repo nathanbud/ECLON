@@ -31,6 +31,37 @@ export function InfoTip({ children, label = 'About this screen' }: { children: R
   )
 }
 
+/**
+ * A paragraph that explains how part of a screen works, shown as one quiet line, ⓘ How this works, that opens it on hover, focus or a tap. For a note that is
+ * not a status, a direction to follow, or what an action is about to do (those stay on the screen as text).
+ */
+export function AboutNote({ children, label = 'How this works', sx }: { children: ReactNode; label?: string; sx?: SxProps<Theme> }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Box sx={[{ display: 'flex' }, ...(Array.isArray(sx) ? sx : [sx])]}>
+      <Tooltip describeChild open={open} onOpen={() => setOpen(true)} onClose={() => setOpen(false)}
+        title={<Box sx={{ fontSize: 13, lineHeight: 1.45, py: 0.25 }}>{children}</Box>} slotProps={{ tooltip: { sx: { maxWidth: 440 } } }}>
+        <Button size="small" startIcon={<FiInfo />} onClick={() => setOpen((o) => !o)}
+          sx={{ color: 'text.secondary', fontSize: 12, fontWeight: 500, px: 0.75, minWidth: 0, border: 0, bgcolor: 'transparent' }}>{label}</Button>
+      </Tooltip>
+    </Box>
+  )
+}
+
+/**
+ * A field with its explanation behind an ⓘ beside it, instead of a line of hint under it. Keep a field's error, a limit it must keep to or a live figure in its helperText,
+ * where it stays visible; only what explains the field goes here.
+ */
+export function Hinted({ tip, children, about = 'About this field' }: { tip: ReactNode; children: ReactNode; about?: string }) {
+  if (tip == null || tip === '') return <>{children}</>
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.25, minWidth: 0, '& > :first-of-type': { flex: '1 1 auto', minWidth: 0 } }}>
+      {children}
+      <InfoTip label={about}>{tip}</InfoTip>
+    </Box>
+  )
+}
+
 /** A screen's title, with its explanation behind an ⓘ beside it (see {@link InfoTip}). */
 export function ScreenTitle({ title, children, sx }: { title: ReactNode; children?: ReactNode; sx?: SxProps<Theme> }) {
   return (
@@ -125,7 +156,7 @@ export function ReasonDialog({ open, title, intro, confirm, danger, busy, error,
           {intro && <Typography color="text.secondary" sx={{ fontSize: 13 }}>{intro}</Typography>}
           {error && <Alert severity="error">{error}</Alert>}
           {children}
-          <TextField required autoFocus={!children} label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} helperText="Kept in the audit log" />
+          <Hinted tip="Kept in the audit log"><TextField required autoFocus={!children} label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button color="inherit" onClick={onCancel} disabled={busy}>Cancel</Button>

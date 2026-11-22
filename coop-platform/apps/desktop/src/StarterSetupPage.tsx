@@ -5,7 +5,7 @@ import { getStarterSetup, loadStarterLists, type StarterList, type StarterStatus
 import { appBackground, glass } from './glass'
 import { ConfirmButton } from './ui/dialogs'
 import { LoadingBlock } from './ui/Loading'
-import { ScreenTitle } from './appleUi'
+import { Hinted, ScreenTitle } from './appleUi'
 
 const plural = (n: number, one: string, many = one + 's') => `${n.toLocaleString()} ${n === 1 ? one : many}`
 
@@ -61,8 +61,8 @@ function Lists({ s }: { s: StarterStatus }) {
       {s.missing > 0 && (
         <Box sx={(t) => ({ ...glass(t), p: 2 })}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-            <TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="For example: setting up the new database" sx={{ flex: 1 }}
-              helperText="Recorded in the audit log with each list added to." disabled={!s.canLoad} />
+            <Hinted tip="Recorded in the audit log with each list added to."><TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="For example: setting up the new database" sx={{ flex: 1 }}
+              disabled={!s.canLoad} /></Hinted>
             <ConfirmButton variant="contained" disabled={!s.canLoad || reason.trim().length < 3 || load.isPending}
               title="Load the missing rows?" confirmLabel="Load them"
               message={<>This adds {plural(s.missing, 'missing row')} to {plural(toAdd.length, 'standard list')} on this database, all together or not at all.

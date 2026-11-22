@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import { ScreenTitle } from './appleUi'
+import { TextField } from '@mui/material'
+import { AboutNote, Hinted, ScreenTitle } from './appleUi'
 import { AppThemeProvider } from './theme'
 
 const show = () => render(<AppThemeProvider><ScreenTitle title="Offices">Every member belongs to one office.</ScreenTitle></AppThemeProvider>)
@@ -39,5 +40,25 @@ describe('ScreenTitle and its ⓘ', () => {
   it('has no ⓘ when there is nothing to explain', () => {
     render(<AppThemeProvider><ScreenTitle title="Inventory" /></AppThemeProvider>)
     expect(screen.queryByRole('button', { name: 'About this screen' })).toBeNull()
+  })
+
+  it('puts the explanation of a field behind an ⓘ beside it, and the field keeps its own name', async () => {
+    render(<AppThemeProvider><Hinted tip="Kept in the audit log"><TextField label="Reason" /></Hinted></AppThemeProvider>)
+    expect(screen.getByRole('textbox', { name: 'Reason' })).toBeInTheDocument()
+    expect(screen.queryByText('Kept in the audit log')).toBeNull()
+    await userEvent.setup().hover(screen.getByRole('button', { name: 'About this field' }))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Kept in the audit log')
+  })
+
+  it('shows no ⓘ for a field with nothing to explain', () => {
+    render(<AppThemeProvider><Hinted tip={undefined}><TextField label="Reason" /></Hinted></AppThemeProvider>)
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('folds a paragraph into one How this works line that opens on a tap', async () => {
+    render(<AppThemeProvider><AboutNote>Straight-line, monthly.</AboutNote></AppThemeProvider>)
+    expect(screen.queryByText('Straight-line, monthly.')).toBeNull()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'How this works' }))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Straight-line, monthly.')
   })
 })

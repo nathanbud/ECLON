@@ -11,6 +11,7 @@ import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeF
 import MoneyField from './MoneyField'
 import { moneyOr, tabular } from './ui/format'
 import { useRequestKey } from './ui/requestKey'
+import { Hinted } from './appleUi'
 
 const money = (n: number | null | undefined) => moneyOr(n, '—')
 const num = tabular
@@ -160,7 +161,7 @@ export function LoanPaymentDialog({ clientId, loan, initialAmount = '', initialE
               </Alert>
             )}
             {check && check.problems.map((p) => <Alert key={p} severity="error">{p}</Alert>)}
-            <TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} helperText="Up to 8 letters or digits. Left empty, the system numbers it." />
+            <Hinted tip="Up to 8 letters or digits. Left empty, the system numbers it."><TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} /></Hinted>
             <TextField label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="LOAN PAYMENT" />
             <Box sx={{ fontSize: 12 }}>Cash goes into your own drawer and is posted to the ledger at once.</Box>
           </Box>

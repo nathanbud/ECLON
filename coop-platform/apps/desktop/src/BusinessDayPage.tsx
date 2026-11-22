@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { FiAlertTriangle, FiCheckCircle, FiInfo, FiXCircle } from 'react-icons/fi'
 import { checkStartDay, endDay, getBusinessDay, getDayJobs, getDrawerOpen, reopenDay, runDayJobs, setDrawerOpenPolicy, startDay, type BusinessDayState, type DayCheck, type DayJobs } from './api'
 import { useMe } from './session'
-import { listTable, PageTitle, SectionLabel, Surface } from './appleUi'
+import { AboutNote, listTable, PageTitle, SectionLabel, Surface } from './appleUi'
 import { appBackground } from './glass'
 import { ConfirmButton, ReasonDialog } from './ui/dialogs'
 import { LoadingBlock, LoadingRow } from './ui/Loading'
@@ -156,7 +156,7 @@ function JobsPanel({ s }: { s: BusinessDayState }) {
       </Box>
       <Box sx={{ px: 2, pb: 1.5, pt: 0.5, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
         {s.mayEnd && <Button size="small" variant="outlined" disabled={run.isPending} onClick={() => run.mutate()}>{run.isPending ? 'Running… (this can take a minute)' : 'Run the jobs now'}</Button>}
-        <Typography sx={{ fontSize: 12 }} color="text.secondary">End Day runs them by itself before it closes the day. Nothing is posted by them except the interest runs that fall due, which wait for approval.</Typography>
+        <AboutNote>End Day runs them by itself before it closes the day. Nothing is posted by them except the interest runs that fall due, which wait for approval.</AboutNote>
       </Box>
       {run.error && <Alert severity="error" sx={{ mx: 2, mb: 1.5 }}>{(run.error as Error).message}</Alert>}
     </Box>

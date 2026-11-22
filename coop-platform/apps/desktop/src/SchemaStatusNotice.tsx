@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiDatabase } from 'react-icons/fi'
 import { applySchemaChanges, getSchemaStatus, type SchemaApplyResult, type SchemaStatus } from './api'
+import { Hinted } from './appleUi'
 
 const TITLES: Record<string, string> = {
   BEHIND: 'This database is missing database changes',
@@ -92,7 +93,7 @@ export function ApplyDialog({ status, onClose }: { status: SchemaStatus; onClose
           <TextField label="Database administrator" value={user} onChange={(e) => setUser(e.target.value)} required slotProps={{ htmlInput: { autoComplete: 'off', spellCheck: false } }} />
           <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus
             slotProps={{ htmlInput: { autoComplete: 'new-password' } }} />
-          <TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} required helperText="Kept in the audit log with each change." />
+          <Hinted tip="Kept in the audit log with each change."><TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} required /></Hinted>
         </Stack>
       </DialogContent>
       <DialogActions>

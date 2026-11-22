@@ -12,6 +12,7 @@ import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from '../Cheque
 import MoneyField from '../MoneyField'
 import PrintInvoice from '../ServiceInvoice'
 import { useRequestKey } from '../ui/requestKey'
+import { Hinted } from '../appleUi'
 
 export function ShareCapitalTab({ id }: { id: Id; teller?: boolean }) {
   const [open, setOpen] = useState<{ typeCode: number; refNo: number } | null>(null)
@@ -95,7 +96,7 @@ export function SharePaymentDialog({ id, account, initialAmount = '', initialExp
             <Box sx={{ fontSize: 13 }}>{account.type ?? 'Share capital'} {account.refNoText ?? account.refNo} · balance {peso(account.balance)}</Box>
             <MoneyField label="Amount" autoFocus value={amount} onValueChange={(v) => setAmount(v)} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} />
             <ChequeFields rows={cheques} onChange={(r) => { setCheques(r); setAskConfirm(false); setError(null) }} total={valid || value > 0 ? value : 0} />
-            <TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} helperText="Up to 8 letters or digits. Left empty, the system numbers it." />
+            <Hinted tip="Up to 8 letters or digits. Left empty, the system numbers it."><TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} /></Hinted>
             <TextField label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="SC" />
             <Box sx={{ fontSize: 12 }}>Cash and cheques go into your own drawer and are posted to the ledger at once.</Box>
           </Box>

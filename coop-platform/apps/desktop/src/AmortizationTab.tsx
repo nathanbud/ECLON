@@ -2,7 +2,7 @@ import { Alert, Box, Button, MenuItem, Skeleton, TextField, Typography } from '@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { getAmortKinds, previewAmortization, type AmortKind, type AmortTry, type LoanSetupLists } from './api'
-import { Dot, listTable, SectionLabel, Surface } from './appleUi'
+import { AboutNote, Dot, listTable, SectionLabel, Surface } from './appleUi'
 import MoneyField from './MoneyField'
 import { money } from './ui/format'
 
@@ -74,9 +74,9 @@ export default function AmortizationTab({ lists }: { lists: LoanSetupLists | und
           {kinds.isLoading && <Skeleton variant="rounded" height={240} />}
           {kinds.data?.map((k, i) => <KindRow key={k.id} k={k} first={i === 0} />)}
         </Surface>
-        <Typography color="text.secondary" sx={{ fontSize: 12, mt: 1.25, px: 0.5 }}>
+        <AboutNote sx={{ mt: 1.25, px: 0.5 }}>
           The formulas are part of the program and are checked against thousands of real schedules, so they cannot be edited here. Pick the kind for a loan type in its Term section.
-        </Typography>
+        </AboutNote>
       </Box>
 
       <Box>

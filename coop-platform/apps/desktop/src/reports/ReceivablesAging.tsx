@@ -10,7 +10,7 @@ import { downloadAging, getAgingOptions, runAging, type AgingLine, type AgingOpt
 import { LoadingBlock } from '../ui/Loading'
 import { money } from '../ui/format'
 import { agingCsv, DEFAULT_REQUEST, forgetRequest, groupIndexes, rememberedRequest, rememberRequest, shares, visible } from './aging'
-import { ScreenTitle } from '../appleUi'
+import { AboutNote, ScreenTitle } from '../appleUi'
 
 /** Rows drawn at once; the rest wait for Show all, so a run of ten thousand accounts does not freeze the window. */
 const ROW_LIMIT = 1500
@@ -261,10 +261,10 @@ function AccrualTab({ req, set }: { req: AgingRequest; set: (p: Partial<AgingReq
     <Stack sx={{ gap: 1.5, maxWidth: 760 }}>
       <FormControlLabel control={<Switch checked={on} onChange={(e) => set(e.target.checked ? { accruedInterest: true } : { accruedInterest: false, penalty: false, owingOnly: false, sort: ACCRUAL_SORTS.includes(req.sort) ? 'name' : req.sort })} />}
         label="Work out accrued interest" />
-      <Typography sx={{ fontSize: 12, mt: -1, ml: 6 }} color="text.secondary">
+      <AboutNote sx={{ mt: -1, ml: 6 }}>
         Interest owed on the cut-off date, worked out as on the loan&apos;s interest and penalty worksheet: the yearly rate on the principal balance for each day (365-day year), less
         interest paid. Interest taken in advance at release counts as paid; a payment ahead shows as paid ahead. Adds a few seconds.
-      </Typography>
+      </AboutNote>
       <FormControlLabel disabled={!on} control={<Switch checked={req.penalty} onChange={(e) => set({ penalty: e.target.checked })} />} label="Include penalty (estimate)" />
       <Typography sx={{ fontSize: 12, mt: -1, ml: 6 }} color="text.secondary">
         The yearly penalty rate on the late principal, less penalty paid or waived. Not yet confirmed against the old system, so treat it as an estimate.

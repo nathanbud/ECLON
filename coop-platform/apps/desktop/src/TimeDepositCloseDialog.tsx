@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { encodeTdClose, quoteTdClose, type TdCloseEncoded, type TdCloseQuote, type TdCloseReq } from './api'
 import MoneyField from './MoneyField'
 import { money as peso } from './ui/format'
+import { Hinted } from './appleUi'
 
 
 /**
@@ -113,17 +114,17 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
             </Box>
           )}
           {quote?.preterm && !quote.lockIn && (
-            <TextField size="small" label="Interest rate % a year for the days held" value={pretermRate} placeholder={String(quote.pretermRate ?? 1)} onChange={(e) => setPretermRate(e.target.value.replace(/[^0-9.]/g, ''))}
-              helperText="1% is what the old vouchers used; never above the certificate's own rate" />
+            <Hinted tip="1% is what the old vouchers used; never above the certificate's own rate"><TextField size="small" label="Interest rate % a year for the days held" value={pretermRate} placeholder={String(quote.pretermRate ?? 1)} onChange={(e) => setPretermRate(e.target.value.replace(/[^0-9.]/g, ''))}
+              /></Hinted>
           )}
           {quote?.preterm && quote.lockIn && (
             <MoneyField size="small" label="Interest paid (blank = none, the accrual is taken back)" value={interestPaid} onValueChange={(v) => setInterestPaid(v)} />
           )}
           {quote?.lockIn && !quote.preterm && (
-            <TextField select size="small" label="Years of interest paid now" value={years} onChange={(e) => setYears(Number(e.target.value))}
-              helperText="1 for the last year; more when earlier years were never withdrawn">
+            <Hinted tip="1 for the last year; more when earlier years were never withdrawn"><TextField select size="small" label="Years of interest paid now" value={years} onChange={(e) => setYears(Number(e.target.value))}
+             >
               {Array.from({ length: quote.maxYears }, (_, i) => i + 1).map((y) => <MenuItem key={y} value={y}>{y}</MenuItem>)}
-            </TextField>
+            </TextField></Hinted>
           )}
           {renew && (
             <>

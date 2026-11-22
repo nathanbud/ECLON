@@ -5,6 +5,7 @@ import { approveAccrual, encodeAccrual, getAccrualPreview, getAccrualVouchers, p
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
 import { ConfirmButton } from './ui/dialogs'
+import { AboutNote } from './appleUi'
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
@@ -48,10 +49,10 @@ export function TimeDepositAccrualPanel() {
   return (
     <Box sx={(t) => ({ p: 1.5, flex: 1, minHeight: 0, overflow: 'auto', ...glass(t) })}>
       <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Time deposit interest accruals</Typography>
-      <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
+      <AboutNote sx={{ mb: 1.5 }}>
         Interest earned so far on certificates, taken to the interest expense account. Nothing runs by itself: choose the period, look at the figures, then encode the vouchers.
         Another person approves and a third posts them.
-      </Typography>
+      </AboutNote>
       <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', flexWrap: 'wrap', mb: 1.5 }}>
         <TextField select size="small" label="Certificates" value={group} sx={{ minWidth: 220 }} onChange={(e) => { const g = e.target.value as AccrualGroup; setGroup(g); setTo(defaultDate(g)); setAsked(null); setSkip([]) }}>
           <MenuItem value="LOCK_IN">Lock In (monthly)</MenuItem>

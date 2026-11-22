@@ -5,6 +5,7 @@ import { askFoOverride, checkVoucherPayout, getVoucherPayablesOf, getVoucherPaya
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
 import { useRequestKey } from './ui/requestKey'
+import { Hinted } from './appleUi'
 
 /**
  * Members whose released loan, share withdrawal or time deposit payout is waiting in their vouchers-payable account: the cashier pays the whole balance
@@ -98,7 +99,7 @@ function PayDialog({ payable, onClose }: { payable: VoucherPayable; onClose: () 
             <Box sx={{ fontSize: 13 }}>{payable.client ?? `Member ${payable.clientId}`} · payable account {payable.refNo}</Box>
             <Box sx={{ fontSize: 22, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{money(check?.payable.balance ?? payable.balance)}</Box>
             <Box sx={{ fontSize: 12 }}>The whole balance is paid in cash out of your own drawer{check ? ` (it holds ${money(check.drawerCash)})` : ''} and posted to the ledger at once.</Box>
-            <TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} helperText="Up to 8 letters or digits. Left empty, the system numbers it." />
+            <Hinted tip="Up to 8 letters or digits. Left empty, the system numbers it."><TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} /></Hinted>
             <TextField label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="VOUCHER PAYMENT" />
             {check?.problems.map((p) => <Alert key={p} severity="error">{p}</Alert>)}
             {check?.needs.map((n) => (

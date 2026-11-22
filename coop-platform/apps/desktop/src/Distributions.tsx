@@ -15,6 +15,7 @@ import { glass } from './glass'
 import { ConfirmButton, ReasonDialog } from './ui/dialogs'
 import { labelOf } from './ui/labels'
 import { LoadingBlock } from './ui/Loading'
+import { AboutNote } from './appleUi'
 
 const pct = (n: number) => `${Number(n.toFixed(6))}%`
 const STATUS_WORDS: Record<DistributionStatus, string> = {
@@ -341,7 +342,7 @@ export function DistributionSettingsView() {
                   control={<Checkbox size="small" checked={p.events.includes(e.id)} onChange={(ev) => set({ events: ev.target.checked ? [...p.events, e.id] : p.events.filter((x) => x !== e.id) })} />} />
               ))}
             </Box>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary">The old system counted Interest Paid (23), Interest Earned (24) and Service Fee (31). Only amounts paid count, not billed or accrued ones.</Typography>
+            <AboutNote>The old system counted Interest Paid (23), Interest Earned (24) and Service Fee (31). Only amounts paid count, not billed or accrued ones.</AboutNote>
           </Box>
           <Chooser title="Who takes part, by member status" all={s.statuses} everyone="Every member status" chosen={p.statuses} onChange={(v) => set({ statuses: v })} disabled={!may} />
           <Chooser title="Who earns interest on share capital, by member type" all={s.types} everyone="Every member type" chosen={p.isc} onChange={(v) => set({ isc: v })} disabled={!may} />

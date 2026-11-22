@@ -14,6 +14,7 @@ import { useMe } from './session'
 import { money, parseAmount } from './ui/format'
 import { labelOf } from './ui/labels'
 import { LoadingRow } from './ui/Loading'
+import { AboutNote, Hinted } from './appleUi'
 
 const today = () => new Date().toLocaleDateString('en-CA')
 const lastMonthEnd = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 0).toLocaleDateString('en-CA') }
@@ -317,10 +318,10 @@ function Depreciation() {
   const p = preview.data
   return (
     <Box>
-      <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
+      <AboutNote sx={{ mb: 1.5 }}>
         Straight-line, monthly, from the month after an asset goes into service. Choose a month end, look at the figures, then leave the draft journals (debit the depreciation expense, credit the accumulated depreciation of each category).
         Another person reviews, approves and posts them. A month is never depreciated twice for an asset.
-      </Typography>
+      </AboutNote>
       <Stack direction="row" spacing={1.5} sx={{ mb: 1.5 }}>
         <TextField size="small" type="date" label="Depreciate up to" value={through} onChange={(e) => { setThrough(e.target.value); setAsked(null) }} slotProps={{ inputLabel: { shrink: true } }} helperText="Last day of a month" />
         <Button variant="outlined" sx={{ mt: 0.25 }} onClick={() => { setError(null); setNotice(null); setAsked(through) }}>Preview</Button>
@@ -372,9 +373,9 @@ function CategoryDialog({ category, onClose }: { category?: AssetCategory; onClo
           {error && <Alert severity="error">{error}</Alert>}
           <TextField size="small" label="Name" value={f.name} onChange={set('name')} />
           <Stack direction="row" spacing={1.5}>
-            <TextField size="small" label="Asset account" value={f.asset} onChange={set('asset')} sx={{ flex: 1 }} helperText="e.g. 1160111" />
-            <TextField size="small" label="Accumulated depreciation account" value={f.accum} onChange={set('accum')} sx={{ flex: 1 }} helperText="e.g. 1160112" />
-            <TextField size="small" label="Depreciation expense account" value={f.expense} onChange={set('expense')} sx={{ flex: 1 }} helperText="50328 in the old chart" />
+            <Hinted tip="e.g. 1160111"><TextField size="small" label="Asset account" value={f.asset} onChange={set('asset')} sx={{ flex: 1 }} /></Hinted>
+            <Hinted tip="e.g. 1160112"><TextField size="small" label="Accumulated depreciation account" value={f.accum} onChange={set('accum')} sx={{ flex: 1 }} /></Hinted>
+            <Hinted tip="50328 in the old chart"><TextField size="small" label="Depreciation expense account" value={f.expense} onChange={set('expense')} sx={{ flex: 1 }} /></Hinted>
           </Stack>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
             <TextField size="small" label="Default life, months" value={f.life} onChange={set('life')} sx={{ width: 170 }} />

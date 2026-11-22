@@ -6,6 +6,7 @@ import ChequeFields, { chequesToApi, type ChequeRow } from './ChequeFields'
 import { ConfirmButton } from './ui/dialogs'
 import { money } from './ui/format'
 import { useRequestKey } from './ui/requestKey'
+import { Hinted } from './appleUi'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -95,13 +96,13 @@ export default function DraftPostDialog({ draftId, payor, onClose, onPosted }: {
 
             {plan.kind === 'OTHER_RECEIPT' && (
               <>
-                <TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} helperText="Up to 8 letters or digits. Left empty, the system numbers it." />
+                <Hinted tip="Up to 8 letters or digits. Left empty, the system numbers it."><TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} /></Hinted>
                 <Typography sx={{ fontSize: 12, fontWeight: 600 }}>Paid by cheque? Add the cheques; whatever they do not cover is cash.</Typography>
                 <ChequeFields rows={cheques} onChange={setCheques} total={plan.amount} />
               </>
             )}
             {plan.kind === 'MIXED_PAYMENT' && (
-              <TextField label="Voucher number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} helperText="Left empty, the system numbers it." />
+              <Hinted tip="Left empty, the system numbers it."><TextField label="Voucher number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} /></Hinted>
             )}
             {plan.kind === 'CHECK_VOUCHER' && (
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>

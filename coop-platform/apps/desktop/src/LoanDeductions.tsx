@@ -7,6 +7,7 @@ import {
   type LoanDeduction, type LoanDeductionForm, type LoanDeductionKind,
 } from './api'
 import { tabular } from './ui/format'
+import { Hinted } from './appleUi'
 
 type Draft = { id: number | null; description: string; order: string; kind: LoanDeductionKind | ''; member: string; event: string; account: string; hidePrinting: boolean; editableTarget: boolean }
 
@@ -99,20 +100,20 @@ export default function LoanDeductions({ code }: { code: number }) {
               </TextField>
               <Box />
               {draft.kind === 'MEMBER_ACCOUNT' && (
-                <TextField select required size="small" label="Kind of account" value={draft.member} onChange={(e) => set({ member: e.target.value })}
-                  helperText="Credited to the member's own account of this kind; the member must have one">
+                <Hinted tip="Credited to the member's own account of this kind; the member must have one"><TextField select required size="small" label="Kind of account" value={draft.member} onChange={(e) => set({ member: e.target.value })}
+                 >
                   {(options.data?.memberTypes ?? []).map((t) => <MenuItem key={`${t.classId}/${t.typeCode}`} value={`${t.classId}/${t.typeCode}`}>{t.name}</MenuItem>)}
-                </TextField>
+                </TextField></Hinted>
               )}
               {draft.kind === 'LOAN_CHARGE' && (
-                <TextField select required size="small" label="Charge" value={draft.event} onChange={(e) => set({ event: e.target.value })}
-                  helperText="Posted where this loan type's COA Links send that charge">
+                <Hinted tip="Posted where this loan type's COA Links send that charge"><TextField select required size="small" label="Charge" value={draft.event} onChange={(e) => set({ event: e.target.value })}
+                 >
                   {(options.data?.charges ?? []).map((c) => <MenuItem key={c.event} value={String(c.event)}>{c.name}</MenuItem>)}
-                </TextField>
+                </TextField></Hinted>
               )}
               {draft.kind === 'CHART_ACCOUNT' && (
-                <TextField required size="small" label="Account no." value={draft.account} onChange={(e) => set({ account: e.target.value.replace(/\D/g, '') })} slotProps={{ htmlInput: { maxLength: 10 } }}
-                  helperText="An account of the chart that takes postings, for example an insurer's payable" />
+                <Hinted tip="An account of the chart that takes postings, for example an insurer's payable"><TextField required size="small" label="Account no." value={draft.account} onChange={(e) => set({ account: e.target.value.replace(/\D/g, '') })} slotProps={{ htmlInput: { maxLength: 10 } }}
+                  /></Hinted>
               )}
             </>
           ) : (
@@ -132,9 +133,9 @@ export default function LoanDeductions({ code }: { code: number }) {
         <Button size="small" startIcon={<FiPlus />} sx={{ mt: 1 }} disabled={busy || !data} onClick={() => { setFail(null); setDraft(blank(nextOrder)) }}>Add a deduction</Button>
       )}
 
-      <TextField size="small" fullWidth label="Reason for a change (needed for Add, Save and Remove)" value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mt: 1.5 }}
-        helperText="Kept in the audit log with the line before and after. The amount of each deduction is typed on the application. Applications already saved keep their own lines; the net proceeds line cannot be removed."
-        slotProps={{ htmlInput: { maxLength: 255 } }} />
+      <Hinted tip="Kept in the audit log with the line before and after. The amount of each deduction is typed on the application. Applications already saved keep their own lines; the net proceeds line cannot be removed."><TextField size="small" fullWidth label="Reason for a change (needed for Add, Save and Remove)" value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mt: 1.5 }}
+       
+        slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
     </Box>
   )
 }

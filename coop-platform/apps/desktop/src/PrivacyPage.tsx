@@ -13,6 +13,7 @@ import { ReasonDialog } from './ui/dialogs'
 import { BranchSelect } from './ui/BranchSelect'
 import { labelOf, PRIVACY_REQUEST_WORDS } from './ui/labels'
 import { LoadingBlock, LoadingRow } from './ui/Loading'
+import { AboutNote } from './appleUi'
 
 interface Field { key: string; label: string; kind?: 'text' | 'long' | 'date' | 'datetime' | 'number' | 'bool'; options?: string[]; required?: boolean }
 interface Register { key: RegisterKey; label: string; note: string; fields: Field[]; columns: string[] }
@@ -195,9 +196,9 @@ function RequestsTab() {
   return (
     <Box>
       <Stack direction="row" spacing={1} sx={{ mb: 1.5, alignItems: 'center' }}>
-        <Typography color="text.secondary" sx={{ flex: 1, fontSize: 13 }}>
+        <AboutNote sx={{ flex: 1 }}>
           Requests from people about their own data. The due date is 30 days from receipt unless the server is set otherwise; confirm the period that applies with the data protection officer. Check the person's identity before anything is handed over or erased.
-        </Typography>
+        </AboutNote>
         <Button variant="contained" size="small" onClick={() => setAdding(true)}>Log a request</Button>
       </Stack>
       {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}

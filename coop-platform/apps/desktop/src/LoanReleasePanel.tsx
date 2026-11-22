@@ -5,6 +5,7 @@ import { approveLoanRelease, getLoanRelease, getLoanReleases, postLoanRelease, t
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
 import { ConfirmButton } from './ui/dialogs'
+import { AboutNote } from './appleUi'
 
 const statusColor = (s: LoanReleaseVoucher['status']) => (s === 'POSTED' ? 'success' : s === 'APPROVED' ? 'info' : 'warning')
 
@@ -65,9 +66,9 @@ export function LoanReleasePanel() {
               </TableBody>
             </Table>
           )}
-          <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
+          <AboutNote sx={{ mt: 1 }}>
             The person who encoded a voucher cannot approve it, and the approver cannot post it. Posting writes the loan ledger entries dated today.
-          </Typography>
+          </AboutNote>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(null)}>Close</Button>

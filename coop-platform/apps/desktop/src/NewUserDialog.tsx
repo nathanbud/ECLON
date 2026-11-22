@@ -7,6 +7,7 @@ import { useMe } from './session'
 import { CHOICES, DEFAULT_HOURS } from './TemporaryPasswordDialog'
 import { BranchSelect } from './ui/BranchSelect'
 import { nameCase } from './ui/format'
+import { Hinted } from './appleUi'
 
 const USERNAME = /^[A-Za-z0-9][A-Za-z0-9._-]{2,29}$/
 const LEVEL_WORDS: Record<NewUser['level'], string> = {
@@ -50,9 +51,9 @@ export default function NewUserDialog({ open, users, onClose, onCreated }: { ope
               The person is added to the old system&apos;s users too. They sign in with a temporary password shown on the next step, and choose their own at first sign-in.
             </Typography>
             <Stack sx={{ gap: 1.75 }}>
-              <TextField label="Username" required autoFocus value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })}
+              <Hinted tip="What they type to sign in."><TextField label="Username" required autoFocus value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })}
                 onBlur={() => setTouched({ ...touched, username: true })} error={!!show('username', usernameProblem)}
-                helperText={show('username', usernameProblem) ?? 'What they type to sign in.'} slotProps={{ htmlInput: { maxLength: 30, autoComplete: 'off', spellCheck: false } }} />
+                helperText={show('username', usernameProblem)} slotProps={{ htmlInput: { maxLength: 30, autoComplete: 'off', spellCheck: false } }} /></Hinted>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 0.7fr 1fr' }, gap: 1.5 }}>
                 <TextField label="First name" required value={f.firstName} onChange={(e) => setF({ ...f, firstName: e.target.value })} onBlur={() => setTouched({ ...touched, first: true })}
                   error={!!show('first', f.firstName.trim() ? null : 'Give the first name.')} helperText={show('first', f.firstName.trim() ? null : 'Give the first name.')} slotProps={{ htmlInput: { maxLength: 45 } }} />

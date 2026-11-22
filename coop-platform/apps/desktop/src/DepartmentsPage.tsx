@@ -6,7 +6,7 @@ import { addDepartment, changeDepartment, deleteDepartment, getDepartments, swit
 import { DatabaseChangeNotice } from './DatabaseChangeNotice'
 import { appBackground, glass } from './glass'
 import { LoadingRow } from './ui/Loading'
-import { ScreenTitle } from './appleUi'
+import { Hinted, ScreenTitle } from './appleUi'
 
 const KEY = ['departments']
 const MIN_REASON = 3
@@ -190,20 +190,20 @@ function DepartmentDialog({ open, data, onClose }: { open: NonNullable<Open>; da
           {editing && (
             <>
               {open.kind === 'add' && (
-                <TextField label="Department number" value={number} onChange={(e) => setNumber(e.target.value.replace(/\D/g, ''))} required
-                  error={!!numberProblem} helperText={numberProblem ?? 'Stays with the department for good.'} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+                <Hinted tip="Stays with the department for good."><TextField label="Department number" value={number} onChange={(e) => setNumber(e.target.value.replace(/\D/g, ''))} required
+                  error={!!numberProblem} helperText={numberProblem} slotProps={{ htmlInput: { inputMode: 'numeric' } }} /></Hinted>
               )}
               <TextField label="Department name" value={name} onChange={(e) => setName(e.target.value)} required autoFocus
                 error={!!nameProblem && name.length > 0} helperText={(name.length > 0 && nameProblem) || `Such as MAIN OFFICE. At most ${maxName} characters.`} />
-              <TextField select label="Under" value={parent} onChange={(e) => setParent(e.target.value)} helperText="The consolidating department it belongs to, if any.">
+              <Hinted tip="The consolidating department it belongs to, if any."><TextField select label="Under" value={parent} onChange={(e) => setParent(e.target.value)}>
                 <MenuItem value="">None</MenuItem>
                 {parents.map((d) => <MenuItem key={d.id} value={String(d.id)}>{d.id} · {d.name}</MenuItem>)}
-              </TextField>
+              </TextField></Hinted>
               <TextField label="TIN" value={tin} onChange={(e) => setTin(e.target.value)} />
               <TextField label="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
             </>
           )}
-          <TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} required autoFocus={!editing} helperText="Kept in the audit log with the change." />
+          <Hinted tip="Kept in the audit log with the change."><TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} required autoFocus={!editing} /></Hinted>
         </Stack>
       </DialogContent>
       <DialogActions>

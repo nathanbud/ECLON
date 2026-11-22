@@ -6,7 +6,7 @@ import { getBackups, runBackup } from './api'
 import { appBackground, glass } from './glass'
 import { sizeOf, tabular } from './ui/format'
 import { useMe } from './session'
-import { ScreenTitle } from './appleUi'
+import { AboutNote, ScreenTitle } from './appleUi'
 
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
@@ -60,9 +60,9 @@ export default function BackupPage() {
               {busy ? 'Backing up…' : 'Back up now'}
             </Button>
           </Stack>
-          <Typography sx={{ fontSize: 12, mt: 1.5 }} color="text.secondary">
+          <AboutNote sx={{ mt: 1.5 }}>
             Keep the dump and the key together and copy them to another computer: without the key, stored fingerprints cannot be read, and a backup that stays on this machine is lost with it.
-          </Typography>
+          </AboutNote>
         </Box>
 
         <Box sx={(t) => ({ p: 0, overflowX: 'auto', ...glass(t) })}>

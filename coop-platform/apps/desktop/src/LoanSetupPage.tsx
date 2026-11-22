@@ -11,7 +11,7 @@ import {
 } from './api'
 import AmortizationTab from './AmortizationTab'
 import LoanDeductions from './LoanDeductions'
-import { Dot, listTable, PageTitle, ReasonDialog, SearchField, SectionLabel, Segmented, Surface } from './appleUi'
+import { AboutNote, Dot, Hinted, listTable, PageTitle, ReasonDialog, SearchField, SectionLabel, Segmented, Surface } from './appleUi'
 import { appBackground } from './glass'
 import { useMe } from './session'
 import { tabular } from './ui/format'
@@ -126,8 +126,8 @@ function WiredAccounts({ code }: { code: number }) {
           )}
         </Box>
       )}
-      <TextField size="small" fullWidth label="Reason for a change (needed for Change, Remove and Add)" value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mt: 1.5 }}
-        helperText="Kept in the audit log with the account before and after. New postings use the new account; entries already posted are not changed. Principal, interest paid, service fee and penalty can be changed but not removed." slotProps={{ htmlInput: { maxLength: 255 } }} />
+      <Hinted tip="Kept in the audit log with the account before and after. New postings use the new account; entries already posted are not changed. Principal, interest paid, service fee and penalty can be changed but not removed."><TextField size="small" fullWidth label="Reason for a change (needed for Change, Remove and Add)" value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mt: 1.5 }}
+        slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
     </Box>
   )
 }
@@ -205,10 +205,10 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
           )}
           {error && <Alert severity="error" sx={{ mb: 1.25, py: 0 }}>{error}</Alert>}
           {!editing && (
-            <TextField select fullWidth required size="small" label="Start from a copy of" value={copyFrom} onChange={(e) => copyChosen(e.target.value === '' ? '' : Number(e.target.value))} sx={{ mb: 1.75 }}
-              helperText="Brings that type's ledger accounts and deductions. Set the rest below.">
+            <Hinted tip="Brings that type's ledger accounts and deductions. Set the rest below."><TextField select fullWidth required size="small" label="Start from a copy of" value={copyFrom} onChange={(e) => copyChosen(e.target.value === '' ? '' : Number(e.target.value))} sx={{ mb: 1.75 }}
+             >
               {types.map((t) => <MenuItem key={t.code} value={t.code}>{t.name}{t.disabled ? ' (disabled)' : ''}</MenuItem>)}
-            </TextField>
+            </TextField></Hinted>
           )}
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, columnGap: 4, rowGap: 1.75, alignItems: 'start' }}>
             <Box sx={{ display: 'grid', gap: 1.75 }}>
@@ -220,10 +220,10 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
                 <TextField type="number" size="small" label="Term" value={form.terms ?? ''} onChange={(e) => set('terms', numberOrNull(e.target.value))} slotProps={{ htmlInput: { min: 1, max: 600 } }} />
                 {select('Counted in', 'termUnit', lists?.termUnits)}
                 {select('Amortization', 'amortization', lists?.amortizations)}
-                <TextField select size="small" label="Interest days" value={form.dayCount ?? ''} onChange={(e) => set('dayCount', e.target.value === '' ? null : Number(e.target.value))}
-                  helperText="Annuity: 30 days a month, or the real days">
+                <Hinted tip="Annuity: 30 days a month, or the real days"><TextField select size="small" label="Interest days" value={form.dayCount ?? ''} onChange={(e) => set('dayCount', e.target.value === '' ? null : Number(e.target.value))}
+                 >
                   <MenuItem value="">As it is</MenuItem><MenuItem value={1}>30 days a month</MenuItem><MenuItem value={2}>Real days</MenuItem>
-                </TextField>
+                </TextField></Hinted>
               </FormSection>
               <FormSection title="Payment">
                 {select('Principal paid', 'principalMode', lists?.paymentModes)}
@@ -257,8 +257,8 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
           <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}><Button onClick={onClose} color="inherit">Close</Button></DialogActions>
         ) : (
         <DialogActions sx={{ px: 3, pb: 2, pt: 1, gap: 1.5, alignItems: 'flex-start' }}>
-          <TextField required fullWidth size="small" label="Reason for this change" value={form.reason} onChange={(e) => set('reason', e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }}
-            helperText="Kept in the audit log with the values before and after" />
+          <Hinted tip="Kept in the audit log with the values before and after"><TextField required fullWidth size="small" label="Reason for this change" value={form.reason} onChange={(e) => set('reason', e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }}
+            /></Hinted>
           <Button onClick={onClose} disabled={busy} color="inherit" sx={{ mt: 0.25 }}>Cancel</Button>
           <Button type="submit" variant="contained" disabled={busy || !ready} sx={{ mt: 0.25 }}>{editing ? 'Save' : 'Create'}</Button>
         </DialogActions>
@@ -450,10 +450,10 @@ function HoldsTab({ onNotice }: { onNotice: (m: string) => void }) {
   }, [data])
   return (
     <>
-      <Typography color="text.secondary" sx={{ fontSize: 13, mb: 2, px: 0.5, maxWidth: 720 }}>
+      <AboutNote sx={{ mb: 2, px: 0.5 }}>
         When a co-maker agrees to cover an amount, it is held on one of their accounts and cannot be withdrawn. Choose the deposit types that can take such a hold, and the one suggested first.
         Holds already placed on a type stay when it is switched off.
-      </Typography>
+      </AboutNote>
       {error && <Alert severity="error" sx={{ mb: 1.5 }}>{(error as Error).message}</Alert>}
       {isLoading && <Skeleton variant="rounded" height={180} />}
       {groups.map(([group, rows]) => (

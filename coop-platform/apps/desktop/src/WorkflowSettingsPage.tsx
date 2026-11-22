@@ -7,7 +7,7 @@ import { appBackground, glass } from './glass'
 import { useLeaveGuard } from './leaveGuard'
 import { useMe } from './session'
 import { parseAmount } from './ui/format'
-import { ScreenTitle } from './appleUi'
+import { AboutNote, ScreenTitle } from './appleUi'
 
 interface Row { name: string; role: string; minAmount: string }
 const roleName = (r: string) => r.toLowerCase().replace(/_/g, ' ')
@@ -32,9 +32,9 @@ function Editor({ def, roles, max, canEdit }: { def: WorkflowDefinition; roles: 
         <Typography sx={{ fontSize: 15, fontWeight: 700, flex: 1 }}>{def.label}</Typography>
         <FormControlLabel control={<Checkbox checked={active} disabled={!canEdit} onChange={(_, v) => { setActive(v); setSaved(false) }} />} label="Extra approvals on" />
       </Stack>
-      <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
+      <AboutNote sx={{ mb: 1.5 }}>
         The usual approver approves first, as always. Then each step below that applies to the amount also has to approve, in this order, by a different person each time.
-      </Typography>
+      </AboutNote>
       {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       {rows.length === 0 && <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">No extra steps: the usual approver is enough at any amount.</Typography>}
       {rows.map((r, i) => (

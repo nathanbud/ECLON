@@ -10,7 +10,7 @@ import {
   checkAccountTypeDelete, deleteAccountType, getChart, getLinkSuggestions, removeAccountTypeLink, updateAccountType,
   type AccountType, type AccountTypeClass, type AccountTypeForm, type AccountTypeLink, type ChartAccount,
 } from './api'
-import { Dot, listTable, PageTitle, ReasonDialog, SectionLabel, Surface } from './appleUi'
+import { AboutNote, Dot, Hinted, listTable, PageTitle, ReasonDialog, SectionLabel, Surface } from './appleUi'
 import { appBackground } from './glass'
 import { useLeaveGuard } from './leaveGuard'
 import { Loading } from './ui/Loading'
@@ -147,23 +147,23 @@ function TypeFields({ cls, f, set, disabled }: { cls: AccountTypeClass; f: Field
   const amount = (v: string) => v.replace(/[^0-9.]/g, '')
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.75 }}>
-      <TextField required label="Name" value={f.name} disabled={disabled} onChange={(e) => set({ name: e.target.value })} slotProps={{ htmlInput: { maxLength: 20 } }} helperText="Up to 20 characters; shown in lists" />
-      <TextField label="Full name" value={f.fullName} disabled={disabled} onChange={(e) => set({ fullName: e.target.value })} slotProps={{ htmlInput: { maxLength: 30 } }} helperText="Up to 30 characters; the name if left empty" />
+      <Hinted tip="Up to 20 characters; shown in lists"><TextField required label="Name" value={f.name} disabled={disabled} onChange={(e) => set({ name: e.target.value })} slotProps={{ htmlInput: { maxLength: 20 } }} /></Hinted>
+      <Hinted tip="Up to 30 characters; the name if left empty"><TextField label="Full name" value={f.fullName} disabled={disabled} onChange={(e) => set({ fullName: e.target.value })} slotProps={{ htmlInput: { maxLength: 30 } }} /></Hinted>
       {cls.fields.includes('interestRate') && (
-        <TextField label="Interest rate (% a year)" value={f.interestRate} disabled={disabled} onChange={(e) => set({ interestRate: amount(e.target.value) })} slotProps={{ htmlInput: { inputMode: 'decimal' } }} helperText={help.interestRate} />
+        <Hinted tip={help.interestRate}><TextField label="Interest rate (% a year)" value={f.interestRate} disabled={disabled} onChange={(e) => set({ interestRate: amount(e.target.value) })} slotProps={{ htmlInput: { inputMode: 'decimal' } }} /></Hinted>
       )}
       {cls.fields.includes('minBalance') && (
-        <TextField label="Minimum balance" value={f.minBalance} disabled={disabled} onChange={(e) => set({ minBalance: amount(e.target.value) })} slotProps={{ htmlInput: { inputMode: 'decimal' } }} helperText={help.minBalance} />
+        <Hinted tip={help.minBalance}><TextField label="Minimum balance" value={f.minBalance} disabled={disabled} onChange={(e) => set({ minBalance: amount(e.target.value) })} slotProps={{ htmlInput: { inputMode: 'decimal' } }} /></Hinted>
       )}
       {cls.fields.includes('maxBalance') && (
-        <TextField label="Maximum balance" value={f.maxBalance} disabled={disabled} onChange={(e) => set({ maxBalance: amount(e.target.value) })} slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-          helperText="The most an account may hold; a deposit that would go over it is refused. Empty for no limit." />
+        <Hinted tip="The most an account may hold; a deposit that would go over it is refused. Empty for no limit."><TextField label="Maximum balance" value={f.maxBalance} disabled={disabled} onChange={(e) => set({ maxBalance: amount(e.target.value) })} slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+          /></Hinted>
       )}
       {cls.fields.includes('dormantAfterMonths') && (
-        <TextField label="Dormant after (months)" value={f.dormantAfterMonths} disabled={disabled} onChange={(e) => set({ dormantAfterMonths: e.target.value.replace(/\D/g, '') })} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 } }}
-          helperText="With no deposit or withdrawal for this long, an account is listed under Savings dormancy for review. Empty for never." />
+        <Hinted tip="With no deposit or withdrawal for this long, an account is listed under Savings dormancy for review. Empty for never."><TextField label="Dormant after (months)" value={f.dormantAfterMonths} disabled={disabled} onChange={(e) => set({ dormantAfterMonths: e.target.value.replace(/\D/g, '') })} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 } }}
+          /></Hinted>
       )}
-      <TextField label="Order in lists" value={f.priority} disabled={disabled} onChange={(e) => set({ priority: e.target.value.replace(/\D/g, '') })} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 } }} helperText="0 to 999; a smaller number comes first" />
+      <Hinted tip="0 to 999; a smaller number comes first"><TextField label="Order in lists" value={f.priority} disabled={disabled} onChange={(e) => set({ priority: e.target.value.replace(/\D/g, '') })} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 } }} /></Hinted>
     </Box>
   )
 }
@@ -332,12 +332,12 @@ function NewTypeDialog({ cls, onClose, onSaved }: { cls: AccountTypeClass; onClo
         <DialogTitle>New {cls.name.toLowerCase()} type</DialogTitle>
         <DialogContent>
           <Stack spacing={1.75} sx={{ mt: 1 }}>
-            <TextField select label="Copy from" value={copyFrom} helperText="The new type starts with this one's settings and posts to the same chart accounts until its links are changed."
+            <Hinted tip="The new type starts with this one's settings and posts to the same chart accounts until its links are changed."><TextField select label="Copy from" value={copyFrom}
               onChange={(e) => { const c = Number(e.target.value); setCopyFrom(c); const s = sources.find((t) => t.code === c); if (s) setF((cur) => ({ ...fieldsOf(s), name: cur.name, fullName: cur.fullName, disabled: false })) }}>
               {sources.map((t) => <MenuItem key={t.code} value={t.code}>{code4(t.code)} {t.fullName || t.name}{t.disabled ? ' (switched off)' : ''}</MenuItem>)}
-            </TextField>
+            </TextField></Hinted>
             <TypeFields cls={cls} f={f} set={(p) => setF((cur) => ({ ...cur, ...p }))} disabled={false} />
-            <TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} helperText="Kept in the audit log. A type cannot be deleted afterwards, only switched off." />
+            <Hinted tip="Kept in the audit log. A type cannot be deleted afterwards, only switched off."><TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
             {save.error && <Alert severity="error">{(save.error as Error).message}</Alert>}
           </Stack>
         </DialogContent>
@@ -402,10 +402,10 @@ function FirstTypeDialog({ cls, onClose, onSaved }: { cls: AccountTypeClass; onC
           <Stack spacing={1.75} sx={{ mt: 1 }}>
             <TextField required autoFocus label="Name" value={name} onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: 20 } }} />
             <TextField label="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} slotProps={{ htmlInput: { maxLength: 30 } }} />
-            <Autocomplete options={options} value={account} onChange={(_, v) => setAccount(v)} loading={chart.isLoading} getOptionLabel={label} isOptionEqualToValue={(a, b) => a.code === b.code}
-              renderInput={(p) => <TextField {...p} required label="Balance posts to" helperText="The chart account that carries the balance of accounts of this type" />} />
+            <Hinted tip="The chart account that carries the balance of accounts of this type"><Autocomplete options={options} value={account} onChange={(_, v) => setAccount(v)} loading={chart.isLoading} getOptionLabel={label} isOptionEqualToValue={(a, b) => a.code === b.code}
+              renderInput={(p) => <TextField {...p} required label="Balance posts to" />} /></Hinted>
             <Suggested cls={cls.id} event={11} number={99} name={[fullName, name].join(' ').trim()} options={options} chosen={account?.code ?? null} onPick={setAccount} />
-            <TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} helperText="Kept in the audit log. A type cannot be deleted afterwards, only switched off." />
+            <Hinted tip="Kept in the audit log. A type cannot be deleted afterwards, only switched off."><TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
             {(save.error || chart.error) && <Alert severity="error">{((save.error ?? chart.error) as Error).message}</Alert>}
           </Stack>
         </DialogContent>
@@ -436,10 +436,10 @@ function LinkDialog({ cls, type, link, onClose, onSaved }: { cls: AccountTypeCla
             <Typography color="text.secondary" sx={{ fontSize: 13 }}>
               Now posts to <Box component="span" sx={tabular}>{link.account}</Box> {link.accountName}. New entries will go to the account you choose; entries already posted stay where they are, so move the balance with a journal if the old account should be emptied.
             </Typography>
-            <Autocomplete options={options} value={account} onChange={(_, v) => setAccount(v)} loading={all.isLoading} getOptionLabel={label} isOptionEqualToValue={(a, b) => a.code === b.code}
-              renderInput={(p) => <TextField {...p} required autoFocus label="Post to" helperText="Accounts of the same kind that take postings and are in use" />} />
+            <Hinted tip="Accounts of the same kind that take postings and are in use"><Autocomplete options={options} value={account} onChange={(_, v) => setAccount(v)} loading={all.isLoading} getOptionLabel={label} isOptionEqualToValue={(a, b) => a.code === b.code}
+              renderInput={(p) => <TextField {...p} required autoFocus label="Post to" />} /></Hinted>
             <Suggested cls={cls.id} event={link.event} number={link.number} type={type.code} options={options} chosen={account?.code ?? null} onPick={setAccount} />
-            <TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} helperText="Kept in the audit log" />
+            <Hinted tip="Kept in the audit log"><TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
             {(save.error || all.error) && <Alert severity="error">{((save.error ?? all.error) as Error).message}</Alert>}
           </Stack>
         </DialogContent>
@@ -479,19 +479,19 @@ function AddLinkDialog({ cls, type, existing, onClose, onSaved }: {
         <DialogContent>
           <Stack spacing={1.75} sx={{ mt: 1 }}>
             {choices.data && events.length === 0 && <Alert severity="info">This type already has every link its class uses.</Alert>}
-            <TextField select required label="Posting" value={event} onChange={(e) => { setEvent(e.target.value); setStatus('') }} helperText="What the system posts through this link">
+            <Hinted tip="What the system posts through this link"><TextField select required label="Posting" value={event} onChange={(e) => { setEvent(e.target.value); setStatus('') }}>
               {events.map((e) => <MenuItem key={e.id} value={String(e.id)}>{e.name}</MenuItem>)}
-            </TextField>
+            </TextField></Hinted>
             {byStatus && (
               <TextField select required label="For accounts that are" value={status} onChange={(e) => setStatus(e.target.value)}>
                 {statuses.map((s) => <MenuItem key={s.id} value={String(s.id)}>{s.name}</MenuItem>)}
               </TextField>
             )}
-            <Autocomplete options={options} value={account} onChange={(_, v) => setAccount(v)} loading={chart.isLoading} getOptionLabel={label} isOptionEqualToValue={(a, b) => a.code === b.code}
-              renderInput={(p) => <TextField {...p} required label="Post to" helperText="An account that takes postings and is in use" />} />
+            <Hinted tip="An account that takes postings and is in use"><Autocomplete options={options} value={account} onChange={(_, v) => setAccount(v)} loading={chart.isLoading} getOptionLabel={label} isOptionEqualToValue={(a, b) => a.code === b.code}
+              renderInput={(p) => <TextField {...p} required label="Post to" />} /></Hinted>
             <Suggested cls={cls.id} event={event === '' || (byStatus && status === '') ? null : Number(event)} number={byStatus ? Number(status || 0) : 99} type={type.code}
               options={options} chosen={account?.code ?? null} onPick={setAccount} />
-            <TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} helperText="Kept in the audit log" />
+            <Hinted tip="Kept in the audit log"><TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
             {(save.error || chart.error || choices.error) && <Alert severity="error">{((save.error ?? chart.error ?? choices.error) as Error).message}</Alert>}
           </Stack>
         </DialogContent>
@@ -541,9 +541,9 @@ function Drawers({ onSaved }: { onSaved: (msg: string) => void }) {
           </Table>
         </Box>
       </Surface>
-      <Typography color="text.secondary" sx={{ fontSize: 12, mt: 0.75, px: 0.5 }}>
+      <AboutNote sx={{ mt: 0.75, px: 0.5 }}>
         A drawer is a number the ledger keeps cash, cheques and ATM items under. A person takes a drawer by having its number as their teller number in Settings &gt; Users.
-      </Typography>
+      </AboutNote>
       <ReasonDialog open={adding} title="Add a cash drawer" confirm="Add drawer" busy={save.isPending} canSubmit={free}
         intro="The new drawer posts to the same accounts as the other drawers of its kind, for cash, cheques and ATM items."
         error={save.error ? (save.error as Error).message : null} onCancel={() => setAdding(false)} onConfirm={(r) => save.mutate(r)}>

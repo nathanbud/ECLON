@@ -5,7 +5,7 @@ import { getMemberDefaultsSetup, saveMemberDefaults, type MemberDefaultsSetup } 
 import { appBackground, glass } from './glass'
 import { useLeaveGuard } from './leaveGuard'
 import { LoadingBlock } from './ui/Loading'
-import { ScreenTitle } from './appleUi'
+import { Hinted, ScreenTitle } from './appleUi'
 
 const KEY = ['member-defaults-setup']
 
@@ -57,16 +57,16 @@ function Form({ s }: { s: MemberDefaultsSetup }) {
       {s.applies.types.length === 0 && <Alert severity="warning">No member type is chosen, so no one can be registered in this cooperative yet.</Alert>}
       <Box sx={(t) => ({ ...glass(t), p: 2 })}>
         <Stack spacing={2}>
-          <TextField select label="Department a new member is given" value={dept} onChange={(e) => setDept(e.target.value)} disabled={ro}
-            helperText={s.departments.length ? 'Used when the registration does not choose one.' : 'This database has no departments yet: add them in Settings > Organization > Departments.'}>
+          <Hinted tip="Used when the registration does not choose a department."><TextField select label="Department a new member is given" value={dept} onChange={(e) => setDept(e.target.value)} disabled={ro}
+            helperText={s.departments.length ? undefined : 'This database has no departments yet: add them in Settings > Organization > Departments.'}>
             <MenuItem value="">None chosen (the registration must give one)</MenuItem>
             {s.departments.map((d) => <MenuItem key={d.code} value={String(d.code)} disabled={d.disabled}>{d.code} · {d.name}{d.disabled ? ' (switched off)' : ''}</MenuItem>)}
-          </TextField>
-          <TextField select label="Office a new member is given" value={office} onChange={(e) => setOffice(e.target.value)} disabled={ro}
-            helperText={s.offices.length ? 'Used when the registration does not choose one.' : 'This database has no offices yet: add them in Settings > Organization > Offices.'}>
+          </TextField></Hinted>
+          <Hinted tip="Used when the registration does not choose an office."><TextField select label="Office a new member is given" value={office} onChange={(e) => setOffice(e.target.value)} disabled={ro}
+            helperText={s.offices.length ? undefined : 'This database has no offices yet: add them in Settings > Organization > Offices.'}>
             <MenuItem value="">None chosen (the registration must give one)</MenuItem>
             {s.offices.map((o) => <MenuItem key={o.code} value={String(o.code)}>{o.code} · {o.name}</MenuItem>)}
-          </TextField>
+          </TextField></Hinted>
           <Box component="fieldset" sx={{ border: 0, m: 0, p: 0 }}>
             <Typography component="legend" sx={{ fontSize: 13, fontWeight: 600, mb: 0.5 }}>Member types that can be registered</Typography>
             {s.memberTypes.length === 0
