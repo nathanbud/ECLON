@@ -6,13 +6,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { FiPlus, FiTrash2 } from 'react-icons/fi'
 import {
-  addAccountTypeLink, addCashDrawer, changeAccountTypeLink, createAccountType, createFirstAccountType, getAccountTypeLinkOptions, getAccountTypeLinks, getAccountTypes, getCashDrawers,
+  addAccountTypeLink, addCashDrawer, getCashSetup, setUpCash, changeAccountTypeLink, createAccountType, createFirstAccountType, getAccountTypeLinkOptions, getAccountTypeLinks, getAccountTypes, getCashDrawers,
   checkAccountTypeDelete, deleteAccountType, getChart, getLinkSuggestions, removeAccountTypeLink, updateAccountType,
   type AccountType, type AccountTypeClass, type AccountTypeForm, type AccountTypeLink, type ChartAccount,
 } from './api'
 import { AboutNote, Dot, Hinted, listTable, PageTitle, ReasonDialog, SectionLabel, Surface } from './appleUi'
 import { appBackground } from './glass'
 import { useLeaveGuard } from './leaveGuard'
+import { AccountPicker } from './ui/AccountPicker'
 import { Loading } from './ui/Loading'
 import { money, tabular } from './ui/format'
 
@@ -118,8 +119,11 @@ export default function AccountTypesPage({ kind }: { kind?: string | null } = {}
             <Stack spacing={2}>
               <TypePanel key={`${cls.id}/${type.code}`} cls={cls} type={type} onAdd={() => { setDone(null); setAdding(cls) }} onSaved={(msg) => { setDone(msg); void refresh() }}
                 onDeleted={(msg) => { setDone(msg); setPicked(null); void refresh() }} />
+              {cls.managed === 'CASH' && <CashSetupPanel onSaved={(msg) => { setDone(msg); void qc.invalidateQueries({ queryKey: ['account-type-links'] }); void refresh() }} />}
               {cls.managed === 'CASH' && <Drawers onSaved={(msg) => { setDone(msg); void qc.invalidateQueries({ queryKey: ['account-type-links'] }); void refresh() }} />}
             </Stack>
+          ) : cls && cls.types.length === 0 && cls.managed === 'CASH' ? (
+            <CashSetupPanel onSaved={(msg) => { setDone(msg); void refresh() }} />
           ) : cls && cls.types.length === 0 ? (
             <Surface label="Class without types">
               <Box sx={{ p: 2 }}>
@@ -514,15 +518,21 @@ function Drawers({ onSaved }: { onSaved: (msg: string) => void }) {
   const taken = (drawers.data ?? []).filter((d) => String(d.event) === kind).map((d) => d.number)
   const n = Number(numberText)
   const free = numberText !== '' && n >= 31 && n <= 94 && !taken.includes(n)
+  const search = useChartSearch()
+  const setup = useQuery({ queryKey: ['cash-setup'], queryFn: getCashSetup })
+  const first = (drawers.data ?? []).every((d) => String(d.event) !== kind)
+  const [accts, setAccts] = useState<Record<number, { code: string; description: string }>>({})
+  const needed = FIRST_DRAWER_TYPES.filter((t) => setup.data?.types.includes(t.type))
+  const accountsOk = !first || needed.filter((t) => t.required).every((t) => accts[t.type]?.code)
   const save = useMutation({
-    mutationFn: (reason: string) => addCashDrawer(Number(kind), n, reason),
-    onSuccess: (rows) => { qc.setQueryData(['cash-drawers'], rows); setAdding(false); setNumberText(''); onSaved(`${kind === '52' ? 'Cashier' : 'Teller'} drawer ${n} was added. Give the number to a person in Settings > Users.`) },
+    mutationFn: (reason: string) => addCashDrawer(Number(kind), n, reason, first ? Object.fromEntries(Object.entries(accts).filter(([, a]) => a.code).map(([t, a]) => [t, a.code])) : undefined),
+    onSuccess: (rows) => { qc.setQueryData(['cash-drawers'], rows); setAdding(false); setNumberText(''); setAccts({}); onSaved(`${kind === '52' ? 'Cashier' : 'Teller'} drawer ${n} was added. Give the number to a person in Settings > Users.`) },
   })
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'flex-end' }}>
         <Box sx={{ flex: 1 }}><SectionLabel>Cash drawers</SectionLabel></Box>
-        <Button size="small" startIcon={<FiPlus />} onClick={() => { save.reset(); setAdding(true) }} sx={{ mb: 0.5 }}>Add a drawer</Button>
+        <Button size="small" startIcon={<FiPlus />} disabled={setup.data != null && !setup.data.ready} onClick={() => { save.reset(); setAdding(true) }} sx={{ mb: 0.5 }}>Add a drawer</Button>
       </Box>
       <Surface label="Cash drawers">
         {drawers.error && <Alert severity="error" sx={{ m: 1.5 }}>{(drawers.error as Error).message}</Alert>}
@@ -544,15 +554,101 @@ function Drawers({ onSaved }: { onSaved: (msg: string) => void }) {
       <AboutNote sx={{ mt: 0.75, px: 0.5 }}>
         A drawer is a number the ledger keeps cash, cheques and ATM items under. A person takes a drawer by having its number as their teller number in Settings &gt; Users.
       </AboutNote>
-      <ReasonDialog open={adding} title="Add a cash drawer" confirm="Add drawer" busy={save.isPending} canSubmit={free}
-        intro="The new drawer posts to the same accounts as the other drawers of its kind, for cash, cheques and ATM items."
+      <ReasonDialog open={adding} title="Add a cash drawer" confirm="Add drawer" busy={save.isPending} canSubmit={free && accountsOk}
+        intro={first
+          ? `This is the first ${kind === '52' ? 'cashier' : 'teller'}'s drawer, so choose the chart account each part of it posts to. Later drawers of this kind take the same accounts.`
+          : 'The new drawer posts to the same accounts as the other drawers of its kind, for cash, cheques and ATM items.'}
         error={save.error ? (save.error as Error).message : null} onCancel={() => setAdding(false)} onConfirm={(r) => save.mutate(r)}>
         <TextField select label="Kind" value={kind} onChange={(e) => setKind(e.target.value)}>
           <MenuItem value="53">Teller</MenuItem><MenuItem value="52">Cashier</MenuItem>
         </TextField>
         <TextField required autoFocus label="Drawer number" value={numberText} onChange={(e) => setNumberText(e.target.value.replace(/\D/g, ''))} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 2 } }}
           error={numberText !== '' && !free} helperText={numberText !== '' && taken.includes(n) ? 'That drawer already exists.' : '31 to 94, not used yet'} />
+        {first && needed.map((t) => (
+          <Box key={t.type}>
+            <Typography sx={{ fontSize: 12, mb: 0.25 }} color="text.secondary">{t.label}{t.required ? ' *' : ' (optional)'}</Typography>
+            <AccountPicker code={accts[t.type]?.code ?? ''} desc={accts[t.type]?.description ?? ''} label={`${t.label} account`} width={360} placeholder="Account number or name"
+              search={search} recentKey="coop.cashSetupAccounts"
+              onPick={(a) => setAccts((x) => ({ ...x, [t.type]: a ?? { code: '', description: '' } }))} />
+          </Box>
+        ))}
       </ReasonDialog>
     </Box>
   )
+}
+
+/** What a first drawer of a kind needs: the account for its cash and its cheques, and optionally its ATM items. */
+const FIRST_DRAWER_TYPES = [
+  { type: 1, label: "Drawer's cash", required: true },
+  { type: 3, label: "Drawer's cheques and other cash items", required: true },
+  { type: 97, label: "Drawer's ATM items", required: false },
+]
+
+/**
+ * The cash class for the teller window: the system's cash types (numbers fixed, the ledger writes them by number) and the chart accounts of the vault and the cheques
+ * on hand, which each cooperative chooses. Shown while anything is missing; it only adds.
+ */
+function CashSetupPanel({ onSaved }: { onSaved: (msg: string) => void }) {
+  const qc = useQueryClient()
+  const search = useChartSearch()
+  const q = useQuery({ queryKey: ['cash-setup'], queryFn: getCashSetup })
+  const [accts, setAccts] = useState<Record<string, { code: string; description: string }>>({})
+  const [asking, setAsking] = useState(false)
+  const save = useMutation({
+    mutationFn: (reason: string) => setUpCash(Object.fromEntries(Object.entries(accts).filter(([, a]) => a.code).map(([k, a]) => [k, a.code])), reason),
+    onSuccess: (r) => {
+      qc.setQueryData(['cash-setup'], r)
+      setAsking(false)
+      setAccts({})
+      onSaved(r.ready ? 'The cash types are set up. Add a drawer for each teller and cashier next.' : 'Saved. Some of the cash setup is still missing.')
+    },
+  })
+  const s = q.data
+  if (q.isLoading) return <Loading what="the cash setup" />
+  if (q.error) return <Alert severity="error">{(q.error as Error).message}</Alert>
+  if (!s || s.ready) return null
+  const open = s.fixed.filter((f) => f.account == null)
+  const ok = open.filter((f) => f.required).every((f) => accts[`${f.type}/${f.event}`]?.code)
+  return (
+    <Surface label="Set up the cash types">
+      <Box sx={{ p: 2 }}>
+        <Typography component="h2" sx={{ fontSize: 17, fontWeight: 600 }}>Set up the cash types</Typography>
+        <Alert severity="warning" sx={{ my: 1.5 }}>
+          The teller window cannot take or count money on this database yet. Missing: {s.missing.join('; ')}.
+        </Alert>
+        <Typography color="text.secondary" sx={{ fontSize: 13, mb: 1.5 }}>
+          The cash types (cash on hand, cash in bank, cheques and other cash items, ATM items) are the system&apos;s own and are added as they are. Choose the chart accounts
+          your cooperative keeps that money in.
+        </Typography>
+        <Stack spacing={1.25}>
+          {open.map((f) => {
+            const k = `${f.type}/${f.event}`
+            return (
+              <Box key={k}>
+                <Typography sx={{ fontSize: 12, mb: 0.25 }} color="text.secondary">{f.label}{f.required ? ' *' : ' (optional)'}</Typography>
+                <AccountPicker code={accts[k]?.code ?? ''} desc={accts[k]?.description ?? ''} label={`${f.label} account`} width={360} placeholder="Account number or name"
+                  search={search} recentKey="coop.cashSetupAccounts"
+                  onPick={(a) => setAccts((x) => ({ ...x, [k]: a ?? { code: '', description: '' } }))} />
+              </Box>
+            )
+          })}
+        </Stack>
+        <Button variant="contained" sx={{ mt: 2 }} disabled={!ok} onClick={() => { save.reset(); setAsking(true) }}>Set up the cash types</Button>
+      </Box>
+      <ReasonDialog open={asking} title="Set up the cash types" confirm="Set up" busy={save.isPending}
+        intro="Adds the missing cash types and links the accounts chosen. Nothing already set up is changed."
+        error={save.error ? (save.error as Error).message : null} onCancel={() => setAsking(false)} onConfirm={(r) => save.mutate(r)} />
+    </Surface>
+  )
+}
+
+/** Searches the chart this page already loads for accounts that take postings, by number or name. */
+function useChartSearch() {
+  const chart = useQuery({ queryKey: ['chart'], queryFn: getChart })
+  return async (q: string) => {
+    const t = q.trim().toLowerCase()
+    return (chart.data ?? [])
+      .filter((a) => !a.summary && !a.disabled && (a.code.startsWith(t) || (a.name ?? '').toLowerCase().includes(t)))
+      .slice(0, 20).map((a) => ({ code: a.code, description: a.name ?? '' }))
+  }
 }

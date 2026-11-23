@@ -123,7 +123,13 @@ class MemberLedgerPoster {
         List<String> gl = jdbc.queryForList("""
                 SELECT GLControlACCT_CODE FROM glcontrol WHERE GLControlBR_CODE = ? AND GLControlSLC_CODE = ? AND GLControlSLT_CODE = ? AND GLControlSLE_CODE = ? AND GLControlCTS_NUM = ?
                 """, String.class, branch, slc, typeCode, event, cts);
-        if (gl.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "The ledger has no account set up for this type of account.");
+        if (gl.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, slc == 11
+                ? "This cash drawer (" + (event == 52 ? "cashier " : event == 53 ? "teller " : "number ") + cts + ") has no chart account set up, so nothing was saved. An administrator sets up the cash types"
+                  + " and adds the drawer in Settings > Accounting > Cash and teller drawers, then gives the drawer number to the person in Settings > Users."
+                : "Account type " + slc + "/" + typeCode + " has no chart account set up for this posting, so nothing was saved. An administrator links it in Settings > Products"
+                  + " (the account type's ledger links), then try again.");
+        }
         return gl.get(0);
     }
 

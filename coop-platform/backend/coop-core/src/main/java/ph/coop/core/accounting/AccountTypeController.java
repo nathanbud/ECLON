@@ -80,7 +80,14 @@ public class AccountTypeController {
 
     public record Drawer(int event, String kind, int number, String account, String accountName, List<String> heldBy) {}
 
-    public record DrawerIn(int event, int number, String reason) {}
+    /** accounts: for the first drawer of its kind, the chart account per cash type (1, 3) it posts to; later drawers take the other drawers' accounts. */
+    public record DrawerIn(int event, int number, String reason, Map<Integer, String> accounts) {}
+    /** A fixed link of the cash class (vault, cheques on hand) and the account it posts to, null when not linked yet. */
+    public record CashFixed(int type, int event, String label, boolean required, String account, String accountName) {}
+    /** What the teller window still needs of the cash class, in words; ready when nothing. */
+    public record CashSetup(List<String> missing, List<Integer> types, List<CashFixed> fixed, boolean ready) {}
+    /** accounts: "type/event" (1/50, 3/51, 97/51) to the chart account it posts to. */
+    public record CashSetupIn(Map<String, String> accounts, String reason) {}
 
     private int branch(Authentication auth) {
         List<Integer> r = jdbc.queryForList("SELECT AccessBR_CODE FROM access WHERE AccessUserName = ? AND COALESCE(AccessIsDisabled, 0) = 0 LIMIT 1", Integer.class, auth.getName());
@@ -567,6 +574,86 @@ public class AccountTypeController {
         }, branch, AccountTypeRules.CASH, CASH_ON_HAND);
     }
 
+    private List<Integer> cashTypes(int branch) {
+        return jdbc.queryForList("SELECT SLTypeSLT_CODE FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? ORDER BY 1", Integer.class, branch, AccountTypeRules.CASH);
+    }
+
+    private CashSetup cashSetup(int branch) {
+        List<Integer> typeList = cashTypes(branch);
+        java.util.Set<Integer> types = new java.util.HashSet<>(typeList);
+        java.util.Set<String> links = new java.util.HashSet<>();
+        List<CashFixed> fixed = new ArrayList<>();
+        for (CashSetupRules.Fixed f : CashSetupRules.FIXED) {
+            List<Map<String, Object>> l = jdbc.queryForList("""
+                SELECT g.GLControlACCT_CODE AS account, c.COADesc AS name FROM glcontrol g LEFT JOIN coa c ON c.COABR_CODE = g.GLControlBR_CODE AND c.COAID = g.GLControlACCT_CODE
+                WHERE g.GLControlBR_CODE = ? AND g.GLControlSLC_CODE = ? AND g.GLControlSLT_CODE = ? AND g.GLControlSLE_CODE = ? AND g.GLControlCTS_NUM = ?
+                ORDER BY g.GLControlACCT_CODE
+                """, branch, AccountTypeRules.CASH, f.type(), f.event(), CashSetupRules.NOT_PER_DRAWER);
+            if (!l.isEmpty()) links.add(f.type() + "/" + f.event());
+            fixed.add(new CashFixed(f.type(), f.event(), f.label(), f.required(), l.isEmpty() ? null : (String) l.get(0).get("account"), l.isEmpty() ? null : (String) l.get(0).get("name")));
+        }
+        List<String> missing = CashSetupRules.missing(types, links);
+        return new CashSetup(missing, typeList, fixed, missing.isEmpty());
+    }
+
+    /** Whether the cash class is set up for the teller window: its types and the vault and cheques-on-hand accounts. */
+    @GetMapping("/cash/setup")
+    public CashSetup cashSetup(Authentication auth) {
+        return cashSetup(branch(auth));
+    }
+
+    /**
+     * Sets up the cash class on a database that lacks it: creates the system's cash types that are missing (their numbers are fixed, the ledger writes them by number)
+     * and links the vault and the cheques on hand to the chart accounts the cooperative chose. Only adds: a type or link already there is kept as it is.
+     */
+    @PostMapping("/cash/setup")
+    @Transactional
+    public CashSetup setUpCash(@RequestBody CashSetupIn in, Authentication auth) {
+        int branch = branch(auth);
+        String why = reason(in == null ? null : in.reason());
+        Map<String, String> given = in.accounts() == null ? Map.of() : in.accounts();
+        CashSetup now = cashSetup(branch);
+        List<String> lacking = new ArrayList<>();
+        for (CashFixed f : now.fixed()) {
+            String a = given.get(f.type() + "/" + f.event());
+            if (f.account() == null && f.required() && (a == null || a.isBlank())) lacking.add(f.label().toLowerCase());
+        }
+        if (!lacking.isEmpty()) throw bad("Choose the chart account for " + String.join(" and for ", lacking) + ", so the teller window knows where that money is kept. Nothing was saved.");
+        Map<String, Integer> kinds = new LinkedHashMap<>();
+        for (CashFixed f : now.fixed()) {
+            String a = given.get(f.type() + "/" + f.event());
+            if (f.account() == null && a != null && !a.isBlank()) kinds.put(f.type() + "/" + f.event(), postable(branch, a));
+        }
+        List<Object> made = new ArrayList<>();
+        java.util.Set<Integer> have = new java.util.HashSet<>(now.types());
+        for (var t : CashSetupRules.TYPES.entrySet()) {
+            if (have.contains(t.getKey())) continue;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("SLTypeBR_CODE", branch);
+            row.put("SLTypeSLC_CODE", AccountTypeRules.CASH);
+            row.put("SLTypeSLT_CODE", t.getKey());
+            row.put("SLTypeM_DESC", t.getValue());
+            row.put("SLTypeM_DESC2", t.getValue());
+            row.put("SLTypePriority", 99);
+            row.put("SLTypeIsDisabled", 0);
+            row.put("SLTypeUPDDATETIME", now());
+            row.put("SLTypeUpdUser", userId(auth));
+            insertType(row);
+            made.add(map("type", t.getKey(), "name", t.getValue()));
+        }
+        for (CashFixed f : now.fixed()) {
+            String key = f.type() + "/" + f.event();
+            if (f.account() != null || !kinds.containsKey(key)) continue;
+            String a = given.get(key).trim();
+            jdbc.update("INSERT INTO glcontrol (GLControlBR_CODE, GLControlSLC_CODE, GLControlSLT_CODE, GLControlSLE_CODE, GLControlCTS_NUM, GLControlACCT_CODE, BAL_TYPE) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                branch, AccountTypeRules.CASH, f.type(), f.event(), CashSetupRules.NOT_PER_DRAWER, a, AccountTypeRules.balanceSide(kinds.get(key)));
+            made.add(map("link", key, "account", a));
+        }
+        if (made.isEmpty()) throw bad("The cash types and their accounts are already set up, so nothing needed adding. To point one at another account, change its link on the cash type below.");
+        audit(auth, "cash.setup", branch + "/" + AccountTypeRules.CASH, null, map("added", made), why);
+        return cashSetup(branch);
+    }
+
     /**
      * Adds a cashier's or teller's drawer: the drawer number gets a ledger link on every cash type that keeps drawers of that kind (cash, cheques and other cash items, ATM), each
      * posting to the account the other drawers of that type use. The number is then given to a person in Users.
@@ -580,19 +667,39 @@ public class AccountTypeController {
         List<String> known = jdbc.queryForList("SELECT CTS_TypeActive FROM cts_type WHERE CTS_TypeCode = ?", String.class, in.number());
         if (known.isEmpty() || in.number() == 99 || !AccountTypeRules.appliesTo(known.get(0), AccountTypeRules.CASH)) throw bad("That is not a drawer number the ledger knows (31 to 94).");
         if (!jdbc.queryForList("SELECT 1 FROM glcontrol" + LINK_KEY, branch, AccountTypeRules.CASH, CASH_ON_HAND, in.event(), in.number()).isEmpty()) throw bad("Drawer " + in.number() + " already exists.");
+        java.util.Set<Integer> types = new java.util.HashSet<>(cashTypes(branch));
+        java.util.Set<Integer> withKind = new java.util.HashSet<>(jdbc.queryForList(
+            "SELECT DISTINCT GLControlSLT_CODE FROM glcontrol WHERE GLControlBR_CODE = ? AND GLControlSLC_CODE = ? AND GLControlSLE_CODE = ? ORDER BY 1", Integer.class, branch, AccountTypeRules.CASH, in.event()));
+        // the first drawer of a kind has no other drawer to copy from: its chart accounts are the ones the cooperative chose
+        List<String> lacking = CashSetupRules.drawerAccountsMissing(types, withKind, in.accounts());
+        if (!lacking.isEmpty()) {
+            throw bad("This is the first " + (in.event() == CASHIER ? "cashier's" : "teller's") + " drawer, so choose the chart account each part of it posts to: "
+                + String.join(", ", lacking) + ". Nothing was saved.");
+        }
         List<Map<String, Object>> made = new ArrayList<>();
-        for (Integer type : jdbc.queryForList("SELECT DISTINCT GLControlSLT_CODE FROM glcontrol WHERE GLControlBR_CODE = ? AND GLControlSLC_CODE = ? AND GLControlSLE_CODE = ? ORDER BY 1", Integer.class, branch, AccountTypeRules.CASH, in.event())) {
+        for (int type : CashSetupRules.DRAWER_TYPES) {
+            if (!types.contains(type)) continue;
             if (!jdbc.queryForList("SELECT 1 FROM glcontrol" + LINK_KEY, branch, AccountTypeRules.CASH, type, in.event(), in.number()).isEmpty()) continue;
             List<Map<String, Object>> pattern = jdbc.queryForList("""
                 SELECT GLControlACCT_CODE AS account, BAL_TYPE AS side FROM glcontrol WHERE GLControlBR_CODE = ? AND GLControlSLC_CODE = ? AND GLControlSLT_CODE = ? AND GLControlSLE_CODE = ?
                 GROUP BY GLControlACCT_CODE, BAL_TYPE ORDER BY COUNT(*) DESC, GLControlACCT_CODE LIMIT 1
                 """, branch, AccountTypeRules.CASH, type, in.event());
-            if (pattern.isEmpty()) continue;
+            String account;
+            Object side;
+            if (!pattern.isEmpty()) {
+                account = (String) pattern.get(0).get("account");
+                side = pattern.get(0).get("side");
+            } else {
+                String given = in.accounts() == null ? null : in.accounts().get(type);
+                if (given == null || given.isBlank()) continue; // ATM items are optional
+                account = given.trim();
+                side = AccountTypeRules.balanceSide(postable(branch, account));
+            }
             jdbc.update("INSERT INTO glcontrol (GLControlBR_CODE, GLControlSLC_CODE, GLControlSLT_CODE, GLControlSLE_CODE, GLControlCTS_NUM, GLControlACCT_CODE, BAL_TYPE) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                branch, AccountTypeRules.CASH, type, in.event(), in.number(), pattern.get(0).get("account"), pattern.get(0).get("side"));
-            made.add(map("type", type, "account", pattern.get(0).get("account")));
+                branch, AccountTypeRules.CASH, type, in.event(), in.number(), account, side);
+            made.add(map("type", type, "account", account));
         }
-        if (made.isEmpty()) throw bad("No other drawer of that kind exists to take the ledger account from.");
+        if (made.isEmpty()) throw bad("The cash types are not set up yet, so a drawer has nothing to hold. Press Set up the cash types first. Nothing was saved.");
         audit(auth, "cash.drawer.add", branch + "/" + AccountTypeRules.CASH + "/" + in.event() + "/" + in.number(), null, map("kind", in.event() == CASHIER ? "Cashier" : "Teller", "number", in.number(), "links", made), why);
         return drawers(auth);
     }

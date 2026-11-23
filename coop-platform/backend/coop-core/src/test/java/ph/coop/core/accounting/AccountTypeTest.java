@@ -203,11 +203,11 @@ class AccountTypeTest {
         int free = java.util.stream.IntStream.rangeClosed(31, 94).filter((n) -> drawers.stream().noneMatch((d) -> d.event() == 53 && d.number() == n)).findFirst().orElse(-1);
         assumeTrue(free > 0, "every teller drawer number is taken");
         int taken = drawers.stream().filter((d) -> d.event() == 53).findFirst().orElseThrow().number();
-        assertThrows(ResponseStatusException.class, () -> types.addDrawer(new AccountTypeController.DrawerIn(53, taken, "try"), me()));
-        assertThrows(ResponseStatusException.class, () -> types.addDrawer(new AccountTypeController.DrawerIn(53, 15, "try"), me()), "15 is an account status, not a drawer");
-        assertThrows(ResponseStatusException.class, () -> types.addDrawer(new AccountTypeController.DrawerIn(50, free, "try"), me()), "the vault is not a drawer");
-        assertThrows(ResponseStatusException.class, () -> types.addDrawer(new AccountTypeController.DrawerIn(53, free, " "), me()));
-        var after = types.addDrawer(new AccountTypeController.DrawerIn(53, free, "new teller window"), me());
+        assertThrows(ResponseStatusException.class, () -> types.addDrawer(new AccountTypeController.DrawerIn(53, taken, "try", null), me()));
+        assertThrows(ResponseStatusException.class, () -> types.addDrawer(new AccountTypeController.DrawerIn(53, 15, "try", null), me()), "15 is an account status, not a drawer");
+        assertThrows(ResponseStatusException.class, () -> types.addDrawer(new AccountTypeController.DrawerIn(50, free, "try", null), me()), "the vault is not a drawer");
+        assertThrows(ResponseStatusException.class, () -> types.addDrawer(new AccountTypeController.DrawerIn(53, free, " ", null), me()));
+        var after = types.addDrawer(new AccountTypeController.DrawerIn(53, free, "new teller window", null), me());
         assertTrue(after.stream().anyMatch((d) -> d.event() == 53 && d.number() == free && d.account() != null));
         // the cheque and ATM types that keep teller drawers got the same number
         assertEquals(jdbc.queryForObject("SELECT COUNT(DISTINCT GLControlSLT_CODE) FROM glcontrol WHERE GLControlSLC_CODE = 11 AND GLControlSLE_CODE = 53", Integer.class),
@@ -254,6 +254,14 @@ class AccountTypeTest {
         }
         // for type 1 itself, its own link is not counted as another type's
         assertTrue(types.suggestions(22, 11, 15, 1, null, me()).stream().noneMatch((x) -> x.why().contains(savings(1).name().trim() + " ")));
+    }
+
+    @Test void coopsCashClassIsSetUpForTheTellerWindowAndNothingIsAddedTwice() {
+        var setup = types.cashSetup(me());
+        assertTrue(setup.ready(), setup.missing().toString());
+        assertEquals("10001", setup.fixed().get(0).account(), "the vault");
+        var e = assertThrows(ResponseStatusException.class, () -> types.setUpCash(new AccountTypeController.CashSetupIn(java.util.Map.of("1/50", "10001"), "again"), me()));
+        assertTrue(e.getReason().contains("already set up"), e.getReason());
     }
 
     @Test @WithMockUser(username = "tester", roles = "ACCOUNTANT") void onlyAdministratorsMayOpenIt() {

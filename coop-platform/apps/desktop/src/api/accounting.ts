@@ -345,7 +345,16 @@ export const createFirstAccountType = (cls: number, f: { name: string; fullName:
 
 export interface CashDrawer { event: number; kind: 'Cashier' | 'Teller'; number: number; account: string | null; accountName: string | null; heldBy: string[] }
 export const getCashDrawers = () => getJson<CashDrawer[]>(`${TYPES}/cash/drawers`)
-export const addCashDrawer = (event: number, number: number, reason: string) => send<CashDrawer[]>('POST', `${TYPES}/cash/drawers`, { event, number, reason })
+/** accounts: for the first drawer of its kind, the chart account per cash type (1 cash, 3 cheques, 97 ATM items) */
+export const addCashDrawer = (event: number, number: number, reason: string, accounts?: Record<number, string>) =>
+  send<CashDrawer[]>('POST', `${TYPES}/cash/drawers`, { event, number, reason, accounts })
+/** A fixed link of the cash class (vault, cheques on hand); account null while not linked */
+export interface CashFixed { type: number; event: number; label: string; required: boolean; account: string | null; accountName: string | null }
+/** missing: what the teller window still needs, in words; ready when nothing */
+export interface CashSetup { missing: string[]; types: number[]; fixed: CashFixed[]; ready: boolean }
+export const getCashSetup = () => getJson<CashSetup>(`${TYPES}/cash/setup`)
+/** accounts: 'type/event' (1/50, 3/51, 97/51) to the chart account */
+export const setUpCash = (accounts: Record<string, string>, reason: string) => send<CashSetup>('POST', `${TYPES}/cash/setup`, { accounts, reason })
 
 // ---- dormant savings accounts ----------------------------------------------------------------------------------------
 

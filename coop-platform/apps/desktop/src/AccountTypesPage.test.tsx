@@ -20,6 +20,8 @@ const addDrawer = vi.fn()
 const delCheck = vi.fn()
 const del = vi.fn()
 const suggest = vi.fn()
+const cashSetup = vi.fn()
+const setUpCash = vi.fn()
 vi.mock('./api', async (orig) => ({
   ...(await orig<typeof import('./api')>()),
   getAccountTypes: () => list(),
@@ -36,6 +38,8 @@ vi.mock('./api', async (orig) => ({
   checkAccountTypeDelete: (c: number, t: number) => delCheck(c, t),
   deleteAccountType: (...a: unknown[]) => del(...a),
   getLinkSuggestions: (...a: unknown[]) => suggest(...a),
+  getCashSetup: () => cashSetup(),
+  setUpCash: (...a: unknown[]) => setUpCash(...a),
 }))
 
 const type = (classId: number, code: number, name: string, extra: Partial<AccountType> = {}): AccountType =>
@@ -60,8 +64,9 @@ function show(kind?: string) {
 
 describe('Account types', () => {
   beforeEach(() => {
-    for (const f of [list, links, update, create, move, chart, first, addLink, linkOptions, drawers, addDrawer, delCheck, del, suggest]) f.mockReset()
+    for (const f of [list, links, update, create, move, chart, first, addLink, linkOptions, drawers, addDrawer, delCheck, del, suggest, cashSetup, setUpCash]) f.mockReset()
     suggest.mockResolvedValue([])
+    cashSetup.mockResolvedValue({ missing: [], types: [1, 2, 3, 97], fixed: [], ready: true })
     list.mockResolvedValue(classes)
     links.mockResolvedValue(sdLinks)
     chart.mockResolvedValue([acct('201', 'DEPOSITS', 2, true), acct('2010101', 'Savings deposits', 2), acct('2010106', 'Savings - Kaya', 2), acct('412', 'Service fee', 4)])
@@ -244,7 +249,56 @@ describe('Account types', () => {
     await user.type(within(dialog).getByLabelText(/^Reason/), 'New teller window')
     expect(confirm).toBeEnabled()
     await user.click(confirm)
-    await waitFor(() => expect(addDrawer).toHaveBeenCalledWith(53, 32, 'New teller window'))
+    await waitFor(() => expect(addDrawer).toHaveBeenCalledWith(53, 32, 'New teller window', undefined))
+  })
+
+  it('sets up the cash types on a database without them, with the accounts the cooperative chose', async () => {
+    list.mockResolvedValue([{ ...classes[0], types: [] }, ...classes.slice(1)])
+    chart.mockResolvedValue([acct('101', 'CASH', 1, true), acct('10101', 'Cash in vault', 1), acct('10104', 'Checks on hand', 1)])
+    cashSetup.mockResolvedValue({ missing: ['the cash type Cash-on-Hand (11/1)', 'the chart account for cash in the vault'], types: [], ready: false, fixed: [
+      { type: 1, event: 50, label: 'Cash in the vault', required: true, account: null, accountName: null },
+      { type: 3, event: 51, label: 'Cheques and other cash items on hand', required: true, account: null, accountName: null },
+      { type: 97, event: 51, label: 'ATM items on hand', required: false, account: null, accountName: null }] })
+    setUpCash.mockResolvedValue({ missing: [], types: [1, 2, 3, 97], fixed: [], ready: true })
+    show()
+    const user = userEvent.setup()
+    const nav = await screen.findByRole('navigation', { name: 'Account types by class' })
+    await user.click((await within(nav).findAllByText('No types yet'))[0])
+    expect(await screen.findByText(/cannot take or count money on this database yet/)).toBeInTheDocument()
+    const go = screen.getByRole('button', { name: 'Set up the cash types' })
+    expect(go).toBeDisabled()
+    await user.type(screen.getByLabelText('Cash in the vault account'), 'vault')
+    await user.click(await screen.findByRole('option', { name: /10101/ }))
+    await user.type(screen.getByLabelText('Cheques and other cash items on hand account'), 'checks')
+    await user.click(await screen.findByRole('option', { name: /10104/ }))
+    await user.click(go)
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText(/^Reason/), 'New cooperative')
+    await user.click(within(dialog).getByRole('button', { name: 'Set up' }))
+    await waitFor(() => expect(setUpCash).toHaveBeenCalledWith({ '1/50': '10101', '3/51': '10104' }, 'New cooperative'))
+  })
+
+  it('asks the accounts of the first drawer of its kind', async () => {
+    drawers.mockResolvedValue([])
+    addDrawer.mockResolvedValue([])
+    chart.mockResolvedValue([acct('10103', 'Cash - tellers', 1), acct('10104', 'Checks on hand', 1)])
+    show()
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('Cash-on-Hand'))
+    await user.click(await screen.findByRole('button', { name: 'Add a drawer' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent(/first teller's drawer/)
+    await user.type(within(dialog).getByLabelText(/Drawer number/), '31')
+    await user.type(within(dialog).getByLabelText(/^Reason/), 'First teller')
+    const confirm = within(dialog).getByRole('button', { name: 'Add drawer' })
+    expect(confirm).toBeDisabled()
+    await user.type(within(dialog).getByLabelText("Drawer's cash account"), 'tellers')
+    await user.click(await screen.findByRole('option', { name: /10103/ }))
+    await user.type(within(dialog).getByLabelText("Drawer's cheques and other cash items account"), 'checks')
+    await user.click(await screen.findByRole('option', { name: /10104/ }))
+    expect(confirm).toBeEnabled()
+    await user.click(confirm)
+    await waitFor(() => expect(addDrawer).toHaveBeenCalledWith(53, 31, 'First teller', { 1: '10103', 3: '10104' }))
   })
 
   it('deletes a type nothing used, with a reason, and offers to switch off one that was used', async () => {
