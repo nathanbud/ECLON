@@ -34,6 +34,7 @@ import DividendsPage from './DividendsPage'
 import WorkflowSettingsPage from './WorkflowSettingsPage'
 import MembershipPolicyPage from './MembershipPolicyPage'
 import SlControlsPage from './SlControlsPage'
+import ProductRolesPage from './ProductRolesPage'
 import OfficesPage from './OfficesPage'
 import DepartmentsPage from './DepartmentsPage'
 import MemberDefaultsPage from './MemberDefaultsPage'
@@ -56,7 +57,7 @@ import { SessionGate } from './session'
 import { ToolbarSlotProvider } from './toolbarSlot'
 
 const titles: Record<View, string> = {
-  home: 'Coop Platform', loans: 'Loan Module', members: 'Member Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', backoffice: 'Back Office', approvals: 'Waiting for you', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports', documents: 'Documents', workflows: 'Approval workflows', membershippolicy: 'Membership policy', slcontrols: 'SL Controls', offices: 'Offices', departments: 'Departments', memberdefaults: 'Member defaults', features: 'Features', documentation: 'Documentation', branding: 'Sign-in screen', connections: 'Database connection', backup: 'Backup', privacy: 'Data privacy', cic: 'CIC submission', dividends: 'Dividends', kycreview: 'KYC review', accounttypes: 'Account Types', dormancy: 'Savings Dormancy', businessday: 'Business Day', errors: 'Error log', startersetup: 'Starter setup',
+  home: 'Coop Platform', productroles: 'Product roles', loans: 'Loan Module', members: 'Member Profile', accounts: 'Chart of Accounts', accounting: 'Accounting', backoffice: 'Back Office', approvals: 'Waiting for you', users: 'Users', audit: 'Audit Log', loansetup: 'Loan Setup', amortization: 'Loan Setup', settings: 'Settings', frontoffice: 'Front Office', loanapp: 'Coop Platform', procurement: 'Purchasing', inventory: 'Inventory', pos: 'Point of Sale', assets: 'Fixed Assets', reports: 'Reports', documents: 'Documents', workflows: 'Approval workflows', membershippolicy: 'Membership policy', slcontrols: 'SL Controls', offices: 'Offices', departments: 'Departments', memberdefaults: 'Member defaults', features: 'Features', documentation: 'Documentation', branding: 'Sign-in screen', connections: 'Database connection', backup: 'Backup', privacy: 'Data privacy', cic: 'CIC submission', dividends: 'Dividends', kycreview: 'KYC review', accounttypes: 'Account Types', dormancy: 'Savings Dormancy', businessday: 'Business Day', errors: 'Error log', startersetup: 'Starter setup',
 }
 
 /** Where the person is: a screen, and the tab inside it when the menu or the search named one. */
@@ -205,6 +206,7 @@ function Signed() {
             {view === 'workflows' && <WorkflowSettingsPage />}
             {view === 'membershippolicy' && <MembershipPolicyPage />}
             {view === 'slcontrols' && <SlControlsPage />}
+            {view === 'productroles' && <ProductRolesPage />}
             {view === 'kycreview' && <KycReviewPage onOpenMember={(id) => { requestSectionFor(id, TABS.indexOf('KYC')); openClient(id) }} />}
             {view === 'documentation' && <DocumentationPage />}
             {view === 'branding' && <BrandingPage />}

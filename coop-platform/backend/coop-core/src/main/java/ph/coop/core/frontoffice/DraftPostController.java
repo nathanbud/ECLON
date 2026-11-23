@@ -78,8 +78,11 @@ class DraftPostController {
     private final ObjectMapper json;
     private final TransactionTemplate tx;
 
+    private final ph.coop.core.accounting.ProductRoles roles;
+
     DraftPostController(JdbcTemplate jdbc, Db db, Clock clock, FrontOfficeAccess access, MemberLedgerPoster poster, DrawerBalances balances, BankCashController banks,
-                        Ledger ledger, KycGate kyc, ObjectMapper json, PlatformTransactionManager txm) {
+                        Ledger ledger, KycGate kyc, ObjectMapper json, PlatformTransactionManager txm, ph.coop.core.accounting.ProductRoles roles) {
+        this.roles = roles;
         this.jdbc = jdbc;
         this.db = db;
         this.clock = clock;
@@ -400,13 +403,14 @@ class DraftPostController {
         return poster.account(MemberLedgerPoster.Master.SAVINGS, branch, client, slt, ref).status();
     }
 
-    /** A new vouchers-payable account (class 29, type 1) for the payee, as a loan release opens one: the next number of the branch, active. */
+    /** A new vouchers-payable account (the type chosen in Product roles) for the payee, as a loan release opens one: the next number of the branch, active. */
     private int openVouchersPayable(int branch, int clientId) {
-        List<Integer> last = jdbc.queryForList("SELECT MREF_NO FROM slmastersum WHERE MBR_CODE = ? AND MSLC_CODE = 29 AND MSLT_CODE = 1 ORDER BY MREF_NO DESC LIMIT 1 FOR UPDATE", Integer.class, branch);
+        int vp = roles.vouchersPayable(branch, "the voucher (its payee's vouchers-payable account)");
+        List<Integer> last = jdbc.queryForList("SELECT MREF_NO FROM slmastersum WHERE MBR_CODE = ? AND MSLC_CODE = 29 AND MSLT_CODE = ? ORDER BY MREF_NO DESC LIMIT 1 FOR UPDATE", Integer.class, branch, vp);
         int ref = last.isEmpty() ? 1 : last.get(0) + 1;
-        jdbc.update("INSERT INTO slmastersum (MBR_CODE, MSLC_CODE, MSLT_CODE, MREF_NO, MCLIENTID) VALUES (?, 29, 1, ?, ?)", branch, ref, clientId);
-        jdbc.update("INSERT INTO osl (OSLBR_CODE, OSLSLC_CODE, OSLSLT_CODE, OSLREF_NO, ClientIDOSL, OSLTR_DATE, OSLSTATUS, OSLPAMT) VALUES (?, 29, 1, ?, ?, ?, 15, 0.00)",
-            branch, ref, clientId, LocalDate.now(clock).toString());
+        jdbc.update("INSERT INTO slmastersum (MBR_CODE, MSLC_CODE, MSLT_CODE, MREF_NO, MCLIENTID) VALUES (?, 29, ?, ?, ?)", branch, vp, ref, clientId);
+        jdbc.update("INSERT INTO osl (OSLBR_CODE, OSLSLC_CODE, OSLSLT_CODE, OSLREF_NO, ClientIDOSL, OSLTR_DATE, OSLSTATUS, OSLPAMT) VALUES (?, 29, ?, ?, ?, ?, 15, 0.00)",
+            branch, vp, ref, clientId, LocalDate.now(clock).toString());
         return ref;
     }
 

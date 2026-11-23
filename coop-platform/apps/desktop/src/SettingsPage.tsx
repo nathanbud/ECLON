@@ -58,6 +58,7 @@ const categories: Category[] = [
       { label: 'Loan products', note: 'Loan types, purposes, collateral types and the deposits that can be held for co-makers', icon: <FiSliders />, color: tint.green[0], view: 'loansetup', who: 'admin' },
       { label: 'Amortization methods', note: 'How each kind of loan schedule is worked out, and a calculator to try one', icon: <FiPercent />, color: tint.purple[0], view: 'amortization', who: 'admin' },
       { label: 'Account opening (SL Controls)', note: 'Which savings, fund and share capital accounts open by themselves when a member is registered or reactivated, per member type', icon: <FiToggleRight />, color: tint.teal[0], view: 'slcontrols', who: 'admin' },
+      { label: 'Product roles', note: 'Which of your own account types the system posts to by itself, such as vouchers payable for loan proceeds and vouchers', icon: <FiToggleRight />, color: tint.orange[0], view: 'productroles', who: 'admin' },
     ],
   },
   {

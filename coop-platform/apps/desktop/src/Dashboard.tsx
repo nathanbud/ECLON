@@ -10,7 +10,7 @@ import { useMe } from './session'
 import { SURFACE_RADIUS, tileFill, tint, type Tint } from './theme'
 import { nameCase } from './ui/format'
 
-export type View = 'home' | 'members' | 'accounts' | 'accounting' | 'backoffice' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'amortization' | 'settings' | 'frontoffice' | 'loanapp' | 'loans' | 'procurement' | 'inventory' | 'pos' | 'assets' | 'reports' | 'documents' | 'workflows' | 'membershippolicy' | 'documentation' | 'branding' | 'connections' | 'backup' | 'privacy' | 'cic' | 'dividends' | 'kycreview' | 'accounttypes' | 'dormancy' | 'businessday' | 'slcontrols' | 'errors' | 'startersetup' | 'offices' | 'departments' | 'memberdefaults' | 'features'
+export type View = 'home' | 'productroles' | 'members' | 'accounts' | 'accounting' | 'backoffice' | 'approvals' | 'users' | 'audit' | 'loansetup' | 'amortization' | 'settings' | 'frontoffice' | 'loanapp' | 'loans' | 'procurement' | 'inventory' | 'pos' | 'assets' | 'reports' | 'documents' | 'workflows' | 'membershippolicy' | 'documentation' | 'branding' | 'connections' | 'backup' | 'privacy' | 'cic' | 'dividends' | 'kycreview' | 'accounttypes' | 'dormancy' | 'businessday' | 'slcontrols' | 'errors' | 'startersetup' | 'offices' | 'departments' | 'memberdefaults' | 'features'
 
 const EASE = 'cubic-bezier(.2,.8,.2,1)'
 

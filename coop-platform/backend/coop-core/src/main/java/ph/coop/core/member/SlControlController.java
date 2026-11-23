@@ -30,7 +30,7 @@ import ph.coop.core.member.SlControlRules.Type;
 /**
  * SL Controls (Settings > Products > Account opening (SL Controls), administrators): which accounts open by themselves, empty, when a Membership Officer approves a new member or reactivates
  * one, per member type. Kept in {@code ecis_sl_control} (PostgreSQL V031, MySQL V068), which starts with what the application always opened. Every change needs a reason and
- * is audited as {@code sl.control.changed}. {@link MemberLifecycleController} asks {@link #accountsFor}; without the table it falls back to {@link LifecycleRules#accountsFor}.
+ * is audited as {@code sl.control.changed}. {@link MemberLifecycleController} asks {@link #accountsFor}; only switches the cooperative turned on count, with no built-in list behind them.
  */
 @RestController
 public class SlControlController {
@@ -69,7 +69,8 @@ public class SlControlController {
 
     /** The accounts that open for a member of this type in this branch: the switches that are on, of types still in use; the built-in list where the table is not installed. */
     public List<Acct> accountsFor(int branch, int clientType) {
-        if (!db.tableExists(TABLE)) return LifecycleRules.accountsFor(clientType);
+        // only what this cooperative switched on in Account opening (SL Controls); there is no built-in list to fall back on
+        if (!db.tableExists(TABLE)) throw new ResponseStatusException(HttpStatus.CONFLICT, DatabaseChanges.notSetUp("Account opening (SL Controls), which says which accounts a new member gets,"));
         // exactly what this cooperative chose: a member type with nothing chosen opens nothing (registration then says to choose)
         List<Switch> switches = switches(branch);
         Set<String> disabled = new HashSet<>();
@@ -120,7 +121,7 @@ public class SlControlController {
         Map<Integer, Set<String>> opens = new LinkedHashMap<>();
         for (int m : members.keySet()) {
             Set<String> s = new HashSet<>();
-            List<Acct> accts = installed ? onOnly(branch, m) : LifecycleRules.accountsFor(m);
+            List<Acct> accts = installed ? onOnly(branch, m) : List.of();
             for (Acct a : accts) s.add(a.slc() + "/" + a.slt());
             opens.put(m, s);
         }

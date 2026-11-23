@@ -19,3 +19,7 @@
 **Tests**: `SlControlRulesTest`, `SlControlTest` (switching HABP off makes the next Regular registration open three accounts, not four; audit; refusals), `MemberLifecycleTest` (unchanged: four accounts with the starting switches), `SlControlsPage.test.tsx`.
 
 **Not built**: opening an account for an existing member by hand (an extra or replacement account outside registration and reactivation).
+
+## Only what the cooperative switched on (2026-11-24)
+
+A new or reactivated member gets exactly the accounts switched on here for account types the cooperative set up; there is no built-in list behind it any more (`LifecycleRules.accountsFor` was removed). PostgreSQL `V043` removed switches stored for account types a database does not have (they had been copied from the first cooperative's list onto `coop_bgempc`). A switch left on for a type that is not set up is shown as "Type x/y (not set up)" and can only be switched off. The vouchers-payable type, which a loan's net proceeds and vouchers use, is chosen in Settings > Products > Product roles (`ProductRoles`).

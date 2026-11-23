@@ -29,18 +29,6 @@ final class LifecycleRules {
     record Acct(int slc, int slt, String table) {}
 
     /**
-     * The accounts that opened with each kind of member in the first cooperative's old system (22 savings, 29 funds, 31 share capital). Used only where the SL Controls
-     * table is not installed (the old MySQL database); every other database opens exactly what its own SL Controls say, since each cooperative has its own products.
-     */
-    static List<Acct> accountsFor(int clientType) {
-        return switch (clientType) {
-            case 1 -> List.of(new Acct(22, 1, "sd"), new Acct(29, 5, "osl"), new Acct(29, 6, "osl"), new Acct(31, 1, "sc"));
-            case 2 -> List.of(new Acct(22, 2, "sd"), new Acct(31, 3, "sc"));
-            default -> List.of();
-        };
-    }
-
-    /**
      * The check digit of a member number: double every second digit starting with the rightmost (subtract 9 from a result over 9), add them up, and the digit is 9 less that sum,
      * modulo 10. Verified against every member in the database.
      */

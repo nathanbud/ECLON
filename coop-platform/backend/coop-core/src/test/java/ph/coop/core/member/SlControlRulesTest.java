@@ -21,8 +21,9 @@ class SlControlRulesTest {
         new Switch(1, 22, 1, true), new Switch(1, 29, 5, true), new Switch(1, 29, 6, true), new Switch(1, 31, 1, true), new Switch(2, 22, 2, true), new Switch(2, 31, 3, true));
 
     @Test
-    void theStartingSwitchesOpenWhatTheApplicationAlwaysOpened() {
-        for (int m : List.of(1, 2)) assertEquals(LifecycleRules.accountsFor(m), SlControlRules.accountsFor(m, START, Set.of()), "member type " + m);
+    void nothingOpensThatTheCooperativeDidNotSwitchOn() {
+        assertEquals(List.of(), SlControlRules.accountsFor(1, List.of(), Set.of()), "no switches stored: no account opens by itself");
+        assertEquals(List.of(), SlControlRules.accountsFor(3, START, Set.of()), "a member type with no switch on gets nothing");
     }
 
     @Test

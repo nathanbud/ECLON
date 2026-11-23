@@ -19,7 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 class BackOfficeVoucherSetupController {
 
     static final int CASH_VOUCHER = 21, CHECK_VOUCHER = 22;
-    private static final int PAYABLE = 29, PAYABLE_TYPE = 1, PRINCIPAL = 11, ACTIVE = 15;
+    private static final int PAYABLE = 29, PRINCIPAL = 11, ACTIVE = 15;
 
     record Setup(String payableAccount, String payableAccountName, Integer dept, boolean mayCashVoucher, boolean mayCheckVoucher, String problem) {}
 
@@ -27,7 +27,10 @@ class BackOfficeVoucherSetupController {
     private final FrontOfficeAccess access;
     private final MemberLedgerPoster poster;
 
-    BackOfficeVoucherSetupController(JdbcTemplate jdbc, FrontOfficeAccess access, MemberLedgerPoster poster) {
+    private final ph.coop.core.accounting.ProductRoles roles;
+
+    BackOfficeVoucherSetupController(JdbcTemplate jdbc, FrontOfficeAccess access, MemberLedgerPoster poster, ph.coop.core.accounting.ProductRoles roles) {
+        this.roles = roles;
         this.jdbc = jdbc;
         this.access = access;
         this.poster = poster;
@@ -44,7 +47,7 @@ class BackOfficeVoucherSetupController {
         }
         String payable = null, name = null;
         try {
-            payable = poster.glAccount(p.branch(), PAYABLE, PAYABLE_TYPE, PRINCIPAL, ACTIVE);
+            payable = poster.glAccount(p.branch(), PAYABLE, roles.vouchersPayable(p.branch(), "the voucher's credit to vouchers payable"), PRINCIPAL, ACTIVE);
             List<String> n = jdbc.queryForList("SELECT COADesc FROM coa WHERE COABR_CODE = ? AND COAID = ?", String.class, p.branch(), payable);
             name = n.isEmpty() || n.get(0) == null ? null : n.get(0).trim();
         } catch (ResponseStatusException e) {

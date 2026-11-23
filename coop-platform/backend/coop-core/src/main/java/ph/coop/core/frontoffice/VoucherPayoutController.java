@@ -61,7 +61,11 @@ class VoucherPayoutController {
     private final DrawerBalances balances;
     private final TransactionTemplate tx;
 
-    VoucherPayoutController(JdbcTemplate jdbc, Db db, Clock clock, FrontOfficeAccess access, MemberLedgerPoster poster, DrawerBalances balances, PlatformTransactionManager txm, ph.coop.core.businessday.BusinessDay businessDay) {
+    private final ph.coop.core.accounting.ProductRoles roles;
+
+    VoucherPayoutController(JdbcTemplate jdbc, Db db, Clock clock, FrontOfficeAccess access, MemberLedgerPoster poster, DrawerBalances balances, PlatformTransactionManager txm, ph.coop.core.businessday.BusinessDay businessDay,
+                            ph.coop.core.accounting.ProductRoles roles) {
+        this.roles = roles;
 
         this.businessDay = businessDay;
         this.jdbc = jdbc;
@@ -85,15 +89,15 @@ class VoucherPayoutController {
         return jdbc.query("""
                 SELECT z.cid, COALESCE(NULLIF(k.AccountName, ''), CONCAT_WS(', ', k.LName, k.FName)), z.ref, z.last_date, z.bal FROM (
                   SELECT x.ClientIDDT AS cid, x.DTREF_NO AS ref, MAX(t.TR_DATE) AS last_date,
-                    (SELECT COALESCE(-SUM(l.AMT), 0) FROM sldtl l WHERE l.SL_BRCODE = t.TR_BRCODE AND l.SL_CLIENTID = x.ClientIDDT AND l.SLC_CODE = 29 AND l.SLT_CODE = 1
+                    (SELECT COALESCE(-SUM(l.AMT), 0) FROM sldtl l WHERE l.SL_BRCODE = t.TR_BRCODE AND l.SL_CLIENTID = x.ClientIDDT AND l.SLC_CODE = 29 AND l.SLT_CODE = {VP}
                        AND l.REF_NO = x.DTREF_NO AND l.SLE_CODE = 11) AS bal
                   FROM transsum t JOIN transdt x ON x.DTTR_BRCODE = t.TR_BRCODE AND x.DTTR_YEAR = t.TR_YEAR AND x.DTTR_MODULE = t.TR_MODULE AND x.DTTR_CODE = t.TR_CODE AND x.DTTR_CTLNO = t.TR_CTLNO
                   WHERE t.TR_BRCODE = ? AND t.TR_YEAR IN (?, ?) AND t.TR_MODULE = 2 AND t.TR_CODE IN (20, 21, 22) AND t.TR_DATE >= ?
-                    AND x.DTSLC_CODE = 29 AND x.DTSLT_CODE = 1 AND x.DTAMT < 0 AND x.DTUPD_TAG IN (1, 5)
+                    AND x.DTSLC_CODE = 29 AND x.DTSLT_CODE = {VP} AND x.DTAMT < 0 AND x.DTUPD_TAG IN (1, 5)
                   GROUP BY t.TR_BRCODE, x.ClientIDDT, x.DTREF_NO
                 ) z LEFT JOIN client k ON k.ClientIDBrCode = ? AND k.ClientID = z.cid
                 WHERE z.bal > 0.005 ORDER BY z.last_date DESC, z.cid LIMIT 200
-                """, (rs, i) -> new Payable(rs.getInt(1), rs.getString(2), rs.getInt(3), VoucherPayoutRules.ACTIVE, rs.getBigDecimal(5), rs.getDate(4).toLocalDate()),
+                """.replace("{VP}", String.valueOf(roles.vouchersPayable(branch, "the list of vouchers payable to pay out"))), (rs, i) -> new Payable(rs.getInt(1), rs.getString(2), rs.getInt(3), VoucherPayoutRules.ACTIVE, rs.getBigDecimal(5), rs.getDate(4).toLocalDate()),
             branch, today.getYear(), today.getYear() - 1, java.sql.Date.valueOf(today.minusDays(WAITING_DAYS)), branch);
     }
 
@@ -104,8 +108,9 @@ class VoucherPayoutController {
         access.requireNew(perms, VoucherPayoutRules.TRANSACTION);
         int branch = perms.branch();
         List<Payable> out = new ArrayList<>();
-        for (int[] a : jdbc.query("SELECT OSLREF_NO, OSLSTATUS FROM osl WHERE OSLBR_CODE = ? AND ClientIDOSL = ? AND OSLSLC_CODE = 29 AND OSLSLT_CODE = 1 ORDER BY OSLREF_NO",
-            (rs, i) -> new int[] {rs.getInt(1), rs.getInt(2)}, branch, clientId)) {
+        int vp = roles.vouchersPayable(branch, "the member's vouchers payable");
+        for (int[] a : jdbc.query("SELECT OSLREF_NO, OSLSTATUS FROM osl WHERE OSLBR_CODE = ? AND ClientIDOSL = ? AND OSLSLC_CODE = 29 AND OSLSLT_CODE = ? ORDER BY OSLREF_NO",
+            (rs, i) -> new int[] {rs.getInt(1), rs.getInt(2)}, branch, clientId, vp)) {
             BigDecimal bal = balanceOf(branch, clientId, a[0]);
             if (bal.signum() > 0) out.add(new Payable(clientId, poster.client(branch, clientId).name(), a[0], a[1], bal, null));
         }
@@ -143,8 +148,9 @@ class VoucherPayoutController {
                 spent.add(found.get(0));
             }
 
-            String glAccount = poster.glAccount(p.branch(), VoucherPayoutRules.PAYABLE_CLASS, VoucherPayoutRules.PAYABLE_TYPE, PRINCIPAL, c.payable().status());
-            MemberLine line = new MemberLine(VoucherPayoutRules.PAYABLE_CLASS, VoucherPayoutRules.PAYABLE_TYPE, req.refNo(), PRINCIPAL, c.payable().status(), glAccount, amount);
+            int vp = roles.vouchersPayable(p.branch(), "the pay-out");
+            String glAccount = poster.glAccount(p.branch(), VoucherPayoutRules.PAYABLE_CLASS, vp, PRINCIPAL, c.payable().status());
+            MemberLine line = new MemberLine(VoucherPayoutRules.PAYABLE_CLASS, vp, req.refNo(), PRINCIPAL, c.payable().status(), glAccount, amount);
             String explanation = req.explanation() == null || req.explanation().isBlank() ? "VOUCHER PAYMENT" : req.explanation();
             // a second payment to the same member inside a minute is allowed: each account is checked against its own balance
             Posted r = poster.postVoucher(Direction.PAYABLE_OUT, p, req.clientId(), explanation, req.receiptNo(), true, List.of(line), "voucher.payout.post", auth.getName(),
@@ -163,14 +169,14 @@ class VoucherPayoutController {
 
     private BigDecimal balanceOf(int branch, int clientId, int refNo) {
         return jdbc.queryForObject("""
-                SELECT COALESCE(-SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = ? AND SL_CLIENTID = ? AND SLC_CODE = 29 AND SLT_CODE = 1 AND REF_NO = ? AND SLE_CODE = 11
-                """, BigDecimal.class, branch, clientId, refNo);
+                SELECT COALESCE(-SUM(AMT), 0) FROM sldtl WHERE SL_BRCODE = ? AND SL_CLIENTID = ? AND SLC_CODE = 29 AND SLT_CODE = ? AND REF_NO = ? AND SLE_CODE = 11
+                """, BigDecimal.class, branch, clientId, roles.vouchersPayable(branch, "the balance of the vouchers payable"), refNo);
     }
 
     /** Everything that stands in the way, and what a supervisor would have to allow. When {@code lock}, the account row is locked so two cashiers cannot pay it twice. */
     private Check evaluate(Request req, Person p, boolean lock) {
-        List<Integer> status = jdbc.queryForList("SELECT OSLSTATUS FROM osl WHERE OSLBR_CODE = ? AND ClientIDOSL = ? AND OSLSLC_CODE = 29 AND OSLSLT_CODE = 1 AND OSLREF_NO = ?"
-            + (lock ? " FOR UPDATE" : ""), Integer.class, p.branch(), req.clientId(), req.refNo());
+        List<Integer> status = jdbc.queryForList("SELECT OSLSTATUS FROM osl WHERE OSLBR_CODE = ? AND ClientIDOSL = ? AND OSLSLC_CODE = 29 AND OSLSLT_CODE = ? AND OSLREF_NO = ?"
+            + (lock ? " FOR UPDATE" : ""), Integer.class, p.branch(), req.clientId(), roles.vouchersPayable(p.branch(), "the pay-out"), req.refNo());
         if (status.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member has no such vouchers-payable account.");
         Client c = poster.client(p.branch(), req.clientId());
         BigDecimal balance = balanceOf(p.branch(), req.clientId(), req.refNo());

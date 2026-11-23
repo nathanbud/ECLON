@@ -91,7 +91,11 @@ public class LoanApplicationController {
     private final CoMakerHolds holds;
     private final AmortizationSchedulePrint amortizationPrint;
 
-    LoanApplicationController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, LoanBook book, CoMakerHolds holds, LoanSteps steps, AmortizationSchedulePrint amortizationPrint) {
+    private final ph.coop.core.accounting.ProductRoles roles;
+
+    LoanApplicationController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, LoanBook book, CoMakerHolds holds, LoanSteps steps, AmortizationSchedulePrint amortizationPrint,
+                              ph.coop.core.accounting.ProductRoles roles) {
+        this.roles = roles;
         this.amortizationPrint = amortizationPrint;
         this.steps = steps;
         this.book = book;
@@ -131,7 +135,8 @@ public class LoanApplicationController {
     @GetMapping("/template")
     public Template template(@PathVariable int branchCode, @PathVariable int clientId, @RequestParam int type) {
         Type t = type(branchCode, type);
-        Integer vp = memberRef(branchCode, clientId, 29, 1);
+        Integer vpType = roles.vouchersPayableOrNull(branchCode);
+        Integer vp = vpType == null ? null : memberRef(branchCode, clientId, 29, vpType);
         List<DeductionRow> rows = new ArrayList<>();
         for (Map<String, Object> r : deductionTemplate(branchCode, type)) {
             int behavior = num(r, "SLBEHAVIOR");
@@ -250,7 +255,8 @@ public class LoanApplicationController {
         }
         List<Integer> clients = jdbc.queryForList("SELECT ClientID FROM client WHERE ClientIDBrCode = ? AND ClientID = ?", Integer.class, branchCode, clientId);
         if (clients.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "That member was not found. The member number may be mistyped, or the member is in another branch: search for the member again.");
-        Integer existingVp = memberRef(branchCode, clientId, 29, 1);
+        int vpType = roles.vouchersPayable(branchCode, "the loan application (its net proceeds go to the member's vouchers payable)");
+        Integer existingVp = memberRef(branchCode, clientId, 29, vpType);
 
         Planned planned = plan(t, in, LocalDate.now(clock));
         int terms = planned.terms(), unit = planned.unit(), pmode = planned.paymentMode();
@@ -260,7 +266,7 @@ public class LoanApplicationController {
 
         return tx.execute((st) -> {
             // the old system opens the member's vouchers-payable account (osl, status 15, amount 0.00) with their first application
-            int vp = existingVp != null ? existingVp : openVouchersPayable(branchCode, clientId, today);
+            int vp = existingVp != null ? existingVp : openVouchersPayable(branchCode, clientId, today, vpType);
             int ref = lastRef(branchCode, in.typeCode(), true) + 1;
             long appId = nextAppId(branchCode);
             String docNo = String.format("%08d", appId);
@@ -279,8 +285,8 @@ public class LoanApplicationController {
             jdbc.update("INSERT INTO slmastersum (MBR_CODE, MSLC_CODE, MSLT_CODE, MREF_NO, MCLIENTID) VALUES (?, ?, ?, ?, ?)", branchCode, LOAN_CLASS, in.typeCode(), ref, clientId);
             jdbc.update("""
                     INSERT INTO loanapp (BR_CODE, ID, SLC_CODE, SLT_CODE, REF_NO, CLIENTID, STATUSID, TR_DATE, RTR_DATE, ENCDBY, TR_CODE, NPSLC_CODE, NPSLT_CODE, NPREF_NO, DEDUCGROUP, DOC_NO, DEPT)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 29, 1, ?, ?, ?, ?)
-                    """, branchCode, appId, LOAN_CLASS, in.typeCode(), ref, clientId, STATUS_NEW, today, today, enc.id(), VOUCHER_CODE, vp, deductionGroup(template), docNo, enc.dept());
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 29, ?, ?, ?, ?, ?)
+                    """, branchCode, appId, LOAN_CLASS, in.typeCode(), ref, clientId, STATUS_NEW, today, today, enc.id(), VOUCHER_CODE, vpType, vp, deductionGroup(template), docNo, enc.dept());
 
             Map<String, Object> d = t.d();
             jdbc.update("""
@@ -515,11 +521,11 @@ public class LoanApplicationController {
         return out;
     }
 
-    private int openVouchersPayable(int branch, int clientId, LocalDate today) {
-        List<Integer> last = jdbc.queryForList("SELECT MREF_NO FROM slmastersum WHERE MBR_CODE = ? AND MSLC_CODE = 29 AND MSLT_CODE = 1 ORDER BY MREF_NO DESC LIMIT 1 FOR UPDATE", Integer.class, branch);
+    private int openVouchersPayable(int branch, int clientId, LocalDate today, int vpType) {
+        List<Integer> last = jdbc.queryForList("SELECT MREF_NO FROM slmastersum WHERE MBR_CODE = ? AND MSLC_CODE = 29 AND MSLT_CODE = ? ORDER BY MREF_NO DESC LIMIT 1 FOR UPDATE", Integer.class, branch, vpType);
         int ref = last.isEmpty() ? 1 : last.get(0) + 1;
-        jdbc.update("INSERT INTO slmastersum (MBR_CODE, MSLC_CODE, MSLT_CODE, MREF_NO, MCLIENTID) VALUES (?, 29, 1, ?, ?)", branch, ref, clientId);
-        jdbc.update("INSERT INTO osl (OSLBR_CODE, OSLSLC_CODE, OSLSLT_CODE, OSLREF_NO, ClientIDOSL, OSLTR_DATE, OSLSTATUS, OSLPAMT) VALUES (?, 29, 1, ?, ?, ?, 15, 0.00)", branch, ref, clientId, today.toString());
+        jdbc.update("INSERT INTO slmastersum (MBR_CODE, MSLC_CODE, MSLT_CODE, MREF_NO, MCLIENTID) VALUES (?, 29, ?, ?, ?)", branch, vpType, ref, clientId);
+        jdbc.update("INSERT INTO osl (OSLBR_CODE, OSLSLC_CODE, OSLSLT_CODE, OSLREF_NO, ClientIDOSL, OSLTR_DATE, OSLSTATUS, OSLPAMT) VALUES (?, 29, ?, ?, ?, ?, 15, 0.00)", branch, vpType, ref, clientId, today.toString());
         return ref;
     }
 

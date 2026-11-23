@@ -87,8 +87,11 @@ public class LoanApplicationWorkflowController {
     private final LoanSteps steps;
     private final FrontOfficeAccess frontOffice;
 
+    private final ph.coop.core.accounting.ProductRoles roles;
+
     LoanApplicationWorkflowController(JdbcTemplate jdbc, PlatformTransactionManager txm, Clock clock, Db db, SingleHandGrants single, LoanBook book, CoMakerHolds holds, LoanSteps steps,
-                                      FrontOfficeAccess frontOffice, ph.coop.core.businessday.BusinessDay businessDay) {
+                                      FrontOfficeAccess frontOffice, ph.coop.core.businessday.BusinessDay businessDay, ph.coop.core.accounting.ProductRoles roles) {
+        this.roles = roles;
 
         this.businessDay = businessDay;
         this.steps = steps;
@@ -308,7 +311,7 @@ public class LoanApplicationWorkflowController {
         List<Item> found = jdbc.query(itemSql() + " WHERE a.BR_CODE = ? AND a.ID = ?", (rs, i) -> item(rs), branch, id);
         if (found.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such loan application.");
         Item it = found.get(0);
-        Map<String, Object> a = jdbc.queryForMap("SELECT ENCDBY, COALESCE(DEPT, 1) DEPT, NPREF_NO FROM loanapp WHERE BR_CODE = ? AND ID = ?", branch, id);
+        Map<String, Object> a = jdbc.queryForMap("SELECT ENCDBY, COALESCE(DEPT, 1) DEPT, NPREF_NO, NPSLT_CODE FROM loanapp WHERE BR_CODE = ? AND ID = ?", branch, id);
         int status = jdbc.queryForObject("SELECT COALESCE(LoanSTATUS, 11) FROM loan WHERE LoanBR_CODE = ? AND LoanSLC_CODE = ? AND LoanSLT_CODE = ? AND LoanREF_NO = ?", Integer.class, branch, LOAN_CLASS, it.typeCode(), it.refNo());
         List<String> problems = new ArrayList<>();
         List<Map<String, Object>> ded = jdbc.queryForList("SELECT * FROM loandeduc WHERE BR_CODE = ? AND LOANAPPID = ? ORDER BY SEQNO", branch, id);
@@ -337,7 +340,9 @@ public class LoanApplicationWorkflowController {
                 else if (d.slc() == LOAN_CLASS && d.event() == 11) lines.add(payoffLine(branch, problems, it, d, pl.amount()));
                 else lines.add(vline(branch, problems, d.slc(), d.slt(), d.refNo(), d.event(), d.slc() == LOAN_CLASS ? 99 : 15, pl.amount(), d.description()));
             }
-            lines.add(vline(branch, problems, 29, 1, netRef, 11, 15, plan.lines().get(k).amount(), "Net proceeds"));
+            // the net proceeds go to the vouchers-payable type the application recorded when it was encoded
+            int netType = a.get("NPSLT_CODE") != null ? ((Number) a.get("NPSLT_CODE")).intValue() : roles.vouchersPayable(branch, "the release (the loan's net proceeds)");
+            lines.add(vline(branch, problems, 29, netType, netRef, 11, 15, plan.lines().get(k).amount(), "Net proceeds"));
         }
         return new Prepared(it, ((Number) a.get("ENCDBY")).intValue(), ((Number) a.get("DEPT")).intValue(), status, netRef, lines, plan.totalDeductions(), plan.netProceeds(), problems);
     }

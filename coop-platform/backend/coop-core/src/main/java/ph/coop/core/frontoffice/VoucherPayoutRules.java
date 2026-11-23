@@ -16,9 +16,8 @@ final class VoucherPayoutRules {
 
     /** transtype 24, module 2. */
     static final int TRANSACTION = 24;
-    /** The member account that is debited: class 29 (vouchers payable), type 1. */
+    /** The member account that is debited: class 29 (vouchers payable), of the type chosen in Product roles. */
     static final int PAYABLE_CLASS = 29;
-    static final int PAYABLE_TYPE = 1;
     static final int ACTIVE = 15;
     static final String LIMIT_KIND = "VOUCHER_DISB_LIMIT";
 
