@@ -16,6 +16,7 @@ import { ToolbarPortal } from './toolbarSlot'
 import { nameCase } from './ui/format'
 import { USER_FILTERS, UsersMenu, type UserFilter } from './UsersMenu'
 import { ScreenTitle } from './appleUi'
+import UserRolesDialog from './UserRolesDialog'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 
@@ -68,6 +69,7 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
   const [filter, setFilter] = useState('')
   const [target, setTarget] = useState<AdminUser | null>(null)
   const [profile, setProfile] = useState<AdminUser | null>(null)
+  const [rolesOf, setRolesOf] = useState<AdminUser | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyUser, setBusyUser] = useState<string | null>(null)
@@ -218,7 +220,14 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
                             slotProps={{ input: { 'aria-label': `${u.username} is enabled` } }}
                           />
                         </TableCell>
-                        <TableCell>{u.level ?? '—'}</TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, whiteSpace: 'nowrap' }}>
+                            {u.level ?? '—'}
+                            <Button size="small" onClick={() => setRolesOf(u)} aria-label={`Roles of ${u.username}`}>
+                              Roles{u.roles.filter((r) => r !== OFFICER).length > 0 ? ` (${u.roles.filter((r) => r !== OFFICER).length})` : ''}
+                            </Button>
+                          </Box>
+                        </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <PasswordChip u={u} />
@@ -256,6 +265,7 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
         )}
       </Box>
 
+      {rolesOf && <UserRolesDialog user={rolesOf} onClose={() => setRolesOf(null)} onNotice={setNotice} />}
       <UserProfileDialog user={profile} onClose={() => setProfile(null)} onSetPassword={setTarget} onToggleOfficer={(u, on) => void toggleOfficer(u, on)} onNotice={setNotice} busy={busyUser !== null} />
       <TemporaryPasswordDialog
         user={target} onClose={() => setTarget(null)}

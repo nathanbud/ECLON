@@ -44,6 +44,7 @@ class PeriodController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     List<Period> list(@RequestParam int branchCode) {
         return jdbc.query("SELECT id, branch_code, name, start_date, end_date, status FROM ecis_accounting_period WHERE branch_code = ? ORDER BY start_date DESC",
                 PeriodController::map, branchCode);

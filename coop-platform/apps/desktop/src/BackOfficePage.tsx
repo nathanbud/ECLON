@@ -21,6 +21,7 @@ import { usePageKeys } from './ui/usePageKeys'
 import { ConfirmButton } from './ui/dialogs'
 import { money } from './ui/format'
 import { Gated } from './ui/Gated'
+import DocumentsPanel from './DocumentsPanel'
 
 /**
  * Back Office: one entry window for the entries made away from the teller window, after the old system's General Journal Transactions window
@@ -428,6 +429,11 @@ function EntryView({ type, entry, user, admin, onChanged, onOpen }: { type: Type
           {s === 'POSTED' && !asking && <Button color="warning" onClick={() => setAsking('reverse')}>Reverse…</Button>}
           {asking && <Button variant="contained" color="warning" disabled={ask.isPending || reason.trim().length < 3} onClick={() => ask.mutate()}>{asking === 'cancel' ? 'Cancel the memo' : 'Make the reversal draft'}</Button>}
         </Stack>
+      </Panel>
+
+      <Panel>
+        <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1 }}>Supporting documents</Typography>
+        <DocumentsPanel entityType="JOURNAL" entityId={entry.reference} />
       </Panel>
     </>
   )

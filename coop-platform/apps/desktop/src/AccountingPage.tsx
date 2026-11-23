@@ -19,8 +19,10 @@ import { money } from './ui/format'
 import { ConfirmButton } from './ui/dialogs'
 import { labelOf } from './ui/labels'
 import { unitHeading, unitOptions } from './ui/units'
+import { DrillCode, LedgerDrill, type Drill } from './ui/LedgerDrill'
 import { BusyArea, Loading, LoadingBlock } from './ui/Loading'
 import { ReasonDialog } from './appleUi'
+import BudgetTab from './BudgetTab'
 
 const today = () => new Date().toLocaleDateString('en-CA')
 const yearStart = () => `${new Date().getFullYear()}-01-01`
@@ -29,7 +31,9 @@ const yearStart = () => `${new Date().getFullYear()}-01-01`
 export default function AccountingPage({ initialTab }: { initialTab?: string }) {
   const me = useMe()
   const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
-  const tabs = ['Trial balance', ...(accountant ? ['Statements', 'Periods', 'Banks', 'Year-end close'] : [])]
+  // an auditor reads every tab and changes nothing
+  const auditor = !accountant && me.roles.some((r) => r.replace('ROLE_', '') === 'AUDITOR')
+  const tabs = ['Trial balance', ...(accountant || auditor ? ['Statements', 'Periods', 'Banks', 'Year-end close', 'Budget'] : [])]
   // a tab named by the side menu or the search opens first
   const [tab, setTab] = useState(() => Math.max(0, tabs.indexOf(initialTab ?? '')))
   const [branchCode, setBranchCode] = useState(me.branchCode ?? 1)
@@ -43,11 +47,13 @@ export default function AccountingPage({ initialTab }: { initialTab?: string }) 
           {tab > 0 && <BranchSelect value={branchCode} onChange={setBranchCode} />}
         </Stack>
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>{tabs.map((t) => <Tab key={t} label={t} />)}</Tabs>
+        {auditor && tab > 0 && <Alert severity="info" sx={{ mb: 2 }}>You are signed in as an auditor: everything here can be read and exported, and nothing can be changed.</Alert>}
         {tab === 0 && <Box sx={{ mx: -3, mt: -3 }}><TrialBalancePage /></Box>}
         {tab === 1 && ok && <Statements branchCode={branchCode} />}
         {tab === 2 && ok && <Periods branchCode={branchCode} />}
         {tab === 3 && ok && <BanksTab branchCode={branchCode} />}
         {tab === 4 && ok && <YearEndCloseTab branchCode={branchCode} />}
+        {tab === 5 && ok && <BudgetTab branchCode={branchCode} canEdit={accountant} />}
       </Box>
     </Box>
   )
@@ -55,7 +61,7 @@ export default function AccountingPage({ initialTab }: { initialTab?: string }) 
 
 // ---- statements ----------------------------------------------------------------------------------------------------
 
-function SectionRows({ s }: { s: StatementSection }) {
+function SectionRows({ s, onDrill }: { s: StatementSection; onDrill?: (code: string, name: string) => void }) {
   return (
     <>
       <TableRow>
@@ -63,13 +69,13 @@ function SectionRows({ s }: { s: StatementSection }) {
         <TableCell align="right" sx={{ fontWeight: 700, bgcolor: 'action.hover' }}>{money(s.total)}</TableCell>
       </TableRow>
       {s.groups.map((g) => (
-        <GroupRows key={g.name} g={g} />
+        <GroupRows key={g.name} g={g} onDrill={onDrill} />
       ))}
     </>
   )
 }
 
-function GroupRows({ g }: { g: StatementSection['groups'][number] }) {
+function GroupRows({ g, onDrill }: { g: StatementSection['groups'][number]; onDrill?: (code: string, name: string) => void }) {
   return (
     <>
       <TableRow>
@@ -78,7 +84,7 @@ function GroupRows({ g }: { g: StatementSection['groups'][number] }) {
       </TableRow>
       {g.lines.map((l) => (
         <TableRow key={l.accountCode + l.description} hover>
-          <TableCell sx={{ pl: 5, width: 110 }}>{l.accountCode}</TableCell>
+          <TableCell sx={{ pl: 5, width: 110 }}>{l.accountCode && onDrill ? <DrillCode code={l.accountCode} onOpen={() => onDrill(l.accountCode, l.description)} /> : l.accountCode}</TableCell>
           <TableCell>{l.description}</TableCell>
           <TableCell align="right">{money(l.amount)}</TableCell>
         </TableRow>
@@ -87,12 +93,12 @@ function GroupRows({ g }: { g: StatementSection['groups'][number] }) {
   )
 }
 
-function SectionTable({ sections, children }: { sections: StatementSection[]; children?: React.ReactNode }) {
+function SectionTable({ sections, children, onDrill }: { sections: StatementSection[]; children?: React.ReactNode; onDrill?: (code: string, name: string) => void }) {
   return (
     <Table size="small">
       <TableBody>
         {sections.map((s) => (
-          <SectionRows key={s.name} s={s} />
+          <SectionRows key={s.name} s={s} onDrill={onDrill} />
         ))}
         {children}
       </TableBody>
@@ -119,6 +125,8 @@ function Statements({ branchCode }: { branchCode: number }) {
   const [sideBySide, setSideBySide] = useState(false)
   const [compare, setCompare] = useState(false)
   const [classes, setClasses] = useState(false)
+  // the entries behind a line, opened from its account code
+  const [drill, setDrill] = useState<Drill | null>(null)
   const units = useQuery({ queryKey: ['fs-units'], queryFn: getStatementUnits, staleTime: 300_000 })
   const options = useMemo(() => unitOptions(units.data ?? []), [units.data])
   const chosen = options.find((o) => o.unit.id === unit)?.unit
@@ -204,13 +212,13 @@ function Statements({ branchCode }: { branchCode: number }) {
               ? 'Assets equal liabilities plus equity.'
               : `Assets are ${money(fc.data.totalAssets)} but liabilities plus equity are ${money(fc.data.totalLiabilitiesAndEquity)} (difference ${money(Math.abs(fc.data.totalAssets - fc.data.totalLiabilitiesAndEquity))}). ${fc.data.unit ? 'A single unit balances only when its entries with the other units (due to and due from) are in its own books.' : 'The legacy ledger does not balance for this date.'}`}
           </Alert>
-          <BusyArea busy={fc.isFetching} label="Loading the statement"><Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}><SectionTable sections={fc.data.sections} /></Box></BusyArea>
+          <BusyArea busy={fc.isFetching} label="Loading the statement"><Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}><SectionTable sections={fc.data.sections} onDrill={(account, name) => setDrill({ account, name, from: `${asOf.slice(0, 4)}-01-01`, to: asOf })} /></Box></BusyArea>
         </>
       )}
       {single && kind === 'ops' && ops.data && (
         <BusyArea busy={ops.isFetching} label="Loading the statement">
           <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
-            <SectionTable sections={ops.data.sections}>
+            <SectionTable sections={ops.data.sections} onDrill={(account, name) => setDrill({ account, name, from, to })}>
               <TableRow>
                 <TableCell colSpan={2} sx={{ fontWeight: 700 }}>Net surplus</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 700 }}>{money(ops.data.netSurplus)}</TableCell>
@@ -226,6 +234,7 @@ function Statements({ branchCode }: { branchCode: number }) {
         <BusyArea busy={cf.isFetching} label="Loading the statement"><Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}><CashFlowTable c={cf.data} /></Box></BusyArea>
       )}
       {classes && <CashFlowClasses branchCode={branchCode} canEdit={accountant} onClose={() => setClasses(false)} />}
+      {drill && <LedgerDrill drill={drill} onClose={() => setDrill(null)} />}
     </Box>
   )
 }

@@ -8,6 +8,7 @@ import { money } from './ui/format'
 import { useMe } from './session'
 import { BranchSelect } from './ui/BranchSelect'
 import { BusyArea, Loading } from './ui/Loading'
+import { DrillCode, LedgerDrill, type Drill } from './ui/LedgerDrill'
 
 
 function monthStart() {
@@ -19,8 +20,10 @@ export default function TrialBalancePage() {
   const me = useMe()
   const [branchCode, setBranchCode] = useState(me.branchCode ?? 1)
   const [from, setFrom] = useState(monthStart())
-  const [to, setTo] = useState(new Date().toLocaleDateString('en-CA'))
+  const [to, setTo] = useState(() => new Date().toLocaleDateString('en-CA'))
 
+  // the entries behind a line, opened from its account code
+  const [drill, setDrill] = useState<Drill | null>(null)
   const { data, error, isFetching } = useQuery({
     queryKey: ['trial-balance', branchCode, from, to],
     queryFn: () => getTrialBalance(branchCode, from, to),
@@ -48,7 +51,7 @@ export default function TrialBalancePage() {
           <TableBody>
             {data?.lines.map((l) => (
               <TableRow key={l.accountCode} hover>
-                <TableCell>{l.accountCode}</TableCell>
+                <TableCell><DrillCode code={l.accountCode} onOpen={() => setDrill({ account: l.accountCode, name: l.description, from, to })} /></TableCell>
                 <TableCell>{l.description}</TableCell>
                 <TableCell align="right">{money(l.debit)}</TableCell>
                 <TableCell align="right">{money(l.credit)}</TableCell>
@@ -66,6 +69,7 @@ export default function TrialBalancePage() {
           )}
         </Table>
       </TableContainer></BusyArea>
+      {drill && <LedgerDrill drill={drill} onClose={() => setDrill(null)} />}
     </Container>
   )
 }

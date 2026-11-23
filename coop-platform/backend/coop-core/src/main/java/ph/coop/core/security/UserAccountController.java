@@ -31,11 +31,11 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api")
 class UserAccountController {
 
-    /** Roles an administrator may grant. MEMBERSHIP_OFFICER approves member changes; ACCOUNTANT works with journals and accounting periods; PURCHASER makes purchase requests, orders and suppliers; PURCHASE_APPROVER approves them; RECEIVER records goods received; STOREKEEPER keeps products and moves stock; STOCK_APPROVER approves stock adjustments and counts; POS_CASHIER sells and records returns; POS_SUPERVISOR sets prices and decides returns; ASSET_CUSTODIAN keeps the fixed asset register; DOCUMENT_CLERK looks after the documents kept for any record; MANAGER and CREDIT_COMMITTEE can be named as extra approvers in a workflow. */
+    /** Roles an administrator may grant. MEMBERSHIP_OFFICER approves member changes; ACCOUNTANT works with journals and accounting periods; PURCHASER makes purchase requests, orders and suppliers; PURCHASE_APPROVER approves them; RECEIVER records goods received; STOREKEEPER keeps products and moves stock; STOCK_APPROVER approves stock adjustments and counts; POS_CASHIER sells and records returns; POS_SUPERVISOR sets prices and decides returns; ASSET_CUSTODIAN keeps the fixed asset register; DOCUMENT_CLERK looks after the documents kept for any record; MANAGER and CREDIT_COMMITTEE can be named as extra approvers in a workflow; AUDITOR (an external or internal auditor) reads the books, the statements, the reports and the audit log, and changes nothing. */
     /** Held by a person who signed in with a temporary password: they can do nothing but replace it. */
     static final String PASSWORD_CHANGE_REQUIRED = "PWD_CHANGE_REQUIRED";
 
-    static final Set<String> GRANTABLE_ROLES = Set.of("MEMBERSHIP_OFFICER", "DATA_PROTECTION_OFFICER", "ACCOUNTANT", "PURCHASER", "PURCHASE_APPROVER", "RECEIVER", "STOREKEEPER", "STOCK_APPROVER", "POS_CASHIER", "POS_SUPERVISOR", "ASSET_CUSTODIAN", "DOCUMENT_CLERK", "MANAGER", "CREDIT_COMMITTEE");
+    static final Set<String> GRANTABLE_ROLES = Set.of("MEMBERSHIP_OFFICER", "DATA_PROTECTION_OFFICER", "ACCOUNTANT", "PURCHASER", "PURCHASE_APPROVER", "RECEIVER", "STOREKEEPER", "STOCK_APPROVER", "POS_CASHIER", "POS_SUPERVISOR", "ASSET_CUSTODIAN", "DOCUMENT_CLERK", "MANAGER", "CREDIT_COMMITTEE", "AUDITOR");
 
     private final JdbcTemplate jdbc;
     private final Db db;

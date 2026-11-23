@@ -78,12 +78,14 @@ class JournalController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     List<Summary> list(@RequestParam int branchCode, @RequestParam(required = false) String status) {
         return jdbc.query(SUMMARY + " WHERE j.branch_code = ? AND (CAST(? AS CHAR) IS NULL OR j.status = ?) ORDER BY j.id DESC LIMIT 200",
                 JournalController::summary, branchCode, status, status);
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     Detail get(@PathVariable long id) {
         List<Summary> s = jdbc.query(SUMMARY + " WHERE j.id = ?", JournalController::summary, id);
         if (s.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such journal.");

@@ -78,12 +78,14 @@ class YearEndCloseController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     Closes list(@RequestParam int branchCode) {
         return new Closes(books.lastClosedYear(branchCode),
                 jdbc.query("SELECT " + CLOSE_COLUMNS + " FROM ecis_year_end_close WHERE branch_code = ? ORDER BY tr_year DESC, id DESC", YearEndCloseController::close, branchCode));
     }
 
     @GetMapping("/preview")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     Preview preview(@RequestParam int branchCode, @RequestParam int year) {
         List<Balance> balances = balances(branchCode, year);
         List<Line> lines = YearEndRules.closingLines(balances, surplusAccount);

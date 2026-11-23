@@ -50,8 +50,8 @@ class SlReconciliationController {
     }
 
     private static void check(Authentication auth) {
-        boolean may = auth.getAuthorities().stream().anyMatch((a) -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_ACCOUNTANT"));
-        if (!may) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only administrators and accountants can run the SL reconciliation.");
+        boolean may = auth.getAuthorities().stream().anyMatch((a) -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_ACCOUNTANT") || a.getAuthority().equals("ROLE_AUDITOR"));
+        if (!may) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only administrators, accountants and auditors can run the SL reconciliation.");
     }
 
     @GetMapping

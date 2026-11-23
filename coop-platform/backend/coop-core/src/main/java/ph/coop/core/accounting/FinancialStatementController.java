@@ -112,7 +112,7 @@ class FinancialStatementController {
     }
 
     @GetMapping("/balances/status")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     Map<String, Object> status(@RequestParam int branchCode) {
         List<Integer> built = jdbc.queryForList("SELECT tr_year FROM ecis_gl_year_built WHERE branch_code = ? ORDER BY tr_year", Integer.class, branchCode);
         List<Integer> byUnit = deptBalancesStored()
@@ -154,7 +154,7 @@ class FinancialStatementController {
     // ---- units ----
 
     @GetMapping("/units")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     List<UnitChoice> unitChoices() {
         return units.all().stream().map((u) -> new UnitChoice(u.id(), u.name(), u.parent(), u.kind(), u.kindName(), u.kindChosen(), u.disabled(), u.children())).toList();
     }
@@ -173,14 +173,14 @@ class FinancialStatementController {
     // ---- statements ----
 
     @GetMapping("/financial-condition")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     FinancialCondition financialCondition(@RequestParam int branchCode, @RequestParam LocalDate asOf, @RequestParam(required = false) Integer department) {
         Scope s = scope(department);
         return condition(branchCode, asOf, s.unit(), netAsOf(branchCode, asOf, s.depts()));
     }
 
     @GetMapping("/operations")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     Operations operations(@RequestParam int branchCode, @RequestParam LocalDate from, @RequestParam LocalDate to, @RequestParam(required = false) Integer department) {
         checkRange(from, to);
         Scope s = scope(department);
@@ -193,7 +193,7 @@ class FinancialStatementController {
      * own statement. {@code statement} is {@code financial-condition} (with {@code asOf}) or {@code operations} (with {@code from} and {@code to}).
      */
     @GetMapping("/consolidating")
-    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN')")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     StatementColumns.Consolidating consolidating(@RequestParam int branchCode, @RequestParam String statement, @RequestParam int department,
                                                  @RequestParam(required = false) LocalDate asOf, @RequestParam(required = false) LocalDate from,
                                                  @RequestParam(required = false) LocalDate to) {

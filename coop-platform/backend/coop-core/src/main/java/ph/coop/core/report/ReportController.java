@@ -45,7 +45,7 @@ class ReportController {
     private static boolean may(Authentication auth, Report r) {
         for (var a : auth.getAuthorities()) {
             String name = a.getAuthority().startsWith("ROLE_") ? a.getAuthority().substring(5) : a.getAuthority();
-            if (name.equals("ADMIN") || name.equals("ACCOUNTANT") || r.roles().contains(name)) return true;
+            if (name.equals("ADMIN") || name.equals("ACCOUNTANT") || name.equals("AUDITOR") || r.roles().contains(name)) return true;
         }
         return false;
     }

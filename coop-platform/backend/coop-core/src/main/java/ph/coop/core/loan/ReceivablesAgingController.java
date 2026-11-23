@@ -103,7 +103,7 @@ class ReceivablesAgingController {
     }
 
     static boolean may(Authentication auth) {
-        return auth.getAuthorities().stream().anyMatch((a) -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_ACCOUNTANT"));
+        return auth.getAuthorities().stream().anyMatch((a) -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_ACCOUNTANT") || a.getAuthority().equals("ROLE_AUDITOR"));
     }
 
     private static void check(Authentication auth) {

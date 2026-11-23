@@ -148,6 +148,7 @@ Built:
 - Back Office Disbursement Transactions window: Cash Vouchers and Check Vouchers made, approved and posted by three people.
 - Accounting tile for the books: trial balance, statements, accounting periods, banks, year-end close. See [debit-credit-memo-map.md](debit-credit-memo-map.md).
 - Statements by unit: for a main office, branch, satellite office or consolidation (everything under it), and a consolidating statement with each unit side by side, the consolidation's own entries and the total; department kinds in Settings > Organization > Departments. See [state/departments.md](state/departments.md).
+- Comparative statements, Statement of Changes in Equity and Statement of Cash Flows; drill-down from the trial balance and statements to the entries; budgets and budget versus actual; Journal listing and Fixed assets against the ledger reports; a read-only Auditor role.
 - Chart of accounts setup and upload from Excel. See [chart-of-accounts-setup.md](state/chart-of-accounts-setup.md).
 - Financial statements and trial balance from the general ledger.
 - Year-end close (prepare and post by two people). See [year-end-close.md](state/year-end-close.md).

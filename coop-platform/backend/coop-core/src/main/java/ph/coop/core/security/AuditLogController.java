@@ -20,7 +20,7 @@ import ph.coop.core.member.MemberFieldLabels;
 /** Read-only view of the audit trail ({@code ecis_audit_log}) for administrators: newest first, filtered by person, kind of record, action, date and text; each entry with its time to the millisecond and what changed, field by field. */
 @RestController
 @RequestMapping("/api/admin/audit-log")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN','AUDITOR')")
 class AuditLogController {
 
     static final int MAX_PAGE = 200;

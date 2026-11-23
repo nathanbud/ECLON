@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import {
   FiBarChart2, FiBook, FiBookOpen, FiBriefcase, FiClipboard, FiEdit, FiCreditCard, FiDatabase, FiDollarSign, FiDownloadCloud, FiFilePlus, FiFileText, FiGitMerge, FiImage, FiInbox, FiLayers, FiList, FiMoon, FiPercent, FiRepeat,
   FiSend, FiSettings, FiShield, FiShoppingCart, FiSliders, FiPieChart, FiTrendingUp, FiUserCheck, FiUserPlus, FiUsers, FiLock, FiCalendar, FiHome,
-  FiClock, FiToggleRight, FiCheckSquare, FiAlertTriangle, FiPackage, FiMapPin,
+  FiClock, FiToggleRight, FiCheckSquare, FiAlertTriangle, FiPackage, FiMapPin, FiTarget,
 } from 'react-icons/fi'
 import type { Me } from '../api'
 import type { View } from '../Dashboard'
@@ -34,7 +34,7 @@ export const DOMAIN_ORDER: DomainId[] = ['inbox', 'members', 'teller', 'loans', 
 
 /** Who may open a screen. The server checks again on every call; this only decides what a person is shown. */
 export type Who =
-  | 'anyone' | 'admin' | 'superadmin' | 'accountant' | 'privacy' | 'documents' | 'purchasing' | 'inventory' | 'pos' | 'assets' | 'settings' | 'memberrecords' | 'officer'
+  | 'anyone' | 'admin' | 'superadmin' | 'accountant' | 'books' | 'auditlog' | 'privacy' | 'documents' | 'purchasing' | 'inventory' | 'pos' | 'assets' | 'settings' | 'memberrecords' | 'officer'
 
 export interface Screen {
   id: string
@@ -62,6 +62,9 @@ export function can(me: Me, who: Who): boolean {
     case 'admin': return me.admin
     case 'superadmin': return role(me, 'SUPERADMIN')
     case 'accountant': return me.admin || role(me, 'ACCOUNTANT')
+    // the books read: accountants and administrators, and auditors, who change nothing
+    case 'books': return me.admin || anyRole(me, ['ACCOUNTANT', 'AUDITOR'])
+    case 'auditlog': return me.admin || role(me, 'AUDITOR')
     case 'privacy': return me.admin || role(me, 'DATA_PROTECTION_OFFICER')
     case 'documents': return me.admin || anyRole(me, ['ACCOUNTANT', 'DOCUMENT_CLERK'])
     case 'purchasing': return me.admin || anyRole(me, ['PURCHASER', 'PURCHASE_APPROVER', 'RECEIVER', 'ACCOUNTANT'])
@@ -92,12 +95,13 @@ export const SCREENS: Screen[] = [
   { id: 'loanapp', label: 'New loan application', note: 'Find a member and start a loan application', domain: 'loans', icon: <FiFilePlus />, view: 'loanapp', who: 'anyone', keywords: 'loan apply new application borrow release' },
 
   // accounting
-  { id: 'accounting', label: 'Accounting', note: 'Trial balance, statements, periods, banks and the year-end close', domain: 'accounting', icon: <FiBookOpen />, view: 'accounting', who: 'accountant', tile: true, keywords: 'accounting ledger books general' },
-  { id: 'acc-tb', label: 'Trial balance', note: 'Balances of every ledger account', domain: 'accounting', icon: <FiBarChart2 />, view: 'accounting', tab: 'Trial balance', who: 'accountant', keywords: 'tb debit credit' },
-  { id: 'acc-statements', label: 'Financial statements', note: 'Financial condition and statement of operations', domain: 'accounting', icon: <FiFileText />, view: 'accounting', tab: 'Statements', who: 'accountant', keywords: 'balance sheet income operations condition' },
-  { id: 'acc-periods', label: 'Accounting periods', note: 'Open and close the books', domain: 'accounting', icon: <FiCalendar />, view: 'accounting', tab: 'Periods', who: 'accountant', keywords: 'period close month year lock' },
-  { id: 'acc-banks', label: 'Banks', note: 'Bank cash and reconciliation', domain: 'accounting', icon: <FiCreditCard />, view: 'accounting', tab: 'Banks', who: 'accountant', keywords: 'bank reconcile deposit withdrawal cash' },
-  { id: 'acc-yearend', label: 'Year-end close', note: 'Close a finished year into undivided net surplus', domain: 'accounting', icon: <FiLock />, view: 'accounting', tab: 'Year-end close', who: 'accountant', keywords: 'closing entry close books year end surplus' },
+  { id: 'accounting', label: 'Accounting', note: 'Trial balance, statements, periods, banks and the year-end close', domain: 'accounting', icon: <FiBookOpen />, view: 'accounting', who: 'books', tile: true, keywords: 'accounting ledger books general' },
+  { id: 'acc-tb', label: 'Trial balance', note: 'Balances of every ledger account', domain: 'accounting', icon: <FiBarChart2 />, view: 'accounting', tab: 'Trial balance', who: 'books', keywords: 'tb debit credit' },
+  { id: 'acc-statements', label: 'Financial statements', note: 'Financial condition and statement of operations', domain: 'accounting', icon: <FiFileText />, view: 'accounting', tab: 'Statements', who: 'books', keywords: 'balance sheet income operations condition' },
+  { id: 'acc-periods', label: 'Accounting periods', note: 'Open and close the books', domain: 'accounting', icon: <FiCalendar />, view: 'accounting', tab: 'Periods', who: 'books', keywords: 'period close month year lock' },
+  { id: 'acc-banks', label: 'Banks', note: 'Bank cash and reconciliation', domain: 'accounting', icon: <FiCreditCard />, view: 'accounting', tab: 'Banks', who: 'books', keywords: 'bank reconcile deposit withdrawal cash' },
+  { id: 'acc-yearend', label: 'Year-end close', note: 'Close a finished year into undivided net surplus', domain: 'accounting', icon: <FiLock />, view: 'accounting', tab: 'Year-end close', who: 'books', keywords: 'closing entry close books year end surplus' },
+  { id: 'acc-budget', label: 'Budget', note: 'Annual budget per income and expense account, and budget versus actual', domain: 'accounting', icon: <FiTarget />, view: 'accounting', tab: 'Budget', who: 'books', keywords: 'budget budgets plan forecast variance versus actual target' },
   { id: 'backoffice', label: 'Back Office', note: 'General journal, debit/credit memos and penalty waivers', domain: 'accounting', icon: <FiEdit />, view: 'backoffice', who: 'accountant', tile: true, keywords: 'back office entries entry journal gj memo dcm debit credit adjustment waiver' },
   { id: 'acc-journals', label: 'General journal', note: 'General journal entries and their approval', domain: 'accounting', icon: <FiClipboard />, view: 'backoffice', tab: 'General journal', who: 'accountant', keywords: 'journal entry gj post approve' },
   { id: 'acc-memos', label: 'Debit/credit memos', note: 'Adjustments and transfers between members’ accounts', domain: 'accounting', icon: <FiRepeat />, view: 'backoffice', tab: 'Debit/credit memos', who: 'accountant', keywords: 'memo dcm debit credit transfer adjustment beneficiary' },
@@ -114,13 +118,13 @@ export const SCREENS: Screen[] = [
 
   // reports
   { id: 'reports', label: 'Reports', note: 'Membership, loans, accounting, inventory and sales reports', domain: 'reports', icon: <FiBarChart2 />, view: 'reports', who: 'anyone', tile: true, keywords: 'report export csv print portfolio par delinquent' },
-  { id: 'aging', label: 'Aging of receivables', note: 'Loans and receivables owed, aged by PAR or maturity, grouped and filtered', domain: 'reports', icon: <FiClock />, view: 'reports', tab: 'aging', who: 'accountant', keywords: 'aging receivable par past due delinquent maturity collector arrears' },
-  { id: 'slrec', label: 'SL reconciliation', note: 'Each control account in the chart against the members’ accounts that post to it', domain: 'reports', icon: <FiCheckSquare />, view: 'reports', tab: 'sl-reconciliation', who: 'accountant', keywords: 'reconcile reconciliation control account subsidiary ledger sl gl difference balance savings share loans' },
+  { id: 'aging', label: 'Aging of receivables', note: 'Loans and receivables owed, aged by PAR or maturity, grouped and filtered', domain: 'reports', icon: <FiClock />, view: 'reports', tab: 'aging', who: 'books', keywords: 'aging receivable par past due delinquent maturity collector arrears' },
+  { id: 'slrec', label: 'SL reconciliation', note: 'Each control account in the chart against the members’ accounts that post to it', domain: 'reports', icon: <FiCheckSquare />, view: 'reports', tab: 'sl-reconciliation', who: 'books', keywords: 'reconcile reconciliation control account subsidiary ledger sl gl difference balance savings share loans' },
 
   // compliance and records
   { id: 'cic', label: 'CIC submission', note: 'Credit information file for the Credit Information Corporation', domain: 'compliance', icon: <FiSend />, view: 'cic', who: 'accountant', tile: true, keywords: 'credit information corporation bureau submit file' },
   { id: 'privacy', label: 'Data privacy', note: 'Requests, incidents, sharing, notices and retention', domain: 'compliance', icon: <FiShield />, view: 'privacy', who: 'privacy', tile: true, keywords: 'privacy dpo data protection incident consent' },
-  { id: 'audit', label: 'Audit Log', note: 'Every change made, who made it and why', domain: 'compliance', icon: <FiClipboard />, view: 'audit', who: 'admin', tile: true, keywords: 'audit trail log history integrity seal' },
+  { id: 'audit', label: 'Audit Log', note: 'Every change made, who made it and why', domain: 'compliance', icon: <FiClipboard />, view: 'audit', who: 'auditlog', tile: true, keywords: 'audit trail log history integrity seal' },
   { id: 'documents', label: 'Documents', note: 'Scanned IDs, contracts and deeds, and who may read them', domain: 'compliance', icon: <FiFileText />, view: 'documents', who: 'documents', tile: true, keywords: 'documents files scans records' },
 
   // administration

@@ -113,12 +113,14 @@ public class ChartOfAccountsController {
 
     /** The whole chart of the branch, in account-number order. */
     @GetMapping
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     public List<AccountRow> list(Authentication auth) {
         return jdbc.query(select() + " ORDER BY c.COAID", (rs, i) -> row(rs), branch(auth));
     }
 
     /** Every change of one account, newest first: who, when, what kind, why and each field before and after. */
     @GetMapping("/{code}/history")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     public List<HistoryRow> history(@PathVariable String code, Authentication auth) {
         int branch = branch(auth);
         find(branch, code);
@@ -153,6 +155,7 @@ public class ChartOfAccountsController {
 
     /** How much of the ledger an account carries and what in the system points at it. Read when the edit form opens. */
     @GetMapping("/{code}/usage")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     public Usage usage(@PathVariable String code, Authentication auth) {
         int branch = branch(auth);
         find(branch, code);

@@ -185,6 +185,24 @@ export const getConsolidating = (branchCode: number, department: number, q: { as
   getJson<ConsolidatingStatement>(`${FS}/consolidating?branchCode=${branchCode}&department=${department}&` +
     ('asOf' in q ? `statement=financial-condition&asOf=${q.asOf}` : `statement=operations&from=${q.from}&to=${q.to}`))
 
+// ---- budgets -------------------------------------------------------------------------------------------------------
+
+/** An income (type 4) or expense (type 5) posting account with its budget for the year and, for reference, last year's actual. */
+export interface BudgetLine { accountCode: string; name: string; type: number; group: string; budget: number; lastYearActual: number }
+export interface VarianceLine { accountCode: string; name: string; type: number; group: string; annual: number; budget: number; actual: number; variance: number; favourable: boolean }
+export interface BudgetVariance {
+  branchCode: number; year: number; from: string; to: string; months: number; lines: VarianceLine[]
+  revenueBudget: number; revenueActual: number; expenseBudget: number; expenseActual: number
+}
+const BUDGETS = '/api/accounting/budgets'
+export const getBudgets = (branchCode: number, year: number) => getJson<BudgetLine[]>(`${BUDGETS}/${year}?branchCode=${branchCode}`)
+/** Sets the budgets sent for the year, with one reason; each change is kept in the audit log. */
+export const saveBudgets = (branchCode: number, year: number, lines: { accountCode: string; amount: number }[], reason: string) =>
+  send<BudgetLine[]>('PUT', `${BUDGETS}/${year}?branchCode=${branchCode}`, { lines, reason })
+/** Budget versus actual for a period of the year: the annual budget spread evenly by month against the ledger. */
+export const getBudgetVariance = (branchCode: number, year: number, from: string, to: string) =>
+  getJson<BudgetVariance>(`${BUDGETS}/${year}/variance?branchCode=${branchCode}&from=${from}&to=${to}`)
+
 // ---- banks and reconciliation --------------------------------------------------------------------------------------
 
 export interface BankAccount {

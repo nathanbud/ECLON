@@ -110,8 +110,10 @@ export default function AuditLogPage() {
   }, [text])
   const set = (k: keyof AuditFilter, v: string) => { setFilter((f) => ({ ...f, [k]: v || undefined })); setPage(0) }
 
-  const facets = useQuery({ queryKey: ['audit-facets'], queryFn: getAuditFacets, enabled: me.admin, staleTime: 60_000 })
-  const { data, error, isLoading, isFetching } = useQuery({ queryKey: ['audit-log', filter, page], queryFn: () => getAuditLog(filter, page, SIZE), enabled: me.admin, placeholderData: keepPreviousData })
+  // administrators and auditors read the log; only administrators seal it
+  const reader = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'AUDITOR')
+  const facets = useQuery({ queryKey: ['audit-facets'], queryFn: getAuditFacets, enabled: reader, staleTime: 60_000 })
+  const { data, error, isLoading, isFetching } = useQuery({ queryKey: ['audit-log', filter, page], queryFn: () => getAuditLog(filter, page, SIZE), enabled: reader, placeholderData: keepPreviousData })
   const filtered = Object.values(filter).some(Boolean)
 
   const pick = (label: string, key: keyof AuditFilter, options: string[] = []) => (
@@ -125,9 +127,9 @@ export default function AuditLogPage() {
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: 2, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
         <ScreenTitle title="Audit log" sx={{ mb: 2 }}>Every change the app records, newest first. It can be read here but never changed.</ScreenTitle>
-        {!me.admin ? <Alert severity="info">Only administrators can read the audit log.</Alert> : (
+        {!reader ? <Alert severity="info">Only administrators and auditors can read the audit log.</Alert> : (
           <>
-            <Integrity />
+            {me.admin && <Integrity />}
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, mb: 1.5 }}>
               <TextField label="Search" value={text} onChange={(e) => setText(e.target.value)} sx={{ flex: '1 1 240px' }} placeholder="Record number, reason or value"
                 slotProps={{ input: { startAdornment: <InputAdornment position="start"><FiSearch /></InputAdornment> } }} />

@@ -71,6 +71,7 @@ class BankController {
     // ---- bank accounts ------------------------------------------------------------------------------------------
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     List<Bank> banks(@RequestParam int branchCode) {
         requireTables();
         List<Bank> banks = new ArrayList<>();
@@ -115,6 +116,7 @@ class BankController {
     }
 
     @GetMapping("/{bankId}/entries")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     Statement entries(@PathVariable int bankId, @RequestParam int branchCode, @RequestParam LocalDate from, @RequestParam LocalDate to) {
         requireTables();
         if (to.isBefore(from)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The end date is before the start date.");
@@ -164,6 +166,7 @@ class BankController {
 
     /** The entries to tick through for a statement date: everything since the last reconciliation (or the last 60 days), plus what was left outstanding then. */
     @GetMapping("/{bankId}/reconciliation-sheet")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     Sheet sheet(@PathVariable int bankId, @RequestParam int branchCode, @RequestParam LocalDate statementDate) {
         requireTables();
         Bank bank = oneBank(branchCode, bankId);
@@ -239,6 +242,7 @@ class BankController {
     }
 
     @GetMapping("/{bankId}/reconciliations")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
     List<Recon> history(@PathVariable int bankId, @RequestParam int branchCode) {
         requireTables();
         oneBank(branchCode, bankId);

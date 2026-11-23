@@ -72,7 +72,8 @@ function ResultTable({ r }: { r: ReportResult }) {
  */
 export default function ReportsPage({ onOpen, initialTab }: { onOpen: (v: View) => void; initialTab?: string | null }) {
   const me = useMe()
-  const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
+  // the reports with a screen of their own read the books: accountants, administrators and auditors
+  const accountant = me.admin || me.roles.some((r) => ['ACCOUNTANT', 'AUDITOR'].includes(r.replace('ROLE_', '')))
   const list = useQuery({ queryKey: ['reports'], queryFn: listReports })
   const [picked, setPicked] = useState<ReportInfo | null>(null)
   const [own, setOwn] = useState<string | null>(accountant && initialTab && OWN.includes(initialTab) ? initialTab : null)

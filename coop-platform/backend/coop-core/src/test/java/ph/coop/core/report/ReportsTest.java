@@ -85,6 +85,21 @@ class ReportsTest {
     }
 
     @Test
+    void anAuditorReadsTheAccountingReportsAndTheJournalListingBalances() {
+        Authentication auditor = new TestingAuthenticationToken("auditor", "x", "ROLE_AUDITOR");
+        var ids = reports.list(auditor).stream().map((i) -> i.id()).toList();
+        assertTrue(ids.containsAll(List.of("general-ledger", "journal-listing", "fixed-assets-vs-ledger")), ids.toString());
+        Table t = reports.run("journal-listing", Map.of("from", "2025-03-03", "to", "2025-03-03"), auditor).table();
+        wellFormed(t);
+        assertTrue(t.rows().size() > 0, "coop has entries on 3 March 2025");
+        if (!t.note().contains("Only the first")) {
+            assertEquals(0, money(t.totals().get(5)).compareTo(money(t.totals().get(6))), "a day of whole entries balances: " + t.totals());
+        }
+        Table fa = reports.run("fixed-assets-vs-ledger", Map.of("asOf", "2026-11-23"), auditor).table();
+        wellFormed(fa);
+    }
+
+    @Test
     void badParametersAreRefused() {
         assertThrows(ResponseStatusException.class, () -> run("members-growth", "from", "2026-02-30"));
         assertThrows(ResponseStatusException.class, () -> run("daily-sales", "from", "2026-05-01", "to", "2026-04-01"));
