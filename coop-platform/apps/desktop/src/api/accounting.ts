@@ -140,7 +140,22 @@ export interface ConsolidatingSection { name: string; groups: ConsolidatingGroup
 export interface ConsolidatingStatement {
   branchCode: number; statement: 'financial-condition' | 'operations'; asOf: string | null; from: string | null; to: string | null
   unit: ConsolidatingColumn; columns: ConsolidatingColumn[]; sections: ConsolidatingSection[]; bottomName: string; bottom: number[]; bottomTotal: number
+  /** the last column: Consolidated (the sum of the units) or Change (this period less the prior) */
+  totalName: string
 }
+export interface EquityRow { group: string; accountCode: string; description: string; beginning: number; increases: number; decreases: number; other: number; ending: number }
+export interface ChangesInEquity {
+  branchCode: number; from: string; to: string; unit: StatementUnit | null; rows: EquityRow[]
+  beginning: number; increases: number; decreases: number; other: number; ending: number
+}
+export type CashFlowCategory = 'CASH' | 'OPERATING' | 'INVESTING' | 'FINANCING'
+export interface CashFlowActivity { category: CashFlowCategory; name: string; lines: { accountCode: string; description: string; amount: number }[]; total: number }
+export interface CashFlowStatement {
+  branchCode: number; from: string; to: string; unit: StatementUnit | null; activities: CashFlowActivity[]
+  netSurplus: number; netChange: number; cashBeginning: number; cashEnding: number; unexplained: number
+}
+/** A balance-sheet heading or account with its cash flow class; chosen by an accountant, inherited from a heading above (inheritedFrom), or suggested. */
+export interface CashFlowClass { code: string; name: string; type: number; parent: string | null; summary: boolean; category: CashFlowCategory; chosen: boolean; inheritedFrom: string | null }
 
 const FS = '/api/financial-statements'
 const unitParam = (department?: number | null) => (department != null ? `&department=${department}` : '')
@@ -148,6 +163,17 @@ export const getFinancialCondition = (branchCode: number, asOf: string, departme
   send<FinancialCondition>('GET', `${FS}/financial-condition?branchCode=${branchCode}&asOf=${asOf}${unitParam(department)}`)
 export const getOperations = (branchCode: number, from: string, to: string, department?: number | null) =>
   send<OperationsStatement>('GET', `${FS}/operations?branchCode=${branchCode}&from=${from}&to=${to}${unitParam(department)}`)
+/** This period beside the prior one, and the change; the prior defaults to the end of last year (financial condition) or the same days a year earlier (operations). */
+export const getComparative = (branchCode: number, department: number | null, q: { asOf: string } | { from: string; to: string }) =>
+  getJson<ConsolidatingStatement>(`${FS}/comparative?branchCode=${branchCode}${unitParam(department)}&` +
+    ('asOf' in q ? `statement=financial-condition&asOf=${q.asOf}` : `statement=operations&from=${q.from}&to=${q.to}`))
+export const getChangesInEquity = (branchCode: number, from: string, to: string, department?: number | null) =>
+  getJson<ChangesInEquity>(`${FS}/changes-in-equity?branchCode=${branchCode}&from=${from}&to=${to}${unitParam(department)}`)
+export const getCashFlow = (branchCode: number, from: string, to: string, department?: number | null) =>
+  getJson<CashFlowStatement>(`${FS}/cash-flow?branchCode=${branchCode}&from=${from}&to=${to}${unitParam(department)}`)
+export const getCashFlowClasses = (branchCode: number) => getJson<CashFlowClass[]>(`${FS}/cash-flow/classes?branchCode=${branchCode}`)
+export const setCashFlowClass = (branchCode: number, code: string, category: CashFlowCategory, reason: string) =>
+  send<CashFlowClass[]>('PUT', `${FS}/cash-flow/classes/${encodeURIComponent(code)}?branchCode=${branchCode}`, { category, reason })
 export const getStatementUnits = () => getJson<UnitChoice[]>(`${FS}/units`)
 /** Which finished years are summed (for the whole branch and by unit), and whether a build is running ('running', 'done', 'idle' or 'failed: …'). */
 export interface BalanceStatus { state: string; builtYears: number[]; builtYearsByUnit: number[] }

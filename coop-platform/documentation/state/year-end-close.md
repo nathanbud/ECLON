@@ -22,3 +22,7 @@ There is no month-end closing in the old data.
 **Not built**: month-end closing and a closing checklist (drawers counted, vouchers and cheques settled, accruals run, bank reconciled); sharing out the surplus to the statutory funds (30301 to 30304), interest on share capital and patronage refunds (done with journals and the Dividends screen).
 
 Tested by `YearEndRulesTest` and `YearEndCloseTest` (closes the real 2026 as if on 20 January 2027 and rolls back; takes about 20 seconds).
+
+## The other statements (2026-11-23)
+
+Besides the Statements of Financial Condition and of Operations, Accounting > Statements makes a comparative form of both (this period beside the prior one and the change), the Statement of Changes in Equity and the Statement of Cash Flows (indirect method). The cash flow treats the year-end closing (type 99 rows posted to equity) as net surplus, not as a financing change, so a period that crosses 31 December still explains the change in cash. Each balance-sheet heading or account has a cash flow class (cash, operating, investing, financing) in `ecis_cash_flow_class` (PostgreSQL `V040`), suggested from the headings' names until an accountant chooses one. On coop, for the first quarter of 2026, the equity at the end equals the Statement of Financial Condition's and the activities add up to the change in cash (`UnitStatementsTest`).

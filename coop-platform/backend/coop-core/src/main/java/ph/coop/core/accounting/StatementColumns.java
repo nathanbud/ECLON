@@ -30,10 +30,25 @@ final class StatementColumns {
 
     /** {@code bottom} is the last line per column: total liabilities and equity, or net surplus. */
     record Consolidating(int branchCode, String statement, LocalDate asOf, LocalDate from, LocalDate to, Column unit, List<Column> columns,
-                         List<CSection> sections, String bottomName, List<BigDecimal> bottom, BigDecimal bottomTotal) {}
+                         List<CSection> sections, String bottomName, List<BigDecimal> bottom, BigDecimal bottomTotal, String totalName) {}
+
+    /**
+     * Two statements of the same unit side by side, this period first and the prior one second, with the change (this period less the prior) in place of a
+     * total: the comparative statement standard practice asks for.
+     */
+    static Consolidating compare(int branchCode, String statement, LocalDate asOf, LocalDate from, LocalDate to, Column unit, Column current, Column prior,
+                                 List<Section> now, List<Section> before) {
+        return merge(branchCode, statement, asOf, from, to, unit, List.of(current, prior), List.of(now, before), true);
+    }
 
     static Consolidating merge(int branchCode, String statement, LocalDate asOf, LocalDate from, LocalDate to, Column unit, List<Column> columns,
                                List<List<Section>> perColumn) {
+        return merge(branchCode, statement, asOf, from, to, unit, columns, perColumn, false);
+    }
+
+    /** {@code change}: the last figure of each line is the first column less the second (a comparative), else the sum of the columns (a consolidation). */
+    private static Consolidating merge(int branchCode, String statement, LocalDate asOf, LocalDate from, LocalDate to, Column unit, List<Column> columns,
+                                       List<List<Section>> perColumn, boolean change) {
         int n = columns.size();
         List<String> sectionNames = new ArrayList<>();
         for (List<Section> ss : perColumn) for (Section s : ss) if (!sectionNames.contains(s.name())) sectionNames.add(s.name());
@@ -74,12 +89,12 @@ final class StatementColumns {
                 for (String k : keys) {
                     BigDecimal[] a = groups.get(gn).get(k);
                     for (int c = 0; c < n; c++) groupTotals[c] = groupTotals[c].add(a[c]);
-                    lines.add(new CLine(lineInfo.get(k)[0], lineInfo.get(k)[1], List.of(a), sum(a)));
+                    lines.add(new CLine(lineInfo.get(k)[0], lineInfo.get(k)[1], List.of(a), total(a, change)));
                 }
                 for (int c = 0; c < n; c++) sectionTotals[c] = sectionTotals[c].add(groupTotals[c]);
-                out.add(new CGroup(gn, lines, List.of(groupTotals), sum(groupTotals)));
+                out.add(new CGroup(gn, lines, List.of(groupTotals), total(groupTotals, change)));
             }
-            sections.add(new CSection(sn, out, List.of(sectionTotals), sum(sectionTotals)));
+            sections.add(new CSection(sn, out, List.of(sectionTotals), total(sectionTotals, change)));
         }
         boolean fc = "financial-condition".equals(statement);
         BigDecimal[] bottom = zeros(n);
@@ -94,13 +109,17 @@ final class StatementColumns {
             }
         }
         return new Consolidating(branchCode, statement, asOf, from, to, unit, columns, sections, fc ? "Total liabilities and equity" : "Net surplus",
-            List.of(bottom), sum(bottom));
+            List.of(bottom), total(bottom, change), change ? "Change" : "Consolidated");
     }
 
     private static BigDecimal[] zeros(int n) {
         BigDecimal[] a = new BigDecimal[n];
         java.util.Arrays.fill(a, BigDecimal.ZERO);
         return a;
+    }
+
+    private static BigDecimal total(BigDecimal[] a, boolean change) {
+        return change ? a[0].subtract(a[1]) : sum(a);
     }
 
     private static BigDecimal sum(BigDecimal[] a) {

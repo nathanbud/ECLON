@@ -231,6 +231,223 @@ class FinancialStatementController {
             new StatementColumns.Column(whole.unit().id(), whole.unit().name(), whole.unit().kind(), whole.unit().kindName(), false), columns, perColumn);
     }
 
+    /**
+     * A comparative statement: this period beside the prior one, and the change. For the Statement of Financial Condition the prior column is as at
+     * {@code priorAsOf} (by default the end of the year before {@code asOf}); for the Statement of Operations it covers {@code priorFrom} to {@code priorTo}
+     * (by default the same days a year earlier). {@code department} limits both to a unit and everything under it, as the other statements do.
+     */
+    @GetMapping("/comparative")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
+    StatementColumns.Consolidating comparative(@RequestParam int branchCode, @RequestParam String statement, @RequestParam(required = false) Integer department,
+                                               @RequestParam(required = false) LocalDate asOf, @RequestParam(required = false) LocalDate priorAsOf,
+                                               @RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
+                                               @RequestParam(required = false) LocalDate priorFrom, @RequestParam(required = false) LocalDate priorTo) {
+        boolean fc = "financial-condition".equals(statement);
+        if (!fc && !"operations".equals(statement)) throw bad("Choose the statement: financial-condition or operations.");
+        Scope s = scope(department);
+        StatementColumns.Column unit = s.unit() == null ? new StatementColumns.Column(0, "Whole branch", "BRANCH", "Every unit", false)
+            : new StatementColumns.Column(s.unit().id(), s.unit().name(), s.unit().kind(), s.unit().kindName(), false);
+        if (fc) {
+            if (asOf == null) throw bad("Give the date the statement is as at (asOf), so it can be made.");
+            LocalDate prior = priorAsOf != null ? priorAsOf : LocalDate.of(asOf.getYear() - 1, 12, 31);
+            if (!prior.isBefore(asOf)) throw bad("The comparative date (" + prior + ") must be before the statement's date (" + asOf + "). Choose an earlier date.");
+            return StatementColumns.compare(branchCode, "financial-condition", asOf, null, null, unit,
+                new StatementColumns.Column(0, "As at " + asOf, "", "This period", false), new StatementColumns.Column(1, "As at " + prior, "", "Prior period", false),
+                condition(branchCode, asOf, null, netAsOf(branchCode, asOf, s.depts())).sections(),
+                condition(branchCode, prior, null, netAsOf(branchCode, prior, s.depts())).sections());
+        }
+        if (from == null || to == null) throw bad("Give the first and last day of the period (from and to), so the statement can be made.");
+        checkRange(from, to);
+        LocalDate pf = priorFrom != null ? priorFrom : from.minusYears(1);
+        LocalDate pt = priorTo != null ? priorTo : to.minusYears(1);
+        checkRange(pf, pt);
+        return StatementColumns.compare(branchCode, "operations", null, from, to, unit,
+            new StatementColumns.Column(0, from + " to " + to, "", "This period", false), new StatementColumns.Column(1, pf + " to " + pt, "", "Prior period", false),
+            operations(branchCode, from, to, null, netRange(branchCode, from, to, s.depts())).sections(),
+            operations(branchCode, pf, pt, null, netRange(branchCode, pf, pt, s.depts())).sections());
+    }
+
+    // ---- changes in equity ----
+
+    /** One equity account (or the current year's surplus) over the period; {@code other} is whatever the entries do not explain (old data that does not balance). */
+    record EquityRow(String group, String accountCode, String description, BigDecimal beginning, BigDecimal increases, BigDecimal decreases, BigDecimal other,
+                     BigDecimal ending) {}
+
+    record ChangesInEquity(int branchCode, LocalDate from, LocalDate to, UnitInfo unit, List<EquityRow> rows, BigDecimal beginning, BigDecimal increases,
+                           BigDecimal decreases, BigDecimal other, BigDecimal ending) {}
+
+    /**
+     * The Statement of Changes in Equity over a period: per equity account, the balance at the start, what came in (credits), what went out (debits) and the
+     * balance at the end, which is the equity of the Statement of Financial Condition on the last day. The current year's surplus is its own row: it grows by
+     * the period's net surplus and goes down when the year-end close moves it into undivided net surplus.
+     */
+    @GetMapping("/changes-in-equity")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
+    ChangesInEquity changesInEquity(@RequestParam int branchCode, @RequestParam LocalDate from, @RequestParam LocalDate to, @RequestParam(required = false) Integer department) {
+        checkRange(from, to);
+        Scope s = scope(department);
+        Map<String, BigDecimal> begin = netAsOf(branchCode, from.minusDays(1), s.depts());
+        Map<String, BigDecimal> end = netAsOf(branchCode, to, s.depts());
+        Map<String, Acct> coa = loadCoa(branchCode);
+        Map<String, BigDecimal[]> moved = new HashMap<>();
+        List<Object> args = new ArrayList<>(List.of(branchCode, from, to, PROFIT_LOSS_SUMMARY, CLOSING_ENTRY, books.profitLossAccount(branchCode)));
+        if (s.depts() != null) args.addAll(s.depts());
+        jdbc.query("""
+                SELECT GLTransACCT_CODE, SUM(GLTransDR_AMT), SUM(GLTransCR_AMT) FROM gltrans
+                WHERE GLTransBR_CODE = ? AND GLTransTR_DATE BETWEEN ? AND ? AND GLTransTR_CODE <> ?
+                  AND NOT (GLTransTR_CODE = ? AND GLTransACCT_CODE = ?)""" + deptFilter(s.depts()) + " GROUP BY GLTransACCT_CODE ORDER BY GLTransACCT_CODE",
+            (rs) -> { moved.put(rs.getString(1), new BigDecimal[] {nz(rs.getBigDecimal(2)), nz(rs.getBigDecimal(3))}); }, args.toArray());
+        java.util.TreeSet<String> codes = new java.util.TreeSet<>();
+        for (String c : List.of(begin.keySet(), end.keySet(), moved.keySet()).stream().flatMap(java.util.Collection::stream).toList()) {
+            Acct a = coa.get(c);
+            if (a != null && a.type() == 3) codes.add(c);
+        }
+        List<EquityRow> rows = new ArrayList<>();
+        for (String c : codes) {
+            Acct a = coa.get(c);
+            BigDecimal b = nz(begin.get(c)).negate(), e = nz(end.get(c)).negate();
+            BigDecimal[] m = moved.getOrDefault(c, new BigDecimal[] {BigDecimal.ZERO, BigDecimal.ZERO});
+            BigDecimal inc = m[1].negate(), dec = m[0];
+            if (b.signum() == 0 && e.signum() == 0 && inc.signum() == 0 && dec.signum() == 0) continue;
+            rows.add(new EquityRow(groupName(c, coa, 3), c, a.desc(), b, inc, dec, e.subtract(b).subtract(inc).add(dec), e));
+        }
+        // the current year's surplus: up by the period's net surplus, down by what the year-end close moved into equity
+        BigDecimal surplusBegin = surplus(begin, coa), surplusEnd = surplus(end, coa);
+        BigDecimal earned = operations(branchCode, from, to, null, netRange(branchCode, from, to, s.depts())).netSurplus();
+        rows.add(new EquityRow("Current year surplus", "", "Net surplus not yet closed into equity", surplusBegin, earned, surplusBegin.add(earned).subtract(surplusEnd),
+            BigDecimal.ZERO, surplusEnd));
+        BigDecimal tb = BigDecimal.ZERO, ti = BigDecimal.ZERO, td = BigDecimal.ZERO, to_ = BigDecimal.ZERO, te = BigDecimal.ZERO;
+        for (EquityRow r : rows) { tb = tb.add(r.beginning()); ti = ti.add(r.increases()); td = td.add(r.decreases()); to_ = to_.add(r.other()); te = te.add(r.ending()); }
+        return new ChangesInEquity(branchCode, from, to, s.unit(), rows, tb, ti, td, to_, te);
+    }
+
+    /** The surplus of the year to date in a set of balances: income less expenses (they are credit and debit natured). */
+    private static BigDecimal surplus(Map<String, BigDecimal> net, Map<String, Acct> coa) {
+        BigDecimal s = BigDecimal.ZERO;
+        for (var e : net.entrySet()) {
+            Acct a = coa.get(e.getKey());
+            if (a != null && (a.type() == 4 || a.type() == 5)) s = s.subtract(e.getValue());
+        }
+        return s;
+    }
+
+    private static BigDecimal nz(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v;
+    }
+
+    // ---- cash flows ----
+
+    record CashFlow(int branchCode, LocalDate from, LocalDate to, UnitInfo unit, List<CashFlowRules.Activity> activities, BigDecimal netSurplus,
+                    BigDecimal netChange, BigDecimal cashBeginning, BigDecimal cashEnding, BigDecimal unexplained) {}
+
+    /** A heading or account of the balance sheet with its cash flow class: {@code chosen} when an accountant set it, else suggested from the headings. */
+    record CashFlowClass(String code, String name, int type, String parent, boolean summary, String category, boolean chosen, String inheritedFrom) {}
+
+    record CashFlowClassIn(String category, String reason) {}
+
+    /**
+     * The Statement of Cash Flows over a period by the indirect method: net surplus, then the change in every balance-sheet account that is not cash, by class
+     * (rules in {@link CashFlowRules}). Its activities add up to the change in cash between the day before the period and its last day.
+     */
+    @GetMapping("/cash-flow")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
+    CashFlow cashFlow(@RequestParam int branchCode, @RequestParam LocalDate from, @RequestParam LocalDate to, @RequestParam(required = false) Integer department) {
+        checkRange(from, to);
+        Scope s = scope(department);
+        Map<String, BigDecimal> begin = netAsOf(branchCode, from.minusDays(1), s.depts());
+        Map<String, BigDecimal> end = netAsOf(branchCode, to, s.depts());
+        Map<String, Acct> coa = loadCoa(branchCode);
+        Map<String, BigDecimal> closing = new HashMap<>();
+        List<Object> args = new ArrayList<>(List.of(branchCode, from, to, CLOSING_ENTRY, books.profitLossAccount(branchCode)));
+        if (s.depts() != null) args.addAll(s.depts());
+        jdbc.query("""
+                SELECT GLTransACCT_CODE, SUM(GLTransDR_AMT) + SUM(GLTransCR_AMT) FROM gltrans
+                WHERE GLTransBR_CODE = ? AND GLTransTR_DATE BETWEEN ? AND ? AND GLTransTR_CODE = ? AND GLTransACCT_CODE <> ?""" + deptFilter(s.depts())
+                + " GROUP BY GLTransACCT_CODE ORDER BY GLTransACCT_CODE",
+            (rs) -> {
+                Acct a = coa.get(rs.getString(1));
+                if (a != null && a.type() == 3) closing.put(rs.getString(1), rs.getBigDecimal(2));
+            }, args.toArray());
+        Map<String, CashFlowRules.Account> accounts = classified(branchCode, coa);
+        CashFlowRules.Statement st = CashFlowRules.build(begin, end, closing, accounts);
+        return new CashFlow(branchCode, from, to, s.unit(), st.activities(), st.netSurplus(), st.netChange(), st.cashBeginning(), st.cashEnding(), st.unexplained());
+    }
+
+    /** Every balance-sheet heading and account with its class, for the classification screen. */
+    @GetMapping("/cash-flow/classes")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
+    List<CashFlowClass> cashFlowClasses(@RequestParam int branchCode) {
+        Map<String, Acct> coa = loadCoa(branchCode);
+        Map<String, String> chosen = chosenClasses(branchCode);
+        Map<String, String> tags = new HashMap<>();
+        jdbc.query("SELECT COAID, COAacct_tag FROM coa WHERE COABR_CODE = ? ORDER BY COAID", (rs) -> { tags.put(rs.getString(1), rs.getString(2)); }, branchCode);
+        Map<String, CashFlowRules.Account> accounts = classified(branchCode, coa);
+        return coa.entrySet().stream().filter((e) -> e.getValue().type() >= 1 && e.getValue().type() <= 3).sorted(Map.Entry.comparingByKey())
+            .map((e) -> {
+                String code = e.getKey();
+                String from = null;
+                for (String c = code; c != null; c = coa.get(c) == null ? null : coa.get(c).parent()) {
+                    if (chosen.containsKey(c)) { from = c.equals(code) ? null : c; break; }
+                    if (coa.get(c) == null || c.equals(coa.get(c).parent())) break;
+                }
+                return new CashFlowClass(code, e.getValue().desc(), e.getValue().type(), e.getValue().parent(), "S".equals(tags.get(code)),
+                    accounts.get(code).category(), chosen.containsKey(code), from);
+            }).toList();
+    }
+
+    /** Sets the class of a heading (and so of every account under it with none of its own) or of one account; reason required, audited. */
+    @org.springframework.web.bind.annotation.PutMapping("/cash-flow/classes/{code}")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN')")
+    @org.springframework.transaction.annotation.Transactional
+    List<CashFlowClass> setCashFlowClass(@RequestParam int branchCode, @org.springframework.web.bind.annotation.PathVariable String code,
+                                         @org.springframework.web.bind.annotation.RequestBody CashFlowClassIn in, Authentication auth) {
+        if (!db.tableExists("ecis_cash_flow_class")) throw new ResponseStatusException(HttpStatus.CONFLICT, DatabaseChanges.notSetUp("Choosing the cash flow class of an account"));
+        if (in == null || in.category() == null || !CashFlowRules.CLASSES.contains(in.category()))
+            throw bad("Choose the class: CASH, OPERATING, INVESTING or FINANCING. Nothing was saved.");
+        if (in.reason() == null || in.reason().trim().length() < 3) throw bad("Give the reason for the change (at least 3 characters); it is kept in the audit log. Nothing was saved.");
+        Map<String, Acct> coa = loadCoa(branchCode);
+        Acct a = coa.get(code);
+        if (a == null || a.type() < 1 || a.type() > 3)
+            throw bad("Account " + code + " is not a balance-sheet account of this branch's chart, so it has no cash flow class. Choose an asset, liability or equity account or heading.");
+        String before = classified(branchCode, coa).get(code).category();
+        db.upsert("ecis_cash_flow_class", Map.of("branch_code", branchCode, "account_code", code),
+            Map.of("category", in.category(), "updated_by", auth.getName(), "updated_at", java.sql.Timestamp.valueOf(LocalDateTime.now())));
+        ph.coop.core.audit.AuditLog.write(jdbc, auth.getName(), "accounting.cashflow.class", "coa", branchCode + "/" + code, before, in.category(), in.reason().trim());
+        return cashFlowClasses(branchCode);
+    }
+
+    private Map<String, String> chosenClasses(int branch) {
+        Map<String, String> m = new HashMap<>();
+        if (db.tableExists("ecis_cash_flow_class")) {
+            jdbc.query("SELECT account_code, category FROM ecis_cash_flow_class WHERE branch_code = ? ORDER BY account_code", (rs) -> { m.put(rs.getString(1), rs.getString(2)); }, branch);
+        }
+        return m;
+    }
+
+    /** Each account's class: its own chosen one, else the nearest heading's chosen one, else the one suggested from the headings above it. */
+    private Map<String, CashFlowRules.Account> classified(int branch, Map<String, Acct> coa) {
+        Map<String, String> chosen = chosenClasses(branch);
+        Map<String, CashFlowRules.Account> out = new HashMap<>();
+        for (var e : coa.entrySet()) {
+            String code = e.getKey();
+            Acct a = e.getValue();
+            List<String> headings = new ArrayList<>();
+            String category = null;
+            String c = code;
+            for (int i = 0; i < 12 && c != null; i++) {
+                if (category == null && chosen.containsKey(c)) category = chosen.get(c);
+                Acct x = coa.get(c);
+                if (x == null || x.parent() == null || x.parent().isBlank() || x.parent().equals(c)) break;
+                c = x.parent();
+                Acct p = coa.get(c);
+                if (p != null) headings.add(p.desc());
+            }
+            if (category == null) category = CashFlowRules.suggest(a.type(), a.desc(), headings);
+            out.put(code, new CashFlowRules.Account(code, a.desc(), a.type(), headings, category));
+        }
+        return out;
+    }
+
     // ---- the figures ----
 
     private static void checkRange(LocalDate from, LocalDate to) {

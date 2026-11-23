@@ -51,4 +51,18 @@ class StatementColumnsTest {
         assertEquals("Total liabilities and equity", c.bottomName());
         assertEquals(List.of(m("50.00")), c.bottom());
     }
+
+    @Test void aComparativeShowsThisPeriodThePriorAndTheChange() {
+        List<Section> now = List.of(section("REVENUES", new Line("4010", "Interest", m("150.00")), new Line("4020", "Fees", m("10.00"))));
+        List<Section> before = List.of(section("REVENUES", new Line("4010", "Interest", m("100.00"))));
+        Consolidating c = StatementColumns.compare(1, "operations", null, null, null, new Column(0, "Whole branch", "BRANCH", "Every unit", false),
+            new Column(0, "2025", "", "This period", false), new Column(1, "2024", "", "Prior period", false), now, before);
+        assertEquals("Change", c.totalName());
+        var interest = c.sections().get(0).groups().get(0).lines().get(0);
+        assertEquals(List.of(m("150.00"), m("100.00")), interest.amounts());
+        assertEquals(m("50.00"), interest.total());
+        var fees = c.sections().get(0).groups().get(0).lines().get(1);
+        assertEquals(m("10.00"), fees.total());
+        assertEquals(m("60.00"), c.bottomTotal());
+    }
 }
