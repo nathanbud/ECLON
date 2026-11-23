@@ -32,8 +32,13 @@ public final class YearEndRules {
     public record Department(int dept, BigDecimal income, BigDecimal expenses, BigDecimal surplus, int lines) {}
 
     /** What the checks need to know about the books. {@code lastClosedYear} is null when no year was ever closed. */
+    /** {@code checklistOpen}: items of the year-end checklist (CloseChecklist) not done yet; the closing waits for none. */
     public record Facts(int year, LocalDate today, boolean alreadyClosed, Integer lastClosedYear, int pendingJournals,
-                        boolean surplusAccountUsable, boolean nothingToClose) {}
+                        boolean surplusAccountUsable, boolean nothingToClose, long checklistOpen) {
+        public Facts(int year, LocalDate today, boolean alreadyClosed, Integer lastClosedYear, int pendingJournals, boolean surplusAccountUsable, boolean nothingToClose) {
+            this(year, today, alreadyClosed, lastClosedYear, pendingJournals, surplusAccountUsable, nothingToClose, 0);
+        }
+    }
 
     public static boolean closes(String account) {
         return account != null && (account.startsWith("4") || account.startsWith("5"));
@@ -88,6 +93,10 @@ public final class YearEndRules {
         }
         if (!f.surplusAccountUsable()) p.add("The undivided net surplus account is missing from the chart or switched off.");
         if (f.nothingToClose()) p.add("No income or expense was booked in " + f.year() + ", so there is nothing to close.");
+        if (f.checklistOpen() > 0 && !f.alreadyClosed()) {
+            p.add(f.checklistOpen() + (f.checklistOpen() == 1 ? " item of the " : " items of the ") + f.year() + " year-end checklist " + (f.checklistOpen() == 1 ? "is" : "are")
+                + " not done. Confirm or explain each in Accounting > Closing, then close the year.");
+        }
         return p;
     }
 

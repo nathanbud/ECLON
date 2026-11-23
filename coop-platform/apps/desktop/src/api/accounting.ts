@@ -185,6 +185,26 @@ export const getConsolidating = (branchCode: number, department: number, q: { as
   getJson<ConsolidatingStatement>(`${FS}/consolidating?branchCode=${branchCode}&department=${department}&` +
     ('asOf' in q ? `statement=financial-condition&asOf=${q.asOf}` : `statement=operations&from=${q.from}&to=${q.to}`))
 
+// ---- closing: the month-end review and the year-end checklist ------------------------------------------------------------
+
+export type CloseScope = 'month' | 'year'
+/** OK, NOT_APPLICABLE, ATTENTION or EXPLAINED for an item the application checks; DONE or OPEN for one an accountant confirms. */
+export interface CloseItem { key: string; label: string; help: string; automatic: boolean; status: string; detail: string | null; note: string | null; by: string | null; at: string | null }
+export interface CloseReview {
+  scope: 'MONTH' | 'YEAR'; period: string; from: string; to: string; items: CloseItem[]; complete: boolean; open: number
+  signedBy: string | null; signedAt: string | null; ended: boolean; monthlyClose: boolean
+}
+export interface ClosePolicy { monthlyClose: boolean; yearEndDueDays: number }
+export interface CloseStatus { policy: ClosePolicy; lastClosedYear: number | null; yearToClose: number | null; yearDue: string | null; yearOverdue: boolean; monthsToReview: string[] }
+const CLOSE = '/api/accounting/close'
+export const getCloseStatus = (branchCode: number) => getJson<CloseStatus>(`${CLOSE}/status?branchCode=${branchCode}`)
+export const getCloseReview = (branchCode: number, scope: CloseScope, period: string) => getJson<CloseReview>(`${CLOSE}/${scope}/${period}?branchCode=${branchCode}`)
+/** Confirms an item (note optional), accepts one the application found wanting (an explanation of 10 characters or more), or takes a tick back (done false). */
+export const tickCloseItem = (branchCode: number, scope: CloseScope, period: string, item: string, done: boolean, note?: string) =>
+  send<CloseReview>('PUT', `${CLOSE}/${scope}/${period}/items/${item}?branchCode=${branchCode}`, { done, note })
+export const signOffMonth = (branchCode: number, period: string, note?: string) => send<CloseReview>('POST', `${CLOSE}/month/${period}/signoff?branchCode=${branchCode}`, { note })
+export const setClosePolicy = (p: { monthlyClose?: boolean; yearEndDueDays?: number; reason: string }) => send<ClosePolicy>('PUT', `${CLOSE}/policy`, p)
+
 // ---- budgets -------------------------------------------------------------------------------------------------------
 
 /** An income (type 4) or expense (type 5) posting account with its budget for the year and, for reference, last year's actual. */

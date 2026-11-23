@@ -23,6 +23,7 @@ import { DrillCode, LedgerDrill, type Drill } from './ui/LedgerDrill'
 import { BusyArea, Loading, LoadingBlock } from './ui/Loading'
 import { ReasonDialog } from './appleUi'
 import BudgetTab from './BudgetTab'
+import { ClosingPolicy, CloseStatusNotice, MonthReview, YearChecklist } from './ClosingParts'
 
 const today = () => new Date().toLocaleDateString('en-CA')
 const yearStart = () => `${new Date().getFullYear()}-01-01`
@@ -33,9 +34,10 @@ export default function AccountingPage({ initialTab }: { initialTab?: string }) 
   const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
   // an auditor reads every tab and changes nothing
   const auditor = !accountant && me.roles.some((r) => r.replace('ROLE_', '') === 'AUDITOR')
-  const tabs = ['Trial balance', ...(accountant || auditor ? ['Statements', 'Periods', 'Banks', 'Year-end close', 'Budget'] : [])]
+  const tabs = ['Trial balance', ...(accountant || auditor ? ['Statements', 'Periods', 'Banks', 'Month-end review', 'Year-end close', 'Budget'] : [])]
   // a tab named by the side menu or the search opens first
   const [tab, setTab] = useState(() => Math.max(0, tabs.indexOf(initialTab ?? '')))
+  const name = tabs[tab] ?? tabs[0]
   const [branchCode, setBranchCode] = useState(me.branchCode ?? 1)
   const ok = branchCode > 0
 
@@ -48,12 +50,25 @@ export default function AccountingPage({ initialTab }: { initialTab?: string }) 
         </Stack>
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>{tabs.map((t) => <Tab key={t} label={t} />)}</Tabs>
         {auditor && tab > 0 && <Alert severity="info" sx={{ mb: 2 }}>You are signed in as an auditor: everything here can be read and exported, and nothing can be changed.</Alert>}
-        {tab === 0 && <Box sx={{ mx: -3, mt: -3 }}><TrialBalancePage /></Box>}
-        {tab === 1 && ok && <Statements branchCode={branchCode} />}
-        {tab === 2 && ok && <Periods branchCode={branchCode} />}
-        {tab === 3 && ok && <BanksTab branchCode={branchCode} />}
-        {tab === 4 && ok && <YearEndCloseTab branchCode={branchCode} />}
-        {tab === 5 && ok && <BudgetTab branchCode={branchCode} canEdit={accountant} />}
+        {tab > 0 && ok && <CloseStatusNotice branchCode={branchCode} />}
+        {name === 'Trial balance' && <Box sx={{ mx: -3, mt: -3 }}><TrialBalancePage /></Box>}
+        {name === 'Statements' && ok && <Statements branchCode={branchCode} />}
+        {name === 'Periods' && ok && <Periods branchCode={branchCode} />}
+        {name === 'Banks' && ok && <BanksTab branchCode={branchCode} />}
+        {name === 'Month-end review' && ok && (
+          <>
+            <ClosingPolicy branchCode={branchCode} admin={me.admin} />
+            <MonthReview branchCode={branchCode} canEdit={accountant} />
+          </>
+        )}
+        {name === 'Year-end close' && ok && (
+          <>
+            <ClosingPolicy branchCode={branchCode} admin={me.admin} />
+            <YearChecklist branchCode={branchCode} canEdit={accountant} />
+            <YearEndCloseTab branchCode={branchCode} />
+          </>
+        )}
+        {name === 'Budget' && ok && <BudgetTab branchCode={branchCode} canEdit={accountant} />}
       </Box>
     </Box>
   )

@@ -67,8 +67,11 @@ class YearEndCloseController {
     private final Ledger ledger;
     private final String surplusAccount;
 
-    YearEndCloseController(JdbcTemplate jdbc, Db db, Clock clock, ClosedBooks books, Ledger ledger,
+    private final CloseReviews reviews;
+
+    YearEndCloseController(JdbcTemplate jdbc, Db db, Clock clock, ClosedBooks books, Ledger ledger, CloseReviews reviews,
                            @Value("${coop.year-end.surplus-account:30198}") String surplusAccount) {
+        this.reviews = reviews;
         this.ledger = ledger;
         this.jdbc = jdbc;
         this.db = db;
@@ -257,8 +260,10 @@ class YearEndCloseController {
                 Integer.class, branch, LocalDate.of(year, 1, 1), YearEndRules.closingDate(year));
         Integer usable = jdbc.queryForObject("SELECT COUNT(*) FROM coa WHERE COABR_CODE = ? AND COAID = ? AND COAacct_tag = 'D' AND COALESCE(COAisdisabled, 0) = 0",
                 Integer.class, branch, surplusAccount);
+        // the year-end close is mandatory and controlled: it waits for the year's checklist where the database keeps it
+        long open = reviews.stored() && !books.isClosed(branch, year) ? reviews.yearOpen(branch, year) : 0;
         return new YearEndRules.Facts(year, LocalDate.now(clock), books.isClosed(branch, year), books.lastClosedYear(branch),
-                pending == null ? 0 : pending, usable != null && usable > 0, nothingToClose);
+                pending == null ? 0 : pending, usable != null && usable > 0, nothingToClose, open);
     }
 
     private Close get(long id) {

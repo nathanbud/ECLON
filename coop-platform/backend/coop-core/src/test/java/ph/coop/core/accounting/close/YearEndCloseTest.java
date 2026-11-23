@@ -56,6 +56,7 @@ class YearEndCloseTest {
 
     @Autowired YearEndCloseController closes;
     @Autowired ClosedBooks books;
+    @Autowired CloseReviews reviews;
     @Autowired JdbcTemplate jdbc;
 
     private final int branch = 1;
@@ -78,6 +79,15 @@ class YearEndCloseTest {
         jdbc.update("UPDATE ecis_journal SET journal_date = ? WHERE branch_code = ? AND status <> 'POSTED' AND journal_date BETWEEN ? AND ?",
                 LocalDate.of(YEAR + 1, 1, 5), branch, START, END);
         as(maker);
+        assumeTrue(reviews.stored(), "the closing reviews change (V042) is not applied here");
+        completeChecklist();
+    }
+
+    /** What an accountant does before the close: confirms each item of the year-end checklist, explaining what the application found wanting. */
+    private void completeChecklist() {
+        for (var item : reviews.items(branch, CloseChecklist.YEAR, String.valueOf(YEAR))) {
+            if (!item.settled()) reviews.tick(branch, CloseChecklist.YEAR, String.valueOf(YEAR), item.key(), "Checked for the year-end close test", maker);
+        }
     }
 
     private static Authentication as(String name) {
@@ -101,6 +111,15 @@ class YearEndCloseTest {
                 SELECT SUM(GLTransDR_AMT) + SUM(GLTransCR_AMT) FROM gltrans WHERE GLTransBR_CODE = ? AND GLTransTR_DATE BETWEEN ? AND ? AND GLTransTR_CODE <> 98
                   AND (GLTransACCT_CODE LIKE '4%' OR GLTransACCT_CODE LIKE '5%')
                 """, branch, START, END);
+    }
+
+    @Test
+    void theCloseWaitsForTheYearEndChecklist() {
+        reviews.untick(branch, CloseChecklist.YEAR, String.valueOf(YEAR), "ALLOWANCE");
+        ResponseStatusException e = assertThrows(ResponseStatusException.class, () -> closes.prepare(new NewClose(branch, YEAR), as(maker)));
+        assertTrue(e.getReason().contains("year-end checklist"), e.getReason());
+        completeChecklist();
+        assertEquals("PREPARED", closes.prepare(new NewClose(branch, YEAR), as(maker)).status());
     }
 
     @Test
