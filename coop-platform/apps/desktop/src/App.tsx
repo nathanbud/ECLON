@@ -15,6 +15,7 @@ import LoanModulePage from './LoanModulePage'
 import LoanApplicationDialog from './LoanApplicationDialog'
 import TopBar from './TopBar'
 import { BusinessDayClosedNotice } from './BusinessDayClosedNotice'
+import { GlobalBusyBar } from './ui/Loading'
 import UsersPage from './UsersPage'
 import AuditLogPage from './AuditLogPage'
 import PrivacyPage from './PrivacyPage'
@@ -169,6 +170,7 @@ function Signed() {
         onNavigate={navigate} onOpenClient={openClient}
         onMenu={() => setMenuOpen((o) => !o)} menuOpen={menuOpen}
       />
+      <GlobalBusyBar />
       <BusinessDayClosedNotice onOpen={() => navigate('businessday')} hide={view === 'businessday'} />
       <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
         <SideNav view={view} tab={tab} onNavigate={navigate} open={menuOpen} onClose={() => setMenuOpen(false)} />

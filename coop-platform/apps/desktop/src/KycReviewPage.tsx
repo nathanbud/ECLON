@@ -1,4 +1,4 @@
-import { Alert, Box, Button, LinearProgress, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import { Alert, Box, Button, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi'
@@ -6,6 +6,7 @@ import { getKycReview, type KycStatus } from './api'
 import { Dot, listTable, ScreenTitle, Segmented, Surface } from './appleUi'
 import { memberNo, type Id } from './clients'
 import { appBackground } from './glass'
+import { BusyArea } from './ui/Loading'
 
 const SIZE = 50
 
@@ -56,7 +57,7 @@ export default function KycReviewPage({ onOpenMember }: { onOpenMember: (id: Id)
         {q.isError && <Alert severity="error" sx={{ mb: 1.5 }}>{(q.error as Error).message}</Alert>}
 
         <Surface label={kind.label}>
-          {q.isFetching && <LinearProgress aria-label="Loading" sx={{ borderRadius: 0, height: 2 }} />}
+          <BusyArea busy={q.isFetching && !q.isLoading} label="Loading the members">
           <Table size="small" sx={listTable}>
             <TableHead>
               <TableRow>
@@ -94,6 +95,7 @@ export default function KycReviewPage({ onOpenMember }: { onOpenMember: (id: Id)
               )}
             </TableBody>
           </Table>
+          </BusyArea>
           {data && data.total > SIZE && (
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1, px: 1.5, py: 1 }}>
               <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{from.toLocaleString()}–{to.toLocaleString()} of {data.total.toLocaleString()}</Typography>

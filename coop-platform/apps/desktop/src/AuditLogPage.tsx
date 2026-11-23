@@ -9,6 +9,7 @@ import { getAuditFacets, getAuditIntegrity, getAuditLog, sealAuditLog, verifyAud
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
 import { ScreenTitle } from './appleUi'
+import { BusyArea } from './ui/Loading'
 
 const SIZE = 50
 /** The date, and the time to the millisecond: 13 Nov 2026 · 05:16:17.874. Read from the text itself, so no time zone shifts it. */
@@ -138,7 +139,7 @@ export default function AuditLogPage() {
               {filtered && <Button color="inherit" onClick={() => { setFilter({}); setText(''); setPage(0) }}>Clear</Button>}
             </Box>
             {error && <Alert severity="error" sx={{ mb: 1 }}>{(error as Error).message}</Alert>}
-            <Box sx={(t) => ({ overflow: 'auto', opacity: isFetching && !isLoading ? 0.7 : 1, transition: 'opacity 150ms', ...glass(t) })}>
+            <BusyArea busy={isFetching && !isLoading} label="Loading the audit log"><Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
               <Table size="small" aria-label="Audit log">
                 <TableHead>
                   <TableRow><TableCell width={36} /><TableCell>When</TableCell><TableCell>Person</TableCell><TableCell>Action</TableCell><TableCell>Record</TableCell><TableCell>What changed</TableCell><TableCell>Where</TableCell><TableCell>Reason</TableCell></TableRow>
@@ -195,7 +196,7 @@ export default function AuditLogPage() {
                 </TableBody>
               </Table>
               <TablePagination component="div" count={data?.totalElements ?? 0} page={page} rowsPerPage={SIZE} rowsPerPageOptions={[SIZE]} onPageChange={(_, p) => { setPage(p); setOpen(null) }} />
-            </Box>
+            </Box></BusyArea>
           </>
         )}
       </Box>

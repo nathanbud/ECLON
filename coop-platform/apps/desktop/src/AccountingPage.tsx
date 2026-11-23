@@ -1,5 +1,5 @@
 import { Alert, Box, Button, Chip, FormControlLabel, MenuItem, Stack, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useMemo, useState } from 'react'
 import {
   buildBalances, createPeriod, getBalanceStatus, getConsolidating, getFinancialCondition, getOperations, getStatementUnits, listPeriods, setPeriodStatus, type ConsolidatingStatement,
@@ -15,6 +15,7 @@ import { money } from './ui/format'
 import { ConfirmButton } from './ui/dialogs'
 import { labelOf } from './ui/labels'
 import { unitHeading, unitOptions } from './ui/units'
+import { BusyArea, Loading } from './ui/Loading'
 
 const today = () => new Date().toLocaleDateString('en-CA')
 const yearStart = () => `${new Date().getFullYear()}-01-01`
@@ -106,12 +107,12 @@ function Statements({ branchCode }: { branchCode: number }) {
   const options = useMemo(() => unitOptions(units.data ?? []), [units.data])
   const chosen = options.find((o) => o.unit.id === unit)?.unit
   const columns = sideBySide && chosen != null && chosen.children > 0
-  const fc = useQuery({ queryKey: ['fs-fc', branchCode, asOf, unit], queryFn: () => getFinancialCondition(branchCode, asOf, unit), enabled: kind === 'fc' && !!asOf && !columns, retry: false })
-  const ops = useQuery({ queryKey: ['fs-ops', branchCode, from, to, unit], queryFn: () => getOperations(branchCode, from, to, unit), enabled: kind === 'ops' && !!from && !!to && !columns, retry: false })
+  const fc = useQuery({ queryKey: ['fs-fc', branchCode, asOf, unit], queryFn: () => getFinancialCondition(branchCode, asOf, unit), enabled: kind === 'fc' && !!asOf && !columns, retry: false, placeholderData: keepPreviousData })
+  const ops = useQuery({ queryKey: ['fs-ops', branchCode, from, to, unit], queryFn: () => getOperations(branchCode, from, to, unit), enabled: kind === 'ops' && !!from && !!to && !columns, retry: false, placeholderData: keepPreviousData })
   const cons = useQuery({
     queryKey: ['fs-cons', branchCode, kind, asOf, from, to, unit],
     queryFn: () => getConsolidating(branchCode, unit!, kind === 'fc' ? { asOf } : { from, to }),
-    enabled: columns && (kind === 'fc' ? !!asOf : !!from && !!to), retry: false,
+    enabled: columns && (kind === 'fc' ? !!asOf : !!from && !!to), retry: false, placeholderData: keepPreviousData,
   })
   const q = columns ? cons : kind === 'fc' ? fc : ops
   const shownUnit = (kind === 'fc' ? fc.data?.unit : ops.data?.unit) ?? null
@@ -149,11 +150,12 @@ function Statements({ branchCode }: { branchCode: number }) {
       </Stack>
       {q.error && <Alert severity="error" sx={{ mb: 2 }}>{(q.error as Error).message}</Alert>}
       <YearBalances branchCode={branchCode} />
+      {q.isLoading && <Loading what="the statement" />}
       {!columns && shownUnit && <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1, px: 0.5 }}>{unitHeading(shownUnit)}</Typography>}
       {columns && cons.data && (
         <>
           <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1, px: 0.5 }}>Consolidating statement: {cons.data.unit.name}</Typography>
-          <Box sx={(t) => ({ overflow: 'auto', opacity: cons.isFetching ? 0.6 : 1, ...glass(t) })}><ConsolidatingTable c={cons.data} /></Box>
+          <BusyArea busy={cons.isFetching} label='Loading the statement'><Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}><ConsolidatingTable c={cons.data} /></Box></BusyArea>
         </>
       )}
       {!columns && kind === 'fc' && fc.data && (
@@ -163,18 +165,20 @@ function Statements({ branchCode }: { branchCode: number }) {
               ? 'Assets equal liabilities plus equity.'
               : `Assets are ${money(fc.data.totalAssets)} but liabilities plus equity are ${money(fc.data.totalLiabilitiesAndEquity)} (difference ${money(Math.abs(fc.data.totalAssets - fc.data.totalLiabilitiesAndEquity))}). ${fc.data.unit ? 'A single unit balances only when its entries with the other units (due to and due from) are in its own books.' : 'The legacy ledger does not balance for this date.'}`}
           </Alert>
-          <Box sx={(t) => ({ overflow: 'auto', opacity: fc.isFetching ? 0.6 : 1, ...glass(t) })}><SectionTable sections={fc.data.sections} /></Box>
+          <BusyArea busy={fc.isFetching} label='Loading the statement'><Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}><SectionTable sections={fc.data.sections} /></Box></BusyArea>
         </>
       )}
       {!columns && kind === 'ops' && ops.data && (
-        <Box sx={(t) => ({ overflow: 'auto', opacity: ops.isFetching ? 0.6 : 1, ...glass(t) })}>
-          <SectionTable sections={ops.data.sections}>
-            <TableRow>
-              <TableCell colSpan={2} sx={{ fontWeight: 700 }}>Net surplus</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700 }}>{money(ops.data.netSurplus)}</TableCell>
-            </TableRow>
-          </SectionTable>
-        </Box>
+        <BusyArea busy={ops.isFetching} label="Loading the statement">
+          <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
+            <SectionTable sections={ops.data.sections}>
+              <TableRow>
+                <TableCell colSpan={2} sx={{ fontWeight: 700 }}>Net surplus</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>{money(ops.data.netSurplus)}</TableCell>
+              </TableRow>
+            </SectionTable>
+          </Box>
+        </BusyArea>
       )}
     </Box>
   )

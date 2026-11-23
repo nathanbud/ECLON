@@ -1,5 +1,5 @@
 import {
-  Alert, Autocomplete, Box, Button, Chip, Drawer, FormControlLabel, IconButton, LinearProgress, ListItemIcon, Menu, MenuItem, Stack, Switch,
+  Alert, Autocomplete, Box, Button, Chip, Drawer, FormControlLabel, IconButton, ListItemIcon, Menu, MenuItem, Stack, Switch,
   Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Tooltip, Typography, useMediaQuery,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -15,6 +15,7 @@ import { AboutNote, Hinted, listTable, ScreenTitle, SearchField, Surface } from 
 import ChartUpload from './ChartUpload'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
+import { BusyArea } from './ui/Loading'
 import { tint } from './theme'
 import { suggestHeadings, nextCode, type HeadingSuggestion } from './ui/chartSuggest'
 import {
@@ -261,12 +262,8 @@ export default function AccountsPage() {
             <Tooltip title="Open every heading"><span><IconButton aria-label="Expand all" onClick={expandAll} disabled={filtering || busy}><FiPlusSquare /></IconButton></span></Tooltip>
             <Tooltip title="Close every heading"><span><IconButton aria-label="Collapse all" onClick={collapseAll} disabled={filtering || busy}><FiMinusSquare /></IconButton></span></Tooltip>
           </Box>
-          <Box sx={{ position: 'relative' }}>
-          {busy && (
-            <LinearProgress aria-label={pending ? 'Opening the accounts' : 'Loading the accounts'}
-              sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, zIndex: 3 }} />
-          )}
-          <TableContainer aria-busy={busy} sx={{ opacity: busy ? 0.55 : 1, pointerEvents: busy ? 'none' : undefined, transition: 'opacity .15s', maxHeight: 'calc(100dvh - 390px)', minHeight: 240 }}>
+          <BusyArea busy={busy} label={pending ? 'Opening the accounts' : 'Loading the accounts'}>
+          <TableContainer sx={{ maxHeight: 'calc(100dvh - 390px)', minHeight: 240 }}>
             <Table size="small" stickyHeader role="treegrid" aria-label="Chart of accounts" sx={(t) => ({ ...listTable(t), '& .MuiTableHead-root .MuiTableCell-root.MuiTableCell-stickyHeader': { bgcolor: t.palette.background.paper } })}>
               <TableHead>
                 <TableRow>
@@ -291,7 +288,7 @@ export default function AccountsPage() {
               </TableBody>
             </Table>
           </TableContainer>
-          </Box>
+          </BusyArea>
           <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', px: 1.5, py: 1, borderTop: `1px solid ${t.palette.divider}` })}>
             <Typography sx={{ fontSize: 12 }} color="text.secondary" role="status">
               {pending ? 'Opening the headings…' : filtering

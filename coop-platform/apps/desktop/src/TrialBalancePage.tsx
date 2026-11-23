@@ -1,13 +1,13 @@
 import {
   Alert, Container, Paper, Table, TableBody, TableCell, TableContainer, TableFooter, TableHead, TableRow, TextField,
 } from '@mui/material'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { getTrialBalance } from './api'
 import { money } from './ui/format'
 import { useMe } from './session'
 import { BranchSelect } from './ui/BranchSelect'
-import { Loading } from './ui/Loading'
+import { BusyArea, Loading } from './ui/Loading'
 
 
 function monthStart() {
@@ -25,6 +25,7 @@ export default function TrialBalancePage() {
     queryKey: ['trial-balance', branchCode, from, to],
     queryFn: () => getTrialBalance(branchCode, from, to),
     enabled: Number.isInteger(branchCode) && branchCode > 0 && !!from && !!to,
+    placeholderData: keepPreviousData,
   })
 
   return (
@@ -39,7 +40,7 @@ export default function TrialBalancePage() {
           {data.balanced ? 'Debits equal credits.' : `Out of balance by ${money(Math.abs(data.totalDebit - data.totalCredit))}.`}
         </Alert>
       )}
-      <TableContainer component={Paper} sx={{ opacity: isFetching ? 0.6 : 1 }}>
+      <BusyArea busy={isFetching && !!data} label="Loading the trial balance"><TableContainer component={Paper}>
         <Table size="small">
           <TableHead>
             <TableRow><TableCell>Code</TableCell><TableCell>Account</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell></TableRow>
@@ -64,7 +65,7 @@ export default function TrialBalancePage() {
             </TableFooter>
           )}
         </Table>
-      </TableContainer>
+      </TableContainer></BusyArea>
     </Container>
   )
 }

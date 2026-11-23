@@ -5,6 +5,7 @@ import { getAmortKinds, previewAmortization, type AmortKind, type AmortTry, type
 import { AboutNote, Dot, listTable, SectionLabel, Surface } from './appleUi'
 import MoneyField from './MoneyField'
 import { money } from './ui/format'
+import { BusyArea } from './ui/Loading'
 
 const day = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 const today = () => new Date().toLocaleDateString('en-CA')
@@ -104,7 +105,7 @@ export default function AmortizationTab({ lists }: { lists: LoanSetupLists | und
 
             {preview.error && <Alert severity="warning" sx={{ mt: 1.5, py: 0 }}>{(preview.error as Error).message}</Alert>}
             {valid && preview.data && (
-              <Box sx={{ mt: 2, opacity: preview.isFetching ? 0.6 : 1, transition: 'opacity 160ms' }}>
+              <BusyArea busy={preview.isFetching} label="Working out the schedule" sx={{ mt: 2 }}><Box>
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 1, mb: 1.5 }}>
                   <Stat label={kind === 3 ? 'Payment' : 'First payment'} value={money(preview.data.payment)} />
                   <Stat label="Payments" value={String(preview.data.payments)} />
@@ -125,7 +126,7 @@ export default function AmortizationTab({ lists }: { lists: LoanSetupLists | und
                   </table>
                 </Box>
                 {rows.length > 7 && <Button size="small" onClick={() => setAll((a) => !a)} sx={{ mt: 0.5 }}>{all ? 'Show fewer' : `Show all ${rows.length} payments`}</Button>}
-              </Box>
+              </Box></BusyArea>
             )}
             {!valid && <Typography color="text.secondary" sx={{ fontSize: 13, mt: 2 }}>Fill in the amount, term, how it is paid and the rate to see the schedule.</Typography>}
           </Box>
