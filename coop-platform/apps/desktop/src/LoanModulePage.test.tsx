@@ -30,7 +30,10 @@ describe('Loan Module', () => {
     expect(await screen.findByRole('button', { name: 'New loan application' })).toBeEnabled()
     const steps = screen.getByRole('list', { name: 'Loan steps' })
     for (const s of ['1 · Profiling', '2 · Deduction', '3 · Verification', '4 · Approval', '5 · Loan Release']) expect(steps).toHaveTextContent(s)
-    expect(steps).toHaveTextContent('In Front Office > Disburse')
+    // what each step is sits behind its ⓘ, not on the card
+    expect(steps).not.toHaveTextContent('In Front Office > Disburse')
+    await userEvent.hover(within(steps).getByRole('button', { name: 'About Loan Release' }))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('In Front Office > Disburse')
     expect(await screen.findByText('Loan applications waiting')).toBeInTheDocument()
   })
 

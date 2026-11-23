@@ -13,6 +13,7 @@ import LoanApplicantCard from './LoanApplicantCard'
 import LoanStepper from './LoanStepper'
 import { labelOf } from './ui/labels'
 import LoanDeductionFields, { deductionInput, type DeductionAmounts, type Payoffs } from './LoanDeductionFields'
+import { InfoTip } from './appleUi'
 
 
 const STEPS = [{ label: 'Profiling' }, { label: 'Deduction' }, { label: 'Verification' }, { label: 'Approval' }, { label: 'Loan Release' }]
@@ -64,8 +65,10 @@ function StepPage({ title, hint, children, actions }: { title: string; hint: str
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <Box sx={{ flex: 1, overflow: 'auto', px: 3, py: 1 }}>
-        <Typography component="h2" sx={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em' }}>{title}</Typography>
-        <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">{hint}</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, mb: 1.5 }}>
+          <Typography component="h2" sx={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em' }}>{title}</Typography>
+          <InfoTip label={`About ${title}`}>{hint}</InfoTip>
+        </Box>
         {children}
       </Box>
       {actions && <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, p: 2, flexWrap: 'wrap' }}>{actions}</Box>}

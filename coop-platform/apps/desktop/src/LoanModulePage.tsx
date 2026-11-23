@@ -10,7 +10,7 @@ import { LoanApplicationsPanel } from './LoanApplicationsPanel'
 import { FILTERS, LoanMenu, NEW_LOAN_SHORTCUT, type LoanFilter } from './LoanMenu'
 import { useMe } from './session'
 import { ToolbarPortal } from './toolbarSlot'
-import { ScreenTitle } from './appleUi'
+import { InfoTip, ScreenTitle } from './appleUi'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 
@@ -88,15 +88,19 @@ export default function LoanModulePage() {
           {STEPS.map(([n, name, what, right]) => (
             <Box component="li" key={n} aria-label={`${n} · ${name}${p ? (p[right] ? ', granted to you' : ', not granted to you') : ''}`}
               sx={{ border: 1, borderColor: p?.[right] ? 'success.main' : 'divider', borderRadius: '8px', p: 1.25, display: 'flex', flexDirection: 'column' }}>
-              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{n} · {name}</Typography>
-              <Typography color="text.secondary" sx={{ fontSize: 12, flex: 1 }}>{what}</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flex: 1 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{n} · {name}</Typography>
+                <InfoTip label={`About ${name}`}>{what}</InfoTip>
+              </Box>
               <Granted yes={p?.[right]} />
             </Box>
           ))}
           <Box component="li" aria-label={`5 · Loan Release${p?.canRelease != null ? (p.canRelease ? ', granted to you' : ', not granted to you') : ''}`}
             sx={{ border: 1, borderColor: p?.canRelease ? 'success.main' : 'divider', borderStyle: 'dashed', borderRadius: '8px', p: 1.25, display: 'flex', flexDirection: 'column' }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>5 · Loan Release</Typography>
-            <Typography color="text.secondary" sx={{ fontSize: 12, flex: 1 }}>In Front Office &gt; Disburse, by those allowed to release money (the Cash Voucher right).</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flex: 1 }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>5 · Loan Release</Typography>
+              <InfoTip label="About Loan Release">In Front Office &gt; Disburse, by those allowed to release money (the Cash Voucher right).</InfoTip>
+            </Box>
             <Granted yes={p?.canRelease} />
           </Box>
         </Box>
