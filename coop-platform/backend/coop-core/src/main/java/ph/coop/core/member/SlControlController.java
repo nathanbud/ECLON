@@ -37,7 +37,8 @@ public class SlControlController {
 
     static final String TABLE = "ecis_sl_control";
 
-    public record TypeRow(int slc, int slt, String name, BigDecimal minBalance, BigDecimal interestRate, boolean disabled, Map<Integer, Boolean> on) {}
+    /** {@code missing}: a switch is on for this type but the type is not set up on this database (left from another cooperative's list); it can only be switched off. */
+    public record TypeRow(int slc, int slt, String name, BigDecimal minBalance, BigDecimal interestRate, boolean disabled, Map<Integer, Boolean> on, boolean missing) {}
 
     public record ClassGroup(int slc, String name, String note, List<TypeRow> types) {}
 
@@ -138,7 +139,21 @@ public class SlControlController {
                 Map<Integer, Boolean> on = new LinkedHashMap<>();
                 for (int m : members.keySet()) on.put(m, opens.get(m).contains(t.slc() + "/" + t.slt()));
                 BigDecimal[] a = amounts.getOrDefault(t.slc() + "/" + t.slt(), new BigDecimal[2]);
-                rows.add(new TypeRow(t.slc(), t.slt(), t.name(), a[0], a[1], t.disabled(), on));
+                rows.add(new TypeRow(t.slc(), t.slt(), t.name(), a[0], a[1], t.disabled(), on, false));
+            }
+            // switches on for a type of this class that is not set up here: shown so they can be switched off, else registration is refused
+            java.util.TreeSet<Integer> stale = new java.util.TreeSet<>();
+            for (Map.Entry<Integer, Set<String>> e : opens.entrySet()) {
+                for (String k : e.getValue()) {
+                    String[] p = k.split("/");
+                    int c = Integer.parseInt(p[0]), t = Integer.parseInt(p[1]);
+                    if (c == slc && types.stream().noneMatch((x) -> x.slc() == c && x.slt() == t)) stale.add(t);
+                }
+            }
+            for (int t : stale) {
+                Map<Integer, Boolean> on = new LinkedHashMap<>();
+                for (int m : members.keySet()) on.put(m, opens.get(m).contains(slc + "/" + t));
+                rows.add(new TypeRow(slc, t, "Type " + slc + "/" + t + " (not set up)", null, null, true, on, true));
             }
             groups.add(new ClassGroup(slc, classNames.getOrDefault(slc, "Class " + slc), CLASS_NOTES.get(slc), rows));
         }

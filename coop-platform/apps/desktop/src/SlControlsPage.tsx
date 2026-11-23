@@ -99,7 +99,9 @@ function Controls({ c }: { c: SlControls }) {
                       <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
                         <Typography sx={{ fontSize: 13, color: t.disabled ? 'text.disabled' : undefined }}>{t.name}</Typography>
                         <Typography component="span" sx={{ fontSize: 11 }} color="text.secondary">{g.slc}/{t.slt}</Typography>
-                        {t.disabled && <Chip size="small" label="Switched off in Account Types" />}
+                        {t.missing
+                          ? <Chip size="small" color="warning" label="Not set up on this database: switch it off" />
+                          : t.disabled && <Chip size="small" label="Switched off in Account Types" />}
                       </Stack>
                     </TableCell>
                     <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{t.minBalance ? money(t.minBalance) : '–'}</TableCell>

@@ -60,4 +60,13 @@ class SlControlRulesTest {
         assertTrue(SlControlRules.problems(List.of(new Switch(5, 22, 1, true)), START, TYPES, MEMBERS, "why").get(0).contains("not registered in this application"));
         assertTrue(SlControlRules.problems(List.of(new Switch(1, 29, 6, false), new Switch(1, 29, 6, true)), START, TYPES, MEMBERS, "why").contains("The same switch is changed twice."));
     }
+
+    @Test
+    void aSwitchLeftOnForATypeNotSetUpCanBeSwitchedOffButNotOn() {
+        // a second cooperative's database kept switches from the first one's list for types it does not have (29/9 here)
+        List<Switch> current = new java.util.ArrayList<>(START);
+        current.add(new Switch(1, 29, 9, true));
+        assertEquals(List.of(), SlControlRules.problems(List.of(new Switch(1, 29, 9, false)), current, TYPES, MEMBERS, "Not offered here"));
+        assertTrue(SlControlRules.problems(List.of(new Switch(2, 29, 9, true)), current, TYPES, MEMBERS, "why").get(0).contains("Set it up in Settings > Products first"));
+    }
 }

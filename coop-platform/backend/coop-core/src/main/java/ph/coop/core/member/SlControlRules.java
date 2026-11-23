@@ -66,7 +66,10 @@ final class SlControlRules {
                 continue;
             }
             Type t = types.stream().filter((x) -> x.slc() == c.slc() && x.slt() == c.slt()).findFirst().orElse(null);
-            if (t == null) out.add("Account type " + c.slc() + "/" + c.slt() + " is not set up.");
+            // a switch left on for a type that is not set up can be switched off; switching one on needs the type first
+            if (t == null) {
+                if (c.on()) out.add("Account type " + c.slc() + "/" + c.slt() + " is not set up on this database, so it cannot open for new members. Set it up in Settings > Products first.");
+            }
             else if (c.on() && t.disabled()) out.add(t.name() + " is switched off in Account Types, so it cannot open for new members. Switch it on there first.");
         }
         // what each member type would open afterwards: every one must keep a share capital account, since membership is subscribing to the cooperative's capital

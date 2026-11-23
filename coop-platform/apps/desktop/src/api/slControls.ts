@@ -7,6 +7,8 @@ export interface SlTypeRow {
   disabled: boolean
   /** member type code -> opens by itself */
   on: Record<string, boolean>
+  /** on for a type not set up on this database (left from another cooperative's list): can only be switched off */
+  missing?: boolean
 }
 export interface SlClassGroup { slc: number; name: string; note: string; types: SlTypeRow[] }
 export interface SlControls {
