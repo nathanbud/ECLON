@@ -23,6 +23,7 @@ import { DrillCode, LedgerDrill, type Drill } from './ui/LedgerDrill'
 import { BusyArea, Loading, LoadingBlock } from './ui/Loading'
 import { ReasonDialog } from './appleUi'
 import BudgetTab from './BudgetTab'
+import OpeningBalancesTab from './OpeningBalancesTab'
 import { ClosingPolicy, CloseStatusNotice, MonthReview, YearChecklist } from './ClosingParts'
 
 const today = () => new Date().toLocaleDateString('en-CA')
@@ -34,7 +35,7 @@ export default function AccountingPage({ initialTab }: { initialTab?: string }) 
   const accountant = me.admin || me.roles.some((r) => r.replace('ROLE_', '') === 'ACCOUNTANT')
   // an auditor reads every tab and changes nothing
   const auditor = !accountant && me.roles.some((r) => r.replace('ROLE_', '') === 'AUDITOR')
-  const tabs = ['Trial balance', ...(accountant || auditor ? ['Statements', 'Periods', 'Banks', 'Month-end review', 'Year-end close', 'Budget'] : [])]
+  const tabs = ['Trial balance', ...(accountant || auditor ? ['Statements', 'Periods', 'Banks', 'Month-end review', 'Year-end close', 'Budget', 'Opening balances'] : [])]
   // a tab named by the side menu or the search opens first
   const [tab, setTab] = useState(() => Math.max(0, tabs.indexOf(initialTab ?? '')))
   const name = tabs[tab] ?? tabs[0]
@@ -69,6 +70,7 @@ export default function AccountingPage({ initialTab }: { initialTab?: string }) 
           </>
         )}
         {name === 'Budget' && ok && <BudgetTab branchCode={branchCode} canEdit={accountant} />}
+        {name === 'Opening balances' && ok && <OpeningBalancesTab branchCode={branchCode} canEdit={accountant} />}
       </Box>
     </Box>
   )

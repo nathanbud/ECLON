@@ -1,6 +1,6 @@
 import { Box, ButtonBase, InputAdornment, TextField, Typography } from '@mui/material'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { FiBook, FiPackage, FiDatabase, FiImage, FiBookOpen, FiLayers, FiMoon, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMapPin, FiMonitor, FiSearch, FiSend, FiShield, FiSliders, FiToggleRight, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
+import { FiBook, FiFilePlus, FiPackage, FiDatabase, FiImage, FiBookOpen, FiLayers, FiMoon, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMapPin, FiMonitor, FiSearch, FiSend, FiShield, FiSliders, FiToggleRight, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
 import { tint } from './theme'
@@ -74,6 +74,7 @@ const categories: Category[] = [
     items: [
       { label: 'Chart of Accounts', note: 'Add, rename, move and switch off ledger accounts', icon: <FiBookOpen />, color: tint.orange[0], view: 'accounts', who: 'accountant' },
       { label: 'Cash and teller drawers', note: 'The cash accounts and each cashier’s and teller’s drawer, and the chart accounts they post to', icon: <FiLayers />, color: tint.green[0], view: 'accounttypes', tab: 'cash', who: 'admin' },
+      { label: 'Opening balances', note: 'The balances the cooperative starts with: ledger accounts and each member’s savings and share capital, typed or imported, approved and posted once', icon: <FiFilePlus />, color: tint.green[1], view: 'accounting', tab: 'Opening balances', who: 'accountant' },
       { label: 'Periods, banks and year-end close', note: 'Accounting periods, bank accounts, the trial balance, statements and closing the year', icon: <FiBookOpen />, color: tint.orange[1], view: 'accounting', who: 'accountant' },
     ],
   },

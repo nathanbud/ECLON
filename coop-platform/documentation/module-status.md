@@ -152,6 +152,7 @@ Built:
 - Chart of accounts setup and upload from Excel. See [chart-of-accounts-setup.md](state/chart-of-accounts-setup.md).
 - Financial statements and trial balance from the general ledger.
 - Year-end close (prepare and post by two people). See [year-end-close.md](state/year-end-close.md).
+- Opening balances for a new cooperative: ledger accounts and members' savings and share capital, typed or imported from CSV/Excel, posted once as a General Journal by three people, the members' totals going to their control accounts. Loans, time deposits and member funds not yet. See [opening-balances.md](state/opening-balances.md).
 Not built: month-end closing and a closing checklist; two-step appropriation of the surplus to statutory funds.
 
 ## Dividends and patronage refund

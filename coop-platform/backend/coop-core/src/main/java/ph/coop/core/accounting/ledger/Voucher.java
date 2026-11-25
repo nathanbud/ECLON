@@ -21,8 +21,18 @@ public record Voucher(String requestKey, String username, int branch, int module
         glOnly = glOnly == null ? List.of() : List.copyOf(glOnly);
     }
 
-    /** One line: the account, the department, and the amount (+ debit, - credit). */
-    public record Line(String account, int dept, Money amount) {}
+    /**
+     * One line: the account, the department, and the amount (+ debit, - credit). A line on a member's account (General Journal only, such as an opening
+     * balance) names it in {@code member}; its account is then the control account of that member account, and the member's ledger gets a row too.
+     */
+    public record Line(String account, int dept, Money amount, Member member) {
+        public Line(String account, int dept, Money amount) {
+            this(account, dept, amount, null);
+        }
+    }
+
+    /** The member account a line is on: the member, the class (22 savings, 31 share capital ...), type, reference number, event and the account's status. */
+    public record Member(int clientId, int slc, int typeCode, int refNo, int event, int cts) {}
 
     /**
      * A general-ledger row with no voucher line of its own. Only the year-end close writes these: one-sided rows on the net surplus for the period

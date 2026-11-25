@@ -82,10 +82,12 @@ public class Ledger implements OnConnectionSwitch {
         long ctl = db.nextControlNumber(v.branch(), v.module(), v.code(), year);
         String docNo = LedgerRules.documentNo(v.style(), ctl);
         Date day = Date.valueOf(v.date());
+        // the header names the first member on the voucher, as the old system's memos and journals with member lines do
+        Integer firstMember = v.lines().stream().filter((l) -> l.member() != null).map((l) -> l.member().clientId()).findFirst().orElse(null);
         jdbc.update("""
-                INSERT INTO transsum (TR_BRCODE, TR_YEAR, TR_MODULE, TR_CODE, TR_CTLNO, TR_DOCNO, TR_DATE, TR_TIME, BATCH_NO, EXPLANATION, IS_FO, DATETIMEADDED)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
-                """, v.branch(), year, v.module(), v.code(), ctl, docNo, day, now.format(DateTimeFormatter.ofPattern("HH:mm:ss")),
+                INSERT INTO transsum (TR_BRCODE, TR_YEAR, TR_MODULE, TR_CODE, TR_CTLNO, TR_DOCNO, TR_CLIENTID, TR_DATE, TR_TIME, BATCH_NO, EXPLANATION, IS_FO, DATETIMEADDED)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                """, v.branch(), year, v.module(), v.code(), ctl, docNo, firstMember, day, now.format(DateTimeFormatter.ofPattern("HH:mm:ss")),
                 v.date().format(DateTimeFormatter.BASIC_ISO_DATE), LedgerRules.explanation(v.explanation()), Timestamp.valueOf(now));
 
         List<Object[]> lines = new ArrayList<>();
@@ -93,6 +95,20 @@ public class Ledger implements OnConnectionSwitch {
         int seq = 0;
         for (Voucher.Line l : v.lines()) {
             Voucher.People p = v.people();
+            if (l.member() != null) {
+                // a member line: the control account's line with the member's account on it (as a Debit/Credit Memo writes it), then the member's ledger row
+                Voucher.Member m = l.member();
+                jdbc.update("""
+                        INSERT INTO transdt (DTTR_BRCODE, DTTR_YEAR, DTTR_MODULE, DTTR_CODE, DTTR_CTLNO, DTSEQ_NO, DTDEPT, DTACCT_CODE, ClientIDDT, DTSLC_CODE, DTSLT_CODE, DTREF_NO,
+                          DTSLE_CODE, DTCTS_NUM, DTSL_DATE, DTADJ_FLAG, DTAMT, DTAMTDUE, DTENCDBY, DTAPPRVBY, DTPOSTBY, DTREFERENCE, DTCHECKISRELEASE, DTISTRANSIT, DTISUNDENTIFIED)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 0, ?, ?, ?, '', 0, 0, 0)
+                        """, v.branch(), year, v.module(), v.code(), ctl, seq++, l.dept(), l.account(), m.clientId(), m.slc(), m.typeCode(), m.refNo(), m.event(), m.cts(), day,
+                    l.amount().value(), p.encodedBy(), p.approvedBy(), p.postedBy());
+                memberLedgerRow(v.branch(), m.clientId(), new CashVoucher.MemberLine(m.slc(), m.typeCode(), m.refNo(), m.event(), m.cts(), l.account(), l.amount()),
+                    v.date(), v.code(), ctl, docNo, null, null);
+                gl.add(new Object[]{v.branch(), l.account(), day, v.code(), l.dept(), l.amount().debit(), l.amount().credit(), Timestamp.valueOf(now)});
+                continue;
+            }
             lines.add(switch (v.style()) {
                 case GENERAL_JOURNAL -> new Object[]{v.branch(), year, v.module(), v.code(), ctl, seq++, l.dept(), l.account(), day, l.amount().value(), p.encodedBy(), p.approvedBy(), p.postedBy()};
                 case CLOSING_ENTRY -> new Object[]{v.branch(), year, v.module(), v.code(), ctl, seq++, l.dept(), l.account(), l.amount().value(), p.encodedBy(), p.approvedBy(), p.postedBy()};
@@ -447,6 +463,7 @@ public class Ledger implements OnConnectionSwitch {
         String problem = LedgerRules.problem(v.lines());
         if (problem != null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, problem);
         boolean closing = v.style() == Voucher.Style.CLOSING_ENTRY;
+        if (closing && v.lines().stream().anyMatch((l) -> l.member() != null)) throw new IllegalArgumentException("A closing entry has no member lines: use a debit/credit memo to change a member's account before closing the year.");
         for (String account : v.lines().stream().map(Voucher.Line::account).distinct().toList()) {
             List<Map<String, Object>> a = jdbc.queryForList("SELECT COAacct_tag, COALESCE(COAisdisabled, 0) AS off FROM coa WHERE COABR_CODE = ? AND COAID = ?", v.branch(), account);
             if (a.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown account " + account + ".");
