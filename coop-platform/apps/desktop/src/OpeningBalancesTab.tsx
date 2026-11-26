@@ -306,9 +306,9 @@ function Editor({ branchCode, id, detail, onClose, onSaved }: { branchCode: numb
                             width={320} onPick={(a) => set(i, { account: a?.code ?? '', accountName: a?.description ?? '' })} />
                         : <MemberAccount branchCode={branchCode} line={l} onChange={(p) => set(i, p)} />}
                     </TableCell>
-                    <TableCell><TextField size="small" value={l.debit} aria-label={`Debit of line ${i + 1}`} disabled={l.kind !== 'GL'} onChange={(e) => set(i, { debit: e.target.value })} slotProps={{ htmlInput: { inputMode: 'decimal', style: { textAlign: 'right' } } }} /></TableCell>
-                    <TableCell><TextField size="small" value={l.credit} aria-label={`Credit of line ${i + 1}`} onChange={(e) => set(i, { credit: e.target.value })} slotProps={{ htmlInput: { inputMode: 'decimal', style: { textAlign: 'right' } } }} /></TableCell>
-                    <TableCell><TextField size="small" value={l.note} aria-label={`Note of line ${i + 1}`} onChange={(e) => set(i, { note: e.target.value })} slotProps={{ htmlInput: { maxLength: 100 } }} /></TableCell>
+                    <TableCell><TextField size="small" value={l.debit} disabled={l.kind !== 'GL'} onChange={(e) => set(i, { debit: e.target.value })} slotProps={{ htmlInput: { 'aria-label': `Debit of line ${i + 1}`, inputMode: 'decimal', style: { textAlign: 'right' } } }} /></TableCell>
+                    <TableCell><TextField size="small" value={l.credit} onChange={(e) => set(i, { credit: e.target.value })} slotProps={{ htmlInput: { 'aria-label': `Credit of line ${i + 1}`, inputMode: 'decimal', style: { textAlign: 'right' } } }} /></TableCell>
+                    <TableCell><TextField size="small" value={l.note} onChange={(e) => set(i, { note: e.target.value })} slotProps={{ htmlInput: { 'aria-label': `Note of line ${i + 1}`, maxLength: 100 } }} /></TableCell>
                     <TableCell><IconButton size="small" aria-label={`Remove line ${i + 1}`} onClick={() => { setDirty(true); setLines((ls) => ls.filter((_, j) => j !== i)) }}><FiTrash2 /></IconButton></TableCell>
                   </TableRow>
                 ))}

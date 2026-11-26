@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import ph.coop.core.accounting.surplus.Appropriations;
 import ph.coop.core.audit.AuditLog;
 import ph.coop.core.db.Db;
 import ph.coop.core.deposit.DividendRun;
@@ -100,8 +101,11 @@ class DistributionController {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final Db db;
+    private final Appropriations appropriations;
 
-    DistributionController(JdbcTemplate jdbc, FrontOfficeAccess access, DividendRun run, DistributionStore store, MemberLedgerPoster poster, PlatformTransactionManager txm, Clock clock, Db db) {
+    DistributionController(JdbcTemplate jdbc, FrontOfficeAccess access, DividendRun run, DistributionStore store, MemberLedgerPoster poster, PlatformTransactionManager txm, Clock clock, Db db,
+                           Appropriations appropriations) {
+        this.appropriations = appropriations;
         this.jdbc = jdbc;
         this.access = access;
         this.run = run;
@@ -317,6 +321,9 @@ class DistributionController {
         BigDecimal pr = plan.members().stream().map(DividendRun.Member::refund).reduce(BigDecimal.ZERO, BigDecimal::add);
         List<String> over = DividendController.overAllocation(plan, isc, pr);
         if (!over.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, String.join(" ", over));
+        // a year whose net surplus was appropriated pays members no more than the appropriation allocated to them
+        String appropriated = appropriations.distributionProblem(p.branch(), plan.year(), plan.params().fromAllocation(), plan.params().netSurplus(), isc, pr, plan.members().size());
+        if (appropriated != null) throw new ResponseStatusException(HttpStatus.CONFLICT, appropriated);
         int year = plan.year();
         String policyWords = words(pol);
         DividendRun.Params pa = plan.params();

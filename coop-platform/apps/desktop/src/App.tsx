@@ -191,7 +191,7 @@ function Signed() {
             {view === 'audit' && <AuditLogPage />}
             {view === 'privacy' && <PrivacyPage />}
             {view === 'cic' && <CicPage />}
-            {view === 'dividends' && <DividendsPage />}
+            {view === 'dividends' && <DividendsPage key={tab ?? ''} initialTab={tab} />}
             {view === 'loansetup' && <LoanSetupPage key="types" />}
             {view === 'amortization' && <LoanSetupPage key="amortization" initialTab="amortization" />}
             {view === 'settings' && <SettingsPage onOpen={(v, t) => navigate(v, t, true)} />}

@@ -5,12 +5,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiPlus, FiTrash2 } from 'react-icons/fi'
 import {
-  downloadDividendRegister, getDistributionSettings, getDividendStatement, prepareDistribution, previewDividend,
+  downloadDividendRegister, getDistributionSettings, getDividendStatement, getPostedAppropriation, prepareDistribution, previewDividend,
   type DividendMemberAmounts, type DividendReq, type DividendStatement, type DividendStatutory,
 } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
 import { AboutNote, Hinted } from './appleUi'
+import { useMe } from './session'
 
 const pct = (n: number) => `${Number(n.toFixed(6))}%`
 
@@ -89,6 +90,22 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
   const [asked, setAsked] = useState<DividendReq | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState(0)
+  const me = useMe()
+  const [filled, setFilled] = useState<string | null>(null)
+  // the year distributed is the calendar year before the cut-off; its posted appropriation gives the net surplus, the funds and the allocations
+  const distributedYear = Number(cutoff.slice(0, 4)) - 1
+  const fillFromAppropriation = async () => {
+    setError(null); setFilled(null)
+    try {
+      const a = await getPostedAppropriation(me.branchCode ?? 1, distributedYear)
+      if (!a) { setError(`No appropriation of the ${distributedYear} net surplus is posted yet. Post it in Dividends > Appropriation first, or enter the figures here.`); return }
+      setNetSurplus(String(a.netSurplus)); setFunds(a.funds.map((f) => ({ name: f.name, percent: String(f.percent) })))
+      setIscAllocation(String(a.isc)); setPrAllocation(String(a.pr)); setResolution(a.resolution); setAsked(null)
+      setFilled(`Filled in from ${a.reference}, the posted appropriation of ${distributedYear}.`)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
 
   const availableNow = (() => {
     const n = Number(netSurplus)
@@ -170,6 +187,10 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
           {method === 'allocation' && (
             <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '5px', p: 1.5, mb: 1.5 }}>
               {label('Net surplus and allocation')}
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
+                <Button size="small" variant="outlined" onClick={() => { void fillFromAppropriation() }}>Fill in from the posted appropriation</Button>
+                {filled && <Typography sx={{ fontSize: 12 }} color="text.secondary">{filled}</Typography>}
+              </Box>
               <AboutNote sx={{ mb: 1 }}>
                 Enter the approved net surplus, the statutory funds set aside from it (they start from Settings; name and percent as the Cooperative Code, the CDA rules and your bylaws
                 require; none are built in), and the amounts the general assembly allocated. Interest on share capital and patronage refund are then spread over the members.

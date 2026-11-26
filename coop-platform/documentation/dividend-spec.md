@@ -52,8 +52,8 @@ Spec sections 4, 5, 6 and 11. Accounting > Dividends has three parts: **Prepare*
   `DividendRunRulesTest`, `Distributions.test.tsx`.
 
 ## Not built
-* **Appropriation entries** (spec section 9: debit appropriation, credit payable, then pay): the old system, and so this app, credits the members directly from the
-  fund account 20126 in one voucher; the statutory funds are not posted by this screen. Needs the accountant's chart of accounts before it is built.
+* Appropriation entries (spec section 9): built 2026-11-26 as Dividends > Appropriation, see [state/net-surplus-appropriation.md](state/net-surplus-appropriation.md):
+  the net surplus goes to the statutory funds and to 20126, then the vouchers pay members from 20126.
 * **The Member role seeing their own statement**: there is no member sign-in yet.
 * **Filing fees** as patronage: they are deducted at loan release (`loandeduc`), not in the loan ledger events the settings choose from.
 * **Transferred share capital** is not shown apart from other movements.

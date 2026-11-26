@@ -159,7 +159,9 @@ Not built: month-end closing and a closing checklist; two-step appropriation of 
 
 Built: the yearly run stored member by member, submitted, approved by another person, then encoded into vouchers; settings (events counted, statuses, member types, minimum share, funds); the reports of the spec. See [dividend-spec.md](dividend-spec.md).
 
-Not built: two-step appropriation accounting.
+Built (2026-11-26): the appropriation of a closed year's net surplus to the statutory funds and to members (RA 9520 Article 86 limits), posted as a General Journal by three people; the distribution of that year may not pay more than appropriated. See [net-surplus-appropriation.md](state/net-surplus-appropriation.md).
+
+Not built: the payable account for interest and refund chosen per cooperative (20126 for now); requiring an appropriation before a distribution.
 
 ## Treasury and banks
 
