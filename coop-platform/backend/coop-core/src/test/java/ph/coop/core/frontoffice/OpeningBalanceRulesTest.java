@@ -102,7 +102,7 @@ class OpeningBalanceRulesTest {
         Map<String, String> cash = new LinkedHashMap<>(Map.of("Kind", "GL", "Ledger account", "10101", "Debit", "1,500.00"));
         Map<String, String> sav = new LinkedHashMap<>(Map.of("kind", "Savings", "Member No.", "7", "Type", "1.0", "Credit", "1000"));
         Map<String, String> sc = new LinkedHashMap<>(Map.of("KIND", "share capital", "member", "7", "type", "1", "Account no", "3", "credit", "500"));
-        Map<String, String> bad = new LinkedHashMap<>(Map.of("Kind", "loan", "Debit", "1"));
+        Map<String, String> bad = new LinkedHashMap<>(Map.of("Kind", "insurance", "Debit", "1"));
         Map<String, String> badAmount = new LinkedHashMap<>(Map.of("Kind", "GL", "Ledger account", "10102", "Debit", "abc"));
         var in = OpeningBalanceRules.read(List.of(new SpreadsheetReader.Row(2, cash), new SpreadsheetReader.Row(3, sav), new SpreadsheetReader.Row(4, sc),
             new SpreadsheetReader.Row(5, bad), new SpreadsheetReader.Row(6, badAmount)));

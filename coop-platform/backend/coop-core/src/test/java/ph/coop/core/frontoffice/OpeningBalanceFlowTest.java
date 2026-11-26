@@ -157,6 +157,83 @@ class OpeningBalanceFlowTest {
     }
 
     @Test
+    void aLoanStillBeingPaidAndATimeDepositStillRunningAreOpenedWithTheirBalances() {
+        // a monthly diminishing-balance loan type and a certificate type that have their control accounts (principal; accrued interest for the certificate)
+        List<Integer> loanTypes = jdbc.queryForList("""
+                SELECT t.SLTypeSLT_CODE FROM sltype t WHERE t.SLTypeBR_CODE = 1 AND t.SLTypeSLC_CODE = 12 AND COALESCE(t.SLTypeIsDisabled, 0) = 0 AND t.SLTypeAMORTYPE = 1 AND t.SLTypePPMT_MODE = 4
+                  AND EXISTS (SELECT 1 FROM glcontrol g WHERE g.GLControlBR_CODE = 1 AND g.GLControlSLC_CODE = 12 AND g.GLControlSLT_CODE = t.SLTypeSLT_CODE AND g.GLControlSLE_CODE = 11 AND g.GLControlCTS_NUM = 11)
+                ORDER BY t.SLTypeSLT_CODE LIMIT 1
+                """, Integer.class);
+        List<Integer> tdTypes = jdbc.queryForList("""
+                SELECT t.SLTypeSLT_CODE FROM sltype t WHERE t.SLTypeBR_CODE = 1 AND t.SLTypeSLC_CODE = 24 AND COALESCE(t.SLTypeIsDisabled, 0) = 0
+                  AND EXISTS (SELECT 1 FROM glcontrol g WHERE g.GLControlBR_CODE = 1 AND g.GLControlSLC_CODE = 24 AND g.GLControlSLT_CODE = t.SLTypeSLT_CODE AND g.GLControlSLE_CODE = 11 AND g.GLControlCTS_NUM = 15)
+                  AND EXISTS (SELECT 1 FROM glcontrol g WHERE g.GLControlBR_CODE = 1 AND g.GLControlSLC_CODE = 24 AND g.GLControlSLT_CODE = t.SLTypeSLT_CODE AND g.GLControlSLE_CODE = 71 AND g.GLControlCTS_NUM = 99)
+                ORDER BY t.SLTypeSLT_CODE LIMIT 1
+                """, Integer.class);
+        assumeTrue(!loanTypes.isEmpty() && !tdTypes.isEmpty(), "no loan or time deposit type with its control accounts");
+        int loanType = loanTypes.get(0), tdType = tdTypes.get(0);
+        as(maker);
+        var offered = batches.types(branch);
+        assertTrue(offered.stream().anyMatch((o) -> o.kind().equals("LOAN") && o.typeCode() == loanType && o.termMonths() != null), "the loan type is offered with its term");
+        assertTrue(offered.stream().anyMatch((o) -> o.kind().equals("TD") && o.typeCode() == tdType), "the time deposit type is offered");
+        LineIn loan = new LineIn("LOAN", emptyClient, loanType, null, null, new BigDecimal("12000.00"), BigDecimal.ZERO, "Appliance loan", null, new BigDecimal("12"), 12,
+            "1999-01-15", new BigDecimal("20000.00"), "1998-07-15", null);
+        LineIn td = new LineIn("TD", emptyClient, tdType, null, null, BigDecimal.ZERO, new BigDecimal("100000.00"), "Old certificate 0457", null, new BigDecimal("5"), 360, "1998-10-01",
+            null, null, new BigDecimal("1250.00"));
+        // cash: the certificate and its interest came in, the loan went out
+        long id = create(cash("89250.00"), loan, td);
+        var detail = batches.get(id);
+        assertEquals(List.of(), detail.problems());
+        assertEquals(LocalDate.of(1999, 9, 26), detail.lines().get(2).maturity());
+        assertTrue(detail.lines().get(2).accrualAccount() != null, "the accrued interest has its own control account");
+        assertEquals(4, detail.trialBalance().size(), "cash, the loans control, the certificates control and accrued interest: " + detail.trialBalance());
+
+        batches.submit(id, as(maker));
+        batches.approve(id, as(approver));
+        assertEquals("POSTED", batches.post(id, as(poster)).status());
+        var after = batches.get(id);
+        int loanRef = after.lines().get(1).refNo(), tdRef = after.lines().get(2).refNo();
+
+        Map<String, Object> l = jdbc.queryForMap("SELECT LoanPAMT, LoanSTATUS, LoanINT_RATE, LoanTERMS, LoanFID_DATE, LoanMAT_DATE, LoanRemarks FROM loan WHERE LoanBR_CODE = 1 AND LoanSLC_CODE = 12 AND LoanSLT_CODE = ? AND LoanREF_NO = ? AND ClientIDLoan = ?",
+            loanType, loanRef, emptyClient);
+        assertEquals(0, new BigDecimal("12000.00").compareTo((BigDecimal) l.get("LoanPAMT")), "the loan is opened for what is still owed");
+        assertEquals(11, ((Number) l.get("LoanSTATUS")).intValue());
+        assertEquals(12, ((Number) l.get("LoanTERMS")).intValue());
+        assertEquals(LocalDate.of(1999, 1, 15), LocalDate.parse(l.get("LoanFID_DATE").toString().substring(0, 10)));
+        assertEquals(LocalDate.of(1999, 12, 15), LocalDate.parse(l.get("LoanMAT_DATE").toString().substring(0, 10)));
+        assertTrue(((String) l.get("LoanRemarks")).contains("granted 20000.00 on 1998-07-15"), (String) l.get("LoanRemarks"));
+        assertEquals(13, jdbc.queryForObject("SELECT COUNT(*) FROM amortsched WHERE BR_CODE = 1 AND CLIENTID = ? AND SLC_CODE = 12 AND SLT_CODE = ? AND REF_NO = ?", Integer.class, emptyClient, loanType, loanRef));
+        BigDecimal owed = jdbc.queryForObject("SELECT SUM(AMT) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 12 AND SLT_CODE = ? AND REF_NO = ? AND SLE_CODE = 11",
+            BigDecimal.class, emptyClient, loanType, loanRef);
+        assertEquals(0, new BigDecimal("12000.00").compareTo(owed), "the loan's ledger holds the balance as its principal");
+
+        Map<String, Object> t = jdbc.queryForMap("SELECT TDPAMT, TDTR_DATE, TDMAT_DATE, TDINT_RATE, TDTERMS, TDCERT_NUM, TDSTATUS FROM td WHERE TDBR_CODE = 1 AND TDSLC_CODE = 24 AND TDSLT_CODE = ? AND TDREF_NO = ?", tdType, tdRef);
+        assertEquals("1998-10-01", t.get("TDTR_DATE").toString().substring(0, 10), "the certificate keeps its placement date");
+        assertEquals("1999-09-26", t.get("TDMAT_DATE").toString().substring(0, 10));
+        assertEquals(String.valueOf(tdRef), ((String) t.get("TDCERT_NUM")).trim(), "the certificate number is its account number");
+        assertEquals(15, ((Number) t.get("TDSTATUS")).intValue());
+        BigDecimal principal = jdbc.queryForObject("SELECT -SUM(AMT) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 24 AND SLT_CODE = ? AND REF_NO = ? AND SLE_CODE = 11",
+            BigDecimal.class, emptyClient, tdType, tdRef);
+        BigDecimal accrued = jdbc.queryForObject("SELECT -SUM(AMT) FROM sldtl WHERE SL_BRCODE = 1 AND SL_CLIENTID = ? AND SLC_CODE = 24 AND SLT_CODE = ? AND REF_NO = ? AND SLE_CODE = 71",
+            BigDecimal.class, emptyClient, tdType, tdRef);
+        assertEquals(0, new BigDecimal("100000.00").compareTo(principal));
+        assertEquals(0, new BigDecimal("1250.00").compareTo(accrued), "the interest earned before the opening is the certificate's accrued interest");
+        BigDecimal net = jdbc.queryForObject("SELECT COALESCE(SUM(GLTransDR_AMT + GLTransCR_AMT), 0) FROM gltrans WHERE GLTransBR_CODE = 1 AND GLTransTR_DATE = ? AND GLTransTR_CODE = 1", BigDecimal.class, DAY.toString());
+        assertEquals(0, net.compareTo(BigDecimal.ZERO), "the general ledger lines balance");
+        assertTrue(jdbc.queryForObject("SELECT reason FROM ecis_audit_log WHERE action = 'opening.balance.post' AND entity_id = ?", String.class, String.valueOf(id)).contains("1 loan opened, 1 time deposit opened"));
+    }
+
+    @Test
+    void aLoanWhoseNextPaymentIsNotAfterTheOpeningOrOfATypeThatDoesNotExistIsRefused() {
+        LineIn late = new LineIn("LOAN", emptyClient, 10, null, null, new BigDecimal("100.00"), BigDecimal.ZERO, null, null, null, 12, DAY.toString(), null, null, null);
+        long id = create(late, new LineIn("GL", null, null, null, cash, BigDecimal.ZERO, new BigDecimal("100.00"), null));
+        assertTrue(String.join(" ", batches.get(id).problems()).contains("next payment must be due after the opening date"));
+        LineIn none = new LineIn("TD", emptyClient, 9999, null, null, BigDecimal.ZERO, new BigDecimal("100.00"), null, null, new BigDecimal("5"), 90, "1998-12-01", null, null, null);
+        long t = create(cash("100.00"), none);
+        assertTrue(String.join(" ", batches.get(t).problems()).contains("there is no time deposit type 9999"), batches.get(t).problems().toString());
+    }
+
+    @Test
     void aControlAccountTypedAsALedgerLineOrAnAccountWithEntriesIsRefused() {
         long id = create(cash("10.00"), new LineIn("GL", null, null, null, control, BigDecimal.ZERO, new BigDecimal("10.00"), null));
         assertTrue(String.join(" ", batches.get(id).problems()).contains("control account of members' accounts"));

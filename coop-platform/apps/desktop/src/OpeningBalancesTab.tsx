@@ -3,11 +3,12 @@ import {
   Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { FiTrash2 } from 'react-icons/fi'
 import {
-  cancelOpeningBatch, createOpeningBatch, downloadOpeningTemplate, getMemoAccounts, getOpeningBatch, importOpeningFile, listOpeningBatches, openingStep, returnOpeningBatch,
-  searchPostingAccounts, updateOpeningBatch, type OpeningDetail, type OpeningKind, type OpeningLineIn, type OpeningSummary,
+  cancelOpeningBatch, createOpeningBatch, downloadOpeningTemplate, getMemoAccounts, getOpeningBatch, getOpeningTypes, importOpeningFile, listOpeningBatches, LOAN_STATUSES,
+  openingStep, returnOpeningBatch, searchPostingAccounts, updateOpeningBatch, type OpeningDetail, type OpeningKind, type OpeningLine, type OpeningLineIn, type OpeningSummary,
+  type OpeningType,
 } from './api'
 import { AboutNote, ReasonDialog } from './appleUi'
 import { glass } from './glass'
@@ -19,7 +20,23 @@ import { labelOf } from './ui/labels'
 import { LoadingBlock, LoadingRow } from './ui/Loading'
 import { useLeaveGuard } from './leaveGuard'
 
-const KIND_WORDS: Record<OpeningKind, string> = { GL: 'Ledger account', SAVINGS: 'Savings', SHARE: 'Share capital' }
+const KIND_WORDS: Record<OpeningKind, string> = { GL: 'Ledger account', SAVINGS: 'Savings', SHARE: 'Share capital', LOAN: 'Loan', TD: 'Time deposit' }
+/** Kinds that open their account when the batch is posted. */
+const opens = (k: OpeningKind) => k === 'LOAN' || k === 'TD'
+
+/** A loan's or time deposit's terms in a line of words, for the list of lines. */
+function termsText(l: OpeningLine): string | null {
+  const t = l.line
+  if (!t) return null
+  if (l.kind === 'LOAN') {
+    return [LOAN_STATUSES[t.status ?? 11], t.terms != null ? `${t.terms} months to run` : null, t.startDate ? `next due ${t.startDate}` : null,
+      t.rate != null ? `${t.rate}% a year` : 'the loan type’s rate', t.originalAmount ? `granted ${money(t.originalAmount)}${t.grantedOn ? ` on ${t.grantedOn}` : ''}` : null]
+      .filter(Boolean).join(' · ')
+  }
+  return [t.startDate ? `placed ${t.startDate}` : null, t.terms != null ? `${t.terms} days` : null, l.maturity ? `matures ${l.maturity}` : null,
+    t.rate != null ? `${t.rate}% a year` : null, t.accrued ? `accrued interest ${money(t.accrued)}${l.accrualAccount ? ` to ${l.accrualAccount}` : ''}` : null]
+    .filter(Boolean).join(' · ')
+}
 /** Above this many lines a batch is shown, not edited line by line here: change the file and import it again. */
 const EDITABLE = 200
 
@@ -37,10 +54,13 @@ export default function OpeningBalancesTab({ branchCode, canEdit }: { branchCode
   return (
     <Stack spacing={2}>
       <AboutNote>
-        Enter what the cooperative has on the day it starts on this system: cash, banks, fixed assets, payables and equity as ledger lines, and each member’s savings and
-        share capital as member lines. Do not type the control accounts (members’ savings, paid-up share capital): they come out as the sum of the members, so the
-        members’ accounts and the books agree from the first day. Prepare a batch, send it for review; another person approves it and a third posts it as one General
-        Journal. Large lists are easiest from a file: download the template, fill it in, and import it.
+        Enter what the cooperative has on the day it starts on this system: cash, banks, fixed assets, payables and equity as ledger lines, and each member’s savings,
+        share capital, loans still being paid and time deposits still running as member lines. Do not type the control accounts (members’ savings, paid-up share capital,
+        loans receivable, time deposits): they come out as the sum of the members, so the members’ accounts and the books agree from the first day. A loan line is what the
+        member still owes, with the months still to run and the next due date: posting opens the loan with its remaining schedule. A time deposit line is the
+        certificate’s principal with its placement date, term and rate, and the interest it earned up to the opening date: posting opens the certificate, numbered by
+        the system. Prepare a batch, send it for review; another person approves it and a third posts it as one General Journal. Large lists are easiest from a file:
+        download the template, fill it in, and import it.
       </AboutNote>
       {posted.length > 0 && (
         <Alert severity="success">
@@ -113,6 +133,9 @@ function BatchView({ id, canEdit, onEdit }: { id: number; canEdit: boolean; onEd
   const mine = s.createdBy.toLowerCase() === me.username.toLowerCase()
   const dr = d.trialBalance.reduce((t, l) => t + l.debit, 0)
   const cr = d.trialBalance.reduce((t, l) => t + l.credit, 0)
+  const loans = d.lines.filter((l) => l.kind === 'LOAN').length
+  const deposits = d.lines.filter((l) => l.kind === 'TD').length
+  const opened = [loans ? `${loans} loan${loans === 1 ? '' : 's'}` : null, deposits ? `${deposits} time deposit${deposits === 1 ? '' : 's'}` : null].filter(Boolean).join(' and ')
 
   return (
     <Box sx={(t) => ({ ...glass(t), p: 2 })}>
@@ -130,7 +153,7 @@ function BatchView({ id, canEdit, onEdit }: { id: number; canEdit: boolean; onEd
         {canEdit && (s.status === 'FOR_REVIEW' || s.status === 'APPROVED') && !mine && <Button onClick={() => setAsking('return')}>Send back</Button>}
         {canEdit && s.status === 'APPROVED' && !mine && s.approvedBy?.toLowerCase() !== me.username.toLowerCase() && (
           <ConfirmButton variant="contained" disabled={step.isPending} title="Post the opening balances?"
-            message={`This writes one General Journal dated ${s.openingDate}: ${s.lines} lines, debits and credits of ${money(s.debits)} each. The members’ savings and share capital get their first entry. Once posted it cannot be edited or cancelled; corrections are made with memos and journals.`}
+            message={`This writes one General Journal dated ${s.openingDate}: ${s.lines} lines, debits and credits of ${money(s.debits)} each. The members’ accounts get their first entry${opened ? `, and ${opened} ${loans + deposits === 1 ? 'is' : 'are'} opened` : ''}. Once posted it cannot be edited or cancelled; corrections are made with memos and journals.`}
             onConfirm={() => step.mutate('post')}>Post</ConfirmButton>
         )}
         {canEdit && s.status !== 'POSTED' && s.status !== 'CANCELLED' && (mine || me.admin) && <Button color="error" onClick={() => setAsking('cancel')}>Cancel batch</Button>}
@@ -184,7 +207,8 @@ function BatchView({ id, canEdit, onEdit }: { id: number; canEdit: boolean; onEd
               <TableCell>{KIND_WORDS[l.kind]}</TableCell>
               <TableCell>
                 {l.kind === 'GL' ? l.accountTitle || l.accountCode
-                  : `${l.memberName ?? `Member ${l.clientId}`} · ${l.typeName ?? `type ${l.typeCode}`}${l.accountNo ? ` ${l.accountNo}` : ''}`}
+                  : `${l.memberName ?? `Member ${l.clientId}`} · ${l.typeName ?? `type ${l.typeCode}`}${opens(l.kind) ? (l.refNo ? ` ${l.refNo}` : ' (opened when posted)') : l.accountNo ? ` ${l.accountNo}` : ''}`}
+                {termsText(l) && <Typography component="div" color="text.secondary" sx={{ fontSize: 12 }}>{termsText(l)}</Typography>}
               </TableCell>
               <TableCell>{l.accountCode}</TableCell>
               <TableCell align="right">{l.debit ? money(l.debit) : ''}</TableCell>
@@ -206,20 +230,31 @@ function BatchView({ id, canEdit, onEdit }: { id: number; canEdit: boolean; onEd
 
 // ---- preparing a batch ----------------------------------------------------------------------------------------------
 
-interface Draft { kind: OpeningKind; account: string; accountName: string; client: string; typeCode: number | null; refNo: number | null; debit: string; credit: string; note: string }
-const blank = (kind: OpeningKind = 'GL'): Draft => ({ kind, account: '', accountName: '', client: '', typeCode: null, refNo: null, debit: '', credit: '', note: '' })
+/** A loan's or time deposit's terms as typed: see OpeningLineIn. `start` is a loan's next due date or a certificate's placement date. */
+interface DraftTerms { status: number; rate: string; terms: string; start: string; granted: string; grantedOn: string; accrued: string }
+interface Draft {
+  kind: OpeningKind; account: string; accountName: string; client: string; typeCode: number | null; refNo: number | null; debit: string; credit: string; note: string; t: DraftTerms
+}
+const noTerms = (): DraftTerms => ({ status: 11, rate: '', terms: '', start: '', granted: '', grantedOn: '', accrued: '' })
+const blank = (kind: OpeningKind = 'GL'): Draft => ({ kind, account: '', accountName: '', client: '', typeCode: null, refNo: null, debit: '', credit: '', note: '', t: noTerms() })
 const today = () => new Date().toLocaleDateString('en-CA')
 const num = (s: string) => (s.trim() === '' ? null : Number(s.replace(/,/g, '')))
+const text = (v: number | string | null | undefined) => (v == null ? '' : String(v))
 
 function fromIn(l: OpeningLineIn): Draft {
   return { kind: l.kind, account: l.accountCode ?? '', accountName: '', client: l.clientId == null ? '' : String(l.clientId), typeCode: l.typeCode, refNo: l.refNo,
-    debit: l.debit ? String(l.debit) : '', credit: l.credit ? String(l.credit) : '', note: l.note ?? '' }
+    debit: l.debit ? String(l.debit) : '', credit: l.credit ? String(l.credit) : '', note: l.note ?? '',
+    t: { status: l.status ?? 11, rate: text(l.rate), terms: text(l.terms), start: l.startDate ?? '', granted: text(l.originalAmount), grantedOn: l.grantedOn ?? '', accrued: text(l.accrued) } }
 }
 
 function toIn(l: Draft): OpeningLineIn {
-  return l.kind === 'GL'
-    ? { kind: 'GL', clientId: null, typeCode: null, refNo: null, accountCode: l.account.trim() || null, debit: num(l.debit), credit: num(l.credit), note: l.note.trim() || null }
-    : { kind: l.kind, clientId: Number(l.client) || null, typeCode: l.typeCode, refNo: l.refNo, accountCode: null, debit: num(l.debit), credit: num(l.credit), note: l.note.trim() || null }
+  if (l.kind === 'GL') return { kind: 'GL', clientId: null, typeCode: null, refNo: null, accountCode: l.account.trim() || null, debit: num(l.debit), credit: num(l.credit), note: l.note.trim() || null }
+  const base = { kind: l.kind, clientId: Number(l.client) || null, typeCode: l.typeCode, accountCode: null, debit: num(l.debit), credit: num(l.credit), note: l.note.trim() || null }
+  if (l.kind === 'LOAN') {
+    return { ...base, refNo: null, credit: null, status: l.t.status, rate: num(l.t.rate), terms: num(l.t.terms), startDate: l.t.start || null, originalAmount: num(l.t.granted), grantedOn: l.t.grantedOn || null }
+  }
+  if (l.kind === 'TD') return { ...base, refNo: null, debit: null, rate: num(l.t.rate), terms: num(l.t.terms), startDate: l.t.start || null, accrued: num(l.t.accrued) }
+  return { ...base, refNo: l.refNo }
 }
 
 function Editor({ branchCode, id, detail, onClose, onSaved }: { branchCode: number; id: number | null; detail?: OpeningDetail; onClose: () => void; onSaved: (s: OpeningSummary) => void }) {
@@ -227,16 +262,19 @@ function Editor({ branchCode, id, detail, onClose, onSaved }: { branchCode: numb
   const [date, setDate] = useState(detail?.summary.openingDate ?? today())
   const [description, setDescription] = useState(detail?.summary.description ?? '')
   const [lines, setLines] = useState<Draft[]>(() => detail
-    ? detail.lines.map((l) => ({ kind: l.kind, account: l.kind === 'GL' ? l.accountCode ?? '' : '', accountName: l.kind === 'GL' ? l.accountTitle ?? '' : '', client: l.clientId == null ? '' : String(l.clientId),
-      typeCode: l.typeCode, refNo: l.refNo, debit: l.debit ? String(l.debit) : '', credit: l.credit ? String(l.credit) : '', note: l.note ?? '' }))
+    ? detail.lines.map((l) => ({ ...(l.line ? fromIn(l.line) : blank(l.kind)), kind: l.kind, account: l.kind === 'GL' ? l.accountCode ?? '' : '', accountName: l.kind === 'GL' ? l.accountTitle ?? '' : '',
+      client: l.clientId == null ? '' : String(l.clientId), typeCode: l.typeCode, refNo: opens(l.kind) ? null : l.refNo, debit: l.debit ? String(l.debit) : '', credit: l.credit ? String(l.credit) : '',
+      note: l.note ?? '' }))
     : [blank('GL'), blank('SHARE')])
+  const types = useQuery({ queryKey: ['opening-types', branchCode], queryFn: () => getOpeningTypes(branchCode), staleTime: 300_000 })
   const [dirty, setDirty] = useState(false)
   const [fileProblems, setFileProblems] = useState<string[]>([])
   const fileInput = useRef<HTMLInputElement>(null)
   useLeaveGuard(dirty ? 'The opening balances you are preparing are not saved.' : null)
   const set = (i: number, patch: Partial<Draft>) => { setDirty(true); setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l))) }
   const dr = lines.reduce((s, l) => s + (num(l.debit) || 0), 0)
-  const cr = lines.reduce((s, l) => s + (num(l.credit) || 0), 0)
+  const cr = lines.reduce((s, l) => s + (num(l.credit) || 0) + (l.kind === 'TD' ? num(l.t.accrued) || 0 : 0), 0)
+  const setTerms = (i: number, patch: Partial<DraftTerms>) => set(i, { t: { ...lines[i].t, ...patch } })
   const difference = Math.round((dr - cr) * 100) / 100
   const big = lines.length > EDITABLE
 
@@ -293,10 +331,14 @@ function Editor({ branchCode, id, detail, onClose, onSaved }: { branchCode: numb
               </TableHead>
               <TableBody>
                 {lines.map((l, i) => (
-                  <TableRow key={i}>
+                  <Fragment key={i}>
+                  <TableRow sx={opens(l.kind) ? { '& > td': { borderBottom: 0 } } : undefined}>
                     <TableCell>
                       <TextField select size="small" fullWidth value={l.kind} aria-label={`Kind of line ${i + 1}`}
-                        onChange={(e) => set(i, { ...blank(e.target.value as OpeningKind), debit: l.debit, credit: l.credit, note: l.note })}>
+                        onChange={(e) => {
+                          const k = e.target.value as OpeningKind
+                          set(i, { ...blank(k), debit: k === 'GL' || k === 'LOAN' ? l.debit : '', credit: k === 'LOAN' ? '' : l.credit, note: l.note })
+                        }}>
                         {(Object.keys(KIND_WORDS) as OpeningKind[]).map((k) => <MenuItem key={k} value={k}>{KIND_WORDS[k]}</MenuItem>)}
                       </TextField>
                     </TableCell>
@@ -304,13 +346,23 @@ function Editor({ branchCode, id, detail, onClose, onSaved }: { branchCode: numb
                       {l.kind === 'GL'
                         ? <AccountPicker code={l.account} desc={l.accountName} label={`Account of line ${i + 1}`} search={(q) => searchPostingAccounts(branchCode, q)} recentKey="opening"
                             width={320} onPick={(a) => set(i, { account: a?.code ?? '', accountName: a?.description ?? '' })} />
-                        : <MemberAccount branchCode={branchCode} line={l} onChange={(p) => set(i, p)} />}
+                        : opens(l.kind)
+                          ? <OpenedAccount line={l} index={i} types={(types.data ?? []).filter((t) => t.kind === l.kind)}
+                              onChange={(p, terms) => set(i, { ...p, ...(terms ? { t: { ...l.t, ...terms } } : {}) })} />
+                          : <MemberAccount branchCode={branchCode} line={l} onChange={(p) => set(i, p)} />}
                     </TableCell>
-                    <TableCell><TextField size="small" value={l.debit} disabled={l.kind !== 'GL'} onChange={(e) => set(i, { debit: e.target.value })} slotProps={{ htmlInput: { 'aria-label': `Debit of line ${i + 1}`, inputMode: 'decimal', style: { textAlign: 'right' } } }} /></TableCell>
-                    <TableCell><TextField size="small" value={l.credit} onChange={(e) => set(i, { credit: e.target.value })} slotProps={{ htmlInput: { 'aria-label': `Credit of line ${i + 1}`, inputMode: 'decimal', style: { textAlign: 'right' } } }} /></TableCell>
+                    <TableCell><TextField size="small" value={l.debit} disabled={l.kind !== 'GL' && l.kind !== 'LOAN'} onChange={(e) => set(i, { debit: e.target.value })} slotProps={{ htmlInput: { 'aria-label': `Debit of line ${i + 1}`, inputMode: 'decimal', style: { textAlign: 'right' } } }} /></TableCell>
+                    <TableCell><TextField size="small" value={l.credit} disabled={l.kind === 'LOAN'} onChange={(e) => set(i, { credit: e.target.value })} slotProps={{ htmlInput: { 'aria-label': `Credit of line ${i + 1}`, inputMode: 'decimal', style: { textAlign: 'right' } } }} /></TableCell>
                     <TableCell><TextField size="small" value={l.note} onChange={(e) => set(i, { note: e.target.value })} slotProps={{ htmlInput: { 'aria-label': `Note of line ${i + 1}`, maxLength: 100 } }} /></TableCell>
                     <TableCell><IconButton size="small" aria-label={`Remove line ${i + 1}`} onClick={() => { setDirty(true); setLines((ls) => ls.filter((_, j) => j !== i)) }}><FiTrash2 /></IconButton></TableCell>
                   </TableRow>
+                  {opens(l.kind) && (
+                    <TableRow>
+                      <TableCell />
+                      <TableCell colSpan={5}><TermsFields line={l} index={i} onChange={(p) => setTerms(i, p)} /></TableCell>
+                    </TableRow>
+                  )}
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>
@@ -329,6 +381,69 @@ function Editor({ branchCode, id, detail, onClose, onSaved }: { branchCode: numb
         <Button variant="contained" disabled={save.isPending || lines.length === 0 || description.trim().length < 5 || !date} onClick={() => save.mutate()}>Save draft</Button>
       </DialogActions>
     </Dialog>
+  )
+}
+
+/**
+ * A loan or time deposit line: the member's number and the type (there is no account yet: posting opens it). Choosing a type fills in its rate, and for a loan
+ * its term in months, where those are still empty.
+ */
+function OpenedAccount({ line, index, types, onChange }: {
+  line: Draft; index: number; types: OpeningType[]; onChange: (patch: Partial<Draft>, terms?: Partial<DraftTerms>) => void
+}) {
+  const what = line.kind === 'LOAN' ? 'Loan type' : 'Time deposit type'
+  const pick = (code: number) => {
+    const t = types.find((x) => x.typeCode === code)
+    onChange({ typeCode: code }, {
+      ...(line.t.rate === '' && t?.rate != null ? { rate: String(t.rate) } : {}),
+      ...(line.kind === 'LOAN' && line.t.terms === '' && t?.termMonths != null ? { terms: String(t.termMonths) } : {}),
+    })
+  }
+  const chosen = types.find((t) => t.typeCode === line.typeCode)
+  return (
+    <Stack direction="row" spacing={1} sx={{ minWidth: 0 }}>
+      <TextField size="small" label="Member ID" value={line.client} onChange={(e) => onChange({ client: e.target.value.replace(/\D/g, '') })} sx={{ width: 110 }}
+        slotProps={{ htmlInput: { 'aria-label': `Member of line ${index + 1}` } }} />
+      <TextField select size="small" label={what} value={chosen ? String(chosen.typeCode) : ''} onChange={(e) => pick(Number(e.target.value))} sx={{ flex: 1, minWidth: 200 }}
+        helperText={line.typeCode != null && !chosen ? `Type ${line.typeCode} is not set up or is switched off` : chosen?.paymentMode ? `Paid ${chosen.paymentMode.toLowerCase()}` : undefined}
+        slotProps={{ htmlInput: { 'aria-label': `${what} of line ${index + 1}` } }}>
+        {types.map((t) => <MenuItem key={t.typeCode} value={String(t.typeCode)}>{t.name ?? `Type ${t.typeCode}`}</MenuItem>)}
+      </TextField>
+    </Stack>
+  )
+}
+
+/** The terms of a loan or time deposit line, on a row of their own under it. */
+function TermsFields({ line, index, onChange }: { line: Draft; index: number; onChange: (patch: Partial<DraftTerms>) => void }) {
+  const t = line.t
+  const n = index + 1
+  const field = (label: string, key: keyof DraftTerms, width: number, opts: { date?: boolean; decimal?: boolean; tip?: string } = {}) => (
+    <TextField size="small" label={label} type={opts.date ? 'date' : 'text'} value={t[key]} sx={{ width }} helperText={opts.tip}
+      onChange={(e) => onChange({ [key]: e.target.value } as Partial<DraftTerms>)}
+      slotProps={{ inputLabel: { shrink: true }, htmlInput: { 'aria-label': `${label} of line ${n}`, inputMode: opts.date ? undefined : opts.decimal ? 'decimal' : 'numeric' } }} />
+  )
+  if (line.kind === 'LOAN') {
+    return (
+      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
+        <TextField select size="small" label="Status" value={String(t.status)} onChange={(e) => onChange({ status: Number(e.target.value) })} sx={{ width: 140 }}
+          slotProps={{ htmlInput: { 'aria-label': `Status of line ${n}` } }}>
+          {Object.entries(LOAN_STATUSES).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
+        </TextField>
+        {field('Months to run', 'terms', 120)}
+        {field('Next due', 'start', 160, { date: true, tip: 'After the opening date' })}
+        {field('Rate % a year', 'rate', 120, { decimal: true })}
+        {field('Amount granted', 'granted', 140, { decimal: true })}
+        {field('Granted on', 'grantedOn', 160, { date: true })}
+      </Stack>
+    )
+  }
+  return (
+    <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
+      {field('Placed on', 'start', 160, { date: true })}
+      {field('Term in days', 'terms', 120)}
+      {field('Rate % a year', 'rate', 120, { decimal: true })}
+      {field('Accrued interest', 'accrued', 150, { decimal: true, tip: 'Earned up to the opening date' })}
+    </Stack>
   )
 }
 

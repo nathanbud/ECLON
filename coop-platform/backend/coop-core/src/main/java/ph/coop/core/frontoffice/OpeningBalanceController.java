@@ -54,7 +54,23 @@ import ph.coop.core.member.SpreadsheetReader;
 @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN')")
 class OpeningBalanceController {
 
-    record LineIn(String kind, Integer clientId, Integer typeCode, Integer refNo, String accountCode, BigDecimal debit, BigDecimal credit, String note) {}
+    /**
+     * One line. A loan or time deposit line also gives its terms (see {@link OpeningBalanceRules.Terms}): a loan its status, rate, months still to run, next due
+     * date and, for the record, the amount and date granted; a time deposit its rate, term in days, placement date and accrued interest.
+     */
+    record LineIn(String kind, Integer clientId, Integer typeCode, Integer refNo, String accountCode, BigDecimal debit, BigDecimal credit, String note,
+                  Integer status, BigDecimal rate, Integer terms, String startDate, BigDecimal originalAmount, String grantedOn, BigDecimal accrued) {
+        LineIn(String kind, Integer clientId, Integer typeCode, Integer refNo, String accountCode, BigDecimal debit, BigDecimal credit, String note) {
+            this(kind, clientId, typeCode, refNo, accountCode, debit, credit, note, null, null, null, null, null, null, null);
+        }
+
+        static LineIn of(OpeningBalanceRules.Line l) {
+            OpeningBalanceRules.Terms t = l.terms();
+            return t == null ? new LineIn(l.kind(), l.clientId(), l.typeCode(), l.refNo(), l.accountCode(), l.debit(), l.credit(), l.note())
+                : new LineIn(l.kind(), l.clientId(), l.typeCode(), l.refNo(), l.accountCode(), l.debit(), l.credit(), l.note(), t.status(), t.rate(), t.terms(),
+                    t.start() == null ? null : t.start().toString(), t.originalAmount(), t.grantedOn() == null ? null : t.grantedOn().toString(), t.accrued());
+        }
+    }
 
     record BatchIn(int branchCode, String openingDate, String description, List<LineIn> lines) {}
 
@@ -63,8 +79,9 @@ class OpeningBalanceController {
     record Summary(long id, int branchCode, String reference, LocalDate openingDate, String description, String status, String createdBy, String approvedBy, String postedBy,
                    int lines, BigDecimal debits, BigDecimal credits, String documentNo) {}
 
+    /** A line as shown: for a loan or time deposit also its terms ({@code line}), the maturity, and the account its accrued interest goes to. */
     record LineOut(int lineNo, String kind, Integer clientId, String memberName, Integer typeCode, String typeName, Integer refNo, String accountNo, String accountCode,
-                   String accountTitle, BigDecimal debit, BigDecimal credit, String note) {}
+                   String accountTitle, BigDecimal debit, BigDecimal credit, String note, LineIn line, LocalDate maturity, String accrualAccount) {}
 
     record TrialOut(String account, String title, BigDecimal debit, BigDecimal credit, int memberAccounts, boolean control) {}
 
@@ -77,7 +94,11 @@ class OpeningBalanceController {
     private record Person(int id, int dept) {}
 
     /** A member line as found in the database: the account it is on, and the control account it posts to. */
-    private record Found(int refNo, int status, String typeName, String accountNo, String memberName, String control) {}
+    private record Found(int refNo, int status, String typeName, String accountNo, String memberName, String control, String accrualControl) {
+        Found(int refNo, int status, String typeName, String accountNo, String memberName, String control) {
+            this(refNo, status, typeName, accountNo, memberName, control, null);
+        }
+    }
 
     /** What checking the lines against the database gave: the problems, and for each member line what it was found to be (by line index). */
     private record Checked(List<String> problems, Map<Integer, Found> found) {}
@@ -97,19 +118,22 @@ class OpeningBalanceController {
     private final MemberLedgerPoster poster;
     private final ControlAccounts controls;
     private final Ledger ledger;
+    private final OpeningAccounts accounts;
     private final Clock clock;
 
-    OpeningBalanceController(JdbcTemplate jdbc, Db db, MemberLedgerPoster poster, ControlAccounts controls, Ledger ledger, Clock clock) {
+    OpeningBalanceController(JdbcTemplate jdbc, Db db, MemberLedgerPoster poster, ControlAccounts controls, Ledger ledger, OpeningAccounts accounts, Clock clock) {
         this.jdbc = jdbc;
         this.db = db;
         this.poster = poster;
         this.controls = controls;
         this.ledger = ledger;
+        this.accounts = accounts;
         this.clock = clock;
     }
 
     private void requireSetUp() {
         if (!db.tableExists("ecis_opening_batch")) throw conflict(DatabaseChanges.notSetUp("opening balances"));
+        if (!db.columnExists("ecis_opening_line", "start_date")) throw conflict(DatabaseChanges.notSetUp("opening balances of loans and time deposits"));
     }
 
     private static boolean admin(Authentication auth) {
@@ -143,16 +167,48 @@ class OpeningBalanceController {
             OpeningBalanceRules.Line l = lines.get(i);
             Found f = c.found().get(i);
             String code = l.member() ? (f == null ? null : f.control()) : l.accountCode();
+            Integer ref = f == null || f.refNo() == 0 ? l.refNo() : Integer.valueOf(f.refNo());
+            LocalDate maturity = null;
+            if (OpeningBalanceRules.TD.equals(l.kind()) && l.terms() != null && l.terms().start() != null && l.terms().terms() != null) maturity = OpeningBalanceRules.maturity(l.terms());
             out.add(new LineOut(i + 1, l.kind(), l.clientId(), f == null ? null : f.memberName(), l.typeCode(), f == null ? null : f.typeName(),
-                f == null ? l.refNo() : Integer.valueOf(f.refNo()), f == null ? null : f.accountNo(), code, code == null ? null : title(r.branch(), code, titles),
-                l.debit(), l.credit(), l.note()));
+                ref, f == null ? null : f.accountNo(), code, code == null ? null : title(r.branch(), code, titles),
+                l.debit(), l.credit(), l.note(), l.opens() ? LineIn.of(l) : null, maturity, f == null ? null : f.accrualControl()));
         }
-        Map<Integer, String> controlOf = new HashMap<>();
-        c.found().forEach((i, f) -> { if (f.control() != null) controlOf.put(i, f.control()); });
-        List<TrialOut> trial = OpeningBalanceRules.trialBalance(lines, controlOf).stream()
+        List<OpeningBalanceRules.Posting> postings = new ArrayList<>();
+        for (int i = 0; i < lines.size(); i++) {
+            OpeningBalanceRules.Line l = lines.get(i);
+            Found f = c.found().get(i);
+            String account = l.member() ? (f == null ? null : f.control()) : l.accountCode() == null ? null : l.accountCode().trim();
+            if (account != null) postings.add(new OpeningBalanceRules.Posting(account, OpeningBalanceRules.amount(l.debit()), OpeningBalanceRules.amount(l.credit()), l.member()));
+            if (f != null && f.accrualControl() != null && l.accrued().signum() > 0) postings.add(new OpeningBalanceRules.Posting(f.accrualControl(), BigDecimal.ZERO, l.accrued(), true));
+        }
+        List<TrialOut> trial = OpeningBalanceRules.trialBalance(postings).stream()
             .map((t) -> new TrialOut(t.account(), title(r.branch(), t.account(), titles), t.debit(), t.credit(), t.memberAccounts(), controls.isControl(r.branch(), t.account()))).toList();
         String why = first(jdbc.queryForList("SELECT cancel_reason FROM ecis_opening_batch WHERE id = ?", String.class, id));
         return new Detail(summaryOf(id), out, trial, problems, why);
+    }
+
+    /** A loan or time deposit type a line can open, with what the screen fills in from it: the yearly rate and, for a loan, its term in months and payment mode. */
+    record OpeningType(String kind, int typeCode, String name, BigDecimal rate, Integer termMonths, String paymentMode) {}
+
+    /** The loan and time deposit types that are switched on, for choosing on a loan or time deposit line. */
+    @GetMapping("/types")
+    @PreAuthorize("hasAnyRole('ACCOUNTANT','ADMIN','AUDITOR')")
+    List<OpeningType> types(@RequestParam int branchCode) {
+        return jdbc.query("""
+                SELECT t.SLTypeSLC_CODE, t.SLTypeSLT_CODE, t.SLTypeM_DESC, t.SLTypeINT_RATE, t.SLTypeTERMS, t.SLTypeTERM_PERD, p.PaymentModeDesc
+                FROM sltype t LEFT JOIN paymentmode p ON p.PaymentModeID = t.SLTypePPMT_MODE
+                WHERE t.SLTypeBR_CODE = ? AND t.SLTypeSLC_CODE IN (12, 24) AND COALESCE(t.SLTypeIsDisabled, 0) = 0
+                ORDER BY t.SLTypeSLC_CODE, t.SLTypeSLT_CODE
+                """, (rs, i) -> {
+                boolean loan = rs.getInt(1) == 12;
+                int terms = rs.getInt(5);
+                Integer months = !loan || rs.wasNull() || terms <= 0 ? null : rs.getInt(6) == 7 ? terms * 12 : terms;
+                String name = rs.getString(3);
+                String mode = rs.getString(7);
+                return new OpeningType(loan ? OpeningBalanceRules.LOAN : OpeningBalanceRules.TD, rs.getInt(2), name == null ? null : name.trim(), rs.getBigDecimal(4), months,
+                    loan && mode != null ? mode.trim() : null);
+            }, branchCode);
     }
 
     /**
@@ -165,11 +221,11 @@ class OpeningBalanceController {
         try {
             rows = SpreadsheetReader.read(file.getOriginalFilename(), file.getBytes());
         } catch (IllegalArgumentException e) {
-            throw bad(e.getMessage() + " Use a CSV or Excel (.xlsx) file whose first row names the columns Kind, Member, Type, Account no, Ledger account, Debit, Credit and Note.");
+            throw bad(e.getMessage() + " Use a CSV or Excel (.xlsx) file whose first row names the columns Kind, Member, Type, Account no, Ledger account, Debit, Credit and Note"
+                + " (and for loans and time deposits their terms, as in Download template).");
         }
         OpeningBalanceRules.Imported in = OpeningBalanceRules.read(rows);
-        return new ImportOut(in.lines().stream().map((l) -> new LineIn(l.kind(), l.clientId(), l.typeCode(), l.refNo(), l.accountCode(), l.debit(), l.credit(), l.note())).toList(),
-            in.problems());
+        return new ImportOut(in.lines().stream().map(LineIn::of).toList(), in.problems());
     }
 
     // ---- steps --------------------------------------------------------------------------------------------------
@@ -264,15 +320,29 @@ class OpeningBalanceController {
         Person approver = legacyPerson(r.approvedBy(), "approver");
         List<OpeningBalanceRules.Line> lines = lines(id);
         // lock each member account so a teller cannot post into it while its opening balance is written, then check everything as it is now
-        for (OpeningBalanceRules.Line l : lines) if (l.member() && l.refNo() != null) lock(r.branch(), l);
+        for (OpeningBalanceRules.Line l : lines) if (l.member() && !l.opens() && l.refNo() != null) lock(r.branch(), l);
         requireNoProblems(r, "posted");
         Checked c = check(r.branch(), id, lines);
 
         List<Voucher.Line> out = new ArrayList<>();
+        int loans = 0, deposits = 0;
         for (int i = 0; i < lines.size(); i++) {
             OpeningBalanceRules.Line l = lines.get(i);
             Money amount = Money.of(l.signed());
-            if (l.member()) {
+            if (l.opens()) {
+                // open the loan or certificate, keep its number on the line, then post its balance (and a certificate's accrued interest) on it
+                Found f = c.found().get(i);
+                int ref = accounts.open(r.branch(), l, r.date(), r.reference());
+                jdbc.update("UPDATE ecis_opening_line SET ref_no = ? WHERE batch_id = ? AND line_no = ?", ref, id, i + 1);
+                int slc = OpeningBalanceRules.CLASS.get(l.kind());
+                out.add(new Voucher.Line(f.control(), creator.dept(), amount, new Voucher.Member(l.clientId(), slc, l.typeCode(), ref, PRINCIPAL, f.status())));
+                if (l.accrued().signum() > 0) {
+                    out.add(new Voucher.Line(f.accrualControl(), creator.dept(), Money.of(l.accrued().negate()),
+                        new Voucher.Member(l.clientId(), slc, l.typeCode(), ref, OpeningBalanceRules.ACCRUED_EVENT, OpeningBalanceRules.ACCRUED_STATUS)));
+                }
+                if (slc == 12) loans++;
+                else deposits++;
+            } else if (l.member()) {
                 Found f = c.found().get(i);
                 int slc = OpeningBalanceRules.CLASS.get(l.kind());
                 out.add(new Voucher.Line(f.control(), creator.dept(), amount, new Voucher.Member(l.clientId(), slc, l.typeCode(), f.refNo(), PRINCIPAL, f.status())));
@@ -285,7 +355,8 @@ class OpeningBalanceController {
         int n = jdbc.update("UPDATE ecis_opening_batch SET status = 'POSTED', posted_by = ?, posted_at = ?, tr_year = ?, tr_ctlno = ? WHERE id = ? AND status = 'APPROVED'",
             auth.getName(), Timestamp.valueOf(LocalDateTime.now(clock)), p.year(), p.controlNo(), id);
         if (n != 1) throw conflict("The batch changed while you were posting it. Nothing was posted; reload it and try again.");
-        audit(auth, "opening.balance.post", id, "APPROVED", "POSTED", "General Journal " + p.documentNo() + ", " + lines.size() + " lines");
+        audit(auth, "opening.balance.post", id, "APPROVED", "POSTED", "General Journal " + p.documentNo() + ", " + lines.size() + " lines"
+            + (loans > 0 ? ", " + loans + " loan" + (loans == 1 ? "" : "s") + " opened" : "") + (deposits > 0 ? ", " + deposits + " time deposit" + (deposits == 1 ? "" : "s") + " opened" : ""));
         return summaryOf(id);
     }
 
@@ -318,11 +389,16 @@ class OpeningBalanceController {
         for (int i = 0; i < raw.size(); i++) {
             LineIn l = raw.get(i);
             String kind = OpeningBalanceRules.kind(l == null ? null : l.kind());
-            if (kind == null) throw bad("Line " + (i + 1) + " does not say whether it is a ledger account, savings or share capital. Choose one, then save again. Nothing was saved.");
+            if (kind == null) throw bad("Line " + (i + 1) + " does not say whether it is a ledger account, savings, share capital, a loan or a time deposit. Choose one, then save again. Nothing was saved.");
             String account = l.accountCode() == null || l.accountCode().isBlank() ? null : l.accountCode().trim();
             String note = l.note() == null || l.note().isBlank() ? null : l.note().trim();
             if (note != null && note.length() > 100) note = note.substring(0, 100);
-            out.add(new OpeningBalanceRules.Line(kind, l.clientId(), l.typeCode(), l.refNo(), account, l.debit(), l.credit(), note));
+            OpeningBalanceRules.Terms terms = null;
+            if (OpeningBalanceRules.LOAN.equals(kind) || OpeningBalanceRules.TD.equals(kind)) {
+                terms = new OpeningBalanceRules.Terms(l.status(), l.rate(), l.terms(), lineDate(l.startDate(), i, OpeningBalanceRules.LOAN.equals(kind) ? "next due date" : "placement date"),
+                    l.originalAmount(), lineDate(l.grantedOn(), i, "date granted"), l.accrued());
+            }
+            out.add(new OpeningBalanceRules.Line(kind, l.clientId(), l.typeCode(), l.refNo(), account, l.debit(), l.credit(), note, terms));
         }
         return out;
     }
@@ -361,6 +437,11 @@ class OpeningBalanceController {
                 continue;
             }
             if (l.clientId() == null || l.typeCode() == null) continue;
+            if (l.opens()) {
+                OpeningAccounts.Found o = accounts.check(branch, l, null, at, out);
+                if (o != null) found.put(i, new Found(0, o.status(), o.typeName(), "new", o.memberName(), o.control(), o.accrualControl()));
+                continue;
+            }
             Master m = OpeningBalanceRules.SHARE.equals(l.kind()) ? Master.SHARE_CAPITAL : Master.SAVINGS;
             String what = m.slc() == 31 ? "share capital" : "savings";
             String name = names.computeIfAbsent(String.valueOf(l.clientId()), (k) -> {
@@ -419,8 +500,14 @@ class OpeningBalanceController {
         Map<Integer, Found> found = new LinkedHashMap<>();
         for (int i = 0; i < lines.size(); i++) {
             OpeningBalanceRules.Line l = lines.get(i);
-            if (!l.member() || l.clientId() == null || l.typeCode() == null || l.refNo() == null) continue;
-            Master m = OpeningBalanceRules.SHARE.equals(l.kind()) ? Master.SHARE_CAPITAL : Master.SAVINGS;
+            if (!l.member() || l.clientId() == null || l.typeCode() == null) continue;
+            if (l.opens()) {
+                OpeningAccounts.Found o = accounts.describe(branch, l);
+                found.put(i, new Found(l.refNo() == null ? 0 : l.refNo(), o.status(), o.typeName(), l.refNo() == null ? "not opened" : String.valueOf(l.refNo()), o.memberName(), o.control(), o.accrualControl()));
+                continue;
+            }
+            if (l.refNo() == null) continue;
+            Master m =OpeningBalanceRules.SHARE.equals(l.kind()) ? Master.SHARE_CAPITAL : Master.SAVINGS;
             String name = null, control = null, typeName = null, accountNo = String.valueOf(l.refNo());
             int status = 0;
             try {
@@ -458,9 +545,15 @@ class OpeningBalanceController {
         List<Object[]> rows = new ArrayList<>();
         int no = 1;
         for (OpeningBalanceRules.Line l : lines) {
-            rows.add(new Object[] {id, no++, l.kind(), l.clientId(), l.typeCode(), l.refNo(), l.accountCode(), OpeningBalanceRules.amount(l.debit()), OpeningBalanceRules.amount(l.credit()), l.note()});
+            OpeningBalanceRules.Terms t = l.terms();
+            rows.add(new Object[] {id, no++, l.kind(), l.clientId(), l.typeCode(), l.refNo(), l.accountCode(), OpeningBalanceRules.amount(l.debit()), OpeningBalanceRules.amount(l.credit()), l.note(),
+                t == null ? null : t.status(), t == null ? null : t.rate(), t == null ? null : t.terms(), t == null || t.start() == null ? null : java.sql.Date.valueOf(t.start()),
+                t == null ? null : t.originalAmount(), t == null || t.grantedOn() == null ? null : java.sql.Date.valueOf(t.grantedOn()), t == null ? null : t.accrued()});
         }
-        jdbc.batchUpdate("INSERT INTO ecis_opening_line (batch_id, line_no, kind, client_id, type_code, ref_no, account_code, debit, credit, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows);
+        jdbc.batchUpdate("""
+                INSERT INTO ecis_opening_line (batch_id, line_no, kind, client_id, type_code, ref_no, account_code, debit, credit, note,
+                  status_code, rate, terms, start_date, original_amount, granted_on, accrued) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, rows);
     }
 
     /**
@@ -468,8 +561,19 @@ class OpeningBalanceController {
      * that the posting and the locks use the exact account.
      */
     private List<OpeningBalanceRules.Line> lines(long id) {
-        return jdbc.query("SELECT kind, client_id, type_code, ref_no, account_code, debit, credit, note FROM ecis_opening_line WHERE batch_id = ? ORDER BY line_no",
-            (rs, i) -> new OpeningBalanceRules.Line(rs.getString(1), integer(rs, 2), integer(rs, 3), integer(rs, 4), rs.getString(5), rs.getBigDecimal(6), rs.getBigDecimal(7), rs.getString(8)), id);
+        return jdbc.query("""
+                SELECT kind, client_id, type_code, ref_no, account_code, debit, credit, note, status_code, rate, terms, start_date, original_amount, granted_on, accrued
+                FROM ecis_opening_line WHERE batch_id = ? ORDER BY line_no
+                """, (rs, i) -> {
+                String kind = rs.getString(1);
+                OpeningBalanceRules.Terms terms = null;
+                if (OpeningBalanceRules.LOAN.equals(kind) || OpeningBalanceRules.TD.equals(kind)) {
+                    java.sql.Date start = rs.getDate(12), granted = rs.getDate(14);
+                    terms = new OpeningBalanceRules.Terms(integer(rs, 9), rs.getBigDecimal(10), integer(rs, 11), start == null ? null : start.toLocalDate(), rs.getBigDecimal(13),
+                        granted == null ? null : granted.toLocalDate(), rs.getBigDecimal(15));
+                }
+                return new OpeningBalanceRules.Line(kind, integer(rs, 2), integer(rs, 3), integer(rs, 4), rs.getString(5), rs.getBigDecimal(6), rs.getBigDecimal(7), rs.getString(8), terms);
+            }, id);
     }
 
     private Row row(long id, boolean lock) {
@@ -517,6 +621,15 @@ class OpeningBalanceController {
     private static Integer integer(java.sql.ResultSet rs, int column) throws java.sql.SQLException {
         int v = rs.getInt(column);
         return rs.wasNull() ? null : v;
+    }
+
+    private static LocalDate lineDate(String s, int index, String what) {
+        if (s == null || s.isBlank()) return null;
+        try {
+            return LocalDate.parse(s.trim());
+        } catch (DateTimeParseException e) {
+            throw bad("Line " + (index + 1) + ": the " + what + " must look like 2027-01-15. Nothing was saved.");
+        }
     }
 
     private static LocalDate parse(String s) {

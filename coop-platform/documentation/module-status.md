@@ -152,8 +152,8 @@ Built:
 - Chart of accounts setup and upload from Excel. See [chart-of-accounts-setup.md](state/chart-of-accounts-setup.md).
 - Financial statements and trial balance from the general ledger.
 - Year-end close (prepare and post by two people). See [year-end-close.md](state/year-end-close.md).
-- Opening balances for a new cooperative: ledger accounts and members' savings and share capital, typed or imported from CSV/Excel, posted once as a General Journal by three people, the members' totals going to their control accounts. Loans, time deposits and member funds not yet. See [opening-balances.md](state/opening-balances.md).
-Not built: month-end closing and a closing checklist; two-step appropriation of the surplus to statutory funds.
+- Opening balances for a new cooperative: ledger accounts, members' savings and share capital, loans still being paid (opened with their remaining schedule) and time deposits still running (opened with their accrued interest), typed or imported from CSV/Excel, posted once as a General Journal by three people, the members' totals going to their control accounts. Member funds and payables not yet. See [opening-balances.md](state/opening-balances.md).
+Not built: tax and CDA reports (waiting for their official formats).
 
 ## Dividends and patronage refund
 
@@ -227,7 +227,7 @@ To confirm: deadlines, retention periods and wording against the Data Privacy Ac
 
 Built: report framework with print and CSV; membership, loan (portfolio, PAR, delinquency, maturity, releases, payments, collection), general ledger, inventory and POS reports; aging of receivables (loans and accounts receivable, PAR or maturity basis, filters, up to three nested groupings with subtotals, accrued interest, Excel and PDF); financial statements; amortization schedule and loan worksheet PDFs. See [reporting….md](state/reporting-ecis-pdf-phase-20-core-built.md).
 
-Not built: cash flow statement, CIC reports, PDF and scheduled report output, management dashboard.
+Not built: CIC reports, scheduled report output, management dashboard.
 
 ## Notifications
 
