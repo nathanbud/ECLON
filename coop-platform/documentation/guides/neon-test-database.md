@@ -57,7 +57,10 @@ Keep both passwords like `db.txt`: never in code, documents or chat.
 
 ## 4. Run the backend here against Neon
 
-Set these before `scripts\run-backend.ps1`, or in a PowerShell that starts the jar (the passwords typed at run time, never saved in a file):
+The easy way: `scripts\run-backend-neon.ps1 -NeonHost <host>` starts a second backend on port 8092 beside the usual one (which it leaves running), asks for
+`coop_app`'s password and a bootstrap sign-in, and never reads `db.txt`. In the desktop app's Connection window, add `http://localhost:8092`.
+
+Or set these yourself before `scripts\run-backend.ps1`, or in a PowerShell that starts the jar (the passwords typed at run time, never saved in a file):
 
 | Variable | Value |
 |---|---|
