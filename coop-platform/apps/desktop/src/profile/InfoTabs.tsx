@@ -8,6 +8,7 @@ import { useEdit } from './editing'
 import { PhAddressFields, StreetField } from './PhAddress'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { FiInfo } from 'react-icons/fi'
+import { Hinted } from '../appleUi'
 
 /**
  * The address, laid out as it is written on an envelope, one line each: house, unit, block and lot number beside the street name; subdivision, village or building; barangay;
@@ -98,6 +99,8 @@ function AddressSection({ m, lk }: { m: Member; lk?: Lookups }) {
   )
 }
 
+const DOSRI_TIP = 'Directors, officers, staff and their related interests (spouse, relatives, businesses they control). Loans to them get closer scrutiny. Leave it on — for a member who is none of these. A change is sent for approval like any profile edit.'
+
 export function MembershipTab({ m, lk }: { m: Member; lk?: Lookups }) {
   const st = statusOf(m, lk)
   return (
@@ -111,6 +114,11 @@ export function MembershipTab({ m, lk }: { m: Member; lk?: Lookups }) {
       </Section>
       <Section title="Classification">
         <SelectField label="Branch" lookup="department" code={m.department} lk={lk} col="ClientDEPT" />
+      </Section>
+      <Section title="DOSRI">
+        <Hinted tip={DOSRI_TIP}>
+          <SelectField label="DOSRI type" lookup="dosriTag" code={m.dosriTag} lk={lk} col="DOSRITag" />
+        </Hinted>
       </Section>
     </Box>
   )

@@ -6,7 +6,7 @@ import { displayName, memberNo, statusOf } from '../clients'
 import { useMemberImage } from '../memberImage'
 import { Avatar, Box, Chip, IconButton, Tooltip, Typography } from '@mui/material'
 import { SIDE } from '../glass'
-import { FiCamera, FiEdit2, FiEdit3, FiShield, FiUser, FiUserCheck } from 'react-icons/fi'
+import { FiCamera, FiEdit2, FiEdit3, FiFlag, FiShield, FiUser, FiUserCheck } from 'react-icons/fi'
 import { IoFingerPrint } from 'react-icons/io5'
 import FingerprintDialog from '../FingerprintDialog'
 import PrivacyNoticeDialog from '../PrivacyNoticeDialog'
@@ -120,6 +120,10 @@ export function ProfileHeader({ m, lk, canPhoto = false, onNotice, children }: {
           {kyc.data && (
             <Chip size="small" variant="outlined" icon={<FiUserCheck />} aria-label={`KYC: ${KYC_LABEL[kyc.data.status]}`} sx={tag(kyc.data.status === 'COMPLETE' ? 'success' : kyc.data.status === 'NONE' ? 'default' : 'warning')}
               label={kyc.data.status === 'COMPLETE' ? 'KYC complete' : `KYC · ${KYC_LABEL[kyc.data.status]}`} />
+          )}
+          {m.dosriTag != null && (
+            <Chip size="small" variant="outlined" icon={<FiFlag />} sx={tag('warning')} aria-label={`DOSRI: ${lk?.dosriTag?.[String(m.dosriTag)] ?? `code ${m.dosriTag}`}`}
+              label={`DOSRI · ${lk?.dosriTag?.[String(m.dosriTag)] ?? `code ${m.dosriTag}`}`} />
           )}
           <Chip size="small" variant="outlined" clickable icon={<FiShield />} onClick={() => setNoticeOpen(true)} aria-label="Privacy notice" sx={tag(privacy.data?.upToDate ? 'success' : 'default')}
             label={privacy.data?.upToDate ? 'Privacy notice given' : 'Privacy notice'} />
