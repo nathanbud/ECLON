@@ -120,8 +120,8 @@ key and every fingerprint has to be taken again. Never change it once fingerprin
 The database starts from the developer's blank file `coop-blank.dump`: every table the application uses, its record of database changes, and no members,
 entries or settings of any other cooperative.
 
-> **Note for the developer:** there is no script yet that produces `coop-blank.dump` (with the change record and one branch, which the app cannot add yet).
-> Make it before the first install; see "Still to build" at the end.
+> **For the developer:** make the file with `scripts\make-blank-database.ps1 -BranchName "<the cooperative's main office>"` (needs Docker and an up-to-date
+> `coop`; it copies only the structure, adds the change record, the starting rows and the one branch, and checks that nothing else holds rows).
 
 In PowerShell **as Administrator**, replacing the passwords and choosing a database name (here `coop_main`):
 
@@ -362,8 +362,6 @@ SSD.
 
 ## Still to build (for the developer)
 
-- **The blank database file** `coop-blank.dump`: a script that makes it from an up-to-date database with the structure only, the database change record, the
-  rows the database changes add for every cooperative, and one branch, leaving out any cooperative's own members, entries, users and settings.
 - **Settings > System > Backup** runs `scripts/backup-app-data.ps1`, which reaches the database through Docker and dumps only the `ecis_` tables (it was made
   when the old system's tables held the old data). For a new cooperative the members and ledger are in the other tables too, so on this server it would
   miss most of the record. Until it is changed to a full `pg_dump` of the database, use Part 8.

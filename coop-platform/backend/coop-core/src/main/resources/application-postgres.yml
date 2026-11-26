@@ -2,9 +2,11 @@
 # The old tables and the app's own ecis_ tables are both in schema "legacy" (as they are together in MySQL), so the address sets it as the
 # search path. Names are folded to lowercase by PostgreSQL, so the mixed-case legacy names in the SQL still match.
 # Time is kept in Asia/Manila, like the MySQL address does with serverTimezone.
+# DB_SSLMODE: prefer (the driver's own default: encrypted when the server offers it) unless set; a hosted database such as Neon needs require (or verify-full).
+# On Neon use the direct host, not the -pooler one: the pooler refuses the TimeZone startup option.
 spring:
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5440}/${DB_NAME:coop}?currentSchema=legacy&stringtype=unspecified&options=-c%20TimeZone%3DAsia/Manila
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5440}/${DB_NAME:coop}?currentSchema=legacy&stringtype=unspecified&options=-c%20TimeZone%3DAsia/Manila&sslmode=${DB_SSLMODE:prefer}
   jpa:
     properties:
       hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
