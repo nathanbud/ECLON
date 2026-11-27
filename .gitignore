@@ -22,11 +22,23 @@ logs/
 .vscode/
 .DS_Store
 Thumbs.db
-.claude/
+# Claude Code: personal settings stay local; the shared design skill (Impeccable, pbakaus/impeccable 4.11.1) and its agents are kept in the repo
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/impeccable/
+.claude/skills/impeccable/scripts/bin/
+.claude/skills/impeccable/scripts/config.json
+**/.impeccable/
+!.claude/agents/
+.claude/agents/*
+!.claude/agents/impeccable-*.md
 
 # uploaded documents (member IDs, contracts): never commit
 data/
 **/data/documents/
+# except Impeccable's font index (not member data)
+!.claude/skills/impeccable/scripts/data/
 
 # database and key backups (never commit)
 backups/
