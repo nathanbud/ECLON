@@ -42,6 +42,10 @@ Keep both passwords like `db.txt`: never in code, documents or chat.
 
    It writes `backups\blank\coop-blank-<date>.dump` (git-ignored) and says how many tables and database changes it holds.
 
+   **For testing, use the sample cooperative instead**: `.\coop-platform\scripts\make-blank-database.ps1 -Sample` writes `coop-sample-<date>.dump`, which
+   also has the standard lists, member types, an office, a department, member defaults, share capital and regular savings with their chart accounts, and
+   account opening, so members can be registered as soon as two Membership Officers exist (step 5). Restore that file in the next step instead.
+
 2. In the Neon console, *Connect*: choose database `coop_test`, role `coop_admin`, and switch **off** *Connection pooling*. Copy the host: it looks like
    `ep-xxxx-xxxx.ap-southeast-1.aws.neon.tech` (no `-pooler` in it). Our connection sets the Manila time zone when it starts, which the pooler refuses.
 
@@ -81,7 +85,11 @@ those two lines for the run.
 
 1. Sign in with the bootstrap account.
 2. Settings > System > Database connection: up to date.
-3. Settings > System > Starter setup: load the standard lists.
-4. Create users, set up the cooperative's products, and work through the screens.
+3. Settings > System > Starter setup: load the standard lists (already done in the sample cooperative).
+4. Settings > Users > New user: create the people you test with. The bootstrap account cannot register members itself (it is not on the staff list).
+   For registering, create two users and give each the **Membership Officer** role (Settings > Users > Roles): one sends the registration, the other
+   approves it. Each signs in once with the temporary password and sets their own.
+5. Register a member (Client Profile > New member), sign in as the other officer, approve it on Waiting for you: the member opens with share capital and
+   savings accounts. Then work through the other screens.
 
 When the test is over, delete the Neon project.

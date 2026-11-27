@@ -9,16 +9,23 @@
 #   -Out         the file to write (default backups\blank\coop-blank-<yyyyMMdd>.dump under the repository; backups\ is git-ignored)
 #   -BranchCode  the branch's number (default 1)
 #   -BranchName  the branch's name (default "Main office"; changeable later)
+#   -Sample      a TEST cooperative instead (coop-sample-<yyyyMMdd>.dump): the blank database plus the standard lists of Starter setup and
+#                database/sample/sample-cooperative.sql (member types, office, department, member defaults, share capital and regular savings with their chart
+#                accounts and links, account opening), so members can be registered and approved at once. Branch 1. Never for a real cooperative.
 #
 # The rows added are the ones the database changes insert for every cooperative (V004 roles, V028 passbook layout, V029 distribution policy per branch,
 # V042 closing settings); the ones that depend on a cooperative's own setup (V031, V037, V043) add nothing on a blank database. A newer change that inserts
 # rows is reported, so it can be added here.
-param([string]$Out, [int]$BranchCode = 1, [string]$BranchName = 'Main office')
+param([string]$Out, [int]$BranchCode = 1, [string]$BranchName = 'Main office', [switch]$Sample)
 $ErrorActionPreference = 'Continue'
 $env:PGCLIENTENCODING = 'UTF8'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $migrations = Join-Path $root 'coop-platform\database\postgres\migrations'
-if (-not $Out) { $Out = Join-Path $root ("backups\blank\coop-blank-" + (Get-Date -Format 'yyyyMMdd') + '.dump') }
+$starter = Join-Path $root 'coop-platform\backend\coop-core\src\main\resources\starter'
+$sampleSql = Join-Path $root 'coop-platform\database\sample\sample-cooperative.sql'
+if ($Sample -and $BranchCode -ne 1) { throw 'The sample cooperative is set up for branch 1 only.' }
+$kind = if ($Sample) { 'sample' } else { 'blank' }
+if (-not $Out) { $Out = Join-Path $root ("backups\blank\coop-$kind-" + (Get-Date -Format 'yyyyMMdd') + '.dump') }
 $KNOWN_SEEDS_UP_TO = 46
 $container = 'eclon-postgres'
 $build = 'coop_blank_build'
@@ -71,9 +78,24 @@ INSERT INTO legacy.ecis_setting (setting_key, setting_value, updated_by, updated
 VALUES ('accounting.monthly_close', 'false', 'system', CURRENT_TIMESTAMP), ('accounting.year_end_due_days', '120', 'system', CURRENT_TIMESTAMP);
 "@
   Invoke-Sql $build $seed 'Adding the branch and starting rows' | Out-Null
+  $allowed = @('legacy.ecis_pg_migration', 'core.role', 'legacy.branches', 'legacy.ecis_passbook_layout', 'legacy.ecis_distribution_policy', 'legacy.ecis_setting')
+
+  # 4b. The sample cooperative: Starter setup's standard lists (in its load order, as Settings > System > Starter setup adds them to a blank database),
+  #     then the sample setup.
+  if ($Sample) {
+    Write-Host 'Adding the standard lists and the sample setup...'
+    $lists = Get-Content (Join-Path $starter 'lists.txt') | Where-Object { $_ -and -not $_.StartsWith('#') } | ForEach-Object { ($_ -split '\|')[0].Trim() }
+    Invoke-Pg @('sh', '-c', 'rm -rf /tmp/starter && mkdir -p /tmp/starter') 'Preparing the lists' | Out-Null
+    docker cp (Join-Path $starter 'lists\.') "${container}:/tmp/starter" | Out-Null
+    docker cp $sampleSql "${container}:/tmp/starter/sample-cooperative.sql" | Out-Null
+    $copy = ($lists | ForEach-Object { "\copy legacy.$_ FROM '/tmp/starter/$_.csv' WITH (FORMAT csv, HEADER)" }) -join "`n"
+    Invoke-Sql $build $copy 'Adding the standard lists' | Out-Null
+    Invoke-Pg @('psql', '-U', 'coop_admin', '-d', $build, '-v', 'ON_ERROR_STOP=1', '-1', '-q', '-f', '/tmp/starter/sample-cooperative.sql') 'Adding the sample setup' | Out-Null
+    $allowed += $lists | ForEach-Object { "legacy.$_" }
+    $allowed += @('legacy.clienttype', 'legacy.restrik', 'legacy.dept', 'legacy.coa', 'legacy.sltype', 'legacy.glcontrol', 'legacy.ecis_sl_control')
+  }
 
   # 5. Check: only the tables filled above hold rows (counted exactly, every table of every schema).
-  $allowed = @('legacy.ecis_pg_migration', 'core.role', 'legacy.branches', 'legacy.ecis_passbook_layout', 'legacy.ecis_distribution_policy', 'legacy.ecis_setting')
   $check = @"
 DO `$`$
 DECLARE t record; n bigint; bad text := '';
@@ -95,10 +117,11 @@ SELECT count(*) FROM pg_tables WHERE schemaname IN ('legacy', 'core');
   docker cp "${container}:/tmp/blank.dump" $Out | Out-Null
   if ($LASTEXITCODE -ne 0 -or -not (Test-Path $Out)) { throw 'Copying the file out of the container failed.' }
 } finally {
-  docker exec $container sh -c "rm -f /tmp/blank-schema.dump /tmp/blank.dump; dropdb -U coop_admin --if-exists $build" 2>&1 | Out-Null
+  docker exec $container sh -c "rm -rf /tmp/blank-schema.dump /tmp/blank.dump /tmp/starter; dropdb -U coop_admin --if-exists $build" 2>&1 | Out-Null
 }
 
 $kb = [math]::Round((Get-Item $Out).Length / 1KB)
-"Blank database written: $Out ($kb KB; $($counts[-1]) tables, $($counts[-2]) database changes recorded, branch $BranchCode '$BranchName')."
+$what = if ($Sample) { 'Sample (test) cooperative' } else { 'Blank database' }
+"$what written: $Out ($kb KB; $($counts[-1]) tables, $($counts[-2]) database changes recorded, branch $BranchCode '$BranchName')."
 'Restore it as coop_admin, after creating the roles coop_admin and coop_app:'
 '  pg_restore -h <host> -U coop_admin -d <database> --no-owner --role=coop_admin --exit-on-error <file>'

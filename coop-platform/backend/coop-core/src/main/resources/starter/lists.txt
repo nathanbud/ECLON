@@ -21,6 +21,9 @@ religion|Members|Religions
 restype|Members|Kinds of residence
 sector|Members|Sectors
 slclass|Accounts and ledger|Account classes (savings, loans, share capital and the rest)
+acctlevel|Accounts and ledger|Chart of accounts levels (summary heading, detail account)
+glaccttype|Accounts and ledger|Chart of accounts types (assets, liabilities, equity, revenues, expenses)
+baltype|Accounts and ledger|Normal balance kinds of ledger accounts (debit or credit, carried or closed each year)
 transtype|Accounts and ledger|Transaction types
 actvtlist|System|Activities recorded in the old activity log
 adjflag|Loans|Adjustment kinds

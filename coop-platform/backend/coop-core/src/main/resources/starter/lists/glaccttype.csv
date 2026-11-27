@@ -1,0 +1,7 @@
+glaccttypeid,glaccttypedesc,remarks
+1,Assets,Debit Balance (No Change in Value in Presentation)
+2,Liabilities,Credit Balance (Multiply by -1 in Presentation)
+3,Equity and Reserves,Credit Balance (Multiply by -1 in Presentation)
+4,Revenues,Credit Balance (Multiply by -1 in Presentation)
+5,Expenses,Debit Balance (No Change in Value in Presentation)
+6,Net Income,Debit Balance (No Change in Value in Presentation)

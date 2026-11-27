@@ -1,0 +1,7 @@
+baltypeid,baltypedesc,baltyperemarks,baltypeisdebit,baltypecutdate
+1,DEBIT - Accum,"No Change, as is, and accumulates every year",1,
+2,CREDIT - Accum,Multiply by -1 automatically for display and accumulates every year,-1,
+3,DEBIT - CutOff,"No change, as is, but closes to zero every closing entries.",1,2000-12-31
+4,CREDIT - CutOff,"Multiply by -1 automatically for display, but closes to zero every closing entries.",-1,2000-12-31
+7,CREDIT-SetupDate,"Multiply by -1 automatically for display, but closes to zero every Setup Date Anniversary.",-1,slsum.TR_DATE
+8,DEBIT-SetupDate,"Multiply by -1 automatically for display, but closes to zero every Setup Date Anniversary.",-1,slsum.TR_DATE
