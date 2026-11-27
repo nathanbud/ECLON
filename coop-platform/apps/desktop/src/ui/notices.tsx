@@ -1,11 +1,16 @@
-import { Alert, Snackbar } from '@mui/material'
+import { Alert, Box, IconButton, Snackbar, Typography, alpha, useTheme } from '@mui/material'
+import { FiAlertCircle, FiX } from 'react-icons/fi'
+import { glass } from '../glass'
 import { MutationCache } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 /**
  * Short "done" messages after an action works ("Journal posted to the ledger."), shown for a few seconds at the bottom of the window.
  * A screen does not show them itself: it puts the words on its mutation as {@code meta: { done: '...' }} (or a function of the result and the
- * variables), and {@link noticeMutationCache} shows them. Errors are not shown here; each screen shows its own next to the action.
+ * variables), and {@link noticeMutationCache} shows them.
+ * A refusal of an action ("Only a super administrator can …") pops up here too, in red, with {@code notify(message, 'error')}, instead of a box in
+ * the page or dialog that pushes the content down when it appears; it shows as a glass card in the middle of the window, stays 12 s and can be closed. Problems with what is typed in a field
+ * stay under that field, and a list that failed to load says so in its own place (LoadingRow).
  */
 const EVENT = 'coop:notice'
 
@@ -18,9 +23,15 @@ declare module '@tanstack/react-query' {
   }
 }
 
-export function notify(text: string) {
-  window.dispatchEvent(new CustomEvent<string>(EVENT, { detail: text }))
+export type NoticeKind = 'success' | 'error' | 'info'
+type Notice = { text: string; kind: NoticeKind }
+
+export function notify(text: string, kind: NoticeKind = 'success') {
+  window.dispatchEvent(new CustomEvent<Notice>(EVENT, { detail: { text, kind } }))
 }
+
+/** A refused or failed action, popped up instead of shown inside the screen. */
+export const notifyError = (e: unknown) => notify(e instanceof Error ? e.message : String(e), 'error')
 
 /** Put on the QueryClient so every mutation with {@code meta.done} says it worked. */
 export const noticeMutationCache = () => new MutationCache({
@@ -31,19 +42,79 @@ export const noticeMutationCache = () => new MutationCache({
   },
 })
 
-/** Mounted once per window. */
+/** Mounted once per window: "done" notices at the bottom, refusals as a card in the middle of the window ({@link RefusalCard}). */
 export function Notices() {
-  const [text, setText] = useState<string | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
   const [seq, setSeq] = useState(0)
   useEffect(() => {
-    const on = (e: Event) => { setText((e as CustomEvent<string>).detail); setSeq((n) => n + 1) }
+    const on = (e: Event) => { setNotice((e as CustomEvent<Notice>).detail); setSeq((n) => n + 1) }
     window.addEventListener(EVENT, on)
     return () => window.removeEventListener(EVENT, on)
   }, [])
+  if (notice?.kind === 'error') return <RefusalCard key={seq} text={notice.text} onClose={() => setNotice(null)} />
   return (
-    <Snackbar key={seq} open={!!text} autoHideDuration={5000} onClose={(_, reason) => { if (reason === 'timeout') setText(null) }}
+    <Snackbar key={seq} open={!!notice} autoHideDuration={5000} onClose={(_, reason) => { if (reason === 'timeout') setNotice(null) }}
       anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-      <Alert severity="success" variant="filled" onClose={() => setText(null)} sx={{ alignItems: 'center' }}>{text}</Alert>
+      <Alert severity={notice?.kind ?? 'success'} variant="filled" role="status" onClose={() => setNotice(null)}
+        sx={{ alignItems: 'center', maxWidth: 640 }}>{notice?.text}</Alert>
     </Snackbar>
+  )
+}
+
+const REFUSAL_MS = 12000
+
+/**
+ * A refusal in the middle of the window, over everything (dialogs too), without covering or dimming the screen: a frosted glass card (the app's
+ * {@code glass()} surface, blurred more) that tilts up into place with depth (perspective, layered shadows, a light top edge) and a red mark.
+ * It closes by itself after 12 s (not while the pointer is on it), or with its close button; nothing behind it is blocked.
+ */
+function RefusalCard({ text, onClose }: { text: string; onClose: () => void }) {
+  const t = useTheme()
+  const dark = t.palette.mode === 'dark'
+  const red = t.palette.error.main
+  const [hover, setHover] = useState(false)
+  useEffect(() => {
+    if (hover) return
+    const id = window.setTimeout(onClose, REFUSAL_MS)
+    return () => window.clearTimeout(id)
+  }, [hover, onClose])
+  const surface = glass(t, { elevated: true })
+  return (
+    <Box sx={{ position: 'fixed', inset: 0, zIndex: t.zIndex.tooltip + 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      pointerEvents: 'none', perspective: '900px', p: 3 }}>
+      <Box role="alert" data-kind="error" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+        sx={{
+          ...surface,
+          backdropFilter: 'blur(28px) saturate(190%)',
+          pointerEvents: 'auto', display: 'flex', alignItems: 'flex-start', gap: 1.5, maxWidth: 520, width: '100%', px: 2.5, py: 2,
+          borderRadius: '16px',
+          borderTop: `1px solid ${alpha(t.palette.common.white, dark ? 0.28 : 0.9)}`,
+          boxShadow: [
+            `inset 0 1px 0 ${alpha(t.palette.common.white, dark ? 0.18 : 0.7)}`,
+            `0 1px 2px ${alpha(t.palette.common.black, 0.08)}`,
+            `0 10px 20px -6px ${alpha(t.palette.common.black, dark ? 0.45 : 0.16)}`,
+            `0 28px 56px -12px ${alpha(t.palette.common.black, dark ? 0.55 : 0.24)}`,
+            `0 0 0 1px ${alpha(red, 0.18)}`,
+          ].join(', '),
+          transformOrigin: '50% 100%',
+          animation: 'coopRefusalIn 420ms cubic-bezier(0.2, 0.9, 0.25, 1.15) both',
+          '@keyframes coopRefusalIn': {
+            from: { opacity: 0, transform: 'translateY(24px) rotateX(-22deg) scale(0.94)' },
+            to: { opacity: 1, transform: 'translateY(0) rotateX(0) scale(1)' },
+          },
+          '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+        }}>
+        <Box aria-hidden sx={{ flex: '0 0 auto', width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', color: red, fontSize: 20,
+          background: `radial-gradient(circle at 35% 30%, ${alpha(red, 0.12)}, ${alpha(red, 0.24)})`,
+          boxShadow: `inset 0 1px 0 ${alpha(t.palette.common.white, 0.5)}, 0 2px 6px ${alpha(red, 0.3)}` }}>
+          <FiAlertCircle />
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0, pt: 0.25 }}>
+          <Typography sx={{ fontSize: 15, fontWeight: 600, mb: 0.25 }}>This could not be done</Typography>
+          <Typography sx={{ fontSize: 13 }} color="text.secondary">{text}</Typography>
+        </Box>
+        <IconButton size="small" aria-label="Close" onClick={onClose} sx={{ mt: -0.5, mr: -1 }}><FiX /></IconButton>
+      </Box>
+    </Box>
   )
 }

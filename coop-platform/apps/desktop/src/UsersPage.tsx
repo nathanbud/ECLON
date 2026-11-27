@@ -16,6 +16,7 @@ import { ToolbarPortal } from './toolbarSlot'
 import { nameCase } from './ui/format'
 import { USER_FILTERS, UsersMenu, type UserFilter } from './UsersMenu'
 import { ScreenTitle } from './appleUi'
+import { notifyError } from './ui/notices'
 import UserRolesDialog from './UserRolesDialog'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
@@ -26,23 +27,21 @@ const OFFICER = 'MEMBERSHIP_OFFICER'
 function AloneDialog({ user, onClose, onDone }: { user: AdminUser | null; onClose: () => void; onDone: (message: string) => void }) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const submit = async () => {
     if (!user || !reason.trim()) return
     setBusy(true)
-    setError(null)
     try {
       await grantSingleHand(user.username, reason.trim())
       onDone(`${user.username} may now do loans alone`)
     } catch (e) {
-      setError((e as Error).message)
+      notifyError(e)
     } finally {
       setBusy(false)
     }
   }
   return (
     <Dialog open={!!user} onClose={busy ? undefined : onClose} fullWidth maxWidth="sm" aria-labelledby="alone-title"
-      slotProps={{ transition: { onExited: () => { setReason(''); setError(null) } } }}>
+      slotProps={{ transition: { onExited: () => setReason('') } }}>
       <DialogTitle id="alone-title">Let {user?.username} do loans alone</DialogTitle>
       <form onSubmit={(e) => { e.preventDefault(); void submit() }}>
         <DialogContent>
@@ -51,7 +50,6 @@ function AloneDialog({ user, onClose, onDone }: { user: AdminUser | null; onClos
             This lets <strong>{user?.username}</strong> take every one of those steps alone. They still need the access flag for each step. It is recorded with your name and the reason.
           </DialogContentText>
           <TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} fullWidth autoFocus multiline minRows={2} slotProps={{ htmlInput: { maxLength: 500 } }} />
-          {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose} disabled={busy}>Cancel</Button>
@@ -79,7 +77,6 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
   const [profile, setProfile] = useState<AdminUser | null>(null)
   const [rolesOf, setRolesOf] = useState<AdminUser | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [busyUser, setBusyUser] = useState<string | null>(null)
   const [alone, setAlone] = useState<AdminUser | null>(null)
   const [adding, setAdding] = useState(false)
@@ -89,7 +86,7 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
   const locked = useQuery({ queryKey: ['locked-users'], queryFn: listLockedUsers, enabled: me.admin, refetchInterval: 20_000 })
   const isLocked = (name: string) => (locked.data ?? []).some((l) => l.username === name.toLowerCase())
   const unlock = async (u: AdminUser) => {
-    try { await unlockUser(u.username); setNotice(`${u.username} can sign in again`); void qc.invalidateQueries({ queryKey: ['locked-users'] }) } catch (e) { setNotice((e as Error).message) }
+    try { await unlockUser(u.username); setNotice(`${u.username} can sign in again`); void qc.invalidateQueries({ queryKey: ['locked-users'] }) } catch (e) { notifyError(e) }
   }
   const grants = useMemo(() => new Map((single.data ?? []).map((g) => [g.username.toLowerCase(), g])), [single.data])
   // Which people the list shows, chosen from the Users menu in the title bar; it always opens on everyone.
@@ -117,7 +114,6 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
 
   const toggleOfficer = async (u: AdminUser, on: boolean) => {
     setBusyUser(u.username)
-    setError(null)
     try {
       if (on) {
         // granting the role also switches on every permission on the person's Member tab
@@ -130,7 +126,7 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
       }
       await Promise.all([qc.invalidateQueries({ queryKey: ['users'] }), qc.invalidateQueries({ queryKey: ['user-profile'] })])
     } catch (e) {
-      setError((e as Error).message)
+      notifyError(e)
     } finally {
       setBusyUser(null)
     }
@@ -141,13 +137,12 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
   const setEnabled = async (u: AdminUser, on: boolean) => {
     setDisabling(null)
     setBusyUser(u.username)
-    setError(null)
     try {
       await setUserEnabled(u.username, on)
       await Promise.all([qc.invalidateQueries({ queryKey: ['users'] }), qc.invalidateQueries({ queryKey: ['user-profile'] })])
       setNotice(on ? `${u.username} can sign in again` : `${u.username} is switched off and can no longer sign in`)
     } catch (e) {
-      setError((e as Error).message)
+      notifyError(e)
     } finally {
       setBusyUser(null)
     }
@@ -156,13 +151,12 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
   const toggleAlone = async (u: AdminUser, on: boolean) => {
     if (on) { setAlone(u); return }
     setBusyUser(u.username)
-    setError(null)
     try {
       await revokeSingleHand(u.username)
       await qc.invalidateQueries({ queryKey: ['single-hand'] })
       setNotice(`${u.username} needs other people for loans again`)
     } catch (e) {
-      setError((e as Error).message)
+      notifyError(e)
     } finally {
       setBusyUser(null)
     }
@@ -198,7 +192,7 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
                 <span><Button variant="contained" startIcon={<FiUserPlus />} onClick={() => setAdding(true)} disabled={!data} aria-keyshortcuts={isMac ? 'Meta+N' : 'Control+N'}>New user</Button></span>
               </Tooltip>
             </Box>
-            {(loadError || error) && <Alert severity="error" sx={{ mb: 1.5 }}>{((loadError ?? new Error(error!)) as Error).message}</Alert>}
+            {loadError && <Alert severity="error" sx={{ mb: 1.5 }}>{(loadError as Error).message}</Alert>}
             {isLoading && <Skeleton variant="rounded" height={240} />}
             {data && (
               <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>

@@ -1,7 +1,8 @@
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Switch, Typography } from '@mui/material'
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Switch, Typography } from '@mui/material'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { grantRole, revokeRole, type AdminUser } from './api'
+import { notifyError } from './ui/notices'
 
 /** The roles an administrator grants here (the server keeps the same list), with what each allows. Membership Officer has its own switch on the list. */
 export const ROLE_WORDS: { role: string; label: string; note: string }[] = [
@@ -37,13 +38,13 @@ export default function UserRolesDialog({ user, onClose, onNotice }: { user: Adm
       void qc.invalidateQueries({ queryKey: ['users'] })
       void qc.invalidateQueries({ queryKey: ['user-profile'] })
     },
+    onError: notifyError,
   })
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Roles of {user.username}</DialogTitle>
       <DialogContent>
         <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">What this person may do beyond their level. A change applies on their next action and is kept in the audit log.</Typography>
-        {change.error && <Alert severity="error" sx={{ mb: 1.5 }}>{(change.error as Error).message}</Alert>}
         {ROLE_WORDS.map((w) => (
           <Box key={w.role} sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: `1px solid ${t.palette.divider}` })}>
             <Box sx={{ flex: 1, minWidth: 0 }}>

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdminUser } from './api'
 import { AppThemeProvider } from './theme'
 import UsersPage from './UsersPage'
+import { Notices } from './ui/notices'
 
 const user = (username: string, more: Partial<AdminUser> = {}): AdminUser => ({
   username, name: username.toUpperCase(), level: 'USER', enabled: true, canEdit: false, hasPassword: true, passwordState: 'ACTIVE', tempExpiresAt: null, roles: [], ...more,
@@ -29,7 +30,7 @@ vi.mock('./NewUserDialog', () => ({ default: ({ open }: { open: boolean }) => (o
 vi.mock('./UserProfileDialog', () => ({ default: ({ user }: { user: AdminUser | null }) => (user ? <div role="dialog" aria-label={`Account setup of ${user.username}`} /> : null) }))
 
 function show(onAuditLog = vi.fn()) {
-  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><AppThemeProvider><UsersPage onAuditLog={onAuditLog} /></AppThemeProvider></QueryClientProvider>)
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><AppThemeProvider><UsersPage onAuditLog={onAuditLog} /><Notices /></AppThemeProvider></QueryClientProvider>)
   return onAuditLog
 }
 const listed = () => within(screen.getByRole('table', { name: 'Users' })).queryAllByRole('row').slice(1).map((r) => r.querySelector('p')?.textContent)
@@ -119,12 +120,14 @@ describe('Users', () => {
     expect(setEnabled).not.toHaveBeenCalled()
   })
 
-  it('shows the reason when the server refuses', async () => {
-    setEnabled.mockRejectedValueOnce(new Error('Only a super administrator can change an administrator\'s account or anyone\'s level.'))
+  it('shows the reason when the server refuses as a pop-up, not inside the page (which would push the list down)', async () => {
+    setEnabled.mockRejectedValueOnce(new Error("Only a super administrator can change an administrator's account or anyone's level."))
     show()
     await screen.findByText('Ana Dela Cruz')
     await userEvent.click(screen.getByRole('switch', { name: 'cora is enabled' }))
-    expect(await screen.findByText(/Only a super administrator can change/)).toBeInTheDocument()
+    const popup = await screen.findByRole('alert')
+    expect(popup).toHaveTextContent(/Only a super administrator can change/)
+    expect(screen.getByRole('table', { name: 'Users' })).not.toHaveTextContent(/Only a super administrator/)
   })
 
   it('opens the menu with Alt+U', async () => {

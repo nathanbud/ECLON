@@ -14,6 +14,7 @@ import {
 import { glass } from './glass'
 import PasswordChip from './PasswordChip'
 import { nameCase } from './ui/format'
+import { notifyError } from './ui/notices'
 import { tileFill } from './theme'
 
 const TABS = [
@@ -264,7 +265,6 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
   const [draft, setDraft] = useState<Edit['draft']>({})
   const [trans, setTransDraft] = useState<Edit['trans']>({})
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [discarding, setDiscarding] = useState<null | 'cancel' | 'close'>(null)
 
   const username = user?.username ?? ''
@@ -291,14 +291,13 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
       return next
     })
 
-  const leave = () => { setEditing(false); setDraft({}); setTransDraft({}); setError(null); setDiscarding(null) }
+  const leave = () => { setEditing(false); setDraft({}); setTransDraft({}); setDiscarding(null) }
   const cancel = () => (changes > 0 ? setDiscarding('cancel') : leave())
   const requestClose = () => { if (editing && changes > 0) setDiscarding('close'); else { leave(); onClose() } }
 
   const save = async () => {
     if (!user || changes === 0) return
     setSaving(true)
-    setError(null)
     try {
       if (Object.keys(draft).length) await saveUserProfile(user.username, draft)
       if (Object.keys(trans).length) await saveUserTransactionTypes(user.username, Object.values(trans).map(({ code, column, allowed }) => ({ code, column, allowed })))
@@ -310,7 +309,7 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
       leave()
       onNotice(`Saved changes to ${user.username}`)
     } catch (e) {
-      setError((e as Error).message)
+      notifyError(e)
     } finally {
       setSaving(false)
     }
@@ -340,7 +339,7 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
           <Box role="toolbar" aria-label="Account actions" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Tooltip title={editReason ?? 'Edit this account'}>
               <span>
-                <Button size="small" startIcon={<FiEdit2 />} disabled={!profile?.canEdit || editing} onClick={() => { setEditing(true); setError(null) }}>Edit</Button>
+                <Button size="small" startIcon={<FiEdit2 />} disabled={!profile?.canEdit || editing} onClick={() => setEditing(true)}>Edit</Button>
               </span>
             </Tooltip>
             <Button size="small" variant={editing ? 'contained' : 'text'} startIcon={<FiSave />} disabled={!editing || changes === 0 || saving} onClick={save}>
@@ -369,7 +368,6 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
         </Tabs>
 
         <DialogContent sx={{ flex: 1, p: 1.5 }}>
-          {error && <Alert severity="error" sx={{ mb: 1.5 }}>{error}</Alert>}
           {loadError && <Alert severity="error">{(loadError as Error).message}</Alert>}
           {isLoading && <Skeleton variant="rounded" height={260} />}
           {profile && user && (

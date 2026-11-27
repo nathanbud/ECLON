@@ -4,7 +4,7 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { LoadingRow } from './Loading'
-import { Notices, noticeMutationCache } from './notices'
+import { Notices, noticeMutationCache, notifyError } from './notices'
 
 function Poster({ fail }: { fail?: boolean }) {
   const m = useMutation({
@@ -29,6 +29,18 @@ describe('done notices', () => {
     render(withClient(<Poster fail />))
     await act(async () => { await userEvent.click(screen.getByRole('button', { name: 'Post' })) })
     expect(screen.queryByText(/posted to the ledger/)).toBeNull()
+  })
+})
+
+describe('refusals', () => {
+  it('pop up as a card in the middle of the window, as an alert, instead of inside the screen', async () => {
+    render(withClient(<button onClick={() => notifyError(new Error('Only a super administrator can do this.'))}>Try</button>))
+    await userEvent.click(screen.getByRole('button', { name: 'Try' }))
+    const popup = await screen.findByRole('alert')
+    expect(popup).toHaveTextContent('Only a super administrator can do this.')
+    expect(popup).toHaveAttribute('data-kind', 'error')
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })
 
