@@ -104,3 +104,11 @@ those two lines for the run.
    savings accounts. Then work through the other screens.
 
 When the test is over, delete the Neon project.
+
+## 6. Another PC, on any network
+
+The other PC runs its own backend against Neon, so it needs nothing from this PC and no tunnel. Here, after a build (`run-backend.ps1` or
+`run-backend-neon.ps1`): `scripts\make-neon-package.ps1` writes `backups\neon-package.zip` (git-ignored): the backend, `start-neon.cmd`, the Neon address,
+the test fingerprint key and the desktop app's installer if one was built, with no password. There: install Java 21 (Eclipse Temurin), unzip to e.g.
+`C:\coop-neon`, double-click `start-neon.cmd` (it asks the passwords the first time and can remember them for that Windows account), and connect the app to
+`http://localhost:8092`. Its `README.txt` says the same. Make a new package after the code changes.
