@@ -59,10 +59,21 @@ Keep both passwords like `db.txt`: never in code, documents or chat.
    It asks for `coop_admin`'s password and must end with no error. If the project is PostgreSQL 17 and this fails on a setting it does not know, tell the
    developer: the file is made from PostgreSQL 18.
 
+4. Then, in the SQL Editor on the same database, tell it where the tables are and which time zone to use. The backend asks for both when it connects,
+   but Neon's connection service may not pass them on, and without them signing in fails with `relation "access" does not exist`:
+
+   ```sql
+   ALTER DATABASE coop_test SET search_path = legacy, public;
+   ALTER DATABASE coop_test SET timezone = 'Asia/Manila';
+   ```
+
 ## 4. Run the backend here against Neon
 
-The easy way: `scripts\run-backend-neon.ps1 -NeonHost <host>` starts a second backend on port 8092 beside the usual one (which it leaves running), asks for
-`coop_app`'s password and a bootstrap sign-in, and never reads `db.txt`. In the desktop app's Connection window, add `http://localhost:8092`.
+The easy way, one command: `scripts\run-backend-neon.ps1 -NeonHost <host> -Database coop_test -Remember` starts a second backend on port 8092 beside the
+usual one (which it leaves running), builds first when the code changed, asks for `coop_app`'s password and a bootstrap sign-in (you choose its name and
+password), and never reads `db.txt`. `-Remember` keeps the host, database and passwords for the next runs (the passwords encrypted for your Windows account,
+in `%LOCALAPPDATA%\coop-neon`), so afterwards it is just `scripts\run-backend-neon.ps1`; `-Forget` deletes them. In the desktop app's Connection window,
+add `http://localhost:8092`.
 
 Or set these yourself before `scripts\run-backend.ps1`, or in a PowerShell that starts the jar (the passwords typed at run time, never saved in a file):
 
