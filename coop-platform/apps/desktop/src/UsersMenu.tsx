@@ -23,7 +23,7 @@ export const USER_FILTERS: { key: UserFilter; label: string; test: (u: AdminUser
 ]
 
 const Shortcut = ({ children }: { children: ReactNode }) => (
-  <Typography component="span" sx={{ ml: 4, fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{children}</Typography>
+  <Typography variant="body2" component="span" sx={{ ml: 4, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{children}</Typography>
 )
 
 /**
@@ -50,26 +50,26 @@ export function UsersMenu({ onNew, mayNew, filter, onFilter, counts, onAuditLog 
     return () => window.removeEventListener('keydown', on)
   }, [])
 
-  const text = (t: string) => <ListItemText slotProps={{ primary: { sx: { fontSize: 13 } } }}>{t}</ListItemText>
+  const text = (t: string) => <ListItemText>{t}</ListItemText>
   return (
     <>
       <Tooltip title="Users menu (Alt+U)">
         <Button
           ref={button} size="small" onClick={(e) => setAnchor(e.currentTarget)} endIcon={<FiChevronDown />}
           aria-haspopup="menu" aria-expanded={!!anchor} aria-keyshortcuts="Alt+U"
-          sx={{ color: 'inherit', fontSize: 13, fontWeight: 400, px: 0.75, py: 0.25, minWidth: 0, borderRadius: '5px', '& .MuiButton-endIcon': { ml: 0.25 }, '&:hover': { bgcolor: 'action.hover' } }}
+          sx={{ color: 'inherit', fontWeight: 400, px: 0.75, py: 0.25, minWidth: 0, '& .MuiButton-endIcon': { ml: 0.25 }, '&:hover': { bgcolor: 'action.hover' } }}
         >
           <u>U</u>sers
         </Button>
       </Tooltip>
-      <Menu anchorEl={anchor} open={!!anchor} onClose={close} slotProps={{ paper: { sx: { borderRadius: '5px', minWidth: 260, mt: 0.5 } } }}>
+      <Menu anchorEl={anchor} open={!!anchor} onClose={close} slotProps={{ paper: { sx: { minWidth: 260, mt: 0.5 } } }}>
         <MenuItem disabled={!mayNew} onClick={() => { close(); onNew() }}>
           <ListItemIcon sx={{ minWidth: 32, fontSize: 15 }}><FiUserPlus /></ListItemIcon>
           {text('New user…')}
           <Shortcut>{NEW_USER_SHORTCUT}</Shortcut>
         </MenuItem>
         <Divider />
-        <ListSubheader sx={{ fontSize: 11, lineHeight: '28px', bgcolor: 'transparent' }}>Show in the list</ListSubheader>
+        <ListSubheader sx={{ bgcolor: 'transparent' }}>Show in the list</ListSubheader>
         {USER_FILTERS.map((f) => (
           <MenuItem key={f.key} selected={filter === f.key} onClick={() => { close(); onFilter(f.key) }}>
             <ListItemIcon sx={{ minWidth: 32, fontSize: 15 }}>{filter === f.key ? <FiCheck /> : null}</ListItemIcon>

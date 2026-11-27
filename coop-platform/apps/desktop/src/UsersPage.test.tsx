@@ -99,14 +99,14 @@ describe('Users', () => {
   it('switches an account off after asking, and on again at once', async () => {
     show()
     await screen.findByText('Ana Dela Cruz')
-    await userEvent.click(screen.getByRole('switch', { name: 'ben is enabled' }))
+    await userEvent.click(screen.getByRole('switch', { name: 'Enabled, ben' }))
     const ask = await screen.findByRole('dialog', { name: 'Switch off ben?' })
     expect(ask).toHaveTextContent('will no longer be able to sign in')
     expect(setEnabled).not.toHaveBeenCalled()
     await userEvent.click(within(ask).getByRole('button', { name: 'Switch off' }))
     expect(setEnabled).toHaveBeenCalledWith('ben', false)
     // the page behind stays hidden from screen readers until the dialog's closing animation ends
-    await userEvent.click(await screen.findByRole('switch', { name: 'cora is enabled' }))
+    await userEvent.click(await screen.findByRole('switch', { name: 'Enabled, cora' }))
     expect(setEnabled).toHaveBeenCalledWith('cora', true)
     expect(await screen.findByText('cora can sign in again')).toBeInTheDocument()
   })
@@ -114,17 +114,30 @@ describe('Users', () => {
   it('does nothing when switching off is cancelled, and never offers it on your own account', async () => {
     show()
     await screen.findByText('Ana Dela Cruz')
-    expect(screen.getByRole('switch', { name: 'ana is enabled' })).toBeDisabled()
-    await userEvent.click(screen.getByRole('switch', { name: 'dan is enabled' }))
+    expect(screen.getByRole('switch', { name: 'Enabled, ana' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('switch', { name: 'Enabled, dan' }))
     await userEvent.click(within(await screen.findByRole('dialog', { name: 'Switch off dan?' })).getByRole('button', { name: 'Cancel' }))
     expect(setEnabled).not.toHaveBeenCalled()
+  })
+
+  it('says the level in words, marks a switched-off account with a chip, and tells the keyboard why a switch cannot be used', async () => {
+    show()
+    await screen.findByText('Ana Dela Cruz')
+    const row = (name: string) => screen.getByRole('row', { name: new RegExp(`^Open ${name}'s account setup`) })
+    expect(within(row('ana')).getByText('Administrator')).toBeInTheDocument()
+    expect(within(row('ana')).queryByText('ADMIN')).toBeNull()
+    expect(within(row('cora')).getByText('Disabled')).toBeInTheDocument()
+    expect(within(row('ben')).queryByText('Disabled')).toBeNull()
+    // the reason is read out with the switch, not only shown in a hover box the keyboard never reaches
+    expect(screen.getByRole('switch', { name: 'Enabled, ana' })).toHaveAccessibleDescription('You cannot switch off your own account')
+    expect(screen.getByRole('switch', { name: 'Membership Officer, ben' })).toHaveAccessibleDescription(/Take the role away/)
   })
 
   it('shows the reason when the server refuses as a pop-up, not inside the page (which would push the list down)', async () => {
     setEnabled.mockRejectedValueOnce(new Error("Only a super administrator can change an administrator's account or anyone's level."))
     show()
     await screen.findByText('Ana Dela Cruz')
-    await userEvent.click(screen.getByRole('switch', { name: 'cora is enabled' }))
+    await userEvent.click(screen.getByRole('switch', { name: 'Enabled, cora' }))
     const popup = await screen.findByRole('alert')
     expect(popup).toHaveTextContent(/Only a super administrator can change/)
     expect(screen.getByRole('table', { name: 'Users' })).not.toHaveTextContent(/Only a super administrator/)

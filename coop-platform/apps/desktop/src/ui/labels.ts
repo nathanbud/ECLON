@@ -39,6 +39,13 @@ const WORDS: Record<string, string> = {
   NONE: 'Not asked',
 }
 
+/** A user's level (the old `access` table's ADMIN, SUPERADMIN, USER). */
+export const USER_LEVEL_WORDS: Record<string, string> = {
+  USER: 'User',
+  ADMIN: 'Administrator',
+  SUPERADMIN: 'Super administrator',
+}
+
 /** The CIC submission batch: these steps mean something particular there. */
 export const CIC_WORDS: Record<string, string> = {
   DRAFT: 'Draft',

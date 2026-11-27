@@ -44,12 +44,12 @@ export default function UserRolesDialog({ user, onClose, onNotice }: { user: Adm
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Roles of {user.username}</DialogTitle>
       <DialogContent>
-        <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">What this person may do beyond their level. A change applies on their next action and is kept in the audit log.</Typography>
+        <Typography sx={{ mb: 1.5 }} color="text.secondary">What this person may do beyond their level. A change applies on their next action and is kept in the audit log.</Typography>
         {ROLE_WORDS.map((w) => (
           <Box key={w.role} sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: `1px solid ${t.palette.divider}` })}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{w.label}</Typography>
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">{w.note}</Typography>
+              <Typography variant="subtitle2" component="p">{w.label}</Typography>
+              <Typography variant="body2" color="text.secondary">{w.note}</Typography>
             </Box>
             <Switch checked={roles.includes(w.role)} disabled={!user.enabled || change.isPending}
               onChange={(_, on) => change.mutate({ role: w.role, on })} slotProps={{ input: { 'aria-label': `${w.label} role` } }} />

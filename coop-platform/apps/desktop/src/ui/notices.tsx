@@ -1,4 +1,4 @@
-import { Alert, Box, IconButton, Snackbar, Typography, alpha, useTheme } from '@mui/material'
+import { Alert, Box, IconButton, Portal, Snackbar, Typography, alpha, useTheme } from '@mui/material'
 import { FiAlertCircle, FiX } from 'react-icons/fi'
 import { glass } from '../glass'
 import { MutationCache } from '@tanstack/react-query'
@@ -51,13 +51,18 @@ export function Notices() {
     window.addEventListener(EVENT, on)
     return () => window.removeEventListener(EVENT, on)
   }, [])
-  if (notice?.kind === 'error') return <RefusalCard key={seq} text={notice.text} onClose={() => setNotice(null)} />
+  // Each notice is put in a portal of its own, made when it appears, at the end of the page: an open dialog hides everything that was on the page
+  // when it opened from screen readers (aria-hidden), so a notice rendered in place was silent over a dialog. One made after the dialog is not hidden.
+  if (!notice) return null
+  if (notice.kind === 'error') return <Portal key={seq}><RefusalCard text={notice.text} onClose={() => setNotice(null)} /></Portal>
   return (
-    <Snackbar key={seq} open={!!notice} autoHideDuration={5000} onClose={(_, reason) => { if (reason === 'timeout') setNotice(null) }}
-      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
-      <Alert severity={notice?.kind ?? 'success'} variant="filled" role="status" onClose={() => setNotice(null)}
-        sx={{ alignItems: 'center', maxWidth: 640 }}>{notice?.text}</Alert>
-    </Snackbar>
+    <Portal key={seq}>
+      <Snackbar open autoHideDuration={5000} onClose={(_, reason) => { if (reason === 'timeout') setNotice(null) }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert severity={notice.kind} variant="filled" role="status" onClose={() => setNotice(null)}
+          sx={{ alignItems: 'center', maxWidth: 640 }}>{notice.text}</Alert>
+      </Snackbar>
+    </Portal>
   )
 }
 
@@ -97,7 +102,7 @@ function RefusalCard({ text, onClose }: { text: string; onClose: () => void }) {
             `0 0 0 1px ${alpha(red, 0.18)}`,
           ].join(', '),
           transformOrigin: '50% 100%',
-          animation: 'coopRefusalIn 420ms cubic-bezier(0.2, 0.9, 0.25, 1.15) both',
+          animation: 'coopRefusalIn 420ms cubic-bezier(0.22, 1, 0.36, 1) both', // the dialogs' ease-out: it settles, no overshoot
           '@keyframes coopRefusalIn': {
             from: { opacity: 0, transform: 'translateY(24px) rotateX(-22deg) scale(0.94)' },
             to: { opacity: 1, transform: 'translateY(0) rotateX(0) scale(1)' },

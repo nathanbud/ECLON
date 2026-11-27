@@ -14,7 +14,7 @@ colors:
   # status: only for status (a result, a warning, a refusal), never decoration
   success: "#34C759"
   success-dark: "#30D158"
-  warning: "#FF9500"
+  warning: "#A85800"        # deep amber: readable as text (4.96:1 on paper) and under white text (5.2:1); Apple's #FF9500 is decoration only (tint.orange)
   warning-dark: "#FF9F0A"
   danger: "#FF3B30"
   danger-dark: "#FF453A"
@@ -43,6 +43,9 @@ colors:
   fill-hover: "rgba(0,0,0,0.045)"
   fill-pressed: "rgba(0,0,0,0.08)"
   # the member profile's charcoal side panel (same in both themes)
+  # the switch's track when off (iOS grey)
+  switch-track: "rgba(120,120,128,0.28)"
+  switch-track-dark: "rgba(120,120,128,0.36)"
   side: "#3A3D42"
   side-text: "#F2F3F5"
   side-selected: "#F3F4F6"
@@ -128,6 +131,7 @@ components:
   menu-row-hover:        { backgroundColor: "{colors.fill-hover}" }
   menu-row-selected:     { backgroundColor: "{colors.primary} at 14%" }
   table-head:            { typography: "{typography.footnote}", fontWeight: 600, textColor: "{colors.secondary}" }
+  table-row-focus:       { outline: "2px solid {colors.primary}", outlineOffset: -2, backgroundColor: "{colors.primary} at 7%" }
   table-cell:            { typography: "{typography.body}", padding: "{spacing.cell-pad}", borderBottom: "1px solid {colors.divider}" }
   dialog:                { rounded: "{rounded.dialog}", shadow: "{elevation.dialog}", title: "{typography.title3}" }
   tooltip:               { backgroundColor: "rgba(38,38,40,0.94)", textColor: "#F5F5F7", typography: "{typography.caption}", rounded: "{rounded.tooltip}" }
@@ -169,7 +173,8 @@ screen holds a member, their balances and the form at once without scrolling.
 
 ### Status
 - `{colors.success}`: done, a switch that is on, a balance that agrees.
-- `{colors.warning}`: needs attention, due soon, an estimate.
+- `{colors.warning}`: needs attention, due soon, an estimate. A deeper amber than Apple's so it can carry text (as text, a chip or a button label);
+  the bright `#FF9500` is only for decoration that carries no text (`tint.orange`).
 - `{colors.danger}`: refused, overdue, a field in error, a destructive button. Never for a plain negative amount in a ledger (credits are shown with
   their sign or column, not in red).
 
@@ -217,7 +222,7 @@ would block them in the installed app anyway).
 - **Only these sizes.** `typeScale.test.ts` fails on any other `fontSize` or an odd `fontWeight`. Need something between? Use the size above or below.
 - Large text gets tighter letter-spacing (down to -0.025em); 13 px and smaller stay at 0.
 - Numbers in tables are right-aligned, in the body size, with tabular figures where columns are compared.
-- Money is in pesos, shown with `₱` or the `PesoIcon` / `CoinIcon` (`ui/moneyIcons.tsx`), never a dollar sign.
+- Money is in pesos, shown with `₱` or the `PesoIcon` / `CoinIcon` (`src/ui/moneyIcons.tsx`), never a dollar sign.
 
 ## Layout
 
@@ -261,7 +266,7 @@ dialogs → `{rounded.notice}` the refusal card. The bigger and more separate a 
 fully round shapes.
 
 ### Icons
-Feather icons (`react-icons/fi`): 24 grid, 2 px round strokes, current colour, 1em. Our own icons (`ui/moneyIcons.tsx`) are drawn the same way. 15 px
+Feather icons (the react-icons Feather set): 24 grid, 2 px round strokes, current colour, 1em. Our own icons (`src/ui/moneyIcons.tsx`) are drawn the same way. 15 px
 inside buttons and fields, 18 px in alerts.
 
 ## Components
@@ -269,7 +274,7 @@ inside buttons and fields, 18 px in alerts.
 ### Title bar and navigation
 - The title bar (`TopBar`) carries the logo button (opens the side menu, with the waiting count), the business day chip, search (Ctrl+K) and the user.
 - The side menu (`SideNav`) is hidden until the logo or M is pressed; it opens under the title bar and closes on a choice, Esc or a click outside.
-- Esc goes back one screen (`nav/back.ts`); H goes home. Both ask first when there is unsaved work.
+- Esc goes back one screen (`src/nav/back.ts`); H goes home. Both ask first when there is unsaved work.
 
 ### Buttons
 - **Primary** (`contained`): the action the screen is for, one per area. Hover brightens 7 %, press darkens 10 %; no ripple, no lift.
@@ -299,7 +304,10 @@ inside buttons and fields, 18 px in alerts.
 
 ### Tables & Lists
 - Head in footnote, 600, secondary colour; rows in body size with a divider under each.
-- A row that opens something opens it from anywhere on the row; its switches and buttons keep only their own job (`keepToControl`).
+- A row that opens something opens it from anywhere on the row; its switches and buttons keep only their own job (`keepToControl`). It takes
+  keyboard focus (`tabIndex={0}`, Enter opens it) and shows it with `{components.table-row-focus}`, set in the theme.
+- A switched-off or inactive record says so in a chip; never fade the row (its text drops below 4.5:1).
+- Why a control is disabled or who allowed it goes in a `Tooltip` and the control's `aria-describedby`, never a `title` the keyboard cannot reach.
 - Loading: `LoadingRow` as the first row (or `LoadingBlock`), which also shows why it failed, so a failure is never taken for an empty list.
 - Reloading with old figures on screen: `BusyArea` dims it and runs a thin bar along its top.
 - Money right-aligned; codes shown through `labelOf`, never raw.
@@ -366,7 +374,7 @@ For people and agents changing a screen:
    `DESIGN.test.ts` checks.
 3. A new look for every screen goes in the theme; a value that changes here changes in `theme.tsx` / `glass.ts` in the same commit, and the other way
    round.
-4. A new screen is added once in `nav/screens.tsx`; a new shortcut or rule is also written on Settings > Documentation.
+4. A new screen is added once in `src/nav/screens.tsx`; a new shortcut or rule is also written on Settings > Documentation.
 5. Look at it in light and dark, and at the opening window size, before calling it done.
 
 ## Known Gaps

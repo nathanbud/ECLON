@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdminUser, CreatedUser, Me, NewUser } from './api'
 import NewUserDialog from './NewUserDialog'
 import { AppThemeProvider } from './theme'
+import { Notices } from './ui/notices'
 
 let roles: string[] = ['ADMIN']
 vi.mock('./session', () => ({ useMe: () => ({ username: 'boss', name: 'Boss', roles, canEdit: true, canApprove: false, admin: true, mustChangePassword: false, branchCode: 1 }) as Me }))
@@ -21,7 +22,7 @@ const USERS = [user('ana.teller', 'Ana Cruz', { roles: ['MEMBERSHIP_OFFICER'] })
 
 function show(onCreated = vi.fn()) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={qc}><AppThemeProvider><NewUserDialog open users={USERS} onClose={vi.fn()} onCreated={onCreated} /></AppThemeProvider></QueryClientProvider>)
+  render(<QueryClientProvider client={qc}><AppThemeProvider><NewUserDialog open users={USERS} onClose={vi.fn()} onCreated={onCreated} /><Notices /></AppThemeProvider></QueryClientProvider>)
   return onCreated
 }
 
@@ -73,7 +74,7 @@ describe('New user', () => {
     expect(screen.getByRole('option', { name: /^Administrator/ })).toHaveAttribute('aria-disabled', 'true')
   })
 
-  it('shows why the server refused', async () => {
+  it('pops up why the server refused, in the middle of the window, not inside the form', async () => {
     roles = ['ADMIN', 'SUPERADMIN']
     create.mockReset().mockRejectedValue(new Error('The username nina is already taken.'))
     show()
@@ -82,6 +83,7 @@ describe('New user', () => {
     await u.type(screen.getByRole('textbox', { name: 'First name' }), 'Nina')
     await u.type(screen.getByRole('textbox', { name: 'Last name' }), 'Santos')
     await u.click(screen.getByRole('button', { name: 'Create user' }))
-    expect(await screen.findByText('The username nina is already taken.')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('The username nina is already taken.')
+    expect(within(screen.getByRole('dialog', { name: 'New user' })).queryByText('The username nina is already taken.')).toBeNull()
   })
 })

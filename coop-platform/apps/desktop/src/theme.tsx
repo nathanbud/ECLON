@@ -74,6 +74,9 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
     const dark = resolved === 'dark'
     const accent = dark ? '#0A84FF' : '#0A6CDC'
     const danger = dark ? '#FF453A' : '#FF3B30'
+    // Amber that can carry text: on the light theme Apple's #FF9500 reaches only 2.1:1 as text or under white text, so warnings use a deeper amber
+    // (4.96:1 on paper, 4.7:1 on the canvas, white on it 5.2:1). The bright one stays in `tint.orange` for decoration.
+    const warn = dark ? '#FF9F0A' : '#A85800'
     const ink = dark ? '#F5F5F7' : '#1D1D1F'
     const secondary = dark ? '#98989D' : '#636366'
     const line = dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)'           // dividers and quiet edges
@@ -94,7 +97,7 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
         mode: resolved,
         primary: { main: accent },
         success: { main: dark ? '#30D158' : '#34C759' },
-        warning: { main: dark ? '#FF9F0A' : '#FF9500' },
+        warning: { main: warn },
         error: { main: danger },
         background: { default: dark ? '#000000' : LIGHT.canvas, paper: dark ? '#1C1C1E' : LIGHT.paper },
         text: { primary: ink, secondary },
@@ -160,7 +163,7 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
               // top it all but disappeared.)
               '&.Mui-disabled': { opacity: 0.42 },
               variants: [
-                ...([['primary', accent], ['error', danger], ['success', dark ? '#30D158' : '#34C759'], ['warning', dark ? '#FF9F0A' : '#FF9500']] as const).flatMap(([color, c]) => [
+                ...([['primary', accent], ['error', danger], ['success', dark ? '#30D158' : '#34C759'], ['warning', warn]] as const).flatMap(([color, c]) => [
                   { props: { variant: 'contained' as const, color }, style: { '&.Mui-disabled': { color: '#fff', backgroundColor: c } } },
                   { props: { variant: 'text' as const, color }, style: { '&.Mui-disabled': { color: c } } },
                   { props: { variant: 'outlined' as const, color }, style: { '&.Mui-disabled': { color: color === 'primary' ? ink : c, borderColor: color === 'primary' ? edge : alpha(c, 0.5) } } },
@@ -315,6 +318,13 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
         },
         MuiLinearProgress: { styleOverrides: { root: { height: 4, borderRadius: 2 }, bar: { borderRadius: 2 } } },
         MuiDivider: { styleOverrides: { root: { borderColor: line } } },
+
+        // A table row that opens something (tabIndex 0) shows the keyboard where it is: an accent outline inside the row and a light tint.
+        MuiTableRow: {
+          styleOverrides: {
+            root: { '&[tabindex]:not([tabindex="-1"]):focus-visible': { outline: `2px solid ${accent}`, outlineOffset: -2, backgroundColor: alpha(accent, dark ? 0.16 : 0.07) } },
+          },
+        },
 
         // ---- tables ----
         MuiTableCell: {

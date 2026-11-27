@@ -1,9 +1,10 @@
 import {
-  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, InputAdornment, Skeleton,
-  Snackbar, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
+  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, InputAdornment,
+  Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
+import { visuallyHidden } from '@mui/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { FiLock, FiSearch, FiUserPlus } from 'react-icons/fi'
 import { grantRole, grantSingleHand, listLockedUsers, listSingleHand, listUsers, revokeRole, revokeSingleHand, setUserEnabled, unlockUser, type AdminUser } from './api'
 import { appBackground, glass } from './glass'
@@ -16,7 +17,9 @@ import { ToolbarPortal } from './toolbarSlot'
 import { nameCase } from './ui/format'
 import { USER_FILTERS, UsersMenu, type UserFilter } from './UsersMenu'
 import { ScreenTitle } from './appleUi'
-import { notifyError } from './ui/notices'
+import { notify, notifyError } from './ui/notices'
+import { LoadingRow } from './ui/Loading'
+import { labelOf, USER_LEVEL_WORDS } from './ui/labels'
 import UserRolesDialog from './UserRolesDialog'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
@@ -68,6 +71,19 @@ function keepToControl(e: MouseEvent) {
   if ((e.target as HTMLElement).closest('button, input, label, a, .MuiSwitch-root')) e.stopPropagation()
 }
 
+/**
+ * A row's switch with why it is as it is (why it cannot be changed, who allowed it): shown on hover and on keyboard focus, and read out with the switch
+ * (its input points at the hidden copy with aria-describedby), since a `title` on the cell reached neither the keyboard nor a screen reader.
+ */
+function Explained({ id, why, children }: { id: string; why: string; children: ReactNode }) {
+  if (!why) return <>{children}</>
+  return (
+    <Tooltip title={why} describeChild>
+      <span>{children}<span id={id} style={visuallyHidden}>{why}</span></span>
+    </Tooltip>
+  )
+}
+
 /** Administrators: who can sign in, their app passwords, and who is a Membership Officer. */
 export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = {}) {
   const me = useMe()
@@ -76,17 +92,17 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
   const [target, setTarget] = useState<AdminUser | null>(null)
   const [profile, setProfile] = useState<AdminUser | null>(null)
   const [rolesOf, setRolesOf] = useState<AdminUser | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const [busyUser, setBusyUser] = useState<string | null>(null)
   const [alone, setAlone] = useState<AdminUser | null>(null)
   const [adding, setAdding] = useState(false)
 
-  const { data, error: loadError, isLoading } = useQuery({ queryKey: ['users'], queryFn: listUsers, enabled: me.admin })
+  const usersQ = useQuery({ queryKey: ['users'], queryFn: listUsers, enabled: me.admin })
+  const { data } = usersQ
   const single = useQuery({ queryKey: ['single-hand'], queryFn: listSingleHand, enabled: me.admin })
   const locked = useQuery({ queryKey: ['locked-users'], queryFn: listLockedUsers, enabled: me.admin, refetchInterval: 20_000 })
   const isLocked = (name: string) => (locked.data ?? []).some((l) => l.username === name.toLowerCase())
   const unlock = async (u: AdminUser) => {
-    try { await unlockUser(u.username); setNotice(`${u.username} can sign in again`); void qc.invalidateQueries({ queryKey: ['locked-users'] }) } catch (e) { notifyError(e) }
+    try { await unlockUser(u.username); notify(`${u.username} can sign in again`); void qc.invalidateQueries({ queryKey: ['locked-users'] }) } catch (e) { notifyError(e) }
   }
   const grants = useMemo(() => new Map((single.data ?? []).map((g) => [g.username.toLowerCase(), g])), [single.data])
   // Which people the list shows, chosen from the Users menu in the title bar; it always opens on everyone.
@@ -119,10 +135,10 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
         // granting the role also switches on every permission on the person's Member tab
         const granted = await grantRole(u.username, OFFICER)
         const n = granted?.switchedOn?.length ?? 0
-        setNotice(`${u.username} is now a Membership Officer` + (n ? `, and ${n} Member permission${n === 1 ? ' was' : 's were'} switched on` : ', with every Member permission on'))
+        notify(`${u.username} is now a Membership Officer` + (n ? `, and ${n} Member permission${n === 1 ? ' was' : 's were'} switched on` : ', with every Member permission on'))
       } else {
         await revokeRole(u.username, OFFICER)
-        setNotice(`${u.username} is no longer a Membership Officer. Their Member permissions are unchanged.`)
+        notify(`${u.username} is no longer a Membership Officer. Their Member permissions are unchanged.`)
       }
       await Promise.all([qc.invalidateQueries({ queryKey: ['users'] }), qc.invalidateQueries({ queryKey: ['user-profile'] })])
     } catch (e) {
@@ -140,7 +156,7 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
     try {
       await setUserEnabled(u.username, on)
       await Promise.all([qc.invalidateQueries({ queryKey: ['users'] }), qc.invalidateQueries({ queryKey: ['user-profile'] })])
-      setNotice(on ? `${u.username} can sign in again` : `${u.username} is switched off and can no longer sign in`)
+      notify(on ? `${u.username} can sign in again` : `${u.username} is switched off and can no longer sign in`)
     } catch (e) {
       notifyError(e)
     } finally {
@@ -154,7 +170,7 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
     try {
       await revokeSingleHand(u.username)
       await qc.invalidateQueries({ queryKey: ['single-hand'] })
-      setNotice(`${u.username} needs other people for loans again`)
+      notify(`${u.username} needs other people for loans again`)
     } catch (e) {
       notifyError(e)
     } finally {
@@ -184,7 +200,7 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
               />
               <Box sx={{ flex: 1 }} />
               {show !== 'all' && (
-                <Button size="small" onClick={() => setShow('all')} title="Show everyone again">
+                <Button size="small" onClick={() => setShow('all')}>
                   Showing: {USER_FILTERS.find((x) => x.key === show)!.label} · show all
                 </Button>
               )}
@@ -192,39 +208,47 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
                 <span><Button variant="contained" startIcon={<FiUserPlus />} onClick={() => setAdding(true)} disabled={!data} aria-keyshortcuts={isMac ? 'Meta+N' : 'Control+N'}>New user</Button></span>
               </Tooltip>
             </Box>
-            {loadError && <Alert severity="error" sx={{ mb: 1.5 }}>{(loadError as Error).message}</Alert>}
-            {isLoading && <Skeleton variant="rounded" height={240} />}
-            {data && (
-              <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
-                <Table size="small" aria-label="Users">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>User</TableCell><TableCell align="center">Enabled</TableCell><TableCell>Level</TableCell>
-                      <TableCell>Password</TableCell><TableCell align="center">Membership Officer</TableCell><TableCell align="center">Loans alone</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {rows.map((u) => (
+            <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
+              <Table size="small" aria-label="Users">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>User</TableCell><TableCell align="center">Enabled</TableCell><TableCell>Level</TableCell>
+                    <TableCell>Password</TableCell><TableCell align="center">Membership Officer</TableCell><TableCell align="center">Loans alone</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  <LoadingRow q={usersQ} what="the users" />
+                  {rows.map((u) => {
+                    const self = u.username.toLowerCase() === me.username.toLowerCase()
+                    const grant = grants.get(u.username.toLowerCase())
+                    const id = (what: string) => `user-${u.username}-${what}`
+                    return (
                       <TableRow
-                        key={u.username} hover tabIndex={0} sx={{ opacity: u.enabled ? 1 : 0.55, cursor: 'pointer' }}
+                        key={u.username} hover tabIndex={0} sx={{ cursor: 'pointer' }}
                         onClick={() => setProfile(u)} onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setProfile(u) }}
                         aria-label={`Open ${u.username}'s account setup`}
                       >
                         <TableCell>
-                          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{u.username}</Typography>
-                          <Typography sx={{ fontSize: 12 }} color="text.secondary">{u.name ? nameCase(u.name) : '—'}{u.enabled ? '' : ' · disabled'}</Typography>
+                          {/* A switched-off account says so in a chip; its text stays at full strength (fading the row made it unreadable). */}
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                            <Typography variant="subtitle2" component="p">{u.username}</Typography>
+                            {!u.enabled && <Chip size="small" variant="outlined" label="Disabled" />}
+                          </Box>
+                          <Typography variant="body2" color="text.secondary">{u.name ? nameCase(u.name) : '—'}</Typography>
                         </TableCell>
-                        <TableCell align="center" onClick={keepToControl} title={u.username.toLowerCase() === me.username.toLowerCase() ? 'You cannot switch off your own account' : u.enabled ? 'Switch off: they can no longer sign in' : 'Switch on: they can sign in again'}>
-                          <Switch
-                            color="success" checked={u.enabled}
-                            disabled={busyUser === u.username || u.username.toLowerCase() === me.username.toLowerCase()}
-                            onChange={(_, on) => { if (on) void setEnabled(u, true); else setDisabling(u) }}
-                            slotProps={{ input: { 'aria-label': `${u.username} is enabled` } }}
-                          />
+                        <TableCell align="center" onClick={keepToControl}>
+                          <Explained id={id('enabled')} why={self ? 'You cannot switch off your own account' : u.enabled ? 'Switch off: they can no longer sign in' : 'Switch on: they can sign in again'}>
+                            <Switch
+                              checked={u.enabled}
+                              disabled={busyUser === u.username || self}
+                              onChange={(_, on) => { if (on) void setEnabled(u, true); else setDisabling(u) }}
+                              slotProps={{ input: { 'aria-label': `Enabled, ${u.username}`, 'aria-describedby': id('enabled') } }}
+                            />
+                          </Explained>
                         </TableCell>
                         <TableCell onClick={keepToControl}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, whiteSpace: 'nowrap' }}>
-                            {u.level ?? '—'}
+                            {labelOf(u.level, USER_LEVEL_WORDS)}
                             <Button size="small" onClick={() => setRolesOf(u)} aria-label={`Roles of ${u.username}`}>
                               Roles{u.roles.filter((r) => r !== OFFICER).length > 0 ? ` (${u.roles.filter((r) => r !== OFFICER).length})` : ''}
                             </Button>
@@ -239,43 +263,47 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
                             </Button>
                           </Box>
                         </TableCell>
-                        <TableCell align="center" onClick={keepToControl} title={u.roles.includes(OFFICER) ? 'Take the role away (their Member permissions stay as they are)' : 'Make a Membership Officer: also switches on every permission on their Member tab'}>
-                          <Switch
-                            checked={u.roles.includes(OFFICER)} disabled={!u.enabled || busyUser === u.username}
-                            onChange={(_, on) => void toggleOfficer(u, on)}
-                            slotProps={{ input: { 'aria-label': `${u.username} is a Membership Officer` } }}
-                          />
+                        <TableCell align="center" onClick={keepToControl}>
+                          <Explained id={id('officer')} why={u.roles.includes(OFFICER) ? 'Take the role away (their Member permissions stay as they are)' : 'Make a Membership Officer: also switches on every permission on their Member tab'}>
+                            <Switch
+                              checked={u.roles.includes(OFFICER)} disabled={!u.enabled || busyUser === u.username}
+                              onChange={(_, on) => void toggleOfficer(u, on)}
+                              slotProps={{ input: { 'aria-label': `Membership Officer, ${u.username}`, 'aria-describedby': id('officer') } }}
+                            />
+                          </Explained>
                         </TableCell>
-                        <TableCell align="center" onClick={keepToControl} title={grants.get(u.username.toLowerCase()) ? `Allowed by ${grants.get(u.username.toLowerCase())!.grantedBy}: ${grants.get(u.username.toLowerCase())!.reason}` : u.username.toLowerCase() === me.username.toLowerCase() ? 'You cannot allow this for yourself' : ''}>
-                          <Switch
-                            color="warning" checked={grants.has(u.username.toLowerCase())}
-                            disabled={!u.enabled || busyUser === u.username || u.username.toLowerCase() === me.username.toLowerCase()}
-                            onChange={(_, on) => void toggleAlone(u, on)}
-                            slotProps={{ input: { 'aria-label': `${u.username} may do loans alone` } }}
-                          />
+                        <TableCell align="center" onClick={keepToControl}>
+                          <Explained id={id('alone')} why={grant ? `Allowed by ${grant.grantedBy}: ${grant.reason}` : self ? 'You cannot allow this for yourself' : ''}>
+                            <Switch
+                              checked={!!grant}
+                              disabled={!u.enabled || busyUser === u.username || self}
+                              onChange={(_, on) => void toggleAlone(u, on)}
+                              slotProps={{ input: { 'aria-label': `Loans alone, ${u.username}`, ...(grant || self ? { 'aria-describedby': id('alone') } : {}) } }}
+                            />
+                          </Explained>
                         </TableCell>
                       </TableRow>
-                    ))}
-                    {rows.length === 0 && (
-                      <TableRow><TableCell colSpan={6}><Typography sx={{ p: 2, textAlign: 'center' }} color="text.secondary">No users match.</Typography></TableCell></TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </Box>
-            )}
+                    )
+                  })}
+                  {data && rows.length === 0 && (
+                    <TableRow><TableCell colSpan={6}><Typography sx={{ p: 2, textAlign: 'center' }} color="text.secondary">No users match.</Typography></TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Box>
           </>
         )}
       </Box>
 
-      {rolesOf && <UserRolesDialog user={rolesOf} onClose={() => setRolesOf(null)} onNotice={setNotice} />}
-      <UserProfileDialog user={profile} onClose={() => setProfile(null)} onSetPassword={setTarget} onToggleOfficer={(u, on) => void toggleOfficer(u, on)} onNotice={setNotice} busy={busyUser !== null} />
+      {rolesOf && <UserRolesDialog user={rolesOf} onClose={() => setRolesOf(null)} onNotice={notify} />}
+      <UserProfileDialog user={profile} onClose={() => setProfile(null)} onSetPassword={setTarget} onToggleOfficer={(u, on) => void toggleOfficer(u, on)} onNotice={notify} busy={busyUser !== null} />
       <TemporaryPasswordDialog
         user={target} onClose={() => setTarget(null)}
-        onIssued={(u) => { setNotice(`Temporary password issued for ${u.username}`); void qc.invalidateQueries({ queryKey: ['users'] }); void qc.invalidateQueries({ queryKey: ['user-profile'] }) }}
+        onIssued={(u) => { notify(`Temporary password issued for ${u.username}`); void qc.invalidateQueries({ queryKey: ['users'] }); void qc.invalidateQueries({ queryKey: ['user-profile'] }) }}
       />
       <NewUserDialog
         open={adding} users={data ?? []} onClose={() => setAdding(false)}
-        onCreated={(u) => { setNotice(`${u.username} was created`); void qc.invalidateQueries({ queryKey: ['users'] }) }}
+        onCreated={(u) => { notify(`${u.username} was created`); void qc.invalidateQueries({ queryKey: ['users'] }) }}
       />
       <Dialog open={!!disabling} onClose={() => setDisabling(null)} aria-labelledby="disable-title">
         <DialogTitle id="disable-title">Switch off {disabling?.username}?</DialogTitle>
@@ -290,8 +318,7 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
           <Button color="error" variant="contained" onClick={() => disabling && void setEnabled(disabling, false)}>Switch off</Button>
         </DialogActions>
       </Dialog>
-      <AloneDialog user={alone} onClose={() => setAlone(null)} onDone={(m) => { setAlone(null); setNotice(m); void qc.invalidateQueries({ queryKey: ['single-hand'] }) }} />
-      <Snackbar open={!!notice} autoHideDuration={3500} onClose={() => setNotice(null)} message={notice} />
+      <AloneDialog user={alone} onClose={() => setAlone(null)} onDone={(m) => { setAlone(null); notify(m); void qc.invalidateQueries({ queryKey: ['single-hand'] }) }} />
     </Box>
   )
 }

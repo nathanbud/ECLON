@@ -3,6 +3,7 @@ import { useState } from 'react'
 import OneTimePassword from './OneTimePassword'
 import { issueTemporaryPassword, type AdminUser, type TemporaryPassword } from './api'
 import { nameCase } from './ui/format'
+import { notifyError } from './ui/notices'
 
 export const CHOICES = [
   { hours: 1, label: '1 hour' },
@@ -28,21 +29,19 @@ function note(u: AdminUser): string {
 export default function TemporaryPasswordDialog({ user, onClose, onIssued }: { user: AdminUser | null; onClose: () => void; onIssued: (u: AdminUser) => void }) {
   const [hours, setHours] = useState(DEFAULT_HOURS)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [issued, setIssued] = useState<TemporaryPassword | null>(null)
 
-  const reset = () => { setHours(DEFAULT_HOURS); setError(null); setIssued(null) }
+  const reset = () => { setHours(DEFAULT_HOURS); setIssued(null) }
   const endsAt = new Date(Date.now() + hours * 3_600_000)
 
   const issue = async () => {
     if (!user) return
     setBusy(true)
-    setError(null)
     try {
       setIssued(await issueTemporaryPassword(user.username, hours))
       onIssued(user)
     } catch (e) {
-      setError((e as Error).message)
+      notifyError(e)
     } finally {
       setBusy(false)
     }
@@ -55,18 +54,17 @@ export default function TemporaryPasswordDialog({ user, onClose, onIssued }: { u
       {!issued && user && (
         <form onSubmit={(e) => { e.preventDefault(); void issue() }}>
           <DialogContent>
-            <Typography sx={{ fontSize: 13, mb: 2.5 }} color="text.secondary">
+            <Typography sx={{ mb: 2.5 }} color="text.secondary">
               For <strong>{user.username}</strong>{user.name ? ` (${nameCase(user.name)})` : ''}. {note(user)}
             </Typography>
-            <Typography id="validity-label" sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Valid for</Typography>
+            <Typography variant="overline" component="div" id="validity-label" sx={{ mb: 0.75 }} color="text.secondary">Valid for</Typography>
             <ToggleButtonGroup exclusive fullWidth value={hours} onChange={(_, v) => v != null && setHours(v)} aria-labelledby="validity-label" size="small"
               sx={{ mb: 1, '& .MuiToggleButton-root': { textTransform: 'none', py: 0.9, fontWeight: 500 } }}>
               {CHOICES.map((c) => <ToggleButton key={c.hours} value={c.hours}>{c.label}</ToggleButton>)}
             </ToggleButtonGroup>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary">
+            <Typography variant="body2" color="text.secondary">
               Stops working {when(endsAt)} if it has not been used. They must choose their own password at first sign-in.
             </Typography>
-            {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>
             <Button onClick={onClose} disabled={busy}>Cancel</Button>
@@ -77,11 +75,11 @@ export default function TemporaryPasswordDialog({ user, onClose, onIssued }: { u
       {issued && user && (
         <>
           <DialogContent>
-            <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
+            <Typography sx={{ mb: 2 }} color="text.secondary">
               Give this to <strong>{issued.username}</strong> in person or by phone. It is shown once and cannot be looked up again.
             </Typography>
             <OneTimePassword password={issued.password} />
-            <Alert severity="info" icon={false} sx={{ mt: 2, fontSize: 13 }}>
+            <Alert severity="info" icon={false} sx={{ mt: 2 }}>
               Works until <strong>{when(new Date(issued.expiresAt))}</strong>. {issued.username} will be asked to choose their own password at first sign-in.
             </Alert>
           </DialogContent>

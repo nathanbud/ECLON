@@ -1,6 +1,6 @@
 import {
   Alert, Autocomplete, Avatar, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
-  FormControlLabel, IconButton, MenuItem, Skeleton, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs,
+  FormControlLabel, IconButton, MenuItem, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs,
   TextField, Tooltip, Typography, type Theme,
 } from '@mui/material'
 import { visuallyHidden } from '@mui/utils'
@@ -15,6 +15,7 @@ import { glass } from './glass'
 import PasswordChip from './PasswordChip'
 import { nameCase } from './ui/format'
 import { notifyError } from './ui/notices'
+import { LoadingBlock } from './ui/Loading'
 import { tileFill } from './theme'
 
 const TABS = [
@@ -23,7 +24,6 @@ const TABS = [
   { label: 'Deposits', key: 'deposits' }, { label: 'Others', key: 'others' },
 ]
 
-const dark = (t: Theme) => t.palette.mode === 'dark'
 const fmtDate = (s: string) => `${s.slice(5, 7)}/${s.slice(8, 10)}/${s.slice(0, 4)}`
 
 // ---- edit state ---------------------------------------------------------------------------------------------------
@@ -51,9 +51,8 @@ function display(f: UserField): string | null {
 }
 
 const inputSx = (live: boolean) => ({
-  '& .MuiOutlinedInput-root': { fontSize: 13, backgroundColor: live ? 'background.paper' : 'transparent' },
+  '& .MuiOutlinedInput-root': { backgroundColor: live ? 'background.paper' : 'transparent' },
   '& .MuiOutlinedInput-notchedOutline': { borderColor: live ? 'text.disabled' : 'divider' },
-  '& .MuiInputLabel-root': { fontSize: 13 },
   ...(live ? {} : { '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' } }),
 }) as const
 
@@ -69,20 +68,20 @@ function FieldInput({ f }: { f: UserField }) {
     return (
       <Box>
         <Allowed on={allowed} label={f.label} />
-        <Typography sx={{ fontSize: 12, ml: 3.25 }} color={allowed ? 'text.secondary' : 'warning.main'}>{f.value}</Typography>
-        {f.hint && <Typography sx={{ fontSize: 12, ml: 3.25 }} color="text.secondary">{f.hint}</Typography>}
+        <Typography variant="body2" sx={{ ml: 3.25 }} color={allowed ? 'text.secondary' : 'warning.main'}>{f.value}</Typography>
+        {f.hint && <Typography variant="body2" sx={{ ml: 3.25 }} color="text.secondary">{f.hint}</Typography>}
       </Box>
     )
   }
 
   if (f.kind === 'bool') {
     const on = (live ? current : from) === '1'
-    const hint = f.hint && <Typography sx={{ fontSize: 12, ml: live ? 3.75 : 3.25, mt: live ? -0.75 : 0 }} color="text.secondary">{f.hint}</Typography>
+    const hint = f.hint && <Typography variant="body2" sx={{ ml: live ? 3.75 : 3.25, mt: live ? -0.75 : 0 }} color="text.secondary">{f.hint}</Typography>
     if (!live) return <Box><Allowed on={on} label={f.label} />{hint}</Box>
     return (
       <Box>
         <FormControlLabel
-          label={<Typography sx={{ fontSize: 13 }}>{f.label}</Typography>}
+          label={<Typography>{f.label}</Typography>}
           control={<Checkbox size="small" checked={on} onChange={(e) => set(f.key, from, e.target.checked ? '1' : '0')} />}
         />
         {hint}
@@ -97,10 +96,10 @@ function FieldInput({ f }: { f: UserField }) {
     if (!live) {
       return (
         <Box>
-          <Typography sx={{ fontSize: 12, fontWeight: 500, mb: 0.5 }} color="text.secondary">{f.label}</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }} color="text.secondary">{f.label}</Typography>
           {chosen.length
             ? <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>{chosen.map((v) => <Chip key={v} size="small" variant="outlined" label={label(v)} />)}</Box>
-            : <Typography sx={{ fontSize: 13 }} color="text.disabled">—</Typography>}
+            : <Typography color="text.disabled">—</Typography>}
         </Box>
       )
     }
@@ -145,9 +144,10 @@ function FieldInput({ f }: { f: UserField }) {
 /** Allowed or not, shown as an icon and a hidden word so colour is never the only signal. */
 function Allowed({ on, label }: { on: boolean; label: string }) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, opacity: on ? 1 : 0.55 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
       <Box aria-hidden sx={{ display: 'flex', color: on ? 'success.main' : 'text.disabled', fontSize: 15 }}>{on ? <FiCheck /> : <FiMinus />}</Box>
-      <Typography sx={{ fontSize: 13 }}>{label}</Typography>
+      {/* Not allowed reads quieter in the secondary colour (5.7:1), not faded, so it stays readable. */}
+      <Typography color={on ? 'text.primary' : 'text.secondary'}>{label}</Typography>
       <span style={visuallyHidden}>{on ? 'allowed' : 'not allowed'}</span>
     </Box>
   )
@@ -156,7 +156,7 @@ function Allowed({ on, label }: { on: boolean; label: string }) {
 function Card({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Box sx={(t) => ({ p: 1.5, mb: 1.5, breakInside: 'avoid', ...glass(t) })}>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">{title}</Typography>
+      <Typography variant="overline" component="h3" sx={{ display: 'block', mb: 1 }} color="text.secondary">{title}</Typography>
       {children}
     </Box>
   )
@@ -199,9 +199,9 @@ function Sections({ sections }: { sections: UserSection[] }) {
 
 function TransactionTypesTab({ username }: { username: string }) {
   const { editing, trans, setTrans } = useEdit()
-  const { data, error, isLoading } = useQuery({ queryKey: ['user-transaction-types', username], queryFn: () => getUserTransactionTypes(username), staleTime: 60_000 })
-  if (error) return <Alert severity="error">{(error as Error).message}</Alert>
-  if (isLoading) return <Skeleton variant="rounded" height={240} />
+  const q = useQuery({ queryKey: ['user-transaction-types', username], queryFn: () => getUserTransactionTypes(username), staleTime: 60_000 })
+  const { data } = q
+  if (q.isLoading || q.isError) return <LoadingBlock q={q} what="the transaction type permissions" />
   if (!data || data.rows.length === 0) return <Alert severity="info">No transaction type permissions are set for this person.</Alert>
   const live = editing && data.canEdit
   return (
@@ -212,7 +212,7 @@ function TransactionTypesTab({ username }: { username: string }) {
             <TableCell sx={{ minWidth: 200 }}>Transaction type</TableCell>
             {data.columns.map((c) => (
               <TableCell key={c} align="center" sx={{ p: 0.5, height: 120, verticalAlign: 'bottom' }}>
-                <Box component="span" sx={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', fontSize: 11, display: 'inline-block' }}>{c}</Box>
+                <Box component="span" sx={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', typography: 'caption', display: 'inline-block' }}>{c}</Box>
               </TableCell>
             ))}
           </TableRow>
@@ -268,9 +268,10 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
   const [discarding, setDiscarding] = useState<null | 'cancel' | 'close'>(null)
 
   const username = user?.username ?? ''
-  const { data: profile, error: loadError, isLoading } = useQuery({
+  const profileQ = useQuery({
     queryKey: ['user-profile', username], queryFn: () => getUserProfile(username), enabled: !!user, staleTime: 30_000,
   })
+  const profile = profileQ.data
   const officer = profile?.roles.includes('MEMBERSHIP_OFFICER') ?? false
   const key = TABS[tab].key
   const changes = Object.keys(draft).length + Object.keys(trans).length
@@ -323,17 +324,16 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
         open={!!user} onClose={requestClose} fullWidth maxWidth="xl" aria-labelledby="user-profile-title"
         slotProps={{
           transition: { onExited: () => { setTab(0); leave() } },
-          backdrop: { sx: (t: Theme) => ({ backdropFilter: 'blur(10px)', backgroundColor: dark(t) ? 'rgba(0,0,0,0.5)' : 'rgba(40,50,80,0.28)' }) },
           paper: { sx: (t: Theme) => ({ ...glass(t, { elevated: true }), height: '94vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }) },
         }}
       >
         {/* Header */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2.5, py: 1.25 }}>
-          <Avatar variant="rounded" sx={{ width: 40, height: 40, fontSize: 15, fontWeight: 600, color: '#fff', bgcolor: tileFill.indigo }}>
+          <Avatar variant="rounded" sx={{ width: 40, height: 40, typography: 'h6', color: '#fff', bgcolor: tileFill.indigo }}>
             {(profile?.name ?? username).split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography id="user-profile-title" component="h2" noWrap sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{profile?.name ? nameCase(profile.name) : username} <Typography component="span" sx={{ fontSize: 13, fontWeight: 400 }} color="text.secondary">{username}</Typography></Typography>
+            <Typography id="user-profile-title" variant="h5" component="h2" noWrap>{profile?.name ? nameCase(profile.name) : username} <Typography component="span" sx={{ fontWeight: 400 }} color="text.secondary">{username}</Typography></Typography>
           </Box>
           {/* Toolbar, as in the old window */}
           <Box role="toolbar" aria-label="Account actions" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -348,7 +348,7 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
             <Button size="small" startIcon={<FiX />} disabled={!editing || saving} onClick={cancel}>Cancel</Button>
           </Box>
           {(editing || editReason) && (
-            <Typography sx={{ fontSize: 12, maxWidth: 260 }} color="text.secondary" role="status">
+            <Typography variant="body2" sx={{ maxWidth: 260 }} color="text.secondary" role="status">
               {editing ? (changes === 0 ? 'No changes yet.' : `${changes} change${changes === 1 ? '' : 's'} not saved.`) : editReason}
             </Typography>
           )}
@@ -363,20 +363,19 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
         </Box>
 
         <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" aria-label="Account setup sections"
-          sx={{ px: 2, borderTop: 1, borderBottom: 1, borderColor: 'divider', minHeight: 40, '& .MuiTab-root': { minHeight: 40, fontSize: 13 } }}>
+          sx={{ px: 2, borderTop: 1, borderBottom: 1, borderColor: 'divider', minHeight: 40, '& .MuiTab-root': { minHeight: 40 } }}>
           {TABS.map((t) => <Tab key={t.key} label={t.label} />)}
         </Tabs>
 
         <DialogContent sx={{ flex: 1, p: 1.5 }}>
-          {loadError && <Alert severity="error">{(loadError as Error).message}</Alert>}
-          {isLoading && <Skeleton variant="rounded" height={260} />}
+          <LoadingBlock q={profileQ} what="the account setup" />
           {profile && user && (
             <>
               {key === 'general' && (
                 <Box sx={(t) => ({ mb: 1.5, p: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', ...glass(t) })}>
                   <Box sx={{ flex: 1, minWidth: 220 }}>
-                    <Typography sx={{ fontWeight: 600, fontSize: 13 }}>Sign-in for this app</Typography>
-                    <Typography sx={{ fontSize: 12 }} color="text.secondary">
+                    <Typography variant="subtitle2" component="p">Sign-in for this app</Typography>
+                    <Typography variant="body2" color="text.secondary">
                       They choose their own password. You can only issue a temporary one, which they replace the first time they sign in.
                     </Typography>
                   </Box>
@@ -385,13 +384,13 @@ export default function UserProfileDialog({ user, onClose, onSetPassword, onTogg
                     {user.passwordState === 'NONE' ? 'Issue temporary password' : 'Reissue temporary password'}
                   </Button>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography id="officer-label" sx={{ fontSize: 13 }}>Membership Officer</Typography>
+                    <Typography id="officer-label">Membership Officer</Typography>
                     <Switch checked={officer} disabled={!profile.enabled || busy} onChange={(_, on) => onToggleOfficer(user, on)} slotProps={{ input: { 'aria-labelledby': 'officer-label' } }} />
                   </Box>
                 </Box>
               )}
               {key === 'transaction-types' ? <TransactionTypesTab username={username} /> : <Sections sections={profile.tabs[key] ?? []} />}
-              <Typography sx={{ mt: 2, fontSize: 12 }} color="text.secondary">
+              <Typography variant="body2" sx={{ mt: 2 }} color="text.secondary">
                 Changes saved here are recorded in the audit log.
               </Typography>
             </>

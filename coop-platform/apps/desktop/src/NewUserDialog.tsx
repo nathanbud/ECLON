@@ -7,6 +7,7 @@ import { useMe } from './session'
 import { CHOICES, DEFAULT_HOURS } from './TemporaryPasswordDialog'
 import { BranchSelect } from './ui/BranchSelect'
 import { nameCase } from './ui/format'
+import { notifyError } from './ui/notices'
 import { Hinted } from './appleUi'
 
 const USERNAME = /^[A-Za-z0-9][A-Za-z0-9._-]{2,29}$/
@@ -32,6 +33,8 @@ export default function NewUserDialog({ open, users, onClose, onCreated }: { ope
       branchCode: f.branchCode, level: f.level, copyFrom: f.copyFrom?.username ?? null, validityHours: f.validityHours,
     }),
     onSuccess: (u) => onCreated(u),
+    // A refusal (a name already used, the bootstrap sign-in's name, an administrator by someone who may not) pops up in the middle of the window.
+    onError: notifyError,
   })
   const reset = () => { setF(blank); setTouched({}); create.reset() }
   const taken = users.some((u) => u.username.toLowerCase() === f.username.trim().toLowerCase())
@@ -47,7 +50,7 @@ export default function NewUserDialog({ open, users, onClose, onCreated }: { ope
       {!done && (
         <form onSubmit={(e) => { e.preventDefault(); if (ready) create.mutate() }}>
           <DialogContent>
-            <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
+            <Typography sx={{ mb: 2 }} color="text.secondary">
               The person is added to the old system&apos;s users too. They sign in with a temporary password shown on the next step, and choose their own at first sign-in.
             </Typography>
             <Stack sx={{ gap: 1.75 }}>
@@ -77,12 +80,11 @@ export default function NewUserDialog({ open, users, onClose, onCreated }: { ope
                     : 'Without a copy the person starts with no permissions; set them afterwards in their account setup.'} />}
               />
               <Box>
-                <Typography id="first-password-label" sx={{ fontSize: 12, fontWeight: 600, mb: 0.75 }} color="text.secondary">First password valid for</Typography>
+                <Typography variant="body2" id="first-password-label" sx={{ fontWeight: 600, mb: 0.75 }} color="text.secondary">First password valid for</Typography>
                 <ToggleButtonGroup exclusive fullWidth size="small" value={f.validityHours} onChange={(_, v) => v != null && setF({ ...f, validityHours: v })} aria-labelledby="first-password-label">
                   {CHOICES.map((c) => <ToggleButton key={c.hours} value={c.hours} sx={{ textTransform: 'none' }}>{c.label}</ToggleButton>)}
                 </ToggleButtonGroup>
               </Box>
-              {create.error && <Alert severity="error">{(create.error as Error).message}</Alert>}
             </Stack>
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -94,13 +96,13 @@ export default function NewUserDialog({ open, users, onClose, onCreated }: { ope
       {done && (
         <>
           <DialogContent>
-            <Typography sx={{ fontSize: 13, mb: 2 }} color="text.secondary">
+            <Typography sx={{ mb: 2 }} color="text.secondary">
               <strong>{done.username}</strong> was created as {done.level === 'USER' ? 'a user' : done.level === 'ADMIN' ? 'an administrator' : 'a super administrator'}
               {done.copiedFrom ? ` with ${done.copiedFrom}'s permissions (${done.transactionRights} transaction types${done.roles.length ? `; roles ${done.roles.join(', ')}` : ''})` : ', with no permissions yet'}.
               {' '}Give them this temporary password in person or by phone. It is shown once and cannot be looked up again.
             </Typography>
             <OneTimePassword password={done.password.password} />
-            <Alert severity="info" icon={false} sx={{ mt: 2, fontSize: 13 }}>
+            <Alert severity="info" icon={false} sx={{ mt: 2 }}>
               Works until <strong>{new Date(done.password.expiresAt).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</strong>.
               {' '}{done.username} will be asked to choose their own password at first sign-in.
             </Alert>
