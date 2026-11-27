@@ -53,6 +53,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(SecurityConfig.class);
+
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http, LoginAttempts attempts) throws Exception {
         http.csrf(csrf -> csrf.disable())
@@ -86,10 +88,26 @@ public class SecurityConfig {
     }
 
     /** The usual 401, plus a reason when the password was right but the temporary one has run out, so the sign-in screen can say so. */
-    private BasicAuthenticationEntryPoint entryPoint(LoginAttempts attempts) {
+    BasicAuthenticationEntryPoint entryPoint(LoginAttempts attempts) {
         BasicAuthenticationEntryPoint e = new BasicAuthenticationEntryPoint() {
             @Override
             public void commence(HttpServletRequest request, HttpServletResponse response, org.springframework.security.core.AuthenticationException ex) throws IOException {
+                String who = ex.getAuthenticationRequest() == null ? null : ex.getAuthenticationRequest().getName();
+                // The person could not be checked at all (the database did not answer, a connection dropped): not a refusal, so not a 401, which would
+                // sign the person out of the window. A 503 says the server is busy; the next request tries again.
+                if (ex instanceof org.springframework.security.authentication.AuthenticationServiceException) {
+                    Throwable root = ex;
+                    while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+                    LOG.warn("Could not check the sign-in of {} on {} {}: {}: {}", who, request.getMethod(), request.getRequestURI(), root.getClass().getSimpleName(), root.getMessage());
+                    response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"message\":\"The server could not check your sign-in just now because its database did not answer in time."
+                        + " You are still signed in; nothing was saved. Try again in a moment.\",\"code\":\"SIGN_IN_CHECK_FAILED\"}");
+                    return;
+                }
+                // A refusal of someone the server knew was signed in or signing in: written to the log (name and kind only, never the password),
+                // so "You were signed out" can be traced.
+                if (who != null && !who.isBlank()) LOG.info("Sign-in refused for {} on {} {}: {}", who, request.getMethod(), request.getRequestURI(), ex.getClass().getSimpleName());
                 if (ex instanceof CredentialsExpiredException) response.setHeader("X-Auth-Reason", "TEMPORARY_PASSWORD_EXPIRED");
                 // only ever raised after the password was checked (see authProvider), so it tells nothing to someone who merely typed a name
                 if (ex instanceof DisabledException) response.setHeader("X-Auth-Reason", "ACCOUNT_DISABLED");

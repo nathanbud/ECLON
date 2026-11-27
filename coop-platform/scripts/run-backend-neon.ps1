@@ -119,7 +119,7 @@ New-Item -ItemType Directory -Force $data | Out-Null
 $env:LOGGING_FILE_NAME = Join-Path $data 'backend.log'
 $env:COOP_DOCUMENTS_ROOT = Join-Path $data 'documents'
 $env:COOP_BIOMETRIC_KEY_FILE = Join-Path $data 'biometric.key'
-$env:SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE = '5'
+$env:SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE = '10'
 
 Write-Host "Connecting to $Database on $NeonHost; this backend will answer on http://localhost:$Port (log: $env:LOGGING_FILE_NAME)"
 Write-Host 'The first start can take a minute (Neon may be waking up). Press Ctrl+C to stop.'

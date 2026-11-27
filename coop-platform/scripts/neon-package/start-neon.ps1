@@ -65,7 +65,7 @@ $env:LOGGING_FILE_NAME = Join-Path $data 'backend.log'
 $env:COOP_DOCUMENTS_ROOT = Join-Path $data 'documents'
 # The fingerprint key: the copy from the PC that made this folder (so fingerprints saved there can be read here), else a new one is made.
 $env:COOP_BIOMETRIC_KEY_FILE = Join-Path $here 'biometric.key'
-$env:SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE = '5'
+$env:SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE = '10'
 
 Write-Host "Connecting to $($settings.database) on $($settings.host)."
 Write-Host "When it says Started, open the desktop app; in its Connection window use http://localhost:$port (log: $env:LOGGING_FILE_NAME)."
