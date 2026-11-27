@@ -27,6 +27,7 @@ Thumbs.db
 !.claude/skills/
 .claude/skills/*
 !.claude/skills/impeccable/
+!.claude/skills/new-screen/
 .claude/skills/impeccable/scripts/bin/
 .claude/skills/impeccable/scripts/config.json
 **/.impeccable/

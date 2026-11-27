@@ -2,9 +2,8 @@ import {
   Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, InputAdornment,
   Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
-import { visuallyHidden } from '@mui/utils'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { FiLock, FiSearch, FiUserPlus } from 'react-icons/fi'
 import { grantRole, grantSingleHand, listLockedUsers, listSingleHand, listUsers, revokeRole, revokeSingleHand, setUserEnabled, unlockUser, type AdminUser } from './api'
 import { appBackground, glass } from './glass'
@@ -19,6 +18,7 @@ import { USER_FILTERS, UsersMenu, type UserFilter } from './UsersMenu'
 import { ScreenTitle } from './appleUi'
 import { notify, notifyError } from './ui/notices'
 import { LoadingRow } from './ui/Loading'
+import { Explained } from './ui/Explained'
 import { labelOf, USER_LEVEL_WORDS } from './ui/labels'
 import UserRolesDialog from './UserRolesDialog'
 
@@ -69,19 +69,6 @@ function AloneDialog({ user, onClose, onDone }: { user: AdminUser | null; onClos
  */
 function keepToControl(e: MouseEvent) {
   if ((e.target as HTMLElement).closest('button, input, label, a, .MuiSwitch-root')) e.stopPropagation()
-}
-
-/**
- * A row's switch with why it is as it is (why it cannot be changed, who allowed it): shown on hover and on keyboard focus, and read out with the switch
- * (its input points at the hidden copy with aria-describedby), since a `title` on the cell reached neither the keyboard nor a screen reader.
- */
-function Explained({ id, why, children }: { id: string; why: string; children: ReactNode }) {
-  if (!why) return <>{children}</>
-  return (
-    <Tooltip title={why} describeChild>
-      <span>{children}<span id={id} style={visuallyHidden}>{why}</span></span>
-    </Tooltip>
-  )
 }
 
 /** Administrators: who can sign in, their app passwords, and who is a Membership Officer. */
