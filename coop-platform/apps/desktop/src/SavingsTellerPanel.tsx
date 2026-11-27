@@ -1,7 +1,8 @@
 import { Alert, Avatar, Box, Button, ButtonBase, Chip, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useRef, useState } from 'react'
-import { FiActivity, FiArrowDownCircle, FiBriefcase, FiChevronLeft, FiChevronRight, FiClock, FiCreditCard, FiDollarSign, FiGrid, FiInfo, FiPercent, FiSearch, FiUser } from 'react-icons/fi'
+import { FiActivity, FiArrowDownCircle, FiBriefcase, FiChevronLeft, FiChevronRight, FiClock, FiCreditCard, FiGrid, FiInfo, FiPercent, FiSearch, FiUser } from 'react-icons/fi'
+import { PesoIcon } from './ui/moneyIcons'
 import { getFoTellerTotals, getKyc, getLoans, getLookups, getMember, getMembershipPolicy, getSavings, getShares, listFoTransactions, type FoSetup, type KycStatus } from './api'
 import { displayName, memberNo, statusOf, type Id } from './clients'
 import MemberSearchBox from './MemberSearchBox'
@@ -25,7 +26,7 @@ type Section = (typeof SECTIONS)[number]
 const QUICK: { label: string; section: Section; only: Exclude<TellerOnly, null>; preset?: Omit<TellerPreset, 'seq'>; icon: React.ReactNode; color: string }[] = [
   { label: 'Savings', section: 'Savings', only: 'savings', preset: { kind: 'savings', mode: 'deposit' }, icon: <FiArrowDownCircle />, color: tileFill.green },
   { label: 'Share capital', section: 'Share Capital', only: 'share', preset: { kind: 'share', mode: 'payment' }, icon: <FiPercent />, color: tileFill.blue },
-  { label: 'Loan', section: 'Loans', only: 'loan', preset: { kind: 'loan', mode: 'payment' }, icon: <FiDollarSign />, color: tileFill.orange },
+  { label: 'Loan', section: 'Loans', only: 'loan', preset: { kind: 'loan', mode: 'payment' }, icon: <PesoIcon />, color: tileFill.orange },
   { label: 'Time deposit', section: 'Time Deposits', only: 'td', icon: <FiClock />, color: tileFill.purple },
 ]
 
@@ -210,7 +211,7 @@ function MemberCard({ id, onChange, lk }: { id: Id; onChange: () => void; lk: Re
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
         <Balance label="Savings" icon={<FiArrowDownCircle />} value={savings.data ? savings.data.totalBalance : savings.isError ? 0 : null} color={tileFill.green} />
         <Balance label="Share capital" icon={<FiPercent />} value={shares.data ? shares.data.totalBalance : shares.isError ? 0 : null} color={tileFill.blue} />
-        <Balance label="Loans owed" icon={<FiDollarSign />} value={loanBalance} color={tileFill.orange} />
+        <Balance label="Loans owed" icon={<PesoIcon />} value={loanBalance} color={tileFill.orange} />
       </Box>
       <KycNotice id={id} />
     </Card>

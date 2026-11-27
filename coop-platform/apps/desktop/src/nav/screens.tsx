@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 import {
-  FiBarChart2, FiBook, FiBookOpen, FiBriefcase, FiClipboard, FiEdit, FiCreditCard, FiDatabase, FiDollarSign, FiDownloadCloud, FiFilePlus, FiFileText, FiGitMerge, FiImage, FiInbox, FiLayers, FiList, FiMoon, FiPercent, FiRepeat,
+  FiBarChart2, FiBook, FiBookOpen, FiBriefcase, FiClipboard, FiEdit, FiCreditCard, FiDatabase, FiDownloadCloud, FiFilePlus, FiFileText, FiGitMerge, FiImage, FiInbox, FiLayers, FiList, FiMoon, FiPercent, FiRepeat,
   FiSend, FiSettings, FiShield, FiShoppingCart, FiSliders, FiPieChart, FiTrendingUp, FiUserCheck, FiUserPlus, FiUsers, FiLock, FiCalendar, FiHome,
   FiClock, FiToggleRight, FiCheckSquare, FiAlertTriangle, FiPackage, FiMapPin, FiTarget,
 } from 'react-icons/fi'
+import { CoinIcon } from '../ui/moneyIcons'
 import type { Me } from '../api'
 import type { View } from '../Dashboard'
 import type { Tint } from '../theme'
@@ -88,7 +89,7 @@ export const SCREENS: Screen[] = [
 
   // teller and cash
   { id: 'businessday', label: 'Business Day', note: 'Start Day and End Day: the date postings carry, and the end-of-day checks', domain: 'teller', icon: <FiCalendar />, view: 'businessday', who: 'anyone', tile: true, keywords: 'start day end day open close business date eod sod end of day beginning of day cut-off' },
-  { id: 'frontoffice', label: 'Front Office', note: 'Deposits, withdrawals, payments and the teller’s day', domain: 'teller', icon: <FiDollarSign />, view: 'frontoffice', who: 'anyone', tile: true, keywords: 'teller cash receipt disburse withdrawal deposit encashment cheque clearing drawer' },
+  { id: 'frontoffice', label: 'Front Office', note: 'Deposits, withdrawals, payments and the teller’s day', domain: 'teller', icon: <CoinIcon />, view: 'frontoffice', who: 'anyone', tile: true, keywords: 'teller cash receipt disburse withdrawal deposit encashment cheque clearing drawer' },
 
   // loans
   { id: 'loans', label: 'Loan Module', note: 'Start loan applications and take them through Profiling, Deduction, Verification and Approval', domain: 'loans', icon: <FiBriefcase />, view: 'loans', who: 'anyone', tile: true, keywords: 'loan loans application applications apply borrow profiling deduction verify verification approve approval module' },

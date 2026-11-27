@@ -3,7 +3,7 @@ import {
   Snackbar, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { FiLock, FiSearch, FiUserPlus } from 'react-icons/fi'
 import { grantRole, grantSingleHand, listLockedUsers, listSingleHand, listUsers, revokeRole, revokeSingleHand, setUserEnabled, unlockUser, type AdminUser } from './api'
 import { appBackground, glass } from './glass'
@@ -60,6 +60,14 @@ function AloneDialog({ user, onClose, onDone }: { user: AdminUser | null; onClos
       </form>
     </Dialog>
   )
+}
+
+/**
+ * A click anywhere on a user's row opens their account setup, except on the row's own controls (a switch, even a disabled one, or a button), which
+ * do their own thing; so the cells guard only their controls, not the whole cell.
+ */
+function keepToControl(e: MouseEvent) {
+  if ((e.target as HTMLElement).closest('button, input, label, a, .MuiSwitch-root')) e.stopPropagation()
 }
 
 /** Administrators: who can sign in, their app passwords, and who is a Membership Officer. */
@@ -212,7 +220,7 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
                           <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{u.username}</Typography>
                           <Typography sx={{ fontSize: 12 }} color="text.secondary">{u.name ? nameCase(u.name) : '—'}{u.enabled ? '' : ' · disabled'}</Typography>
                         </TableCell>
-                        <TableCell align="center" onClick={(e) => e.stopPropagation()} title={u.username.toLowerCase() === me.username.toLowerCase() ? 'You cannot switch off your own account' : u.enabled ? 'Switch off: they can no longer sign in' : 'Switch on: they can sign in again'}>
+                        <TableCell align="center" onClick={keepToControl} title={u.username.toLowerCase() === me.username.toLowerCase() ? 'You cannot switch off your own account' : u.enabled ? 'Switch off: they can no longer sign in' : 'Switch on: they can sign in again'}>
                           <Switch
                             color="success" checked={u.enabled}
                             disabled={busyUser === u.username || u.username.toLowerCase() === me.username.toLowerCase()}
@@ -220,7 +228,7 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
                             slotProps={{ input: { 'aria-label': `${u.username} is enabled` } }}
                           />
                         </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
+                        <TableCell onClick={keepToControl}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, whiteSpace: 'nowrap' }}>
                             {u.level ?? '—'}
                             <Button size="small" onClick={() => setRolesOf(u)} aria-label={`Roles of ${u.username}`}>
@@ -228,7 +236,7 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
                             </Button>
                           </Box>
                         </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
+                        <TableCell onClick={keepToControl}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <PasswordChip u={u} />
                             {isLocked(u.username) && <Button size="small" color="warning" onClick={() => void unlock(u)}>Locked: unlock</Button>}
@@ -237,14 +245,14 @@ export default function UsersPage({ onAuditLog }: { onAuditLog?: () => void } = 
                             </Button>
                           </Box>
                         </TableCell>
-                        <TableCell align="center" onClick={(e) => e.stopPropagation()} title={u.roles.includes(OFFICER) ? 'Take the role away (their Member permissions stay as they are)' : 'Make a Membership Officer: also switches on every permission on their Member tab'}>
+                        <TableCell align="center" onClick={keepToControl} title={u.roles.includes(OFFICER) ? 'Take the role away (their Member permissions stay as they are)' : 'Make a Membership Officer: also switches on every permission on their Member tab'}>
                           <Switch
                             checked={u.roles.includes(OFFICER)} disabled={!u.enabled || busyUser === u.username}
                             onChange={(_, on) => void toggleOfficer(u, on)}
                             slotProps={{ input: { 'aria-label': `${u.username} is a Membership Officer` } }}
                           />
                         </TableCell>
-                        <TableCell align="center" onClick={(e) => e.stopPropagation()} title={grants.get(u.username.toLowerCase()) ? `Allowed by ${grants.get(u.username.toLowerCase())!.grantedBy}: ${grants.get(u.username.toLowerCase())!.reason}` : u.username.toLowerCase() === me.username.toLowerCase() ? 'You cannot allow this for yourself' : ''}>
+                        <TableCell align="center" onClick={keepToControl} title={grants.get(u.username.toLowerCase()) ? `Allowed by ${grants.get(u.username.toLowerCase())!.grantedBy}: ${grants.get(u.username.toLowerCase())!.reason}` : u.username.toLowerCase() === me.username.toLowerCase() ? 'You cannot allow this for yourself' : ''}>
                           <Switch
                             color="warning" checked={grants.has(u.username.toLowerCase())}
                             disabled={!u.enabled || busyUser === u.username || u.username.toLowerCase() === me.username.toLowerCase()}

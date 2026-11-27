@@ -26,7 +26,7 @@ const setEnabled = vi.fn(async (..._: unknown[]) => ({ changed: 1 }))
 vi.mock('./session', () => ({ useMe: () => ({ username: 'ana', name: 'ANA DELA CRUZ', roles: [], canEdit: true, canApprove: false, admin: true, mustChangePassword: false, branchCode: 1 }) }))
 vi.mock('./toolbarSlot', () => ({ ToolbarPortal: ({ children }: { children: React.ReactNode }) => <div data-testid="title-bar">{children}</div> }))
 vi.mock('./NewUserDialog', () => ({ default: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="New user window" /> : null) }))
-vi.mock('./UserProfileDialog', () => ({ default: () => null }))
+vi.mock('./UserProfileDialog', () => ({ default: ({ user }: { user: AdminUser | null }) => (user ? <div role="dialog" aria-label={`Account setup of ${user.username}`} /> : null) }))
 
 function show(onAuditLog = vi.fn()) {
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><AppThemeProvider><UsersPage onAuditLog={onAuditLog} /></AppThemeProvider></QueryClientProvider>)
@@ -75,6 +75,24 @@ describe('Users', () => {
     await screen.findByText('Ana Dela Cruz')
     await userEvent.keyboard('{Control>}n{/Control}')
     expect(screen.getByRole('dialog', { name: 'New user window' })).toBeInTheDocument()
+  })
+
+  it('opens the account setup from anywhere on the row, not only the name, but not from its switches and buttons', async () => {
+    show()
+    await screen.findByText('Ana Dela Cruz')
+    const row = screen.getByRole('row', { name: "Open ben's account setup" })
+    const cells = within(row).getAllByRole('cell')
+    // the Level and Password cells, beside their buttons
+    await userEvent.click(cells[2])
+    expect(screen.getByRole('dialog', { name: 'Account setup of ben' })).toBeInTheDocument()
+  })
+
+  it('does not open the account setup when a switch or button on the row is used', async () => {
+    show()
+    await screen.findByText('Ana Dela Cruz')
+    const row = screen.getByRole('row', { name: "Open dan's account setup" })
+    await userEvent.click(within(row).getByRole('button', { name: 'Roles of dan' }))
+    expect(screen.queryByRole('dialog', { name: 'Account setup of dan', hidden: true })).not.toBeInTheDocument()
   })
 
   it('switches an account off after asking, and on again at once', async () => {

@@ -1,7 +1,8 @@
 import { Box, ButtonBase, Skeleton, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import { FiCreditCard, FiDatabase, FiDollarSign, FiTrendingUp } from 'react-icons/fi'
+import { FiCreditCard, FiDatabase, FiTrendingUp } from 'react-icons/fi'
+import { CoinIcon } from '../ui/moneyIcons'
 import { getLoans, getSavings, getShares, getTimeDeposits } from '../api'
 import { type Id } from '../clients'
 import { glass } from '../glass'
@@ -70,7 +71,7 @@ export function StatTiles({ id, onOpen }: { id: Id; onOpen: (tab: number) => voi
     <Box role="group" aria-label="Balances" sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: `repeat(${shown}, minmax(0, 1fr))` }}>
       <Tile lead label="Share capital" icon={<FiDatabase />} openLabel="Share Capital" onOpen={() => onOpen(at('Share Capital'))}
         value={shares.data?.totalBalance ?? null} loading={shares.isLoading} foot={shares.data ? plural(shares.data.accounts.length, 'account', 'accounts') : 'Not available'} />
-      {featureOn(off, 'savings') && <Tile label="Savings" icon={<FiDollarSign />} openLabel="Savings" onOpen={() => onOpen(at('Savings'))}
+      {featureOn(off, 'savings') && <Tile label="Savings" icon={<CoinIcon />} openLabel="Savings" onOpen={() => onOpen(at('Savings'))}
         value={savings.data?.totalBalance ?? null} loading={savings.isLoading}
         foot={savings.data ? `${plural(savings.data.accounts.length, 'account', 'accounts')}${savings.data.totalHeld ? ` · held ${money(savings.data.totalHeld)}` : ''}` : 'Not available'} />}
       {featureOn(off, 'loans') && <Tile label="Loans owed" icon={<FiCreditCard />} openLabel="Loans" onOpen={() => onOpen(at('Loans'))}
