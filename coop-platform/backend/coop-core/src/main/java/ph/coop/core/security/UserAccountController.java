@@ -46,6 +46,10 @@ class UserAccountController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ph.coop.core.feature.Features features;
 
+    /** The bootstrap sign-in's name (DEV_API_USER): no user may be created with it. */
+    @org.springframework.beans.factory.annotation.Value("${coop.dev-auth.username:}")
+    private String bootstrapUser;
+
     UserAccountController(JdbcTemplate jdbc, Db db, PasswordEncoder encoder, Clock clock, PlatformTransactionManager txManager) {
         this.tx = new TransactionTemplate(txManager);
         this.clock = clock;
@@ -166,6 +170,10 @@ class UserAccountController {
         if (!problems.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(" ", problems));
         String username = in.username().trim();
         String level = in.level().trim().toUpperCase();
+        // The bootstrap sign-in is matched first, so a user with its name could never sign in with their own password.
+        if (username.equalsIgnoreCase(bootstrapUser)) throw new ResponseStatusException(HttpStatus.CONFLICT, "The username " + username
+            + " is the server's bootstrap sign-in (the name typed when the backend was started), so this person could never sign in with their own password."
+            + " Nothing was saved. Choose another username for this person.");
         Integer taken = jdbc.queryForObject("SELECT COUNT(*) FROM access WHERE LOWER(AccessUserName) = LOWER(?)", Integer.class, username);
         Integer credentials = jdbc.queryForObject("SELECT COUNT(*) FROM ecis_user_credential WHERE LOWER(username) = LOWER(?)", Integer.class, username);
         if ((taken != null && taken > 0) || (credentials != null && credentials > 0)) throw new ResponseStatusException(HttpStatus.CONFLICT, "The username " + username + " is already taken.");

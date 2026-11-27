@@ -111,6 +111,9 @@ class UserCreateTest {
         String existing = jdbc.queryForObject("SELECT AccessUserName FROM access ORDER BY AccessID LIMIT 1", String.class);
         var dup = assertThrows(ResponseStatusException.class, () -> users.create(new NewUser(existing.toUpperCase(), "A", null, "B", 1, "USER", null, null), superAdmin()));
         assertTrue(dup.getReason().contains("already taken"), dup.getReason());
+        // the bootstrap sign-in's name (DEV_API_USER=itest here), in any case: it is matched first, so that person's own password would never work
+        var boot = assertThrows(ResponseStatusException.class, () -> users.create(new NewUser("ITest", "A", null, "B", 1, "USER", null, null), superAdmin()));
+        assertTrue(boot.getReason().contains("bootstrap sign-in"), boot.getReason());
         assertThrows(ResponseStatusException.class, () -> users.create(new NewUser("zz bad name", "A", null, "B", 1, "USER", null, null), superAdmin()));
         assertThrows(ResponseStatusException.class, () -> users.create(new NewUser("zz.nobranch", "A", null, "B", 9999, "USER", null, null), superAdmin()));
         assertThrows(ResponseStatusException.class, () -> users.create(new NewUser("zz.nocopy", "A", null, "B", 1, "USER", "no-such-person-zz", null), superAdmin()));
