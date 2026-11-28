@@ -56,8 +56,9 @@ class AccountTypeRulesTest {
 
     @Test void namesRatesAndAmountsAreChecked() {
         assertThrows(IllegalArgumentException.class, () -> AccountTypeRules.columns(22, form(" ", "1", "0")));
-        assertThrows(IllegalArgumentException.class, () -> AccountTypeRules.columns(22, form("x".repeat(21), "1", "0")));
-        assertThrows(IllegalArgumentException.class, () -> AccountTypeRules.columns(22, new Form("Ok", "y".repeat(31), null, null, null, null, "why")));
+        assertThrows(IllegalArgumentException.class, () -> AccountTypeRules.columns(22, form("x".repeat(101), "1", "0")));
+        assertEquals("Ok", AccountTypeRules.columns(22, new Form("Ok", "an older longer name", null, null, null, null, "why")).get("SLTypeM_DESC2")); // one name in both columns
+        assertEquals(100, ((String) AccountTypeRules.columns(22, form("x".repeat(100), "1", "0")).get("SLTypeM_DESC")).length());
         assertThrows(IllegalArgumentException.class, () -> AccountTypeRules.columns(22, form("Ok", "-1", "0")));
         assertThrows(IllegalArgumentException.class, () -> AccountTypeRules.columns(22, form("Ok", "100.01", "0")));
         assertThrows(IllegalArgumentException.class, () -> AccountTypeRules.columns(22, form("Ok", "1.255", "0")));

@@ -26,11 +26,8 @@ const blank: LoanSetupForm = {
   serviceFeeRate: null, minCoMakers: null, requireCollateral: false, priority: null, yearDays: 365, disabled: false, reason: '', dayCount: null,
 }
 
-/** A longer name kept from the old system, when it differs from the name; empty means the name is stored in both columns. */
-const olderName = (t: LoanSetupType) => (t.fullName && t.fullName.trim() !== t.name.trim() ? t.fullName.trim() : '')
-
 const toForm = (t: LoanSetupType): LoanSetupForm => ({
-  name: t.name, fullName: olderName(t), terms: t.terms, termUnit: t.termUnit, principalMode: t.principalMode, interestMode: t.interestMode, amortization: t.amortization,
+  name: t.name, fullName: '', terms: t.terms, termUnit: t.termUnit, principalMode: t.principalMode, interestMode: t.interestMode, amortization: t.amortization,
   interestRate: t.interestRate, penaltyRate: t.penaltyRate, serviceFeeRate: t.serviceFeeRate, minCoMakers: t.minCoMakers, requireCollateral: t.requireCollateral,
   priority: t.priority, // the old system's list order: kept as stored or copied, not asked (nothing here sorts by it)
   yearDays: t.yearDays, disabled: t.disabled, reason: '', dayCount: t.dayCount,
@@ -215,15 +212,9 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, columnGap: 4, rowGap: 1.75, alignItems: 'start' }}>
             <Box sx={{ display: 'grid', gap: 1.75 }}>
               <FormSection title="Name">
-                <Hinted tip="Up to 20 characters. This is the name shown everywhere: lists, loan applications, the teller window, receipts, the amortization schedule and reports.">
-                  <TextField required size="small" label="Name" value={form.name} onChange={(e) => set('name', e.target.value)} slotProps={{ htmlInput: { maxLength: 20 } }} />
+                <Hinted tip="Up to 100 characters. This is the name shown everywhere: lists, loan applications, the teller window, receipts, the amortization schedule and reports.">
+                  <TextField required size="small" label="Name" value={form.name} onChange={(e) => set('name', e.target.value)} slotProps={{ htmlInput: { maxLength: 100 } }} />
                 </Hinted>
-                {form.fullName && (
-                  <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 1 }}>
-                    <Typography variant="body2" color="text.secondary">Also has a longer name from the old system: {form.fullName}</Typography>
-                    <Button size="small" onClick={() => set('fullName', '')}>Use the name only</Button>
-                  </Box>
-                )}
               </FormSection>
               <FormSection title="Term">
                 <TextField type="number" size="small" label="Term" value={form.terms ?? ''} onChange={(e) => set('terms', numberOrNull(e.target.value))} slotProps={{ htmlInput: { min: 1, max: 600 } }} />

@@ -70,17 +70,18 @@ final class AccountTypeRules {
     }
 
     /** Checks the form and returns the column values it sets, keyed by the old column name. Throws IllegalArgumentException with what is wrong. */
+    /** The longest product type name (both name columns hold 100 since PostgreSQL V048 / MySQL V085). */
+    public static final int NAME_MAX = 100;
+
     static Map<String, Object> columns(int classId, AccountTypeController.Form f) {
         if (f == null) throw new IllegalArgumentException("Nothing to save.");
         if (!EDIT.equals(managed(classId))) throw new IllegalArgumentException(classId == LOANS ? "Loan types are changed in Loan Setup." : "The types of this class cannot be changed here.");
         String name = f.name() == null ? "" : f.name().trim();
-        if (name.isEmpty() || name.length() > 20) throw new IllegalArgumentException("The name is required, up to 20 characters.");
-        String full = f.fullName() == null || f.fullName().isBlank() ? name : f.fullName().trim();
-        if (full.length() > 30) throw new IllegalArgumentException("The full name can be up to 30 characters.");
+        if (name.isEmpty() || name.length() > NAME_MAX) throw new IllegalArgumentException("The name is required, up to " + NAME_MAX + " characters.");
         if (f.priority() != null && (f.priority() < 0 || f.priority() > 999)) throw new IllegalArgumentException("The order number is 0 to 999.");
         Map<String, Object> c = new LinkedHashMap<>();
         c.put("SLTypeM_DESC", name);
-        c.put("SLTypeM_DESC2", full);
+        c.put("SLTypeM_DESC2", name); // one name: the old system's full-name column gets the same
         c.put("SLTypePriority", f.priority());
         c.put("SLTypeIsDisabled", Boolean.TRUE.equals(f.disabled()) ? 1 : 0);
         List<String> has = fields(classId);

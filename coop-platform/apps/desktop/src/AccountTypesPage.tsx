@@ -18,24 +18,22 @@ import { Loading } from './ui/Loading'
 import { notifyError } from './ui/notices'
 import { money, tabular } from './ui/format'
 
-type Fields = { name: string; fullName: string; priority: string; interestRate: string; minBalance: string; maxBalance: string; dormantAfterMonths: string; disabled: boolean }
+type Fields = { name: string; priority: string; interestRate: string; minBalance: string; maxBalance: string; dormantAfterMonths: string; disabled: boolean }
 
 const text = (n: number | null) => (n == null ? '' : String(n))
 const number = (s: string) => (s.trim() === '' ? null : Number(s))
-/** A longer name kept from the old system, when it differs from the name; empty means the name is stored in both columns. */
-const olderName = (t: AccountType) => (t.fullName && t.fullName.trim() !== (t.name ?? '').trim() ? t.fullName.trim() : '')
 const fieldsOf = (t: AccountType): Fields => ({
-  name: t.name ?? '', fullName: olderName(t), priority: text(t.priority), interestRate: text(t.interestRate), minBalance: text(t.minBalance), maxBalance: text(t.maxBalance),
+  name: t.name ?? '', priority: text(t.priority), interestRate: text(t.interestRate), minBalance: text(t.minBalance), maxBalance: text(t.maxBalance),
   dormantAfterMonths: text(t.dormantAfterMonths), disabled: t.disabled,
 })
 const formOf = (f: Fields, reason: string): AccountTypeForm => ({
-  name: f.name.trim(), fullName: f.fullName.trim(), priority: number(f.priority), interestRate: number(f.interestRate), minBalance: number(f.minBalance), maxBalance: number(f.maxBalance),
+  name: f.name.trim(), fullName: '', priority: number(f.priority), interestRate: number(f.interestRate), minBalance: number(f.minBalance), maxBalance: number(f.maxBalance),
   dormantAfterMonths: number(f.dormantAfterMonths), disabled: f.disabled, reason,
 })
 const NUMERIC = ['priority', 'interestRate', 'minBalance', 'maxBalance', 'dormantAfterMonths'] as const
 const same = (a: Fields, b: Fields) =>
-  a.name.trim() === b.name.trim() && a.fullName.trim() === b.fullName.trim() && a.disabled === b.disabled && NUMERIC.every((k) => number(a[k]) === number(b[k]))
-const NAME_TIP = 'Up to 20 characters. This is the name shown everywhere: lists, the teller window, passbooks, receipts and reports.'
+  a.name.trim() === b.name.trim() && a.disabled === b.disabled && NUMERIC.every((k) => number(a[k]) === number(b[k]))
+const NAME_TIP = 'Up to 100 characters. This is the name shown everywhere: lists, the teller window, passbooks, receipts and reports.'
 const code4 = (n: number) => String(n).padStart(4, '0')
 const label = (a: ChartAccount) => `${a.code} ${a.name ?? ''}`
 
@@ -155,13 +153,7 @@ function TypeFields({ cls, f, set, disabled }: { cls: AccountTypeClass; f: Field
   const amount = (v: string) => v.replace(/[^0-9.]/g, '')
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.75 }}>
-      <Hinted tip={NAME_TIP}><TextField required label="Name" value={f.name} disabled={disabled} onChange={(e) => set({ name: e.target.value })} slotProps={{ htmlInput: { maxLength: 20 } }} /></Hinted>
-      {f.fullName && (
-        <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 1 }}>
-          <Typography variant="body2" color="text.secondary">Also has a longer name from the old system: {f.fullName}</Typography>
-          {!disabled && <Button size="small" onClick={() => set({ fullName: '' })}>Use the name only</Button>}
-        </Box>
-      )}
+      <Hinted tip={NAME_TIP}><TextField required label="Name" value={f.name} disabled={disabled} onChange={(e) => set({ name: e.target.value })} slotProps={{ htmlInput: { maxLength: 100 } }} /></Hinted>
       {cls.fields.includes('interestRate') && (
         <Hinted tip={help.interestRate}><TextField label="Interest rate (% a year)" value={f.interestRate} disabled={disabled} onChange={(e) => set({ interestRate: amount(e.target.value) })} slotProps={{ htmlInput: { inputMode: 'decimal' } }} /></Hinted>
       )}
@@ -320,7 +312,6 @@ function TypePanel({ cls, type, onAdd, onSaved, onDeleted }: { cls: AccountTypeC
 function summary(cls: AccountTypeClass, was: Fields, now: Fields): string {
   const parts: string[] = []
   if (was.name.trim() !== now.name.trim()) parts.push(`name to ${now.name.trim()}`)
-  if (was.fullName && !now.fullName) parts.push('the old longer name dropped')
   if (cls.fields.includes('interestRate') && number(was.interestRate) !== number(now.interestRate)) parts.push(`interest rate from ${was.interestRate || 'none'} to ${now.interestRate || 'none'} percent`)
   const amount = (v: string, none: string) => (v ? money(Number(v)) : none)
   if (cls.fields.includes('minBalance') && number(was.minBalance) !== number(now.minBalance)) parts.push(`minimum balance from ${amount(was.minBalance, 'none')} to ${amount(now.minBalance, 'none')}`)
@@ -334,7 +325,7 @@ function NewTypeDialog({ cls, onClose, onSaved }: { cls: AccountTypeClass; onClo
   const sources = cls.types
   const [copyFrom, setCopyFrom] = useState(sources.find((t) => !t.disabled)?.code ?? sources[0].code)
   const src = sources.find((t) => t.code === copyFrom) ?? sources[0]
-  const [f, setF] = useState<Fields>({ ...fieldsOf(src), name: '', fullName: '', disabled: false })
+  const [f, setF] = useState<Fields>({ ...fieldsOf(src), name: '', disabled: false })
   const [reason, setReason] = useState('')
   const save = useMutation({
     onError: notifyError, mutationFn: () => createAccountType(cls.id, copyFrom, formOf(f, reason.trim())), onSuccess: onSaved })
@@ -346,7 +337,7 @@ function NewTypeDialog({ cls, onClose, onSaved }: { cls: AccountTypeClass; onClo
         <DialogContent>
           <Stack spacing={1.75} sx={{ mt: 1 }}>
             <Hinted tip="The new type starts with this one's settings and posts to the same chart accounts until its links are changed."><TextField select label="Copy from" value={copyFrom}
-              onChange={(e) => { const c = Number(e.target.value); setCopyFrom(c); const s = sources.find((t) => t.code === c); if (s) setF((cur) => ({ ...fieldsOf(s), name: cur.name, fullName: '', disabled: false })) }}>
+              onChange={(e) => { const c = Number(e.target.value); setCopyFrom(c); const s = sources.find((t) => t.code === c); if (s) setF((cur) => ({ ...fieldsOf(s), name: cur.name, disabled: false })) }}>
               {sources.map((t) => <MenuItem key={t.code} value={t.code}>{code4(t.code)} {t.name}{t.disabled ? ' (switched off)' : ''}</MenuItem>)}
             </TextField></Hinted>
             <TypeFields cls={cls} f={f} set={(p) => setF((cur) => ({ ...cur, ...p }))} disabled={false} />
@@ -412,7 +403,7 @@ function FirstTypeDialog({ cls, onClose, onSaved }: { cls: AccountTypeClass; onC
         <DialogTitle>First {cls.name.toLowerCase()} type</DialogTitle>
         <DialogContent>
           <Stack spacing={1.75} sx={{ mt: 1 }}>
-            <Hinted tip={NAME_TIP}><TextField required autoFocus label="Name" value={name} onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: 20 } }} /></Hinted>
+            <Hinted tip={NAME_TIP}><TextField required autoFocus label="Name" value={name} onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: 100 } }} /></Hinted>
             <Hinted tip="The chart account that carries the balance of accounts of this type"><Autocomplete options={options} value={account} onChange={(_, v) => setAccount(v)} loading={chart.isLoading} getOptionLabel={label} isOptionEqualToValue={(a, b) => a.code === b.code}
               renderInput={(p) => <TextField {...p} required label="Balance posts to" />} /></Hinted>
             <Suggested cls={cls.id} event={11} number={99} name={name.trim()} options={options} chosen={account?.code ?? null} onPick={setAccount} />
