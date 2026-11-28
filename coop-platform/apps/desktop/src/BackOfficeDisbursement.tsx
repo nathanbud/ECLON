@@ -17,6 +17,7 @@ import { ConfirmButton } from './ui/dialogs'
 import { money } from './ui/format'
 import { Gated } from './ui/Gated'
 import { useRequestKey } from './ui/requestKey'
+import { notifyError } from './ui/notices'
 import { usePageKeys } from './ui/usePageKeys'
 
 /**
@@ -87,7 +88,7 @@ export function BackOfficeDisbursement() {
           <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
           <ToolButton icon={<FiChevronUp />} label="Previous" hint="Page Up" disabled={making || entries.length === 0 || at === 0} onClick={() => step(-1)} />
           <ToolButton icon={<FiChevronDown />} label="Next" hint="Page Down" disabled={making || entries.length === 0 || at === entries.length - 1} onClick={() => step(1)} />
-          {shown && !making && <Typography sx={{ fontSize: 12, ml: 1 }} color="text.secondary">{at + 1} of {entries.length}</Typography>}
+          {shown && !making && <Typography variant="body2" sx={{ ml: 1 }} color="text.secondary">{at + 1} of {entries.length}</Typography>}
         </Toolbar>
       )}
 
@@ -120,7 +121,7 @@ export function BackOfficeDisbursement() {
       {kind && !making && shown && <VoucherView key={keyOf(shown)} voucher={shown} onChanged={() => void list.refetch()} />}
       {kind && !making && !shown && (
         <Panel>
-          <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
+          <Typography sx={{ mb: 1.5 }} color="text.secondary">
             Press New to make a {LABEL[kind]}, or open one waiting below (Find searches them all). Posted vouchers leave this list; they are under Front Office.
           </Typography>
           <EntryList entries={entries.slice(0, 12)} loading={list.isLoading} error={list.error as Error | null} onOpen={open} empty={`No ${LABEL[kind]} is waiting for approval or posting.`} />
@@ -178,6 +179,7 @@ function NewVoucher({ kind, setup, onDirty, onSaved }: { kind: Kind; setup: NonN
   ].filter(Boolean) as string[]
 
   const save = useMutation({
+    onError: notifyError,
     meta: { done: (r) => `${check ? 'Check' : 'Cash'} Voucher ${(r as { documentNo: string }).documentNo} encoded. It waits for another person to approve it.` },
     mutationFn: async () => {
       if (!credit) throw new Error(check ? 'Choose the bank account.' : setup.problem ?? 'There is no vouchers-payable account to credit.')
@@ -235,7 +237,7 @@ function NewVoucher({ kind, setup, onDirty, onSaved }: { kind: Kind; setup: NonN
 
       {check && (
         <Panel sx={{ mb: 1.5 }}>
-          <Typography component="h2" sx={{ fontSize: 13, fontWeight: 700, mb: 1 }}>The cooperative&rsquo;s cheque</Typography>
+          <Typography component="h2" sx={{ fontWeight: 700, mb: 1 }}>The cooperative&rsquo;s cheque</Typography>
           <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', rowGap: 1.5 }}>
             <TextField select size="small" label="Bank account" required value={bank} onChange={(e) => { touch(); setBank(e.target.value) }} sx={{ minWidth: 280 }}
               error={banks.isError} helperText={banks.isError ? (banks.error as Error).message : undefined}>
@@ -248,7 +250,7 @@ function NewVoucher({ kind, setup, onDirty, onSaved }: { kind: Kind; setup: NonN
       )}
 
       <Panel sx={{ mb: 1.5 }}>
-        <Typography component="h2" sx={{ fontSize: 13, fontWeight: 700, mb: 1 }}>GL/SL Entries</Typography>
+        <Typography component="h2" sx={{ fontWeight: 700, mb: 1 }}>GL/SL Entries</Typography>
         <Table size="small" aria-label="GL/SL entries">
           <TableHead>
             <TableRow>
@@ -274,8 +276,8 @@ function NewVoucher({ kind, setup, onDirty, onSaved }: { kind: Kind; setup: NonN
               <TableCell>{lines.length + 1}</TableCell>
               <TableCell>
                 {credit
-                  ? <>{credit.account} <Typography component="span" sx={{ fontSize: 12, ml: 1 }} color="text.secondary">{credit.name} · {check ? 'the bank the cheque is drawn on' : 'the payee’s vouchers payable'}, added by the window</Typography></>
-                  : <Typography component="span" sx={{ fontSize: 12 }} color="text.secondary">{check ? 'Choose the bank account: its ledger account is credited.' : setup.problem ?? 'No vouchers-payable account is set up.'}</Typography>}
+                  ? <>{credit.account} <Typography variant="body2" component="span" sx={{ ml: 1 }} color="text.secondary">{credit.name} · {check ? 'the bank the cheque is drawn on' : 'the payee’s vouchers payable'}, added by the window</Typography></>
+                  : <Typography variant="body2" component="span" color="text.secondary">{check ? 'Choose the bank account: its ledger account is credited.' : setup.problem ?? 'No vouchers-payable account is set up.'}</Typography>}
               </TableCell>
               <TableCell />
               <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{credit ? money(total) : ''}</TableCell>
@@ -289,8 +291,7 @@ function NewVoucher({ kind, setup, onDirty, onSaved }: { kind: Kind; setup: NonN
 
       <Panel>
         <TextField fullWidth multiline minRows={3} size="small" label="Description" required value={explanation} onChange={(e) => { touch(); setExplanation(e.target.value) }} slotProps={{ htmlInput: { maxLength: 2000 } }} />
-        {missing.length > 0 && <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">To save, fill in {missing.join(', ')}.</Typography>}
-        {save.error && <Alert severity="error" sx={{ mt: 1 }}>{(save.error as Error).message}</Alert>}
+        {missing.length > 0 && <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">To save, fill in {missing.join(', ')}.</Typography>}
         <Stack direction="row" sx={{ mt: 1.5, justifyContent: 'flex-end' }}>
           <Button type="submit" variant="contained" startIcon={<FiSave />} disabled={missing.length > 0 || save.isPending || !credit}>Save and send for approval</Button>
         </Stack>
@@ -306,15 +307,16 @@ function VoucherView({ voucher, onChanged }: { voucher: WaitingVoucher; onChange
   const id = [voucher.code, voucher.year, voucher.controlNo] as const
   const detail = useQuery({ queryKey: ['waiting-voucher', ...id], queryFn: () => getWaitingVoucher(...id) })
   const done = () => { void qc.invalidateQueries({ queryKey: ['waiting-voucher', ...id] }); onChanged() }
-  const approve = useMutation({ meta: { done: 'Approved. A third person can now post it.' }, mutationFn: () => approveWaitingVoucher(...id), onSuccess: done })
-  const post = useMutation({ meta: { done: `${voucher.type} ${voucher.documentNo} posted.` }, mutationFn: () => postWaitingVoucher(...id), onSuccess: done })
+  const approve = useMutation({
+    onError: notifyError, meta: { done: 'Approved. A third person can now post it.' }, mutationFn: () => approveWaitingVoucher(...id), onSuccess: done })
+  const post = useMutation({
+    onError: notifyError, meta: { done: `${voucher.type} ${voucher.documentNo} posted.` }, mutationFn: () => postWaitingVoucher(...id), onSuccess: done })
   const d = detail.data
   const lines = d?.lines ?? []
   const dr = lines.reduce((t, l) => t + Math.max(l.amount, 0), 0)
   const cr = lines.reduce((t, l) => t + Math.max(-l.amount, 0), 0)
   const why = d && d.problems.length > 0 ? d.problems.join(' ') : null
-  const error = (approve.error ?? post.error) as Error | null
-  return (
+    return (
     <>
       <Panel sx={{ mb: 1.5 }}>
         <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
@@ -324,7 +326,7 @@ function VoucherView({ voucher, onChanged }: { voucher: WaitingVoucher; onChange
         </Stack>
       </Panel>
       <Panel sx={{ mb: 1.5 }}>
-        <Typography component="h2" sx={{ fontSize: 13, fontWeight: 700, mb: 1 }}>GL/SL Entries</Typography>
+        <Typography component="h2" sx={{ fontWeight: 700, mb: 1 }}>GL/SL Entries</Typography>
         <Table size="small" aria-label="GL/SL entries">
           <TableHead><TableRow><TableCell sx={{ width: 32 }}>#</TableCell><TableCell>Account</TableCell><TableCell>Account no.</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell></TableRow></TableHead>
           <TableBody>
@@ -333,7 +335,7 @@ function VoucherView({ voucher, onChanged }: { voucher: WaitingVoucher; onChange
             {lines.map((l, i) => (
               <TableRow key={l.seq}>
                 <TableCell>{i + 1}</TableCell>
-                <TableCell>{l.account}<Typography component="span" sx={{ fontSize: 12, ml: 1 }} color="text.secondary">{l.description}</Typography></TableCell>
+                <TableCell>{l.account}<Typography variant="body2" component="span" sx={{ ml: 1 }} color="text.secondary">{l.description}</Typography></TableCell>
                 <TableCell>{l.refNo ?? ''}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{l.amount > 0 ? money(l.amount) : ''}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{l.amount < 0 ? money(-l.amount) : ''}</TableCell>
@@ -344,9 +346,8 @@ function VoucherView({ voucher, onChanged }: { voucher: WaitingVoucher; onChange
         {d && <Totals debit={dr} credit={cr} />}
       </Panel>
       <Panel>
-        <Typography sx={{ fontSize: 11 }} color="text.secondary">Description</Typography>
-        <Typography sx={{ fontSize: 13, whiteSpace: 'pre-wrap', mb: 1.5 }}>{voucher.explanation || '—'}</Typography>
-        {error && <Alert severity="error" sx={{ mb: 1.5 }}>{error.message}</Alert>}
+        <Typography variant="caption" color="text.secondary">Description</Typography>
+        <Typography sx={{ whiteSpace: 'pre-wrap', mb: 1.5 }}>{voucher.explanation || '—'}</Typography>
         <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
           {voucher.status === 'WAITING FOR APPROVAL' && (
             <Gated allowed={!!d?.mayApprove} reason={why ?? 'Someone other than the person who encoded it approves it, with New on this type.'}>

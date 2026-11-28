@@ -26,12 +26,21 @@ declare module '@tanstack/react-query' {
 export type NoticeKind = 'success' | 'error' | 'info'
 type Notice = { text: string; kind: NoticeKind }
 
+let last = { text: '', kind: '' as string, at: 0 }
+
 export function notify(text: string, kind: NoticeKind = 'success') {
+  // The same message said twice at once (a mutation's onError and the dialog that shows its error) shows once.
+  const now = Date.now()
+  if (text === last.text && kind === last.kind && now - last.at < 1000) return
+  last = { text, kind, at: now }
   window.dispatchEvent(new CustomEvent<Notice>(EVENT, { detail: { text, kind } }))
 }
 
 /** A refused or failed action, popped up instead of shown inside the screen. */
-export const notifyError = (e: unknown) => notify(e instanceof Error ? e.message : String(e), 'error')
+export const notifyError = (e: unknown) => {
+  const text = e instanceof Error ? e.message : e == null ? '' : String(e)
+  if (text.trim()) notify(text, 'error') // nothing to say shows nothing (never a card saying null)
+}
 
 /** Put on the QueryClient so every mutation with {@code meta.done} says it worked. */
 export const noticeMutationCache = () => new MutationCache({

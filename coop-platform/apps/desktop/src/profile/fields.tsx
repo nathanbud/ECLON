@@ -28,7 +28,7 @@ export function InlineField({ label, value }: { label: string; value?: Value }) 
   const id = useId()
   return (
     <>
-      <Typography component="label" htmlFor={id} sx={{ fontSize: 11, fontWeight: 500 }} color="text.secondary">{label}</Typography>
+      <Typography variant="caption" component="label" htmlFor={id} sx={{ fontWeight: 500 }} color="text.secondary">{label}</Typography>
       <TextField
         id={id} hiddenLabel size="small" value={value == null ? '' : String(value)} placeholder="—" fullWidth
         slotProps={{ input: { readOnly: true }, htmlInput: { title: value == null ? undefined : String(value) } }}
@@ -47,7 +47,7 @@ export function Section({ title, children, action, columns }: { title: string; c
     <Box component="fieldset" sx={(t) => ({ m: 0, mb: 1, px: 1.25, pt: 'calc(10px + 2pt)', pb: 1, minInlineSize: 0, breakInside: 'avoid', ...glass(t) })}>
       <Box component="legend" sx={{ float: 'none', width: '100%', p: 0, lineHeight: 1.2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Typography component="span" sx={{ px: 0.75, fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }} color="text.secondary">
+          <Typography variant="body2" component="span" sx={{ px: 0.75, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }} color="text.secondary">
             {title}
           </Typography>
           <Box aria-hidden sx={(t) => ({ flex: 1, height: 0, borderTop: `1px solid ${t.palette.mode === 'dark' ? 'rgba(255,255,255,0.16)' : LIGHT.hairline}` })} />
@@ -65,7 +65,7 @@ export function EmptyState({ icon, title, hint, action }: { icon: ReactNode; tit
       <Box>
         <Box sx={{ fontSize: 34, color: 'text.disabled', display: 'flex', justifyContent: 'center', mb: 1 }}>{icon}</Box>
         <Typography sx={{ fontWeight: 600 }}>{title}</Typography>
-        <Typography sx={{ fontSize: 13 }} color="text.secondary">{hint}</Typography>
+        <Typography color="text.secondary">{hint}</Typography>
         {action && <Box sx={{ mt: 2 }}>{action}</Box>}
       </Box>
     </Box>
@@ -104,7 +104,7 @@ export function SelectField({ label, lookup, code, lk, inline = false, col }: {
   if (!inline) return field
   return (
     <>
-      <Typography component="label" htmlFor={id} sx={{ fontSize: 11, fontWeight: 500 }} color="text.secondary">{label}</Typography>
+      <Typography variant="caption" component="label" htmlFor={id} sx={{ fontWeight: 500 }} color="text.secondary">{label}</Typography>
       {field}
     </>
   )
@@ -125,7 +125,7 @@ export function DetailPanel({ title, onClose, footer, children }: { title: React
   return (
     <Box ref={ref} component="section" aria-label="Account details" sx={(t) => ({ mt: 2, ...glass(t) })}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1, borderBottom: 1, borderColor: 'divider' }}>
-        <Typography component="h3" sx={{ flex: 1, fontWeight: 600, fontSize: 15 }}>{title}</Typography>
+        <Typography variant="h6" component="h3" sx={{ flex: 1 }}>{title}</Typography>
         <Button size="small" onClick={onClose}>Close</Button>
       </Box>
       <Box sx={{ p: 2, overflow: 'auto' }}>{children}</Box>

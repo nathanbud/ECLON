@@ -15,6 +15,8 @@ import { glass } from './glass'
 import { ConfirmButton, ReasonDialog } from './ui/dialogs'
 import { labelOf } from './ui/labels'
 import { LoadingBlock } from './ui/Loading'
+import { notifyError } from './ui/notices'
+import { SURFACE_RADIUS } from './theme'
 import { AboutNote } from './appleUi'
 
 const pct = (n: number) => `${Number(n.toFixed(6))}%`
@@ -28,7 +30,7 @@ const REPORTS: [ReportKind, string][] = [
   ['net-surplus', 'Net surplus'], ['funds', 'Statutory funds'], ['isc', 'Interest on share capital'], ['pr', 'Patronage refund'], ['ledger', 'Ledger posting'], ['audit', 'Audit and reconciliation'],
 ]
 const KIND_WORDS: Record<string, string> = { SAVINGS: 'To savings', SHARE_CAPITAL: 'To share capital', MUTUAL_BENEFIT: 'To mutual benefit', HOSPITALIZATION: 'To hospitalization' }
-const label = (t: string) => <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">{t}</Typography>
+const label = (t: string) => <Typography variant="overline" sx={{ display: 'block', mb: 0.75 }} color="text.secondary">{t}</Typography>
 const numeric = (v: string) => /^-?[\d,]+(\.\d+)?%?$/.test(v.trim())
 
 /** Prints only the element with this id. */
@@ -43,11 +45,11 @@ function ReportDialog({ r, onClose }: { r: DistributionReport; onClose: () => vo
       {printOnly('distribution-report')}
       <DialogContent>
         <Box id="distribution-report">
-          <Typography sx={{ fontSize: 17, fontWeight: 700 }}>{r.title}</Typography>
-          <Typography sx={{ fontSize: 12, mb: 2 }} color="text.secondary">{r.subtitle}</Typography>
+          <Typography variant="h5" component="p">{r.title}</Typography>
+          <Typography variant="body2" sx={{ mb: 2 }} color="text.secondary">{r.subtitle}</Typography>
           {r.sections.map((s) => (
             <Box key={s.heading} sx={{ mb: 2.5 }}>
-              <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 0.5 }}>{s.heading}</Typography>
+              <Typography sx={{ fontWeight: 700, mb: 0.5 }}>{s.heading}</Typography>
               <Table size="small" aria-label={s.heading}>
                 {s.columns.some((c) => c) && <TableHead><TableRow>{s.columns.map((c, i) => <TableCell key={i} align={i > 0 ? 'right' : 'left'}>{c}</TableCell>)}</TableRow></TableHead>}
                 <TableBody>
@@ -56,10 +58,10 @@ function ReportDialog({ r, onClose }: { r: DistributionReport; onClose: () => vo
                       {row.map((c, j) => <TableCell key={j} align={j > 0 && (numeric(c) || c === '') ? 'right' : 'left'} sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: /^Total|^Net surplus per|^Available/.test(row[0]) ? 700 : 400 }}>{c}</TableCell>)}
                     </TableRow>
                   ))}
-                  {s.rows.length === 0 && <TableRow><TableCell colSpan={Math.max(1, s.columns.length)}><Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing to show.</Typography></TableCell></TableRow>}
+                  {s.rows.length === 0 && <TableRow><TableCell colSpan={Math.max(1, s.columns.length)}><Typography color="text.secondary">Nothing to show.</Typography></TableCell></TableRow>}
                 </TableBody>
               </Table>
-              {s.notes.map((n) => <Typography key={n} sx={{ fontSize: 12, mt: 0.5 }} color="text.secondary">{n}</Typography>)}
+              {s.notes.map((n) => <Typography variant="body2" key={n} sx={{ mt: 0.5 }} color="text.secondary">{n}</Typography>)}
             </Box>
           ))}
         </Box>
@@ -77,7 +79,7 @@ function StatementDialog({ s, onClose }: { s: DistributionStatement; onClose: ()
       {printOnly('distribution-statement')}
       <DialogContent>
         <Box id="distribution-statement" sx={{ fontSize: 13 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 15, mb: 0.25 }}>Combined member distribution statement</Typography>
+          <Typography variant="h6" component="p" sx={{ mb: 0.25 }}>Combined member distribution statement</Typography>
           <Typography sx={{ mb: 1.5 }} color="text.secondary">Financial year {s.year}{s.status !== 'ENCODED' ? ` · ${STATUS_WORDS[s.status].toLowerCase()}, not final` : ''}</Typography>
           {row('Member', `${s.name ?? ''} (${s.clientId})`, true)}
           <Box sx={{ borderTop: '1px solid', borderColor: 'divider', my: 1 }} />
@@ -106,6 +108,7 @@ function Vouchers({ cutoff }: { cutoff: string }) {
   const qc = useQueryClient()
   const q = useQuery({ queryKey: ['dividend-vouchers', cutoff], queryFn: () => getDividendVouchers(cutoff), retry: false, refetchInterval: 20_000 })
   const act = useMutation({
+    onError: notifyError,
     meta: { done: (_, v) => ((v as { kind: string }).kind === 'approve' ? 'Voucher approved. Someone else can now post it.' : 'Dividend voucher posted.') },
     mutationFn: (v: { kind: 'approve' | 'post'; r: DividendVoucher }) => (v.kind === 'approve' ? approveDividend : postDividend)(v.r.year, v.r.controlNo),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['dividend-vouchers'] }); void qc.invalidateQueries({ queryKey: ['distribution'] }) },
@@ -114,12 +117,11 @@ function Vouchers({ cutoff }: { cutoff: string }) {
     <Box>
       {label('Vouchers')}
       <LoadingBlock q={q} what="the vouchers" />
-      {act.error && <Alert severity="error" sx={{ mb: 1 }}>{(act.error as Error).message}</Alert>}
       {(q.data ?? []).map((v) => (
         <Box key={`${v.year}-${v.controlNo}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider' }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 13 }}>{v.documentNo} · {money(v.total)}</Typography>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary">{v.lines.toLocaleString()} lines</Typography>
+            <Typography>{v.documentNo} · {money(v.total)}</Typography>
+            <Typography variant="body2" color="text.secondary">{v.lines.toLocaleString()} lines</Typography>
           </Box>
           <Chip size="small" variant="outlined" color={v.status === 'POSTED' ? 'success' : v.status === 'APPROVED' ? 'info' : 'warning'} label={v.status === 'WAITING FOR APPROVAL' ? 'Waiting for approval' : v.status === 'APPROVED' ? 'Approved' : 'Posted'} />
           {v.status === 'WAITING FOR APPROVAL' && <Button size="small" variant="contained" disabled={act.isPending} onClick={() => act.mutate({ kind: 'approve', r: v })}>Approve</Button>}
@@ -141,9 +143,8 @@ function DistributionDetail({ id, onBack }: { id: number; onBack: () => void }) 
   const [statement, setStatement] = useState<DistributionStatement | null>(null)
   const [rejecting, setRejecting] = useState(false)
   const [note, setNote] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const done = () => { setError(null); void qc.invalidateQueries({ queryKey: ['distribution', id] }); void qc.invalidateQueries({ queryKey: ['distributions'] }) }
-  const fail = (e: unknown) => setError((e as Error).message)
+  const done = () => { void qc.invalidateQueries({ queryKey: ['distribution', id] }); void qc.invalidateQueries({ queryKey: ['distributions'] }) }
+  const fail = (e: unknown) => notifyError((e as Error).message)
   const submit = useMutation({ meta: { done: 'Submitted for review. Someone else approves it.' }, mutationFn: () => submitDistribution(id), onSuccess: done, onError: fail })
   const approve = useMutation({ meta: { done: 'Distribution approved. The vouchers can now be made.' }, mutationFn: () => approveDistribution(id, note.trim() || null), onSuccess: done, onError: fail })
   const encode = useMutation({ meta: { done: 'Vouchers made. A second person approves each, a third posts it.' }, mutationFn: () => encodeDistribution(id), onSuccess: () => { done(); void qc.invalidateQueries({ queryKey: ['dividend-vouchers'] }) }, onError: fail })
@@ -160,14 +161,13 @@ function DistributionDetail({ id, onBack }: { id: number; onBack: () => void }) 
       {d && b && (
         <Stack spacing={2}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-            <Typography sx={{ fontSize: 17, fontWeight: 700, flex: 1 }}>Distribution of {b.year} · cut-off {b.cutoff}</Typography>
+            <Typography variant="h5" component="p" sx={{ flex: 1 }}>Distribution of {b.year} · cut-off {b.cutoff}</Typography>
             <Chip color={STATUS_COLOR[b.status]} label={STATUS_WORDS[b.status]} />
           </Box>
           <Alert severity={b.status === 'REJECTED' ? 'error' : 'info'} icon={false}>{d.rights.note}</Alert>
-          {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
 
           <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
-            <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', p: 1.5 }}>
+            <Box sx={{ border: 1, borderColor: 'divider', borderRadius: `${SURFACE_RADIUS - 2}px`, p: 1.5 }}>
               {label('Interest on share capital')}
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: 0.4, fontSize: 13 }}>
                 {fig('Total average share-month', money(b.totalAverageShare))}
@@ -176,7 +176,7 @@ function DistributionDetail({ id, onBack }: { id: number; onBack: () => void }) 
                 {fig('Distributed', money(b.totalIsc))}
               </Box>
             </Box>
-            <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', p: 1.5 }}>
+            <Box sx={{ border: 1, borderColor: 'divider', borderRadius: `${SURFACE_RADIUS - 2}px`, p: 1.5 }}>
               {label('Patronage refund')}
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: 0.4, fontSize: 13 }}>
                 {d.patronage.map((e) => fig(`${e.name} (${e.members.toLocaleString()} members)`, money(e.amount)))}
@@ -188,7 +188,7 @@ function DistributionDetail({ id, onBack }: { id: number; onBack: () => void }) 
             </Box>
           </Box>
 
-          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', p: 1.5 }}>
+          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: `${SURFACE_RADIUS - 2}px`, p: 1.5 }}>
             {label(`${b.members.toLocaleString()} members · ${money(b.total)}`)}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr auto', sm: 'repeat(2, 1fr auto)' }, columnGap: 3, rowGap: 0.4, fontSize: 13 }}>
               {Object.entries(d.credited).map(([k, v]) => fig(KIND_WORDS[k] ?? labelOf(k), money(v)))}
@@ -196,9 +196,9 @@ function DistributionDetail({ id, onBack }: { id: number; onBack: () => void }) 
               {b.available != null && fig('Available after statutory funds', money(b.available))}
               {d.funds.map((f) => fig(`${f.name} (${pct(f.percent)})`, money(f.amount)))}
             </Box>
-            {b.approvalRef && <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">Allocation approved by {b.approvalRef}.</Typography>}
-            <Typography sx={{ fontSize: 12, mt: 0.5 }} color="text.secondary">Settings used: {b.policy}</Typography>
-            {d.controls.map((c) => <Typography key={c} sx={{ fontSize: 12, mt: 0.5 }}>{c}</Typography>)}
+            {b.approvalRef && <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">Allocation approved by {b.approvalRef}.</Typography>}
+            <Typography variant="body2" sx={{ mt: 0.5 }} color="text.secondary">Settings used: {b.policy}</Typography>
+            {d.controls.map((c) => <Typography variant="body2" key={c} sx={{ mt: 0.5 }}>{c}</Typography>)}
           </Box>
 
           {d.leftOut.length > 0 && (
@@ -211,13 +211,13 @@ function DistributionDetail({ id, onBack }: { id: number; onBack: () => void }) 
                   ))}
                 </TableBody>
               </Table>
-              {b.held + b.excluded > d.leftOut.length && <Typography sx={{ fontSize: 12, mt: 0.5 }} color="text.secondary">The {d.leftOut.length} largest are shown.</Typography>}
+              {b.held + b.excluded > d.leftOut.length && <Typography variant="body2" sx={{ mt: 0.5 }} color="text.secondary">The {d.leftOut.length} largest are shown.</Typography>}
             </Box>
           )}
 
           <Box>
             {label('Steps')}
-            <Typography sx={{ fontSize: 13 }}>Prepared by {b.preparedBy} on {b.preparedAt}{b.submittedBy && `; submitted by ${b.submittedBy} on ${b.submittedAt}`}
+            <Typography>Prepared by {b.preparedBy} on {b.preparedAt}{b.submittedBy && `; submitted by ${b.submittedBy} on ${b.submittedAt}`}
               {b.decidedBy && `; ${b.status === 'REJECTED' ? 'rejected' : 'approved'} by ${b.decidedBy} on ${b.decidedAt}`}{b.decisionNote && ` (${b.decisionNote})`}
               {b.encodedBy && `; vouchers made by ${b.encodedBy} on ${b.encodedAt}`}.</Typography>
             <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', rowGap: 1 }}>
@@ -268,12 +268,12 @@ export function DistributionList({ openId, onOpen }: { openId: number | null; on
   return (
     <Box>
       <LoadingBlock q={q} what="the distributions" />
-      {q.data?.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">No distribution yet. Prepare one in Prepare.</Typography>}
+      {q.data?.length === 0 && <Typography color="text.secondary">No distribution yet. Prepare one in Prepare.</Typography>}
       {(q.data ?? []).map((b: Distribution) => (
         <ButtonBase key={b.id} onClick={() => onOpen(b.id)} sx={{ display: 'flex', width: '100%', textAlign: 'left', gap: 1.5, alignItems: 'center', p: 1.25, borderTop: 1, borderColor: 'divider', '&:hover': { bgcolor: 'action.hover' } }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{b.year} · {money(b.total)} to {b.members.toLocaleString()} members</Typography>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary">
+            <Typography variant="subtitle2" component="p">{b.year} · {money(b.total)} to {b.members.toLocaleString()} members</Typography>
+            <Typography variant="body2" color="text.secondary">
               Cut-off {b.cutoff} · {b.method === 'ALLOCATION' ? 'from the allocation' : 'typed rates'} · interest {pct(b.dividendRate)}, refund {pct(b.patronageRate)} · prepared by {b.preparedBy} {b.preparedAt}
             </Typography>
           </Box>
@@ -289,14 +289,14 @@ function Chooser({ title, all, everyone, chosen, onChange, disabled }: {
   title: string; all: { id: number; name: string }[]; everyone: string; chosen: number[] | null; onChange: (v: number[] | null) => void; disabled: boolean
 }) {
   return (
-    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', p: 1.5 }}>
-      <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{title}</Typography>
+    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: `${SURFACE_RADIUS - 2}px`, p: 1.5 }}>
+      <Typography variant="subtitle2" component="p">{title}</Typography>
       <FormControlLabel disabled={disabled} control={<Switch checked={chosen == null} onChange={(e) => onChange(e.target.checked ? null : all.map((x) => x.id))} />}
-        label={<Typography sx={{ fontSize: 13 }}>{everyone}</Typography>} />
+        label={<Typography>{everyone}</Typography>} />
       {chosen != null && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, mt: 0.5 }}>
           {all.map((x) => (
-            <FormControlLabel key={x.id} disabled={disabled} label={<Typography sx={{ fontSize: 13 }}>{x.name} ({x.id})</Typography>}
+            <FormControlLabel key={x.id} disabled={disabled} label={<Typography>{x.name} ({x.id})</Typography>}
               control={<Checkbox size="small" checked={chosen.includes(x.id)} onChange={(e) => onChange(e.target.checked ? [...chosen, x.id] : chosen.filter((y) => y !== x.id))} />} />
           ))}
         </Box>
@@ -330,15 +330,15 @@ export function DistributionSettingsView() {
       <LoadingBlock q={q} what="the settings" />
       {s && p && (
         <Stack spacing={2}>
-          <Typography sx={{ fontSize: 13 }} color="text.secondary">
+          <Typography color="text.secondary">
             Each year&apos;s distribution starts from these. They are the cooperative&apos;s choices, not built into the system: check them against RA 9520, the CDA rules and your bylaws.
             {!may && ' Only an administrator can change them.'}{s.policy.updatedBy && ` Last changed by ${s.policy.updatedBy} on ${s.policy.updatedAt}.`}
           </Typography>
-          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', p: 1.5 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Qualified patronage: what members paid on their loans that counts</Typography>
+          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: `${SURFACE_RADIUS - 2}px`, p: 1.5 }}>
+            <Typography variant="subtitle2" component="p">Qualified patronage: what members paid on their loans that counts</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
               {s.events.map((e) => (
-                <FormControlLabel key={e.id} disabled={!may} label={<Typography sx={{ fontSize: 13 }}>{e.name} ({e.id})</Typography>}
+                <FormControlLabel key={e.id} disabled={!may} label={<Typography>{e.name} ({e.id})</Typography>}
                   control={<Checkbox size="small" checked={p.events.includes(e.id)} onChange={(ev) => set({ events: ev.target.checked ? [...p.events, e.id] : p.events.filter((x) => x !== e.id) })} />} />
               ))}
             </Box>
@@ -350,9 +350,9 @@ export function DistributionSettingsView() {
           <TextField label="Minimum average share-month for interest on share capital" value={p.min} disabled={!may} onChange={(e) => set({ min: e.target.value })} sx={{ maxWidth: 380 }} helperText="0 for none" />
           {may && <Box><Button variant="contained" disabled={!draft} onClick={() => setSaving('policy')}>Save these settings</Button></Box>}
 
-          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', p: 1.5 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1 }}>Statutory funds set aside from the net surplus</Typography>
-            {f.length === 0 && <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">None yet. Add the reserve fund, education and training fund, community development fund and optional fund with the percents your bylaws set.</Typography>}
+          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: `${SURFACE_RADIUS - 2}px`, p: 1.5 }}>
+            <Typography variant="subtitle2" component="p" sx={{ mb: 1 }}>Statutory funds set aside from the net surplus</Typography>
+            {f.length === 0 && <Typography sx={{ mb: 1 }} color="text.secondary">None yet. Add the reserve fund, education and training fund, community development fund and optional fund with the percents your bylaws set.</Typography>}
             {f.map((x, i) => (
               <Box key={x.id ?? `new-${i}`} sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                 <TextField label="Fund" value={x.name} disabled={!may} onChange={(e) => setFunds(f.map((y, k) => (k === i ? { ...y, name: e.target.value } : y)))} sx={{ width: 280 }} />
@@ -360,7 +360,7 @@ export function DistributionSettingsView() {
                 {may && <IconButton aria-label={`Remove ${x.name || 'fund'}`} onClick={() => setFunds(f.filter((_, k) => k !== i))}><FiTrash2 /></IconButton>}
               </Box>
             ))}
-            <Typography sx={{ fontSize: 12, mb: 1 }} color={totalPct > 100 ? 'error' : 'text.secondary'}>Together {Number(totalPct.toFixed(4))}% of the net surplus.</Typography>
+            <Typography variant="body2" sx={{ mb: 1 }} color={totalPct > 100 ? 'error' : 'text.secondary'}>Together {Number(totalPct.toFixed(4))}% of the net surplus.</Typography>
             {may && <Stack direction="row" spacing={1}>
               <Button startIcon={<FiPlus />} onClick={() => setFunds([...f, { id: null, name: '', percent: 0, account: null, active: true }])}>Add fund</Button>
               <Button variant="contained" disabled={!funds} onClick={() => setSaving('funds')}>Save the funds</Button>

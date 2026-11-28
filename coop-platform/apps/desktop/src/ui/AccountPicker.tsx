@@ -47,8 +47,8 @@ export function AccountPicker({ code, desc, onPick, label, search, recentKey, au
         const { key, ...rest } = props as typeof props & { key: string }
         return (
           <Box component="li" key={key} {...rest} sx={{ display: 'flex', gap: 1.5 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{o.code}</Typography>
-            <Typography noWrap sx={{ fontSize: 13 }} color="text.secondary">{o.description}</Typography>
+            <Typography variant="subtitle2" component="p" sx={{ fontVariantNumeric: 'tabular-nums' }}>{o.code}</Typography>
+            <Typography noWrap color="text.secondary">{o.description}</Typography>
           </Box>
         )
       }}

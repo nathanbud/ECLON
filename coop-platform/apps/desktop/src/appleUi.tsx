@@ -1,10 +1,12 @@
 import {
-  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
+  Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, InputAdornment, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
   type SxProps, type Theme,
 } from '@mui/material'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { FiInfo, FiSearch } from 'react-icons/fi'
 import { glass } from './glass'
+import { SURFACE_RADIUS } from './theme'
+import { notify } from './ui/notices'
 
 /** Small building blocks shared by the settings-style screens, so they look and move the same way. */
 
@@ -84,7 +86,7 @@ export function Surface({ children, label }: { children: ReactNode; label?: stri
 
 /** A small heading above a surface. */
 export function SectionLabel({ children }: { children: ReactNode }) {
-  return <Typography component="h2" color="text.secondary" sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', mb: 0.75, px: 0.5 }}>{children}</Typography>
+  return <Typography variant="body2" component="h2" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', mb: 0.75, px: 0.5 }}>{children}</Typography>
 }
 
 export function SearchField({ value, onChange, placeholder = 'Search', width = 260 }: { value: string; onChange: (v: string) => void; placeholder?: string; width?: number }) {
@@ -93,7 +95,7 @@ export function SearchField({ value, onChange, placeholder = 'Search', width = 2
       size="small" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} sx={{ width }}
       slotProps={{
         htmlInput: { 'aria-label': placeholder },
-        input: { startAdornment: <InputAdornment position="start"><FiSearch /></InputAdornment>, sx: (t: Theme) => ({ borderRadius: '10px', bgcolor: fill(t), '& fieldset': { border: 'none' } }) },
+        input: { startAdornment: <InputAdornment position="start"><FiSearch /></InputAdornment>, sx: (t: Theme) => ({ borderRadius: `${SURFACE_RADIUS}px`, bgcolor: fill(t), '& fieldset': { border: 'none' } }) },
       }}
     />
   )
@@ -107,7 +109,7 @@ export function Segmented<T extends string | number>({ value, onChange, options,
     <ToggleButtonGroup
       exclusive value={value} onChange={(_, v) => v != null && onChange(v as T)} aria-label={label} size="small"
       sx={(t) => ({
-        bgcolor: fill(t), borderRadius: '7px', p: '2px', gap: '2px', flexWrap: 'wrap',
+        bgcolor: fill(t), borderRadius: `${SURFACE_RADIUS - 2}px`, p: '2px', gap: '2px', flexWrap: 'wrap',
         '& .MuiToggleButtonGroup-grouped': { border: 0, borderRadius: '5px !important', minHeight: 24, px: 1.75, py: 0, textTransform: 'none', fontSize: 13, fontWeight: 500, color: t.palette.text.secondary, transition: `background-color 180ms ${EASE}, color 180ms` },
         '& .Mui-selected': {
           bgcolor: `${t.palette.mode === 'dark' ? 'rgba(255,255,255,0.16)' : '#FBFBFC'} !important`, color: `${t.palette.text.primary} !important`,
@@ -140,7 +142,8 @@ export const listTable = (t: Theme) => ({
 
 /**
  * A short form that asks for a reason before it saves, used for every audited change. Extra fields go in as children.
- * It stays mounted so it can fade out; the reason is cleared once it has closed.
+ * It stays mounted so it can fade out; the reason is cleared once it has closed. A refusal (`error`) pops up in the middle of the window
+ * (`notify(..., 'error')`) instead of a box in the dialog, and the dialog stays open so the person can change the reason and try again.
  */
 export function ReasonDialog({ open, title, intro, confirm, danger, busy, error, canSubmit = true, onCancel, onConfirm, children }: {
   open: boolean; title: string; intro?: string; confirm: string; danger?: boolean; busy: boolean; error: string | null; canSubmit?: boolean
@@ -148,13 +151,13 @@ export function ReasonDialog({ open, title, intro, confirm, danger, busy, error,
 }) {
   const [reason, setReason] = useState('')
   const ready = reason.trim() !== '' && canSubmit && !busy
+  useEffect(() => { if (open && error) notify(error, 'error') }, [open, error])
   return (
     <Dialog open={open} onClose={busy ? undefined : onCancel} fullWidth maxWidth="xs" aria-labelledby="reason-title" slotProps={{ transition: { onExited: () => setReason('') } }}>
       <DialogTitle id="reason-title" sx={{ pb: 0.5 }}>{title}</DialogTitle>
       <form onSubmit={(e) => { e.preventDefault(); if (ready) onConfirm(reason.trim()) }}>
         <DialogContent sx={{ display: 'grid', gap: 1.75, pt: 1 }}>
-          {intro && <Typography color="text.secondary" sx={{ fontSize: 13 }}>{intro}</Typography>}
-          {error && <Alert severity="error">{error}</Alert>}
+          {intro && <Typography color="text.secondary">{intro}</Typography>}
           {children}
           <Hinted tip="Kept in the audit log"><TextField required autoFocus={!children} label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
         </DialogContent>

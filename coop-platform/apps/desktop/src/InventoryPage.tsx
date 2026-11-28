@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
+import { Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiPlus, FiTrash2 } from 'react-icons/fi'
@@ -12,6 +12,7 @@ import { ReasonDialog } from './ui/dialogs'
 import { useMe } from './session'
 import { parseAmount } from './ui/format'
 import { labelOf } from './ui/labels'
+import { notifyError } from './ui/notices'
 import { LoadingRow } from './ui/Loading'
 
 const qty = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 })
@@ -39,21 +40,19 @@ function ProductDialog({ product, onClose }: { product?: InvProduct; onClose: ()
   const units = useQuery({ queryKey: ['inv-units'], queryFn: listInvUnits })
   const cats = useQuery({ queryKey: ['inv-categories'], queryFn: listInvCategories })
   const [f, setF] = useState({ sku: product?.sku ?? '', name: product?.name ?? '', categoryId: product?.categoryId ? String(product.categoryId) : '', unit: product?.unit ?? 'pc', reorder: String(product?.reorderLevel ?? 0), trackBatch: product?.trackBatch ?? false, trackExpiry: product?.trackExpiry ?? false, active: product?.active ?? true })
-  const [error, setError] = useState<string | null>(null)
   const save = useMutation({
     mutationFn: () => {
       const body = { name: f.name, categoryId: f.categoryId ? Number(f.categoryId) : null, unit: f.unit, reorderLevel: parseAmount(f.reorder || '0'), trackBatch: f.trackBatch, trackExpiry: f.trackExpiry, active: f.active }
       return product ? updateInvProduct(product.id, body) : addInvProduct({ ...body, sku: f.sku })
     },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['inv-products'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{product ? `Edit ${product.name}` : 'New product'}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <Stack direction="row" spacing={1.5}>
             <TextField size="small" label="SKU" value={f.sku} disabled={!!product} onChange={(e) => setF({ ...f, sku: e.target.value })} sx={{ width: 160 }} />
             <TextField size="small" label="Name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} sx={{ flex: 1 }} />
@@ -73,7 +72,7 @@ function ProductDialog({ product, onClose }: { product?: InvProduct; onClose: ()
             <FormControlLabel control={<Checkbox checked={f.trackExpiry} disabled={!f.trackBatch} onChange={(_, v) => setF({ ...f, trackExpiry: v })} />} label="Has an expiry date" />
             {product && <FormControlLabel control={<Checkbox checked={f.active} onChange={(_, v) => setF({ ...f, active: v })} />} label="Active" />}
           </Stack>
-          {product && <Typography sx={{ fontSize: 12 }} color="text.secondary">Once there is stock history the unit and batch tracking cannot change.</Typography>}
+          {product && <Typography variant="body2" color="text.secondary">Once there is stock history the unit and batch tracking cannot change.</Typography>}
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending} onClick={() => save.mutate()}>Save</Button></DialogActions>
@@ -88,7 +87,7 @@ function StockDialog({ product, onClose }: { product: InvProduct; onClose: () =>
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>{product.sku} · {product.name}: {qty(product.onHand)} {product.unit} at {money(product.cost)} each</DialogTitle>
       <DialogContent>
-        <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', my: 1 }} color="text.secondary">Where it is</Typography>
+        <Typography variant="overline" sx={{ display: 'block', my: 1 }} color="text.secondary">Where it is</Typography>
         <Table size="small">
           <TableHead><TableRow><TableCell>Warehouse</TableCell><TableCell>Batch</TableCell><TableCell>Expires</TableCell><TableCell align="right">On hand</TableCell></TableRow></TableHead>
           <TableBody>
@@ -97,7 +96,7 @@ function StockDialog({ product, onClose }: { product: InvProduct; onClose: () =>
             {stock.data?.length === 0 && <TableRow><TableCell colSpan={4}><Typography color="text.secondary">No stock.</Typography></TableCell></TableRow>}
           </TableBody>
         </Table>
-        <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', my: 1 }} color="text.secondary">Movements</Typography>
+        <Typography variant="overline" sx={{ display: 'block', my: 1 }} color="text.secondary">Movements</Typography>
         <Table size="small">
           <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Date</TableCell><TableCell>Type</TableCell><TableCell>Warehouse</TableCell><TableCell>Batch</TableCell><TableCell align="right">Qty</TableCell><TableCell align="right">Cost</TableCell></TableRow></TableHead>
           <TableBody>
@@ -158,14 +157,13 @@ function MoveDialog({ kind, onClose }: { kind: InvMoveIn['type'] | 'TRANSFER'; o
   const [cost, setCost] = useState('')
   const [ref, setRef] = useState('')
   const [remarks, setRemarks] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const p = products.find((x) => String(x.id) === product)
   const save = useMutation({
     mutationFn: (): Promise<unknown> => kind === 'TRANSFER'
       ? transferInvStock({ productId: Number(product), fromWarehouseId: Number(wh), toWarehouseId: Number(toWh), batchNo: batch || undefined, quantity: parseAmount(quantity), remarks })
       : moveInvStock({ type: kind, productId: Number(product), warehouseId: Number(wh), batchNo: batch || undefined, expiryDate: expiry || null, quantity: parseAmount(quantity), unitCost: kind === 'RECEIVE' ? parseAmount(cost || '0') : null, reference: ref, remarks }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['inv-products'] }); void qc.invalidateQueries({ queryKey: ['inv-ledger'] }); void qc.invalidateQueries({ queryKey: ['inv-stock'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   const title = { RECEIVE: 'Receive stock', ISSUE: 'Issue stock', RETURN: 'Return to stock', TRANSFER: 'Transfer between warehouses' }[kind]
   return (
@@ -173,7 +171,6 @@ function MoveDialog({ kind, onClose }: { kind: InvMoveIn['type'] | 'TRANSFER'; o
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <ProductPicker value={product} onChange={setProduct} products={products} />
           <Stack direction="row" spacing={1.5}>
             <TextField select size="small" label={kind === 'TRANSFER' ? 'From' : 'Warehouse'} value={wh} onChange={(e) => setWh(e.target.value)} sx={{ flex: 1 }}>
@@ -263,18 +260,16 @@ function NewAdjustmentDialog({ onClose }: { onClose: () => void }) {
   const [type, setType] = useState('ADJUSTMENT')
   const [reason, setReason] = useState('')
   const [rows, setRows] = useState<LineRow[]>([{ productId: '', batch: '', quantity: '' }])
-  const [error, setError] = useState<string | null>(null)
   const save = useMutation({
     mutationFn: () => createInvAdjustment({ warehouseId: Number(wh), type, reason, lines: rows.map((r) => ({ productId: Number(r.productId), batchNo: r.batch || undefined, quantity: type === 'ADJUSTMENT' ? parseAmount(r.quantity) : -Math.abs(parseAmount(r.quantity)) })) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['inv-adjustments'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>New stock adjustment</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <Stack direction="row" spacing={1.5}>
             <TextField select size="small" label="Warehouse" value={wh} onChange={(e) => setWh(e.target.value)} sx={{ flex: 1 }}>{warehouses.map((w) => <MenuItem key={w.id} value={String(w.id)}>{w.name}</MenuItem>)}</TextField>
             <TextField select size="small" label="Kind" value={type} onChange={(e) => setType(e.target.value)} sx={{ width: 190 }}>
@@ -283,7 +278,7 @@ function NewAdjustmentDialog({ onClose }: { onClose: () => void }) {
           </Stack>
           <TextField size="small" label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
           <LineRows rows={rows} onChange={setRows} products={products} label={type === 'ADJUSTMENT' ? 'Change (+/−)' : 'Quantity lost'} />
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">Nothing changes in stock until a different stock approver approves it.</Typography>
+          <Typography variant="body2" color="text.secondary">Nothing changes in stock until a different stock approver approves it.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending || !wh} onClick={() => save.mutate()}>Submit</Button></DialogActions>
@@ -296,12 +291,10 @@ function Adjustments({ keeper, approver, user }: { keeper: boolean; approver: bo
   const list = useQuery({ queryKey: ['inv-adjustments'], queryFn: listInvAdjustments })
   const [creating, setCreating] = useState(false)
   const [rejecting, setRejecting] = useState<InvAdjSummary | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['inv-adjustments'] }); void qc.invalidateQueries({ queryKey: ['inv-products'] }); void qc.invalidateQueries({ queryKey: ['inv-ledger'] }) }
-  const approve = useMutation({ meta: { done: 'Adjustment approved.' }, mutationFn: (a: InvAdjSummary) => decideInvAdjustment(a.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const approve = useMutation({ meta: { done: 'Adjustment approved.' }, mutationFn: (a: InvAdjSummary) => decideInvAdjustment(a.id, 'approve'), onSuccess: () => { refresh() }, onError: (e) => notifyError((e as Error).message) })
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       {keeper && <Button variant="contained" startIcon={<FiPlus />} sx={{ mb: 1.5 }} onClick={() => setCreating(true)}>New adjustment</Button>}
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Warehouse</TableCell><TableCell>Kind</TableCell><TableCell>Reason</TableCell><TableCell>By</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
@@ -310,8 +303,8 @@ function Adjustments({ keeper, approver, user }: { keeper: boolean; approver: bo
           {(list.data ?? []).map((a) => (
             <TableRow key={a.id} hover>
               <TableCell>{a.adjustNo}</TableCell><TableCell>{a.warehouse}</TableCell><TableCell>{labelOf(a.type)}</TableCell>
-              <TableCell>{a.reason}{a.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{a.decisionNote}</Typography>}</TableCell><TableCell>{a.requestedBy}</TableCell>
-              <TableCell><Chip size="small" variant="outlined" color={statusColor(a.status)} label={labelOf(a.status)} />{a.waiting && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">waiting for {a.waiting}</Typography>}</TableCell>
+              <TableCell>{a.reason}{a.decisionNote && <Typography variant="body2" component="div" color="text.secondary">{a.decisionNote}</Typography>}</TableCell><TableCell>{a.requestedBy}</TableCell>
+              <TableCell><Chip size="small" variant="outlined" color={statusColor(a.status)} label={labelOf(a.status)} />{a.waiting && <Typography variant="body2" component="div" color="text.secondary">waiting for {a.waiting}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {approver && a.status === 'SUBMITTED' && a.requestedBy !== user && (<>{!a.waiting && <Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(a)}>Approve</Button>}<Button size="small" color="error" onClick={() => setRejecting(a)}>Reject</Button></>)}
               </TableCell>
@@ -331,21 +324,19 @@ function NewCountDialog({ onClose }: { onClose: () => void }) {
   const { products, warehouses } = useLists()
   const [wh, setWh] = useState('')
   const [rows, setRows] = useState<LineRow[]>([{ productId: '', batch: '', quantity: '' }])
-  const [error, setError] = useState<string | null>(null)
   const save = useMutation({
     mutationFn: () => createInvCount({ warehouseId: Number(wh), lines: rows.map((r) => ({ productId: Number(r.productId), batchNo: r.batch || undefined, countedQty: parseAmount(r.quantity) })) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['inv-counts'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>New stock count</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <TextField select size="small" label="Warehouse" value={wh} onChange={(e) => setWh(e.target.value)} sx={{ width: 320 }}>{warehouses.map((w) => <MenuItem key={w.id} value={String(w.id)}>{w.name}</MenuItem>)}</TextField>
           <LineRows rows={rows} onChange={setRows} products={products} label="Counted" />
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">The books are read when you submit. A different stock approver approves the count, and only the differences are posted.</Typography>
+          <Typography variant="body2" color="text.secondary">The books are read when you submit. A different stock approver approves the count, and only the differences are posted.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending || !wh} onClick={() => save.mutate()}>Submit count</Button></DialogActions>
@@ -358,12 +349,10 @@ function Counts({ keeper, approver, user }: { keeper: boolean; approver: boolean
   const list = useQuery({ queryKey: ['inv-counts'], queryFn: listInvCounts })
   const [creating, setCreating] = useState(false)
   const [rejecting, setRejecting] = useState<InvCountSummary | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['inv-counts'] }); void qc.invalidateQueries({ queryKey: ['inv-products'] }); void qc.invalidateQueries({ queryKey: ['inv-ledger'] }) }
-  const approve = useMutation({ meta: { done: 'Count approved.' }, mutationFn: (c: InvCountSummary) => decideInvCount(c.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const approve = useMutation({ meta: { done: 'Count approved.' }, mutationFn: (c: InvCountSummary) => decideInvCount(c.id, 'approve'), onSuccess: () => { refresh() }, onError: (e) => notifyError((e as Error).message) })
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       {keeper && <Button variant="contained" startIcon={<FiPlus />} sx={{ mb: 1.5 }} onClick={() => setCreating(true)}>New count</Button>}
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Date</TableCell><TableCell>Warehouse</TableCell><TableCell align="right">Differences</TableCell><TableCell>By</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
@@ -372,7 +361,7 @@ function Counts({ keeper, approver, user }: { keeper: boolean; approver: boolean
           {(list.data ?? []).map((c) => (
             <TableRow key={c.id} hover>
               <TableCell>{c.countNo}</TableCell><TableCell>{c.countDate}</TableCell><TableCell>{c.warehouse}</TableCell><TableCell align="right">{c.differences}</TableCell><TableCell>{c.countedBy}</TableCell>
-              <TableCell><Chip size="small" variant="outlined" color={statusColor(c.status)} label={labelOf(c.status)} />{c.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{c.decisionNote}</Typography>}</TableCell>
+              <TableCell><Chip size="small" variant="outlined" color={statusColor(c.status)} label={labelOf(c.status)} />{c.decisionNote && <Typography variant="body2" component="div" color="text.secondary">{c.decisionNote}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {approver && c.status === 'SUBMITTED' && c.countedBy !== user && (<><Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(c)}>Approve</Button><Button size="small" color="error" onClick={() => setRejecting(c)}>Reject</Button></>)}
               </TableCell>
@@ -396,16 +385,14 @@ function Setup({ keeper }: { keeper: boolean }) {
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [cat, setCat] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const fail = (e: unknown) => setError((e as Error).message)
+  const fail = (e: unknown) => notifyError((e as Error).message)
   const refreshWh = () => { void qc.invalidateQueries({ queryKey: ['inv-warehouses'] }) }
-  const addWh = useMutation({ mutationFn: () => addInvWarehouse({ code, name }), onSuccess: () => { setError(null); setCode(''); setName(''); refreshWh() }, onError: fail })
-  const toggle = useMutation({ mutationFn: (w: { id: number; active: boolean }) => updateInvWarehouse(w.id, { active: w.active }), onSuccess: () => { setError(null); refreshWh() }, onError: fail })
-  const addCat = useMutation({ mutationFn: () => addInvCategory(cat), onSuccess: () => { setError(null); setCat(''); void qc.invalidateQueries({ queryKey: ['inv-categories'] }) }, onError: fail })
+  const addWh = useMutation({ mutationFn: () => addInvWarehouse({ code, name }), onSuccess: () => { setCode(''); setName(''); refreshWh() }, onError: fail })
+  const toggle = useMutation({ mutationFn: (w: { id: number; active: boolean }) => updateInvWarehouse(w.id, { active: w.active }), onSuccess: () => { refreshWh() }, onError: fail })
+  const addCat = useMutation({ mutationFn: () => addInvCategory(cat), onSuccess: () => { setCat(''); void qc.invalidateQueries({ queryKey: ['inv-categories'] }) }, onError: fail })
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Warehouses</Typography>
+      <Typography variant="overline" sx={{ display: 'block', mb: 1 }} color="text.secondary">Warehouses</Typography>
       {keeper && (
         <Stack direction="row" spacing={1.5} sx={{ mb: 1.5 }}>
           <TextField size="small" label="Code" value={code} onChange={(e) => setCode(e.target.value)} sx={{ width: 140 }} />
@@ -422,7 +409,7 @@ function Setup({ keeper }: { keeper: boolean }) {
           ))}
         </TableBody>
       </Table>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Categories</Typography>
+      <Typography variant="overline" sx={{ display: 'block', mb: 1 }} color="text.secondary">Categories</Typography>
       {keeper && (
         <Stack direction="row" spacing={1.5} sx={{ mb: 1.5 }}>
           <TextField size="small" label="New category" value={cat} onChange={(e) => setCat(e.target.value)} sx={{ width: 260 }} />

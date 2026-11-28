@@ -1,7 +1,8 @@
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { downloadLoanWorksheet, getLoanProfile } from './api'
+import { Loading } from './ui/Loading'
 import { moneyOr } from './ui/format'
 
 const money = (n: number | null | undefined) => moneyOr(n, '')
@@ -31,7 +32,7 @@ function WorksheetActions({ branchCode, clientId, typeCode, refNo }: { branchCod
       <TextField size="small" type="date" label="Worksheet as of" value={asOf} onChange={(e) => setAsOf(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today } }} />
       <Button size="small" disabled={!asOf || busy !== null} onClick={() => run('pdf')}>{busy === 'pdf' ? 'Making PDF…' : 'Worksheet PDF'}</Button>
       <Button size="small" disabled={!asOf || busy !== null} onClick={() => run('xlsx')}>{busy === 'xlsx' ? 'Making Excel…' : 'Worksheet Excel'}</Button>
-      {note && <Typography role="status" sx={{ fontSize: 12 }} color={note.ok ? 'success.main' : 'error.main'}>{note.text}</Typography>}
+      {note && <Typography variant="body2" role="status" color={note.ok ? 'success.main' : 'error.main'}>{note.text}</Typography>}
     </Box>
   )
 }
@@ -51,7 +52,7 @@ export default function LoanProfileDialog({ branchCode, clientId, typeCode, refN
       <DialogTitle>Loans Profile{s ? ` · ${s.loanType ?? ''} #${s.refNo}` : ''}</DialogTitle>
       <DialogContent>
         {error && <Alert severity="error">{(error as Error).message}</Alert>}
-        {isLoading && <Skeleton variant="rounded" height={320} />}
+        {isLoading && <Loading what="the loan profile" />}
         {h && s && data && (
           <Box sx={{ display: 'grid', gap: 2, pt: 1 }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2 }}>
@@ -105,7 +106,7 @@ export default function LoanProfileDialog({ branchCode, clientId, typeCode, refN
                   <Box sx={{ display: 'grid', gap: 1.25, maxWidth: 420 }}>
                     <F label="Loan class" value={s.loanClass} />
                     <F label="Purpose" value={s.purpose} />
-                    <Typography sx={{ fontSize: 12 }} color="text.secondary">The other advanced settings of the old screen are not shown yet.</Typography>
+                    <Typography variant="body2" color="text.secondary">The other advanced settings of the old screen are not shown yet.</Typography>
                   </Box>
                 )}
               </Box>
@@ -121,7 +122,7 @@ export default function LoanProfileDialog({ branchCode, clientId, typeCode, refN
                     <F label="1st principal due date" value={s.firstPrincipalDue} />
                     <F label="Maturity date" value={s.maturity} />
                     <F label="Collection type" value={s.collectionType} />
-                    <Typography sx={{ fontSize: 12, fontWeight: 700 }} color="text.secondary">Pledges</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }} color="text.secondary">Pledges</Typography>
                     <Table size="small" aria-label="Pledges">
                       <TableHead><TableRow><TableCell>Pledge profile</TableCell><TableCell align="right">Amount</TableCell><TableCell>Member pledge</TableCell></TableRow></TableHead>
                       <TableBody>

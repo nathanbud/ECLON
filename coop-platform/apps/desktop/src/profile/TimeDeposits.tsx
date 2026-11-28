@@ -3,12 +3,13 @@ import TransactionDialog, { txRowProps, type TxKey } from '../TransactionDialog'
 import { useState } from 'react'
 import { getTimeDepositHistory, getTimeDeposits, type TimeDeposit } from '../api'
 import { useQuery } from '@tanstack/react-query'
-import { Alert, Box, Button, FormControlLabel, Skeleton, Switch, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import { Alert, Box, Button, FormControlLabel, Switch, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { FiInfo, FiPlus } from 'react-icons/fi'
 import { DetailPanel, EmptyState, TableCard } from './fields'
 import { fmtDate, peso } from './format'
 import TimeDepositPlaceDialog from '../TimeDepositPlaceDialog'
 import TimeDepositInterestDialog from '../TimeDepositInterestDialog'
+import { Loading } from '../ui/Loading'
 import TimeDepositCloseDialog from '../TimeDepositCloseDialog'
 
 const TD_STATUS: Record<string, string> = { ACTIVE: 'Running', MATURED: 'Matured', CLOSED: 'Closed', NO_LEDGER: 'Certificate only' }
@@ -22,7 +23,7 @@ export function TimeDepositsTab({ id, teller = false }: { id: Id; teller?: boole
   const [interestFor, setInterestFor] = useState<TimeDeposit | null>(null)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-time-deposits', id, showClosed], queryFn: () => getTimeDeposits(id.branchCode, id.clientId, showClosed), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
-  if (isLoading) return <Skeleton variant="rounded" height={160} />
+  if (isLoading) return <Loading what="the time deposits" />
   const num = { fontVariantNumeric: 'tabular-nums' } as const
   return (
     <>
@@ -77,7 +78,7 @@ export function TimeDepositsTab({ id, teller = false }: { id: Id; teller?: boole
           </Table>
         </TableCard>
       )}
-      <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
+      <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">
         Interest at maturity is an estimate: the rate over the term on a 30-day month, 360-day year. A renewal also carries a 10.00 certificate fee. A running Lock In pays its interest by the year on request (Withdraw interest, from an anniversary on). A matured certificate is paid out or renewed, and a running one pre-terminated (a termination charge, and interest at a reduced rate for the days held), only when someone asks for it here; the voucher then waits on the Front Office Disburse tab. The TD Maturities tab of the Front Office lists what is due.
       </Typography>
       {open && <TimeDepositHistory key={`${open.typeCode}-${open.refNo}`} id={id} typeCode={open.typeCode} refNo={open.refNo} onClose={() => setOpen(null)} />}

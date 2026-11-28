@@ -78,7 +78,7 @@ function Lists({ s }: { s: StarterStatus }) {
 
       <Box sx={(t) => ({ ...glass(t), p: 0, overflowX: 'auto' })}>
         <Stack direction="row" sx={{ px: 2, py: 1, alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{plural(s.lists.length, 'standard list')}</Typography>
+          <Typography variant="subtitle2" component="p">{plural(s.lists.length, 'standard list')}</Typography>
           <FormControlLabel control={<Switch checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />} label="Only lists with something to do" />
         </Stack>
         <Table size="small" aria-label="Standard lists">
@@ -92,7 +92,7 @@ function Lists({ s }: { s: StarterStatus }) {
           </TableHead>
           <TableBody>
             {shown.length === 0 && (
-              <TableRow><TableCell colSpan={4}><Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing to do: every list is complete.</Typography></TableCell></TableRow>
+              <TableRow><TableCell colSpan={4}><Typography color="text.secondary">Nothing to do: every list is complete.</Typography></TableCell></TableRow>
             )}
             {groups.map((g) => [
               <TableRow key={`g-${g}`}><TableCell colSpan={4} sx={{ fontWeight: 600, bgcolor: 'action.hover' }}>{g}</TableCell></TableRow>,
@@ -102,8 +102,8 @@ function Lists({ s }: { s: StarterStatus }) {
                 return (
                   <TableRow key={l.table}>
                     <TableCell>
-                      <Typography sx={{ fontSize: 13 }}>{l.label}</Typography>
-                      <Typography sx={{ fontSize: 11 }} color="text.secondary">{l.table}</Typography>
+                      <Typography>{l.label}</Typography>
+                      <Typography variant="caption" color="text.secondary">{l.table}</Typography>
                     </TableCell>
                     <TableCell align="right">{l.here.toLocaleString()}</TableCell>
                     <TableCell align="right">{l.inPackage.toLocaleString()}</TableCell>
@@ -111,7 +111,7 @@ function Lists({ s }: { s: StarterStatus }) {
                       <Stack spacing={0.5} sx={{ alignItems: 'flex-start' }}>
                         <Chip size="small" color={st.color} variant={st.color === 'success' ? 'outlined' : 'filled'} label={st.text} />
                         {l.missing > 0 && l.leftOut > 0 && <Chip size="small" color="warning" label={`${plural(l.leftOut, 'row')} left out`} />}
-                        {why.map((w) => <Typography key={w} sx={{ fontSize: 11, maxWidth: 420 }} color="text.secondary">{w}</Typography>)}
+                        {why.map((w) => <Typography variant="caption" key={w} sx={{ maxWidth: 420 }} color="text.secondary">{w}</Typography>)}
                       </Stack>
                     </TableCell>
                   </TableRow>

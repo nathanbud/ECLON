@@ -3,7 +3,7 @@ import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { FiBook, FiFilePlus, FiPackage, FiDatabase, FiImage, FiBookOpen, FiLayers, FiMoon, FiPercent, FiChevronRight, FiClipboard, FiDownloadCloud, FiFileText, FiGitMerge, FiLock, FiMapPin, FiMonitor, FiSearch, FiSend, FiShield, FiSliders, FiToggleRight, FiUserCheck, FiUserPlus, FiUsers } from 'react-icons/fi'
 import type { View } from './Dashboard'
 import { appBackground, glass } from './glass'
-import { tint } from './theme'
+import { tint, SURFACE_RADIUS } from './theme'
 import { useMe } from './session'
 import { nameCase } from './ui/format'
 import { SchemaStatusNotice } from './SchemaStatusNotice'
@@ -131,18 +131,18 @@ function Row({ item, allowed, onOpen }: { item: Item; allowed: boolean; onOpen: 
         '&:hover': enabled ? { bgcolor: t.palette.action.hover } : undefined,
         '&:active': enabled ? { bgcolor: t.palette.action.selected } : undefined,
         '&.Mui-disabled': { opacity: 0.6 },
-        '&.Mui-focusVisible': { outline: `2px solid ${t.palette.primary.main}`, outlineOffset: -2, borderRadius: '10px' },
+        '&.Mui-focusVisible': { outline: `2px solid ${t.palette.primary.main}`, outlineOffset: -2, borderRadius: `${SURFACE_RADIUS}px` },
       })}
     >
       <Badge color={item.color} size={32}>{item.icon}</Badge>
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography sx={{ fontSize: 15, fontWeight: 500, lineHeight: 1.3 }}>{item.label}</Typography>
-        <Typography color="text.secondary" sx={{ fontSize: 12, lineHeight: 1.35 }}>{item.note}</Typography>
+        <Typography variant="h6" component="p" sx={{ fontWeight: 500, lineHeight: 1.3 }}>{item.label}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.35 }}>{item.note}</Typography>
       </Box>
       {enabled ? (
         <Box aria-hidden sx={{ color: 'text.disabled', display: 'flex' }}><FiChevronRight /></Box>
       ) : (
-        <Typography color="text.secondary" sx={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
           {item.view ? <><FiLock size={12} />{WHO_WORDS[whoOf(item)] ?? 'Not your role'}</> : 'Coming soon'}
         </Typography>
       )}
@@ -190,8 +190,8 @@ export default function SettingsPage({ onOpen }: { onOpen: (v: View, tab?: strin
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 0.5, mb: 2 }}>
             <Box aria-hidden sx={{ width: 40, height: 40, borderRadius: '50%', display: 'grid', placeItems: 'center', fontWeight: 600, fontSize: 15, color: '#fff', backgroundImage: 'linear-gradient(160deg, #8E8E93, #636366)' }}>{initials}</Box>
             <Box sx={{ minWidth: 0 }}>
-              <Typography noWrap sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.25 }}>{nameCase(me.name)}</Typography>
-              <Typography noWrap color="text.secondary" sx={{ fontSize: 12 }}>{me.admin ? 'Administrator' : 'Accountant'}</Typography>
+              <Typography variant="subtitle2" component="p" noWrap sx={{ lineHeight: 1.25 }}>{nameCase(me.name)}</Typography>
+              <Typography variant="body2" noWrap color="text.secondary">{me.admin ? 'Administrator' : 'Accountant'}</Typography>
             </Box>
           </Box>
           <TextField
@@ -200,7 +200,7 @@ export default function SettingsPage({ onOpen }: { onOpen: (v: View, tab?: strin
               htmlInput: { 'aria-label': 'Search settings' },
               input: {
                 startAdornment: <InputAdornment position="start"><FiSearch /></InputAdornment>,
-                sx: (t: { palette: { mode: string } }) => ({ borderRadius: '10px', bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', '& fieldset': { border: 'none' } }),
+                sx: (t: { palette: { mode: string } }) => ({ borderRadius: `${SURFACE_RADIUS}px`, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', '& fieldset': { border: 'none' } }),
               },
             }}
           />
@@ -211,7 +211,7 @@ export default function SettingsPage({ onOpen }: { onOpen: (v: View, tab?: strin
                 <ButtonBase
                   key={c.id} role="listitem" aria-current={on ? 'page' : undefined} onClick={() => { setQ(''); choose(c.id) }} onKeyDown={(e) => onKey(e, i)} focusRipple={false}
                   sx={(t) => ({
-                    display: 'flex', alignItems: 'center', gap: 1.25, px: 1, py: 0.75, borderRadius: '10px', textAlign: 'left', justifyContent: 'flex-start',
+                    display: 'flex', alignItems: 'center', gap: 1.25, px: 1, py: 0.75, borderRadius: `${SURFACE_RADIUS}px`, textAlign: 'left', justifyContent: 'flex-start',
                     width: { md: '100%' }, fontSize: 13, fontWeight: on ? 600 : 500,
                     bgcolor: on ? (t.palette.mode === 'dark' ? 'rgba(10,132,255,0.28)' : 'rgba(0,122,255,0.14)') : 'transparent',
                     transition: `background-color 160ms ${EASE}`,

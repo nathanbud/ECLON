@@ -1,9 +1,10 @@
-import { Alert, Box, Button, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import { Box, Button, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { decideWorkflow, getWorkflowWaiting, type WorkflowWaiting } from './api'
 import { glass } from './glass'
 import { ReasonDialog } from './ui/dialogs'
+import { notifyError } from './ui/notices'
 import { money } from './ui/format'
 
 
@@ -15,19 +16,17 @@ export default function WorkflowInbox() {
   const qc = useQueryClient()
   const list = useQuery({ queryKey: ['workflow-waiting'], queryFn: getWorkflowWaiting, refetchInterval: 30_000 })
   const [rejecting, setRejecting] = useState<WorkflowWaiting | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['workflow-waiting'] })
     for (const k of ['po-list', 'pr-list', 'inv-adjustments', 'inv-products', 'inv-ledger']) void qc.invalidateQueries({ queryKey: [k] })
   }
-  const approve = useMutation({ mutationFn: (w: WorkflowWaiting) => decideWorkflow(w.entityType, w.entityId, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const approve = useMutation({ mutationFn: (w: WorkflowWaiting) => decideWorkflow(w.entityType, w.entityId, 'approve'), onSuccess: () => { refresh() }, onError: (e) => notifyError((e as Error).message) })
   const items = list.data ?? []
   return (
     <Box sx={{ mt: 3 }}>
-      <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, mb: 0.5 }}>Other approvals waiting for you</Typography>
-      <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">Purchases and stock adjustments that need one more approval from your role because of their amount.</Typography>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
-      {items.length === 0 ? <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing is waiting for you.</Typography> : (
+      <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>Other approvals waiting for you</Typography>
+      <Typography sx={{ mb: 1.5 }} color="text.secondary">Purchases and stock adjustments that need one more approval from your role because of their amount.</Typography>
+      {items.length === 0 ? <Typography color="text.secondary">Nothing is waiting for you.</Typography> : (
         <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
           <Table size="small" aria-label="Extra approvals waiting for you">
             <TableHead><TableRow><TableCell>Kind</TableCell><TableCell>Item</TableCell><TableCell align="right">Amount</TableCell><TableCell>Made by</TableCell><TableCell>Your step</TableCell><TableCell /></TableRow></TableHead>

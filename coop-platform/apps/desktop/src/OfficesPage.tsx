@@ -6,6 +6,7 @@ import { FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi'
 import { addOffice, deleteOffice, getOffices, renameOffice, type OfficeRow, type Offices } from './api/offices'
 import { appBackground, glass } from './glass'
 import { LoadingRow } from './ui/Loading'
+import { notifyError } from './ui/notices'
 import { Hinted, ScreenTitle } from './appleUi'
 
 const KEY = ['offices']
@@ -77,7 +78,7 @@ export default function OfficesPage() {
               <TableBody>
                 <LoadingRow q={q} what="the offices" />
                 {noOffices && (
-                  <TableRow><TableCell colSpan={editable ? 5 : 4}><Typography sx={{ fontSize: 13 }} color="text.secondary">No offices yet.</Typography></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={editable ? 5 : 4}><Typography color="text.secondary">No offices yet.</Typography></TableCell></TableRow>
                 )}
                 {data?.offices.map((o) => {
                   const blocked = cannotDelete(o)
@@ -120,6 +121,7 @@ function OfficeDialog({ open, data, onClose }: { open: NonNullable<Open>; data: 
   const id = Number(number)
 
   const save = useMutation({
+    onError: notifyError,
     mutationFn: () => {
       if (open.kind === 'add') return addOffice(id, name.trim(), reason.trim())
       if (open.kind === 'rename') return renameOffice(open.office.id, name.trim(), reason.trim())
@@ -151,9 +153,8 @@ function OfficeDialog({ open, data, onClose }: { open: NonNullable<Open>; data: 
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {save.error && <Alert severity="error">{(save.error as Error).message}</Alert>}
           {open.kind === 'delete' ? (
-            <Typography sx={{ fontSize: 13 }}>
+            <Typography>
               Office {office?.id}, {office?.name}, will be removed. No member or user belongs to it. Its number can be given to a new office later.
             </Typography>
           ) : (

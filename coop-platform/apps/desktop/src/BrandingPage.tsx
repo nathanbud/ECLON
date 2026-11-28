@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Snackbar, Stack, TextField, Typography, type Theme } from '@mui/material'
+import { Alert, Box, Button, Stack, TextField, Typography, type Theme } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { FiTrash2, FiUpload } from 'react-icons/fi'
@@ -6,9 +6,10 @@ import { apiUrl, getBranding, removeBrandingLogo, setBrandingText, uploadBrandin
 import { BrandBlock, SystemLine } from './BrandBlock'
 import { brand } from './brand'
 import { appBackground, glass, LIGHT } from './glass'
-import { tileFill } from './theme'
+import { tileFill, RADIUS } from './theme'
 import { useLeaveGuard } from './leaveGuard'
 import { useMe } from './session'
+import { notifyError, notify } from './ui/notices'
 import { ScreenTitle } from './appleUi'
 
 const NAME_MAX = 80
@@ -26,8 +27,6 @@ export default function BrandingPage() {
   const [name, setName] = useState('')
   const [tagline, setTagline] = useState('')
   const [loaded, setLoaded] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const file = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -39,12 +38,11 @@ export default function BrandingPage() {
 
   const done = (msg: string) => (b: Awaited<ReturnType<typeof getBranding>>) => {
     qc.setQueryData(['branding'], b)
-    setError(null)
-    setNotice(msg)
+    notify(msg)
   }
-  const saveText = useMutation({ mutationFn: () => setBrandingText(name, tagline), onSuccess: done('Saved. The sign-in screen shows the new wording.'), onError: (e) => setError((e as Error).message) })
-  const upload = useMutation({ mutationFn: (f: File) => uploadBrandingLogo(f), onSuccess: done('Logo saved.'), onError: (e) => setError((e as Error).message) })
-  const remove = useMutation({ mutationFn: removeBrandingLogo, onSuccess: done('Logo removed. The Coop Platform mark is shown again.'), onError: (e) => setError((e as Error).message) })
+  const saveText = useMutation({ mutationFn: () => setBrandingText(name, tagline), onSuccess: done('Saved. The sign-in screen shows the new wording.'), onError: (e) => notifyError((e as Error).message) })
+  const upload = useMutation({ mutationFn: (f: File) => uploadBrandingLogo(f), onSuccess: done('Logo saved.'), onError: (e) => notifyError((e as Error).message) })
+  const remove = useMutation({ mutationFn: removeBrandingLogo, onSuccess: done('Logo removed. The Coop Platform mark is shown again.'), onError: (e) => notifyError((e as Error).message) })
 
   const logo = saved.data?.hasLogo ? apiUrl(`/api/public/branding/logo?v=${saved.data.version}`) : null
   const shownName = name.trim() || brand.product
@@ -58,17 +56,16 @@ export default function BrandingPage() {
           The logo, name and tagline on the left of the sign-in screen. Everyone sees them, including people who have not signed in yet.
         </ScreenTitle>
         {!superadmin && <Alert severity="info" sx={{ mb: 2 }}>Only a SUPERADMIN can change this. You can see how it looks.</Alert>}
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
         {saved.isError && <Alert severity="error" sx={{ mb: 2 }}>The current settings could not be read.</Alert>}
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
           <Box sx={(t) => ({ p: 2.5, ...glass(t) })}>
             <Stack spacing={2.5}>
               <Box>
-                <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Logo</Typography>
+                <Typography variant="overline" sx={{ display: 'block', mb: 1 }} color="text.secondary">Logo</Typography>
                 <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-                  <Box sx={(t) => ({ width: 88, height: 88, flexShrink: 0, display: 'grid', placeItems: 'center', border: 1, borderColor: 'divider', borderRadius: '5px', bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : LIGHT.field })}>
-                    {logo ? <Box component="img" src={logo} alt="Current logo" sx={{ maxWidth: 76, maxHeight: 76, objectFit: 'contain' }} /> : <Typography sx={{ fontSize: 12, textAlign: 'center', px: 1 }} color="text.secondary">No logo</Typography>}
+                  <Box sx={(t) => ({ width: 88, height: 88, flexShrink: 0, display: 'grid', placeItems: 'center', border: 1, borderColor: 'divider', borderRadius: `${RADIUS}px`, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : LIGHT.field })}>
+                    {logo ? <Box component="img" src={logo} alt="Current logo" sx={{ maxWidth: 76, maxHeight: 76, objectFit: 'contain' }} /> : <Typography variant="body2" sx={{ textAlign: 'center', px: 1 }} color="text.secondary">No logo</Typography>}
                   </Box>
                   <Box>
                     <Stack direction="row" spacing={1}>
@@ -76,7 +73,7 @@ export default function BrandingPage() {
                       {logo && <Button size="small" color="error" startIcon={<FiTrash2 />} disabled={!superadmin || busy} onClick={() => remove.mutate()}>Remove</Button>}
                     </Stack>
                     <input ref={file} type="file" hidden accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) upload.mutate(f) }} />
-                    <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">PNG, JPEG, WebP or SVG, up to 1 MB. A square picture at least 256 px wide looks best.</Typography>
+                    <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">PNG, JPEG, WebP or SVG, up to 1 MB. A square picture at least 256 px wide looks best.</Typography>
                   </Box>
                 </Stack>
               </Box>
@@ -93,17 +90,16 @@ export default function BrandingPage() {
             </Stack>
           </Box>
 
-          <Box aria-label="Preview of the sign-in screen's left side" role="img" sx={(t) => ({ position: 'relative', overflow: 'hidden', minHeight: 360, display: 'grid', placeItems: 'center', p: 3, borderRadius: '5px', border: `1px solid ${t.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : LIGHT.hairline}`, background: tint(t) })}>
+          <Box aria-label="Preview of the sign-in screen's left side" role="img" sx={(t) => ({ position: 'relative', overflow: 'hidden', minHeight: 360, display: 'grid', placeItems: 'center', p: 3, borderRadius: `${RADIUS}px`, border: `1px solid ${t.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : LIGHT.hairline}`, background: tint(t) })}>
             <Box aria-hidden sx={{ position: 'absolute', width: 300, height: 300, top: -110, left: -90, borderRadius: '50%', filter: 'blur(80px)', opacity: 0.28, bgcolor: tileFill.indigo }} />
             <Box sx={{ position: 'relative' }}>
               <BrandBlock name={shownName} tagline={tagline.trim() || null} logo={logo} custom={!!name.trim()} size={72} scale={0.62} />
             </Box>
             <Box sx={{ position: 'absolute', left: 16, bottom: 10 }}><SystemLine custom={!!name.trim()} size={11} /></Box>
-            <Typography sx={{ position: 'absolute', bottom: 10, right: 16, fontSize: 11 }} color="text.secondary">Preview</Typography>
+            <Typography variant="caption" sx={{ position: 'absolute', bottom: 10, right: 16 }} color="text.secondary">Preview</Typography>
           </Box>
         </Box>
       </Box>
-      <Snackbar open={!!notice} autoHideDuration={4000} onClose={() => setNotice(null)} message={notice} />
     </Box>
   )
 }

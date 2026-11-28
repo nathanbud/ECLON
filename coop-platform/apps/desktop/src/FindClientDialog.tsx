@@ -1,11 +1,11 @@
-import { Alert, Avatar, Box, Chip, CircularProgress, Dialog, FormControlLabel, IconButton, InputAdornment, Skeleton, Switch, TextField, Typography, type Theme } from '@mui/material'
+import { Alert, Avatar, Box, Chip, CircularProgress, Dialog, FormControlLabel, IconButton, InputAdornment, Skeleton, Switch, TextField, Typography, type Theme, alpha } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { FiCornerDownLeft, FiSearch, FiUser, FiX } from 'react-icons/fi'
 import { searchMembers, type Lookups, type Member } from './api'
 import { displayName, initials, memberNo, statusOf, type Id } from './clients'
 import { LIGHT } from './glass'
-import { tileFill } from './theme'
+import { tileFill, RADIUS } from './theme'
 
 const MAX_RESULTS = 8
 
@@ -17,7 +17,7 @@ const dark = (t: Theme) => t.palette.mode === 'dark'
 /** A physical-looking key cap for the shortcut hints. */
 const Key = ({ children }: { children: ReactNode }) => (
   <Box component="kbd" sx={(t) => ({
-    fontFamily: 'inherit', fontSize: 11, fontWeight: 600, lineHeight: 1, px: 0.9, py: 0.5, borderRadius: '5px',
+    fontFamily: 'inherit', fontSize: 11, fontWeight: 600, lineHeight: 1, px: 0.9, py: 0.5, borderRadius: `${RADIUS}px`,
     color: 'text.primary',
     backgroundColor: dark(t) ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
     border: `1px solid ${dark(t) ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.12)'}`,
@@ -120,7 +120,7 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
 
       <Box sx={{ px: 2.5, pt: 2.25, pb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-          <Typography component="h2" sx={{ flex: 1, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">{wording.title}</Typography>
+          <Typography variant="body2" component="h2" sx={{ flex: 1, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">{wording.title}</Typography>
           {allowInactive && (
             <FormControlLabel
               sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} label="Include inactive"
@@ -154,7 +154,7 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
               boxShadow: dark(t) ? 'inset 0 1px 2px rgba(0,0,0,0.35)' : 'inset 0 1px 2px rgba(0,0,0,0.08)',
               transition: 'box-shadow 160ms ease-out',
               '& .MuiOutlinedInput-notchedOutline': { borderColor: dark(t) ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' },
-              '&.Mui-focused': { boxShadow: `0 0 0 3px ${dark(t) ? 'rgba(10,132,255,0.3)' : 'rgba(0,122,255,0.2)'}` },
+              '&.Mui-focused': { boxShadow: `0 0 0 3px ${alpha(t.palette.primary.main, dark(t) ? 0.3 : 0.2)}` },
             },
             '& .MuiOutlinedInput-input::placeholder': { opacity: 0.55 },
           })}
@@ -166,10 +166,10 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
 
         {!error && !enabled && (
           <Box sx={{ px: 2.5, py: 3, textAlign: 'center' }}>
-            <Typography sx={{ fontSize: 15, fontWeight: 600, mb: 0.5 }}>{wording.lead}</Typography>
-            <Typography sx={{ fontSize: 13, mb: total === undefined ? 1.5 : 0.5 }} color="text.secondary">{wording.hint}</Typography>
+            <Typography variant="h6" component="p" sx={{ mb: 0.5 }}>{wording.lead}</Typography>
+            <Typography sx={{ mb: total === undefined ? 1.5 : 0.5 }} color="text.secondary">{wording.hint}</Typography>
             {total !== undefined && (
-              <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1.5, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">
+              <Typography variant="subtitle2" component="p" sx={{ mb: 1.5, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">
                 {total.toLocaleString('en-PH')} {inactive ? 'members in all' : `active member${total === 1 ? '' : 's'}`}
               </Typography>
             )}
@@ -186,14 +186,14 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
 
         {!error && enabled && !isFetching && results.length === 0 && (
           <Box sx={{ px: 2.5, py: 3, textAlign: 'center' }}>
-            <Typography sx={{ fontSize: 15, fontWeight: 600, mb: 0.5 }}>No members found</Typography>
-            <Typography sx={{ fontSize: 13 }} color="text.secondary">Nothing matches “{q}”. Check the spelling, or try the member ID.{!inactive && (allowInactive ? ' Only active members are listed: turn on Include inactive to see dormant and closed ones.' : ' Only active members are listed: a dormant or closed member cannot apply.')}</Typography>
+            <Typography variant="h6" component="p" sx={{ mb: 0.5 }}>No members found</Typography>
+            <Typography color="text.secondary">Nothing matches “{q}”. Check the spelling, or try the member ID.{!inactive && (allowInactive ? ' Only active members are listed: turn on Include inactive to see dormant and closed ones.' : ' Only active members are listed: a dormant or closed member cannot apply.')}</Typography>
           </Box>
         )}
 
         {results.length > 0 && (
           <>
-            <Typography sx={{ px: 2.5, pt: 1.5, pb: 0.5, fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">
+            <Typography variant="caption" sx={{ px: 2.5, pt: 1.5, pb: 0.5, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">
               {hasMore ? `First ${results.length} matches` : `${results.length} client${results.length === 1 ? '' : 's'}`}
             </Typography>
             <Box component="ul" id="find-client-results" role="listbox" aria-label="Matching members" sx={{ listStyle: 'none', m: 0, px: 1, pb: 1, display: 'grid', gap: 0.25 }}>
@@ -208,7 +208,7 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
                     ref={on ? activeRef : undefined}
                     onClick={() => { onPick(m.id); onPickMember?.(m) }} onMouseMove={() => setActive(i)}
                     sx={(t) => ({
-                      display: 'flex', alignItems: 'center', gap: 1.75, px: 1.5, py: 1.15, borderRadius: '5px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 1.75, px: 1.5, py: 1.15, borderRadius: `${RADIUS}px`, cursor: 'pointer',
                       backgroundColor: on ? (dark(t) ? 'rgba(255,255,255,0.1)' : 'rgba(0,100,220,0.09)') : 'transparent',
                       transition: 'background-color 120ms ease-out',
                       '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
@@ -218,14 +218,14 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
                       {initials(m) === '?' ? <FiUser size={20} /> : initials(m)}
                     </Avatar>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Typography noWrap sx={{ fontSize: 15, fontWeight: 500, lineHeight: 1.3 }}><Highlight text={name} q={q} /></Typography>
-                      <Typography noWrap sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', lineHeight: 1.4 }} color="text.secondary">
+                      <Typography variant="h6" component="p" noWrap sx={{ fontWeight: 500, lineHeight: 1.3 }}><Highlight text={name} q={q} /></Typography>
+                      <Typography variant="body2" noWrap sx={{ fontVariantNumeric: 'tabular-nums', lineHeight: 1.4 }} color="text.secondary">
                         <Highlight text={memberNo(m.id)} q={q} />{m.referenceId ? ` · Ref ${m.referenceId}` : ''}{m.city ? ` · ${m.city}` : ''}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
                       <Box aria-hidden sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: dot }} />
-                      <Typography sx={{ fontSize: 12 }} color="text.secondary">{st.label}</Typography>
+                      <Typography variant="body2" color="text.secondary">{st.label}</Typography>
                     </Box>
                     <Box aria-hidden sx={{ width: 18, display: 'flex', justifyContent: 'flex-end', color: 'text.secondary', opacity: on ? 1 : 0, transition: 'opacity 120ms ease-out' }}><FiCornerDownLeft size={15} /></Box>
                   </Box>
@@ -235,7 +235,7 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
           </>
         )}
         {hasMore && (
-          <Typography sx={{ px: 2.5, pb: 1.5, fontSize: 12 }} color="text.secondary">
+          <Typography variant="body2" sx={{ px: 2.5, pb: 1.5 }} color="text.secondary">
             There are more matches. Keep typing to narrow the list.
           </Typography>
         )}
@@ -251,7 +251,7 @@ export function FindBody({ onPick, onPickMember, lk, inline = false, wording = M
           {hints.map(([k, label]) => (
             <Box key={k} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
               <Key>{k}</Key>
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">{label}</Typography>
+              <Typography variant="body2" color="text.secondary">{label}</Typography>
             </Box>
           ))}
         </Box>
@@ -274,7 +274,7 @@ export default function FindClientDialog({ open, onClose, onPick, lk }: {
           backgroundColor: dark(t) ? 'rgba(0,0,0,0.5)' : 'rgba(40,50,80,0.28)',
         }) },
         paper: { sx: (t: Theme) => ({
-          alignSelf: 'flex-start', mt: '12vh', borderRadius: '5px', overflow: 'hidden',
+          alignSelf: 'flex-start', mt: '12vh', borderRadius: `${RADIUS}px`, overflow: 'hidden',
           backgroundImage: 'none',
           background: dark(t)
             ? 'linear-gradient(145deg, rgba(58,58,64,0.62), rgba(28,28,32,0.5))'

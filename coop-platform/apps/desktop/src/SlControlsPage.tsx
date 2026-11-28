@@ -7,6 +7,7 @@ import { appBackground, glass } from './glass'
 import { useLeaveGuard } from './leaveGuard'
 import { LoadingBlock } from './ui/Loading'
 import { money } from './ui/format'
+import { notifyError } from './ui/notices'
 import { ScreenTitle } from './appleUi'
 
 const key = (memberType: number, slc: number, slt: number) => `${memberType}/${slc}/${slt}`
@@ -58,6 +59,7 @@ function Controls({ c }: { c: SlControls }) {
   const missingShare = withoutShareCapital(c, draft)
   useLeaveGuard(changes.length ? 'The SL Controls have changes that are not saved.' : null)
   const save = useMutation({
+    onError: notifyError,
     mutationFn: () => saveSlControls(changes, reason.trim()),
     meta: { done: 'SL Controls saved and recorded in the audit log.' },
     onSuccess: (fresh) => {
@@ -77,8 +79,8 @@ function Controls({ c }: { c: SlControls }) {
       {c.classes.map((g) => (
         <Box key={g.slc} component="section" aria-label={g.name} sx={(t) => ({ ...glass(t), p: 0, mb: 2, overflow: 'hidden' })}>
           <Box sx={{ px: 2, pt: 1.5, pb: 1 }}>
-            <Typography component="h2" sx={{ fontSize: 15, fontWeight: 600 }}>{g.name}</Typography>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary">{g.note}</Typography>
+            <Typography variant="h6" component="h2">{g.name}</Typography>
+            <Typography variant="body2" color="text.secondary">{g.note}</Typography>
           </Box>
           <Box sx={{ overflowX: 'auto' }}>
             <Table size="small">
@@ -91,14 +93,14 @@ function Controls({ c }: { c: SlControls }) {
               </TableHead>
               <TableBody>
                 {g.types.length === 0 && (
-                  <TableRow><TableCell colSpan={2 + c.memberTypes.length}><Typography sx={{ fontSize: 13 }} color="text.secondary">No account type of this class is set up.</Typography></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={2 + c.memberTypes.length}><Typography color="text.secondary">No account type of this class is set up.</Typography></TableCell></TableRow>
                 )}
                 {g.types.map((t) => (
                   <TableRow key={t.slt} hover>
                     <TableCell>
                       <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
-                        <Typography sx={{ fontSize: 13, color: t.disabled ? 'text.disabled' : undefined }}>{t.name}</Typography>
-                        <Typography component="span" sx={{ fontSize: 11 }} color="text.secondary">{g.slc}/{t.slt}</Typography>
+                        <Typography sx={{ color: t.disabled ? 'text.disabled' : undefined }}>{t.name}</Typography>
+                        <Typography variant="caption" component="span" color="text.secondary">{g.slc}/{t.slt}</Typography>
                         {t.missing
                           ? <Chip size="small" color="warning" label="Not set up on this database: switch it off" />
                           : t.disabled && <Chip size="small" label="Switched off in Account Types" />}
@@ -134,7 +136,6 @@ function Controls({ c }: { c: SlControls }) {
               {missingShare.join(' and ')} members would have no share capital account. Membership means subscribing to the cooperative&apos;s share capital, so keep one switched on.
             </Alert>
           )}
-          {save.error && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => save.reset()}>{(save.error as Error).message}</Alert>}
           <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1.5, alignItems: { sm: 'center' } }}>
             <TextField label="Reason for the change" value={reason} onChange={(e) => setReason(e.target.value)} disabled={changes.length === 0} sx={{ flex: 1 }}
               helperText={changes.length ? `${changes.length} change${changes.length > 1 ? 's' : ''} not saved. Kept in the audit log with each change.` : 'Change a switch above, then give the reason here.'} />
@@ -144,7 +145,7 @@ function Controls({ c }: { c: SlControls }) {
             </Stack>
           </Stack>
           {c.lastChangedBy && c.lastChangedBy !== 'system' && (
-            <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">Last changed by {c.lastChangedBy}{c.lastChangedAt ? ` on ${c.lastChangedAt.replace('T', ' ').slice(0, 16)}` : ''}.</Typography>
+            <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">Last changed by {c.lastChangedBy}{c.lastChangedAt ? ` on ${c.lastChangedAt.replace('T', ' ').slice(0, 16)}` : ''}.</Typography>
           )}
         </Box>
       )}

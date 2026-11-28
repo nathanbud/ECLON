@@ -2,6 +2,7 @@ import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogT
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiDatabase, FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi'
+import { RADIUS } from './theme'
 import { activeServer, addServer, chooseServer, deleteServer, editServer, getPublicConnections, LOCAL_ID, servers, type ServerEntry } from './api'
 
 /**
@@ -59,7 +60,7 @@ export default function ConnectionDialog({ onClose }: { onClose: () => void }) {
       <DialogContent>
         <Stack spacing={2.5} sx={{ pt: 0.5 }}>
           <Box>
-            <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Server</Typography>
+            <Typography variant="overline" sx={{ display: 'block', mb: 1 }} color="text.secondary">Server</Typography>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <TextField select size="small" fullWidth label="Server" value={chosen.id} onChange={(e) => { setPick(e.target.value); setForm(null); setError(null) }}>
                 {list.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}{s.url ? ` (${s.url})` : ''}</MenuItem>)}
@@ -75,7 +76,7 @@ export default function ConnectionDialog({ onClose }: { onClose: () => void }) {
           </Box>
 
           {form && (
-            <Stack spacing={1.5} sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: '5px' }} component="form" onSubmit={(e) => { e.preventDefault(); saveForm() }} aria-label={form.id ? 'Edit server' : 'Add server'}>
+            <Stack spacing={1.5} sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: `${RADIUS}px` }} component="form" onSubmit={(e) => { e.preventDefault(); saveForm() }} aria-label={form.id ? 'Edit server' : 'Add server'}>
               <TextField size="small" label="Connection name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus fullWidth slotProps={{ htmlInput: { maxLength: 60 } }} />
               <TextField size="small" label="Server address" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} fullWidth placeholder="http://192.168.1.20:8090" helperText="Where the Coop Platform server runs: http://host:port" />
               <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
@@ -87,23 +88,23 @@ export default function ConnectionDialog({ onClose }: { onClose: () => void }) {
           {error && <Alert severity="error" role="alert">{error}</Alert>}
 
           <Box>
-            <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Database this server works on</Typography>
-            {databases.isPending && <Typography color="text.secondary" sx={{ fontSize: 13 }}>Asking the server…</Typography>}
+            <Typography variant="overline" sx={{ display: 'block', mb: 1 }} color="text.secondary">Database this server works on</Typography>
+            {databases.isPending && <Typography color="text.secondary">Asking the server…</Typography>}
             {databases.isError && <Alert severity="warning">This server does not answer. Check the address, or that the server is running.</Alert>}
             {databases.data && (
               <Stack spacing={0.75} component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }} aria-label="Saved database connections">
                 {databases.data.connections.map((c) => (
-                  <Box component="li" key={c.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: '5px', border: 1, borderColor: c.active ? 'primary.main' : 'divider' }}>
+                  <Box component="li" key={c.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: `${RADIUS}px`, border: 1, borderColor: c.active ? 'primary.main' : 'divider' }}>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Typography sx={{ fontSize: 13, fontWeight: 600 }} noWrap>{c.name}</Typography>
-                      <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{c.dbName}{c.branch ? ` · ${c.branch}` : ''}</Typography>
+                      <Typography variant="subtitle2" component="p" noWrap>{c.name}</Typography>
+                      <Typography variant="body2" color="text.secondary" noWrap>{c.dbName}{c.branch ? ` · ${c.branch}` : ''}</Typography>
                     </Box>
                     {c.active && <Chip size="small" color="primary" label="In use" />}
                   </Box>
                 ))}
               </Stack>
             )}
-            <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
+            <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">
               A server works on one database at a time. A SUPERADMIN can move it to another saved connection in Settings, after signing in.
             </Typography>
           </Box>

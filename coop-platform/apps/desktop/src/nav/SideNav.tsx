@@ -5,7 +5,7 @@ import { FiChevronDown, FiChevronRight, FiMonitor, FiMoon, FiSun } from 'react-i
 import { getInboxCount } from '../api'
 import type { View } from '../Dashboard'
 import { useMe } from '../session'
-import { tileFill, useThemeMode, type ThemeMode } from '../theme'
+import { tileFill, useThemeMode, type ThemeMode, RADIUS } from '../theme'
 import { nameCase } from '../ui/format'
 import { byDomain, HOME, screenFor, type Screen } from './screens'
 
@@ -33,7 +33,7 @@ function ThemeChoice() {
         return (
           <ButtonBase key={o.mode} role="radio" aria-checked={on} onClick={() => setMode(o.mode)}
             sx={(t) => ({
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, height: 28, borderRadius: '5px', fontSize: 12, fontWeight: on ? 500 : 400,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, height: 28, borderRadius: `${RADIUS}px`, fontSize: 12, fontWeight: on ? 500 : 400,
               color: on ? 'text.primary' : 'text.secondary', bgcolor: on ? t.palette.action.selected : 'transparent',
               '&:hover': { bgcolor: on ? undefined : t.palette.action.hover },
               '&.Mui-focusVisible': { outline: `2px solid ${t.palette.primary.main}`, outlineOffset: -1 },
@@ -88,7 +88,7 @@ export default function SideNav({ view, tab, onNavigate, open, onClose }: { view
           <Box aria-hidden sx={{ display: 'flex', fontSize: sub ? 14 : 17, color: sub ? 'text.secondary' : color, flexShrink: 0, width: sub ? 14 : 20, justifyContent: 'center' }}>{icon}</Box>
           <Box component="span" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</Box>
           {count > 0 && (
-            <Box component="span" aria-hidden sx={{ minWidth: 20, height: 20, px: 0.75, borderRadius: '5px', bgcolor: 'error.main', color: '#fff', fontSize: 12, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{count > 99 ? '99+' : count}</Box>
+            <Box component="span" aria-hidden sx={{ minWidth: 20, height: 20, px: 0.75, borderRadius: `${RADIUS}px`, bgcolor: 'error.main', color: '#fff', fontSize: 12, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{count > 99 ? '99+' : count}</Box>
           )}
         </ButtonBase>
       </Tooltip>
@@ -123,9 +123,9 @@ export default function SideNav({ view, tab, onNavigate, open, onClose }: { view
       transitionDuration={{ enter: 180, exit: 140 }}
     >
       <Box aria-label="Signed in as" role="group" sx={(t) => ({ px: 1.25, pt: 0.75, pb: 1, mb: 0.5, borderBottom: `1px solid ${t.palette.divider}` })}>
-        <Typography sx={{ fontSize: 11 }} color="text.secondary">Signed in as</Typography>
-        <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{nameCase(me.name)}</Typography>
-        <Typography noWrap sx={{ fontSize: 11 }} color="text.secondary">{me.username}</Typography>
+        <Typography variant="caption" color="text.secondary">Signed in as</Typography>
+        <Typography noWrap sx={{ fontWeight: 500 }}>{nameCase(me.name)}</Typography>
+        <Typography variant="caption" noWrap color="text.secondary">{me.username}</Typography>
       </Box>
       <Box component="nav" aria-label="Main">
         <Box component="ul" sx={{ m: 0, p: 0, display: 'grid', gap: 0 }}>
@@ -140,7 +140,7 @@ export default function SideNav({ view, tab, onNavigate, open, onClose }: { view
                 sx={(t) => ({ width: '100%', justifyContent: 'flex-start', gap: 0.5, px: 0.75, py: 0.5, '&:hover': { bgcolor: t.palette.action.hover } })}
               >
                 <Box aria-hidden sx={{ display: 'flex', fontSize: 13, color: 'text.secondary' }}>{expanded ? <FiChevronDown /> : <FiChevronRight />}</Box>
-                <Typography component="h2" sx={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">{g.label}</Typography>
+                <Typography variant="caption" component="h2" sx={{ fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">{g.label}</Typography>
               </ButtonBase>
               {expanded && (
                 <Box component="ul" sx={{ m: 0, p: 0, display: 'grid', gap: 0 }}>

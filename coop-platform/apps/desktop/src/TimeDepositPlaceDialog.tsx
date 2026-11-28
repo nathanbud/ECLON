@@ -5,6 +5,7 @@ import { askTdRate, checkTdPlacement, getTdSetup, placeTimeDeposit, type TdPlace
 import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeFields'
 import MoneyField from './MoneyField'
 import { money as peso } from './ui/format'
+import { notifyError } from './ui/notices'
 import { useRequestKey } from './ui/requestKey'
 
 
@@ -60,7 +61,7 @@ export default function TimeDepositPlaceDialog({ clientId, onClose }: { clientId
     const t = type?.terms.find((x) => x.termDays === days)
     if (t) setRate(String(t.usual))
   }
-  const run = async (what: () => Promise<void>) => { setBusy(true); setError(null); try { await what() } catch (e) { setError((e as Error).message) } finally { setBusy(false) } }
+  const run = async (what: () => Promise<void>) => { setBusy(true); setError(null); try { await what() } catch (e) { notifyError(e) } finally { setBusy(false) } }
   const ask = () => run(async () => { await askTdRate(body!); setCheck(await checkTdPlacement(body!)) })
   const submit = (confirmDuplicate: boolean) => run(async () => {
     try {
@@ -122,7 +123,7 @@ export default function TimeDepositPlaceDialog({ clientId, onClose }: { clientId
           {check && check.problems.map((p) => <Alert key={p} severity="warning">{p}</Alert>)}
           {chequesOver && <Alert severity="warning">The cheques add up to more than the payment.</Alert>}
           {check && check.problems.length === 0 && (
-            <Typography sx={{ fontSize: 13 }}>
+            <Typography>
               Matures <b>{check.maturity}</b>
               {check.estimatedInterest != null && <> · interest at maturity about <b>{peso(check.estimatedInterest)}</b></>}
               {' '}· the member pays <b>{peso(check.total)}</b>

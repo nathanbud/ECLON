@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { encodeTdInterest, quoteTdInterest, type TdCloseEncoded, type TdInterestQuote } from './api'
 import MoneyField from './MoneyField'
+import { notifyError } from './ui/notices'
 import { money as peso } from './ui/format'
 
 
@@ -40,7 +41,7 @@ export default function TimeDepositInterestDialog({ clientId, typeCode, refNo, l
     try {
       setDone(await encodeTdInterest(body))
       void qc.invalidateQueries({ queryKey: ['member-time-deposits'] })
-    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+    } catch (e) { notifyError(e) } finally { setBusy(false) }
   }
 
   if (done) {
@@ -76,7 +77,7 @@ export default function TimeDepositInterestDialog({ clientId, typeCode, refNo, l
           )}
           <MoneyField size="small" label="Interest to pay (blank = a year, or what is due if less)" value={amount} onValueChange={(v) => setAmount(v)} />
           {quote && quote.amount > 0 && (
-            <Typography sx={{ fontSize: 13 }}><b>{peso(quote.amount)}</b> goes to the member vouchers payable: {peso(quote.fromAccrual)} from the accrued interest
+            <Typography><b>{peso(quote.amount)}</b> goes to the member vouchers payable: {peso(quote.fromAccrual)} from the accrued interest
               {quote.expense > 0 && <> and {peso(quote.expense)} charged to interest expense</>}. The certificate keeps its principal.</Typography>
           )}
           <TextField size="small" label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="LOCK IN INTEREST WITHDRAWAL" />

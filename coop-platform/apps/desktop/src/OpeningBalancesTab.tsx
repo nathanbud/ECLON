@@ -18,6 +18,7 @@ import { ConfirmButton } from './ui/dialogs'
 import { money } from './ui/format'
 import { labelOf } from './ui/labels'
 import { LoadingBlock, LoadingRow } from './ui/Loading'
+import { notifyError } from './ui/notices'
 import { useLeaveGuard } from './leaveGuard'
 
 const KIND_WORDS: Record<OpeningKind, string> = { GL: 'Ledger account', SAVINGS: 'Savings', SHARE: 'Share capital', LOAN: 'Loan', TD: 'Time deposit' }
@@ -121,7 +122,8 @@ function BatchView({ id, canEdit, onEdit }: { id: number; canEdit: boolean; onEd
   const [asking, setAsking] = useState<'return' | 'cancel' | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['opening-batch', id] }); void qc.invalidateQueries({ queryKey: ['opening-batches'] }) }
   const done: Record<'submit' | 'approve' | 'post', string> = { submit: 'Sent for review.', approve: 'Approved. A third person posts it.', post: 'Opening balances posted to the ledger.' }
-  const step = useMutation({ mutationFn: (s: 'submit' | 'approve' | 'post') => openingStep(id, s), onSuccess: refresh, meta: { done: (_r: unknown, s: unknown) => done[s as 'submit' | 'approve' | 'post'] } })
+  const step = useMutation({
+    onError: notifyError, mutationFn: (s: 'submit' | 'approve' | 'post') => openingStep(id, s), onSuccess: refresh, meta: { done: (_r: unknown, s: unknown) => done[s as 'submit' | 'approve' | 'post'] } })
   const reason = useMutation({
     mutationFn: ({ kind, why }: { kind: 'return' | 'cancel'; why: string }) => (kind === 'return' ? returnOpeningBatch(id, why) : cancelOpeningBatch(id, why)),
     onSuccess: () => { setAsking(null); refresh() },
@@ -159,7 +161,6 @@ function BatchView({ id, canEdit, onEdit }: { id: number; canEdit: boolean; onEd
         {canEdit && s.status !== 'POSTED' && s.status !== 'CANCELLED' && (mine || me.admin) && <Button color="error" onClick={() => setAsking('cancel')}>Cancel batch</Button>}
       </Stack>
       <Typography sx={{ mb: 1 }}>{s.description}</Typography>
-      {step.error && <Alert severity="error" sx={{ mb: 1 }}>{step.error.message}</Alert>}
       {s.status === 'CANCELLED' && d.cancelReason && <Alert severity="info" sx={{ mb: 1 }}>Cancelled: {d.cancelReason}</Alert>}
       {s.status === 'FOR_REVIEW' && mine && <Alert severity="info" sx={{ mb: 1 }}>Waiting for another accountant or an administrator to review and approve it.</Alert>}
       {s.status === 'APPROVED' && (mine || s.approvedBy?.toLowerCase() === me.username.toLowerCase()) && <Alert severity="info" sx={{ mb: 1 }}>Approved. A third person, not the one who prepared or approved it, posts it.</Alert>}
@@ -208,7 +209,7 @@ function BatchView({ id, canEdit, onEdit }: { id: number; canEdit: boolean; onEd
               <TableCell>
                 {l.kind === 'GL' ? l.accountTitle || l.accountCode
                   : `${l.memberName ?? `Member ${l.clientId}`} · ${l.typeName ?? `type ${l.typeCode}`}${opens(l.kind) ? (l.refNo ? ` ${l.refNo}` : ' (opened when posted)') : l.accountNo ? ` ${l.accountNo}` : ''}`}
-                {termsText(l) && <Typography component="div" color="text.secondary" sx={{ fontSize: 12 }}>{termsText(l)}</Typography>}
+                {termsText(l) && <Typography variant="body2" component="div" color="text.secondary">{termsText(l)}</Typography>}
               </TableCell>
               <TableCell>{l.accountCode}</TableCell>
               <TableCell align="right">{l.debit ? money(l.debit) : ''}</TableCell>
@@ -279,10 +280,12 @@ function Editor({ branchCode, id, detail, onClose, onSaved }: { branchCode: numb
   const big = lines.length > EDITABLE
 
   const read = useMutation({
+    onError: notifyError,
     mutationFn: (f: File) => importOpeningFile(f),
     onSuccess: (r) => { setDirty(true); setLines(r.lines.map(fromIn)); setFileProblems(r.problems) },
   })
   const save = useMutation({
+    onError: notifyError,
     mutationFn: () => {
       const body = { branchCode, openingDate: date, description: description.trim(), lines: lines.map(toIn) }
       return id == null ? createOpeningBatch(body) : updateOpeningBatch(id, body)
@@ -311,9 +314,8 @@ function Editor({ branchCode, id, detail, onClose, onSaved }: { branchCode: numb
             <input ref={fileInput} type="file" accept=".csv,.xlsx" hidden aria-label="Opening balances file"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) read.mutate(f); e.target.value = '' }} />
             <Button onClick={downloadOpeningTemplate}>Download template</Button>
-            <Typography color="text.secondary" sx={{ fontSize: 12 }}>Importing replaces the lines below.</Typography>
+            <Typography variant="body2" color="text.secondary">Importing replaces the lines below.</Typography>
           </Stack>
-          {read.error && <Alert severity="error">{read.error.message}</Alert>}
           {fileProblems.length > 0 && (
             <Alert severity="warning">
               {fileProblems.length} row{fileProblems.length === 1 ? ' was' : 's were'} left out of the file:
@@ -373,7 +375,6 @@ function Editor({ branchCode, id, detail, onClose, onSaved }: { branchCode: numb
             <Typography>Debits {money(dr)} · Credits {money(cr)}</Typography>
             <Typography color={difference === 0 ? 'success.main' : 'warning.main'} sx={{ fontWeight: 600 }}>{difference === 0 ? 'Balanced' : `Difference ${money(Math.abs(difference))}`}</Typography>
           </Stack>
-          {save.error && <Alert severity="error">{save.error.message}</Alert>}
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>

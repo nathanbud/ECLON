@@ -1,5 +1,6 @@
 import { Box, Button } from '@mui/material'
 import { useState } from 'react'
+import { SURFACE_RADIUS } from './theme'
 import { FiCheck, FiCopy } from 'react-icons/fi'
 
 /** A password shown once: large, in groups of four for reading out, selectable, with a Copy button. Used for a reissued temporary password and a new user's first one. */
@@ -18,7 +19,7 @@ export default function OneTimePassword({ password }: { password: string }) {
       <Box
         role="group" aria-label="Temporary password"
         sx={(t) => ({
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, py: 2.25, px: 2, borderRadius: '12px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, py: 2.25, px: 2, borderRadius: `${SURFACE_RADIUS + 2}px`,
           bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.045)',
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 22, fontWeight: 600, letterSpacing: '0.06em', userSelect: 'all',
         })}

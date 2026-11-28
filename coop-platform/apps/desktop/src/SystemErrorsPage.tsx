@@ -5,6 +5,7 @@ import { FiChevronDown, FiChevronRight, FiRefreshCw, FiSearch } from 'react-icon
 import { getSystemErrors, type SystemError } from './api'
 import { appBackground, glass } from './glass'
 import { LoadingRow } from './ui/Loading'
+import { RADIUS } from './theme'
 import { ScreenTitle } from './appleUi'
 
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })
@@ -22,8 +23,8 @@ const SETUP = new Set(['NO_DATABASE_PERMISSION', 'MISSING_TABLE', 'MISSING_COLUM
 function Detail({ e }: { e: SystemError }) {
   const row = (label: string, value: string | null) => (
     <Box sx={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 1.5, py: 0.5 }}>
-      <Typography sx={{ fontSize: 12, fontWeight: 600 }} color="text.secondary">{label}</Typography>
-      <Typography sx={{ fontSize: 13, overflowWrap: 'anywhere' }}>{value || '—'}</Typography>
+      <Typography variant="body2" sx={{ fontWeight: 600 }} color="text.secondary">{label}</Typography>
+      <Typography sx={{ overflowWrap: 'anywhere' }}>{value || '—'}</Typography>
     </Box>
   )
   return (
@@ -33,8 +34,8 @@ function Detail({ e }: { e: SystemError }) {
       {row('What to do', e.fix)}
       {row('Request', `${e.method} ${e.path} (answered ${e.status})`)}
       {row('Error', `${e.exception}${e.detail ? `: ${e.detail}` : ''}`)}
-      <Typography sx={{ fontSize: 12, fontWeight: 600, mt: 1, mb: 0.5 }} color="text.secondary">Trace</Typography>
-      <Box component="pre" sx={(t) => ({ m: 0, p: 1.25, maxHeight: 280, overflow: 'auto', fontSize: 11, lineHeight: 1.45, borderRadius: '6px', bgcolor: t.palette.action.hover, whiteSpace: 'pre' })}>{e.trace}</Box>
+      <Typography variant="body2" sx={{ fontWeight: 600, mt: 1, mb: 0.5 }} color="text.secondary">Trace</Typography>
+      <Box component="pre" sx={(t) => ({ m: 0, p: 1.25, maxHeight: 280, overflow: 'auto', fontSize: 11, lineHeight: 1.45, borderRadius: `${RADIUS}px`, bgcolor: t.palette.action.hover, whiteSpace: 'pre' })}>{e.trace}</Box>
     </Box>
   )
 }
@@ -87,7 +88,7 @@ export default function SystemErrorsPage() {
           <TextField label="Search: reference, user, table or any word" value={q} onChange={(e) => setQ(e.target.value)} sx={{ width: 380, maxWidth: '100%' }}
             slotProps={{ input: { startAdornment: <InputAdornment position="start"><FiSearch /></InputAdornment> } }} />
           <Button startIcon={<FiRefreshCw />} onClick={() => void errors.refetch()} disabled={errors.isFetching}>{errors.isFetching ? 'Reading…' : 'Refresh'}</Button>
-          {errors.data && <Typography sx={{ fontSize: 13 }} color="text.secondary">{shown.length} of {errors.data.length} shown</Typography>}
+          {errors.data && <Typography color="text.secondary">{shown.length} of {errors.data.length} shown</Typography>}
         </Box>
         {errors.data && errors.data.length === 0 && <Alert severity="success" sx={{ mb: 1.5 }}>No unexpected errors have been recorded.</Alert>}
         <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>

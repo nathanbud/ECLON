@@ -5,6 +5,7 @@ import { useState } from 'react'
 import type { LoanAppTemplate } from './api'
 import MoneyField from './MoneyField'
 import { fmtDate } from './profile/format'
+import { SURFACE_RADIUS } from './theme'
 import { money } from './ui/format'
 
 /** The amounts typed per deduction line (by the line's id) and the earlier loans paid off from the proceeds (by "type/ref"). */
@@ -57,7 +58,7 @@ export default function LoanDeductionFields({ t, amount, ded, setDed, paid, setP
       {name}
       {sum > 0 && (
         <Box component="span" sx={(th) => ({
-          px: 0.75, borderRadius: '10px', fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+          px: 0.75, borderRadius: `${SURFACE_RADIUS}px`, fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
           bgcolor: open ? th.palette.primary.main : alpha(th.palette.text.primary, 0.08), color: open ? th.palette.primary.contrastText : th.palette.text.secondary,
         })}>{money(sum)}</Box>
       )}
@@ -66,7 +67,7 @@ export default function LoanDeductionFields({ t, amount, ded, setDed, paid, setP
 
   const deductions = (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.25 }}>
-      {t.deductions.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">This loan type has no deduction lines.</Typography>}
+      {t.deductions.length === 0 && <Typography color="text.secondary">This loan type has no deduction lines.</Typography>}
       {t.deductions.map((d) => (
         <MoneyField key={d.id} size="small" label={d.description} value={ded[d.id] ?? ''} onValueChange={(v) => setDed({ ...ded, [d.id]: v })}
           error={d.needsMemberAccount && !d.hasMemberAccount} helperText={d.needsMemberAccount && !d.hasMemberAccount ? 'The member has no account for this' : undefined} />
@@ -76,8 +77,8 @@ export default function LoanDeductionFields({ t, amount, ded, setDed, paid, setP
 
   const payOff = (
     <Box sx={{ display: 'grid', gap: 1 }}>
-      {t.payoffs.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">The member has no earlier loans to pay off.</Typography>}
-      {t.payoffs.length > 0 && <Typography sx={{ fontSize: 12 }} color="text.secondary">Tick a loan to pay it off from the proceeds.</Typography>}
+      {t.payoffs.length === 0 && <Typography color="text.secondary">The member has no earlier loans to pay off.</Typography>}
+      {t.payoffs.length > 0 && <Typography variant="body2" color="text.secondary">Tick a loan to pay it off from the proceeds.</Typography>}
       {t.payoffs.length > 0 && (
         <Box aria-hidden sx={{ ...ROW, fontSize: 11, color: 'text.secondary', '& > :nth-of-type(3), & > :nth-of-type(4)': { textAlign: 'right' } }}>
           <span /><span>Loan</span><span>Balance</span><span>Due date</span><span /><span /><span />
@@ -90,11 +91,11 @@ export default function LoanDeductionFields({ t, amount, ded, setDed, paid, setP
           <Box key={k} sx={ROW}>
             <Checkbox size="small" checked={on} slotProps={{ input: { 'aria-label': `Pay off ${p.typeName ?? p.typeCode} ${p.refNo}` } }}
               onChange={(_, c) => { const next = { ...paid }; if (c) next[k] = { principal: String(p.outstanding), interest: String(p.interestDue), penalty: '' }; else delete next[k]; setPaid(next) }} />
-            <Typography sx={{ fontSize: 13 }}>{p.typeName ?? `Loan ${p.typeCode}`} #{p.refNo}</Typography>
-            <Typography sx={{ fontSize: 13, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }} aria-label={`Balance ${money(p.outstanding)}`}>{money(p.outstanding)}</Typography>
+            <Typography>{p.typeName ?? `Loan ${p.typeCode}`} #{p.refNo}</Typography>
+            <Typography sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }} aria-label={`Balance ${money(p.outstanding)}`}>{money(p.outstanding)}</Typography>
             <Box sx={{ textAlign: 'right' }} aria-label={`Due date ${dueText(p)}`}>
-              <Typography sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }} color={p.pastDueSince ? 'error' : undefined}>{fmtDate(p.pastDueSince ?? p.nextDueDate) ?? '—'}</Typography>
-              {p.pastDueSince && <Typography sx={{ fontSize: 11 }} color="error">{p.daysPastDue} {p.daysPastDue === 1 ? 'day' : 'days'} late</Typography>}
+              <Typography sx={{ fontVariantNumeric: 'tabular-nums' }} color={p.pastDueSince ? 'error' : undefined}>{fmtDate(p.pastDueSince ?? p.nextDueDate) ?? '—'}</Typography>
+              {p.pastDueSince && <Typography variant="caption" color="error">{p.daysPastDue} {p.daysPastDue === 1 ? 'day' : 'days'} late</Typography>}
             </Box>
             <MoneyField size="small" label="Principal" disabled={!on} value={paid[k]?.principal ?? ''} onValueChange={(v) => setPaid({ ...paid, [k]: { ...paid[k], principal: v } })} />
             <MoneyField size="small" label="Interest" disabled={!on} value={paid[k]?.interest ?? ''} onValueChange={(v) => setPaid({ ...paid, [k]: { ...paid[k], interest: v } })} />
@@ -107,7 +108,7 @@ export default function LoanDeductionFields({ t, amount, ded, setDed, paid, setP
 
   return (
     <>
-      <Box component="section" aria-label="Deductions and pay off" sx={{ border: 1, borderColor: 'divider', borderRadius: '8px' }}>
+      <Box component="section" aria-label="Deductions and pay off" sx={{ border: 1, borderColor: 'divider', borderRadius: `${SURFACE_RADIUS - 2}px` }}>
         <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="fullWidth"
           sx={(th) => ({
             minHeight: 42, bgcolor: alpha(th.palette.text.primary, 0.03), borderBottom: 1, borderColor: 'divider', borderRadius: '8px 8px 0 0',
@@ -124,7 +125,7 @@ export default function LoanDeductionFields({ t, amount, ded, setDed, paid, setP
           <Tab label={label(<FiCreditCard />, t.payoffs.length > 0 ? `Pay off (${t.payoffs.length})` : 'Pay off', paidTotal, tab === 1)} id="deduction-tab-1" aria-controls="deduction-panel-1" />
         </Tabs>
         <Box role="tabpanel" id={`deduction-panel-${tab}`} aria-labelledby={`deduction-tab-${tab}`} sx={{ p: 1.5 }}>
-          <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">
+          <Typography variant="body2" sx={{ mb: 1 }} color="text.secondary">
             {tab === 0 ? 'Charges taken out of this loan, as the loan type sets them.' : 'Earlier loans of the member settled from the proceeds of this loan.'}
           </Typography>
           {tab === 0 ? deductions : payOff}

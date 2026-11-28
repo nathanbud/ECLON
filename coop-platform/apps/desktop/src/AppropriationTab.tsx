@@ -18,6 +18,7 @@ import { AccountPicker } from './ui/AccountPicker'
 import { ConfirmButton } from './ui/dialogs'
 import { money } from './ui/format'
 import { labelOf } from './ui/labels'
+import { notifyError } from './ui/notices'
 import { LoadingBlock, LoadingRow } from './ui/Loading'
 
 const KIND_WORDS: Record<AppropriationKind, string> = {
@@ -63,7 +64,7 @@ export default function AppropriationTab() {
             {years.map((y) => <MenuItem key={y} value={y}>{y}</MenuItem>)}
           </TextField>
           {start.data && (
-            <Typography color="text.secondary" sx={{ fontSize: 12 }}>
+            <Typography variant="body2" color="text.secondary">
               {start.data.netSurplus == null ? `${year} is not closed` : `Net surplus of ${year}: ${money(start.data.netSurplus)}`}
             </Typography>
           )}
@@ -122,20 +123,21 @@ function Registration({ settings, branchCode }: { settings: AppropriationSetting
   const [changing, setChanging] = useState(false)
   const [date, setDate] = useState(settings.registeredOn ?? '')
   const save = useMutation({
+    onError: notifyError,
     mutationFn: (why: string) => saveRegistrationDate(branchCode, date || null, why),
     onSuccess: () => { setChanging(false); void qc.invalidateQueries({ queryKey: ['appropriation-start'] }) },
     meta: { done: 'Registration date saved.' },
   })
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-      <Typography sx={{ fontSize: 13 }}>
+      <Typography>
         {settings.registeredOn
           ? `Registered with the CDA on ${settings.registeredOn}. Its first five years need a reserve fund of at least 50% of the net surplus.`
           : 'The cooperative’s registration date is not recorded, so the reserve fund is checked at 10%. Record it if the cooperative is in its first five years.'}
       </Typography>
       {settings.mayEdit && <Button size="small" onClick={() => setChanging(true)}>{settings.registeredOn ? 'Change' : 'Record it'}</Button>}
       <ReasonDialog open={changing} title="The cooperative’s registration date" intro="The date on the CDA certificate of registration." confirm="Save" busy={save.isPending}
-        error={save.error?.message ?? null} onCancel={() => setChanging(false)} onConfirm={(why) => save.mutate(why)}>
+        error={(save.error as Error | null)?.message ?? null} onCancel={() => setChanging(false)} onConfirm={(why) => save.mutate(why)}>
         <TextField type="date" label="Registered on" value={date} onChange={(e) => setDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
       </ReasonDialog>
     </Stack>
@@ -174,7 +176,8 @@ function AppropriationView({ id, canEdit, onEdit }: { id: number; canEdit: boole
   const [asking, setAsking] = useState<'return' | 'cancel' | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['appropriation', id] }); void qc.invalidateQueries({ queryKey: ['appropriations'] }); void qc.invalidateQueries({ queryKey: ['appropriation-start'] }) }
   const done: Record<'submit' | 'approve' | 'post', string> = { submit: 'Sent for review.', approve: 'Approved. A third person posts it.', post: 'Appropriation posted to the ledger.' }
-  const step = useMutation({ mutationFn: (s: 'submit' | 'approve' | 'post') => appropriationStep(id, s), onSuccess: refresh, meta: { done: (_r: unknown, s: unknown) => done[s as 'submit' | 'approve' | 'post'] } })
+  const step = useMutation({
+    onError: notifyError, mutationFn: (s: 'submit' | 'approve' | 'post') => appropriationStep(id, s), onSuccess: refresh, meta: { done: (_r: unknown, s: unknown) => done[s as 'submit' | 'approve' | 'post'] } })
   const reason = useMutation({
     mutationFn: ({ kind, why }: { kind: 'return' | 'cancel'; why: string }) => (kind === 'return' ? returnAppropriation(id, why) : cancelAppropriation(id, why)),
     onSuccess: () => { setAsking(null); refresh() },
@@ -206,7 +209,6 @@ function AppropriationView({ id, canEdit, onEdit }: { id: number; canEdit: boole
         {canEdit && s.status !== 'POSTED' && s.status !== 'CANCELLED' && (mine || me.admin) && <Button color="error" onClick={() => setAsking('cancel')}>Cancel</Button>}
       </Stack>
       <Typography sx={{ mb: 1 }}>Per {s.resolution}</Typography>
-      {step.error && <Alert severity="error" sx={{ mb: 1 }}>{step.error.message}</Alert>}
       {s.status === 'CANCELLED' && d.cancelReason && <Alert severity="info" sx={{ mb: 1 }}>Cancelled: {d.cancelReason}</Alert>}
       {s.status === 'FOR_REVIEW' && mine && <Alert severity="info" sx={{ mb: 1 }}>Waiting for another accountant or an administrator to review and approve it.</Alert>}
       {s.status === 'APPROVED' && (mine || s.approvedBy?.toLowerCase() === me.username.toLowerCase()) && <Alert severity="info" sx={{ mb: 1 }}>Approved. A third person, not the one who prepared or approved it, posts it.</Alert>}
@@ -292,6 +294,7 @@ function Editor({ branchCode, id, start, detail, onClose, onSaved }: {
   const left = Math.round((net - allocated) * 100) / 100
 
   const save = useMutation({
+    onError: notifyError,
     mutationFn: () => {
       const body = {
         branchCode, year: start.year, entryDate: date, resolution: resolution.trim(),
@@ -345,7 +348,7 @@ function Editor({ branchCode, id, start, detail, onClose, onSaved }: {
                     {isFund(l.kind)
                       ? <AccountPicker code={l.account} desc={l.accountName} label={`Account of line ${i + 1}`} search={(q) => searchPostingAccounts(branchCode, q)} recentKey="appropriation"
                           width={300} onPick={(a) => set(i, { account: a?.code ?? '', accountName: a?.description ?? '' })} />
-                      : <Typography sx={{ fontSize: 13 }}>{payout} {start.settings.payoutTitle} <Typography component="span" color="text.secondary" sx={{ fontSize: 12 }}>(paid to members by the dividend vouchers)</Typography></Typography>}
+                      : <Typography>{payout} {start.settings.payoutTitle} <Typography variant="body2" component="span" color="text.secondary">(paid to members by the dividend vouchers)</Typography></Typography>}
                   </TableCell>
                   <TableCell><IconButton size="small" aria-label={`Remove line ${i + 1}`} onClick={() => { setDirty(true); setLines((ls) => ls.filter((_, j) => j !== i)) }}><FiTrash2 /></IconButton></TableCell>
                 </TableRow>
@@ -358,7 +361,6 @@ function Editor({ branchCode, id, start, detail, onClose, onSaved }: {
             <Typography>Appropriated {money(allocated)}</Typography>
             <Typography color={left < 0 ? 'error.main' : 'text.secondary'} sx={{ fontWeight: 600 }}>{left < 0 ? `More than the net surplus by ${money(-left)}` : `Left undivided ${money(left)}`}</Typography>
           </Stack>
-          {save.error && <Alert severity="error">{save.error.message}</Alert>}
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>

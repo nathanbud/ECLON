@@ -21,14 +21,14 @@ function List({ title, items }: { title: string; items: AccessChange[] }) {
   if (items.length === 0) return null
   return (
     <Box sx={{ mt: 0.75 }}>
-      <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{title}</Typography>
+      <Typography variant="subtitle2" component="p">{title}</Typography>
       <Box component="ul" sx={{ m: 0, pl: 2.25 }}>
         {items.slice(0, SHOWN).map((c) => (
-          <Typography component="li" key={c.text + c.where} sx={{ fontSize: 13 }}>
-            {c.text}{c.where && !c.text.startsWith(c.where) && <Typography component="span" sx={{ fontSize: 12, opacity: 0.75 }}> · {c.where}</Typography>}
+          <Typography component="li" key={c.text + c.where}>
+            {c.text}{c.where && !c.text.startsWith(c.where) && <Typography variant="body2" component="span" sx={{ opacity: 0.75 }}> · {c.where}</Typography>}
           </Typography>
         ))}
-        {items.length > SHOWN && <Typography component="li" sx={{ fontSize: 13 }}>and {items.length - SHOWN} more</Typography>}
+        {items.length > SHOWN && <Typography component="li">and {items.length - SHOWN} more</Typography>}
       </Box>
     </Box>
   )
@@ -88,13 +88,13 @@ export default function AccessWatcher({ onMe }: { onMe: (me: Me) => void }) {
     <Snackbar open anchorOrigin={{ vertical: 'top', horizontal: 'right' }} sx={{ mt: 6, maxWidth: 420 }}>
       <Alert severity="info" variant="filled" onClose={() => setNotice(null)} role="alert" sx={{ width: '100%', alignItems: 'flex-start' }}>
         <AlertTitle sx={{ fontWeight: 700 }}>Your access was changed</AlertTitle>
-        <Typography sx={{ fontSize: 13 }}>
+        <Typography>
           {notice.by ? `${notice.by} (an administrator) changed what you may do` : 'An administrator changed what you may do'}{when ? ` at ${when}` : ''}.
         </Typography>
         <List title="You can now" items={notice.changes.allowed} />
         <List title="You can no longer" items={notice.changes.removed} />
         <List title="Changed" items={notice.changes.changed} />
-        <Typography sx={{ fontSize: 12, mt: 1, opacity: 0.85 }}>Your menu and buttons are already updated. There is no need to sign out.</Typography>
+        <Typography variant="body2" sx={{ mt: 1, opacity: 0.85 }}>Your menu and buttons are already updated. There is no need to sign out.</Typography>
       </Alert>
     </Snackbar>
   )

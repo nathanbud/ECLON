@@ -59,7 +59,7 @@ export default function StagedFingerprintDialog({ memberKey, name, consent, prin
           {!consent ? (
             <Box sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}>
               <Typography sx={{ fontWeight: 600, mb: 0.5 }}>Member's consent</Typography>
-              <Typography sx={{ fontSize: 13 }} color="text.secondary">
+              <Typography color="text.secondary">
                 A fingerprint is sensitive personal information. It is used only to confirm this member's identity, is kept encrypted, is never shown or shared, and is erased if the member withdraws consent.
                 Read this to the member and record their agreement before scanning.
               </Typography>
@@ -68,14 +68,14 @@ export default function StagedFingerprintDialog({ memberKey, name, consent, prin
             </Box>
           ) : (
             <>
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">
+              <Typography variant="body2" color="text.secondary">
                 Kept with the registration until a Membership Officer approves it. {prints.length} of 10 fingers scanned{prints.length < 2 ? ' (scan at least 2 in case one is injured)' : ''}.
               </Typography>
               <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 1.5 }}>
                 <Fingers title="Right hand" ids={RIGHT} s={summary} selected={finger} onPick={setFinger} />
                 <Fingers title="Left hand" ids={LEFT} s={summary} selected={finger} onPick={setFinger} />
               </Stack>
-              {busy && <Box><LinearProgress /><Typography sx={{ fontSize: 13, mt: 0.5 }}>{busy}</Typography></Box>}
+              {busy && <Box><LinearProgress /><Typography sx={{ mt: 0.5 }}>{busy}</Typography></Box>}
               <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
                 <Button variant="contained" size="small" disabled={finger == null || !!busy || !scanner.data} onClick={() => void scan()}>{enrolled ? 'Scan again' : 'Scan finger'}</Button>
                 {enrolled && <Button size="small" color="error" disabled={!!busy} onClick={() => onChange(true, prints.filter((p) => p.finger !== finger))}>Remove this finger</Button>}

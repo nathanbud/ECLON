@@ -1,8 +1,9 @@
-import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Snackbar, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useRef, useState } from 'react'
 import { FiDownload, FiUpload } from 'react-icons/fi'
 import { downloadChartImportTemplate, previewChartImport, uploadChartImport, type ChartImportPreview } from './api'
 import { glass } from './glass'
+import { notifyError, notify } from './ui/notices'
 import { useLeaveGuard } from './leaveGuard'
 
 const STEP = 300
@@ -21,33 +22,30 @@ export default function ChartUpload({ onClose, onDone }: { onClose: () => void; 
   const [skip, setSkip] = useState(false)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [downloaded, setDownloaded] = useState<string | null>(null)
   useLeaveGuard(preview && preview.ready > 0 ? 'A checked list of accounts has not been added yet.' : null)
 
   const choose = async (f: File | undefined) => {
     if (!f) return
-    setFile(f); setPreview(null); setError(null); setSkip(false); setOnlyProblems(false); setShown(STEP); setBusy('Checking the list…')
-    try { setPreview(await previewChartImport(f)) } catch (e) { setError((e as Error).message) } finally { setBusy(null) }
+    setFile(f); setPreview(null); setSkip(false); setOnlyProblems(false); setShown(STEP); setBusy('Checking the list…')
+    try { setPreview(await previewChartImport(f)) } catch (e) { notifyError((e as Error).message) } finally { setBusy(null) }
   }
 
   const download = async (kind: 'xlsx' | 'csv') => {
-    setError(null)
     try {
       await downloadChartImportTemplate(kind)
-      setDownloaded(`chart-of-accounts-template.${kind} has finished downloading. Look for it in your Downloads folder.`)
+      notify(`chart-of-accounts-template.${kind} has finished downloading. Look for it in your Downloads folder.`)
     } catch (e) {
-      setError(`The blank list could not be downloaded: ${(e as Error).message}`)
+      notifyError(`The blank list could not be downloaded: ${(e as Error).message}`)
     }
   }
 
   const add = async () => {
     if (!file) return
-    setBusy('Adding the accounts…'); setError(null)
+    setBusy('Adding the accounts…')
     try {
       const d = await uploadChartImport(file, reason.trim(), skip)
       onDone(`${d.added.toLocaleString()} account${d.added === 1 ? '' : 's'} added from ${d.fileName}`)
-    } catch (e) { setError((e as Error).message) } finally { setBusy(null) }
+    } catch (e) { notifyError((e as Error).message) } finally { setBusy(null) }
   }
 
   const rows = (preview?.rows ?? []).filter((r) => !onlyProblems || r.state === 'PROBLEM')
@@ -56,12 +54,12 @@ export default function ChartUpload({ onClose, onDone }: { onClose: () => void; 
     <Box sx={{ maxWidth: 1100, width: '100%', mx: 'auto' }}>
       <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, mb: 1.5, ...glass(t) })}>
         <Chip size="small" color="warning" label="Advanced mode" />
-        <Typography component="h1" sx={{ flex: 1, fontSize: 15, fontWeight: 600 }}>Add accounts from a list</Typography>
+        <Typography variant="h6" component="h1" sx={{ flex: 1 }}>Add accounts from a list</Typography>
         <Button size="small" onClick={onClose} disabled={!!busy}>Back</Button>
       </Box>
 
       <Box sx={(t) => ({ p: 2, mb: 1.5, ...glass(t) })}>
-        <Typography sx={{ fontSize: 13, mb: 1 }}>
+        <Typography sx={{ mb: 1 }}>
           Upload a CSV or Excel (.xlsx) file with one account per row and the column names in the first row. Required for each account: <strong>Account number</strong> and <strong>Account name</strong>.
           {' '}<strong>Kind</strong> is Heading or Account (Account if left out); <strong>Under</strong> is the number of the heading it goes under (left out, it goes under the longest heading its number starts with);
           {' '}<strong>Journal entries</strong> is Yes or No (No for an account that a loan, savings or share capital ledger controls).
@@ -72,15 +70,11 @@ export default function ChartUpload({ onClose, onDone }: { onClose: () => void; 
           <Button size="small" color="inherit" onClick={() => void download('csv')}>or CSV</Button>
           <Button size="small" variant="contained" startIcon={<FiUpload />} disabled={!!busy} onClick={() => input.current?.click()}>Choose a file</Button>
           <input ref={input} type="file" hidden aria-label="List of accounts" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = '' }} />
-          {file && <Typography sx={{ fontSize: 13 }} color="text.secondary">{file.name}</Typography>}
+          {file && <Typography color="text.secondary">{file.name}</Typography>}
         </Stack>
       </Box>
 
-      <Snackbar open={!!downloaded} autoHideDuration={5000} onClose={() => setDownloaded(null)}>
-        <Alert severity="success" variant="filled" onClose={() => setDownloaded(null)}>{downloaded}</Alert>
-      </Snackbar>
-      {error && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError(null)}>{error}</Alert>}
-      {busy && <Typography role="status" sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">{busy}</Typography>}
+      {busy && <Typography role="status" sx={{ mb: 1.5 }} color="text.secondary">{busy}</Typography>}
 
       {preview && (
         <Box sx={(t) => ({ p: 2, ...glass(t) })}>
@@ -108,7 +102,7 @@ export default function ChartUpload({ onClose, onDone }: { onClose: () => void; 
           </Box>
           {rows.length > shown && (
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mt: 0.5 }}>
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">Showing {shown} of {rows.length} rows.</Typography>
+              <Typography variant="body2" color="text.secondary">Showing {shown} of {rows.length} rows.</Typography>
               <Button size="small" onClick={() => setShown((n) => n + STEP)}>Show {Math.min(STEP, rows.length - shown)} more</Button>
               <Button size="small" color="inherit" onClick={() => setShown(rows.length)}>Show all</Button>
             </Stack>
@@ -123,7 +117,7 @@ export default function ChartUpload({ onClose, onDone }: { onClose: () => void; 
               {preview.ready > 0 ? `Add ${preview.ready.toLocaleString()} account${preview.ready === 1 ? '' : 's'} to the chart` : 'Nothing to add'}
             </Button>
           </Stack>
-          <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
+          <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">
             Nothing is saved until you add. The accounts are added together or not at all, and each one is written to the audit log with your reason. An account cannot be deleted afterwards, only switched off.
           </Typography>
         </Box>

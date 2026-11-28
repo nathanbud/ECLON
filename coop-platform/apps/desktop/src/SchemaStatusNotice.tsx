@@ -25,7 +25,7 @@ export function SchemaStatusNotice({ showOk = false, canApply = false }: { showO
     if (!showOk) return null
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 2, fontSize: 13 }} color={data.state === 'UP_TO_DATE' ? 'success.main' : 'text.secondary'}>
-        <FiDatabase aria-hidden /> <Typography component="span" sx={{ fontSize: 13 }}>{data.message}</Typography>
+        <FiDatabase aria-hidden /> <Typography component="span">{data.message}</Typography>
       </Box>
     )
   }
@@ -79,12 +79,12 @@ export function ApplyDialog({ status, onClose }: { status: SchemaStatus; onClose
       <DialogTitle>Apply the missing database changes</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          <Typography sx={{ fontSize: 13 }}>
+          <Typography>
             {files.length === 1 ? 'This change' : `These ${files.length} changes`} will be applied to {status.database ?? 'this database'}, lowest number first, each
             on its own: one that fails is rolled back and stops the rest. Each is recorded in the audit log with your reason.
           </Typography>
           <Box component="ul" sx={{ m: 0, pl: 2.5, fontSize: 12 }}>{files.map((f) => <li key={f}>{f}</li>)}</Box>
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">
+          <Typography variant="body2" color="text.secondary">
             The application&apos;s own database user may not make these changes, so give the database administrator&apos;s login. It is used for this once and is
             not saved, logged or shown again.
           </Typography>

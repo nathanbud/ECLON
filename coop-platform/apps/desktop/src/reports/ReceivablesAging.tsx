@@ -10,6 +10,7 @@ import { downloadAging, getAgingOptions, runAging, type AgingLine, type AgingOpt
 import { LoadingBlock } from '../ui/Loading'
 import { money } from '../ui/format'
 import { agingCsv, DEFAULT_REQUEST, forgetRequest, groupIndexes, rememberedRequest, rememberRequest, shares, visible } from './aging'
+import { notifyError } from '../ui/notices'
 import { AboutNote, ScreenTitle } from '../appleUi'
 
 /** Rows drawn at once; the rest wait for Show all, so a run of ten thousand accounts does not freeze the window. */
@@ -104,7 +105,7 @@ function AgingScreen({ options }: { options: AgingOptions }) {
           <Button startIcon={<FiRotateCcw />} onClick={() => { forgetRequest(); setReq(DEFAULT_REQUEST(options.cutOff)) }} disabled={run.isPending}>Reset choices</Button>
           <Typography sx={{ fontSize: 12, ml: { sm: 'auto' } }} color="text.secondary">{summaryOf(req, options)}</Typography>
         </Stack>
-        <Typography sx={{ fontSize: 12, px: 2, pb: 1.5, mt: -1 }} color="text.secondary">
+        <Typography variant="body2" sx={{ px: 2, pb: 1.5, mt: -1 }} color="text.secondary">
           {req.basis === 'PAR'
             ? `PAR @ ${req.parDays}: ages each account by how late its oldest unpaid instalment is, and counts its whole balance at risk once it is ${req.parDays} or more days late.`
             : `Maturity @ ${req.parDays}: ages each account by the days since its maturity date, and counts it at risk once it is ${req.parDays} or more days past maturity.`}
@@ -115,7 +116,7 @@ function AgingScreen({ options }: { options: AgingOptions }) {
       {run.isPending && (
         <Box sx={{ mb: 2 }}>
           <LinearProgress />
-          <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">Reading the receivable ledgers and repayment schedules; this can take 10 to 30 seconds.</Typography>
+          <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">Reading the receivable ledgers and repayment schedules; this can take 10 to 30 seconds.</Typography>
         </Box>
       )}
       {run.data && !run.isPending && (
@@ -142,7 +143,7 @@ function BasisPicker({ req, set }: { req: AgingRequest; set: (p: Partial<AgingRe
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Box>
-      <Typography sx={{ fontSize: 12, fontWeight: 600, mb: 0.75 }} color="text.secondary">{label}</Typography>
+      <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.75 }} color="text.secondary">{label}</Typography>
       {children}
     </Box>
   )
@@ -190,7 +191,7 @@ function BasicTab({ req, set, options }: { req: AgingRequest; set: (p: Partial<A
           <Autocomplete multiple options={typeOptions} groupBy={(o) => o.group} value={chosenTypes} getOptionLabel={(o) => o.label} isOptionEqualToValue={(a, b) => a.key === b.key}
             onChange={(_, v) => set({ types: v.map((o) => o.key) })} disableCloseOnSelect limitTags={4}
             renderInput={(p) => <TextField {...p} label={chosenTypes.length ? 'Types' : 'All types'} placeholder={chosenTypes.length ? '' : 'Leave empty for every type'} />} />
-          <Typography sx={{ fontSize: 12, mt: 0.75 }} color="text.secondary">Leave empty to take every type of the chosen classes.</Typography>
+          <Typography variant="body2" sx={{ mt: 0.75 }} color="text.secondary">Leave empty to take every type of the chosen classes.</Typography>
         </Field>
       </Stack>
     </Box>
@@ -204,7 +205,7 @@ function GroupingTab({ req, set, options }: { req: AgingRequest; set: (p: Partia
     <Stack sx={{ gap: 2 }}>
       <Field label="Group by (in this order, up to three)">
         <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center', minHeight: 32 }}>
-          {req.groupBy.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">No grouping: one line per account. Choose below.</Typography>}
+          {req.groupBy.length === 0 && <Typography color="text.secondary">No grouping: one line per account. Choose below.</Typography>}
           {req.groupBy.map((g, i) => (
             <Chip key={g} color="primary" label={`${i + 1} · ${label(g)}`} onDelete={() => set({ groupBy: req.groupBy.filter((x) => x !== g) })} deleteIcon={<FiX aria-label={`Remove ${label(g)}`} />} />
           ))}
@@ -215,7 +216,7 @@ function GroupingTab({ req, set, options }: { req: AgingRequest; set: (p: Partia
           <Chip key={g.key} label={g.label} variant="outlined" disabled={full} onClick={() => set({ groupBy: [...req.groupBy, g.key] })} />
         ))}
       </Box>
-      {full && <Typography sx={{ fontSize: 12 }} color="text.secondary">Three groupings chosen; remove one to choose another.</Typography>}
+      {full && <Typography variant="body2" color="text.secondary">Three groupings chosen; remove one to choose another.</Typography>}
       <Field label="Sort the accounts by">
         <TextField select value={req.sort} onChange={(e) => set({ sort: e.target.value })} sx={{ width: 280 }}>
           {options.sorts.map((s) => (
@@ -266,7 +267,7 @@ function AccrualTab({ req, set }: { req: AgingRequest; set: (p: Partial<AgingReq
         interest paid. Interest taken in advance at release counts as paid; a payment ahead shows as paid ahead. Adds a few seconds.
       </AboutNote>
       <FormControlLabel disabled={!on} control={<Switch checked={req.penalty} onChange={(e) => set({ penalty: e.target.checked })} />} label="Include penalty (estimate)" />
-      <Typography sx={{ fontSize: 12, mt: -1, ml: 6 }} color="text.secondary">
+      <Typography variant="body2" sx={{ mt: -1, ml: 6 }} color="text.secondary">
         The yearly penalty rate on the late principal, less penalty paid or waived. Not yet confirmed against the old system, so treat it as an estimate.
       </Typography>
       <FormControlLabel disabled={!on} control={<Switch checked={req.owingOnly} onChange={(e) => set({ owingOnly: e.target.checked })} />} label="Only accounts that owe interest or penalty" />
@@ -284,9 +285,9 @@ function summaryOf(r: AgingRequest, o: AgingOptions): string {
 function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'error' | 'warning' }) {
   return (
     <Box sx={(t) => ({ p: 1.5, borderRadius: 2, border: 1, borderColor: tone ? alpha(t.palette[tone].main, 0.4) : 'divider', bgcolor: tone ? alpha(t.palette[tone].main, 0.06) : 'transparent', minWidth: 0 })}>
-      <Typography sx={{ fontSize: 12, fontWeight: 600 }} color="text.secondary">{label}</Typography>
+      <Typography variant="body2" sx={{ fontWeight: 600 }} color="text.secondary">{label}</Typography>
       <Typography sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', ...tabular, overflowWrap: 'anywhere' }} color={tone ? `${tone}.main` : 'text.primary'}>{value}</Typography>
-      {sub && <Typography sx={{ fontSize: 12 }} color="text.secondary">{sub}</Typography>}
+      {sub && <Typography variant="body2" color="text.secondary">{sub}</Typography>}
     </Box>
   )
 }
@@ -305,8 +306,8 @@ function AgingBar({ total, buckets }: { total: AgingLine; buckets: string[] }) {
           <Stack key={b} direction="row" sx={{ gap: 0.75, alignItems: 'flex-start' }}>
             <Box sx={(t) => ({ width: 10, height: 10, borderRadius: '3px', bgcolor: bucketColor(t, i), mt: '3px', flexShrink: 0, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' })} />
             <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{b}</Typography>
-              <Typography sx={{ fontSize: 12, ...tabular }} color="text.secondary">{money(total.buckets[i])} · {pct[i].toFixed(1)}%</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{b}</Typography>
+              <Typography variant="body2" sx={{ ...tabular }} color="text.secondary">{money(total.buckets[i])} · {pct[i].toFixed(1)}%</Typography>
             </Box>
           </Stack>
         ))}
@@ -320,7 +321,8 @@ function AgingReport({ r, request, folded, setFolded, showAll, onShowAll, option
 }) {
   const total = r.lines[r.lines.length - 1]
   // Excel and PDF come from the server, for the choices of the run on screen (it reuses that run, so they come at once)
-  const file = useMutation({ mutationFn: (kind: 'xlsx' | 'pdf') => downloadAging(request, kind), meta: { done: (name: unknown) => `Saved ${String(name)}` } })
+  const file = useMutation({
+    onError: notifyError, mutationFn: (kind: 'xlsx' | 'pdf') => downloadAging(request, kind), meta: { done: (name: unknown) => `Saved ${String(name)}` } })
   const shown = useMemo(() => visible(r.lines, folded), [r.lines, folded])
   const drawn = showAll ? shown : shown.slice(0, ROW_LIMIT)
   const hasAccounts = r.lines.some((l) => l.kind === 'account')
@@ -340,7 +342,7 @@ function AgingReport({ r, request, folded, setFolded, showAll, onShowAll, option
 
   return (
     <Box id="report-result">
-      <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
+      <Typography sx={{ mb: 1.5 }} color="text.secondary">
         As of <b>{r.cutOff}</b> · aged by {r.basis === 'PAR' ? `days late (PAR @ ${r.parDays})` : `days past maturity (@ ${r.parDays})`}{groupNames.length ? ` · grouped by ${groupNames.join(' › ')}` : ''}
       </Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: 1.5, mb: 2 }}>
@@ -370,7 +372,6 @@ function AgingReport({ r, request, folded, setFolded, showAll, onShowAll, option
         <Button size="small" startIcon={<FiPrinter />} onClick={() => window.print()}>Print</Button>
       </Stack>
 
-      {file.error && <Alert severity="error" className="no-print" sx={{ mb: 1 }} onClose={() => file.reset()}>{(file.error as Error).message}</Alert>}
       <TableContainer sx={{ maxHeight: '70vh', border: 1, borderColor: 'divider', borderRadius: 2, '@media print': { maxHeight: 'none', overflow: 'visible', border: 0 } }}>
         <Table size="small" stickyHeader aria-label="Aging of receivables">
           <TableHead>
@@ -404,7 +405,7 @@ function AgingReport({ r, request, folded, setFolded, showAll, onShowAll, option
             {!showAll && shown.length > ROW_LIMIT && (
               <TableRow className="no-print"><TableCell colSpan={cols}>
                 <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center' }}>
-                  <Typography sx={{ fontSize: 13 }} color="text.secondary">Showing {ROW_LIMIT.toLocaleString()} of {shown.length.toLocaleString()} lines. The totals count every account.</Typography>
+                  <Typography color="text.secondary">Showing {ROW_LIMIT.toLocaleString()} of {shown.length.toLocaleString()} lines. The totals count every account.</Typography>
                   <Button size="small" onClick={onShowAll}>Show all</Button>
                 </Stack>
               </TableCell></TableRow>
@@ -412,8 +413,8 @@ function AgingReport({ r, request, folded, setFolded, showAll, onShowAll, option
           </TableBody>
         </Table>
       </TableContainer>
-      <Typography sx={{ fontSize: 12, mt: 1.5 }} color="text.secondary">{r.note}</Typography>
-      <Typography sx={{ fontSize: 12, mt: 0.5 }} color="text.secondary">Run by {r.ranBy} on {r.ranAt.replace('T', ' ')}</Typography>
+      <Typography variant="body2" sx={{ mt: 1.5 }} color="text.secondary">{r.note}</Typography>
+      <Typography variant="body2" sx={{ mt: 0.5 }} color="text.secondary">Run by {r.ranBy} on {r.ranAt.replace('T', ' ')}</Typography>
     </Box>
   )
 }
@@ -441,8 +442,8 @@ function AgingRow({ l, index, open, onToggle, withDates, basis, accrual, penalty
             </IconButton>
           )}
           <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: strong ? 700 : 400, lineHeight: 1.3 }}>{l.label}</Typography>
-            {l.kind === 'account' && <Typography sx={{ fontSize: 11, lineHeight: 1.3 }} color="text.secondary">No. {l.client} · {l.detail}</Typography>}
+            <Typography sx={{ fontWeight: strong ? 700 : 400, lineHeight: 1.3 }}>{l.label}</Typography>
+            {l.kind === 'account' && <Typography variant="caption" sx={{ lineHeight: 1.3 }} color="text.secondary">No. {l.client} · {l.detail}</Typography>}
           </Box>
         </Stack>
       </TableCell>

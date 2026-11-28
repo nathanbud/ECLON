@@ -18,7 +18,7 @@ export function LedgerDrill({ drill, onClose }: { drill: Drill; onClose: () => v
     <Dialog open onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>
         {drill.account} {drill.name ?? ''}
-        <Typography component="div" sx={{ fontSize: 13 }} color="text.secondary">Entries from {drill.from} to {drill.to}</Typography>
+        <Typography component="div" color="text.secondary">Entries from {drill.from} to {drill.to}</Typography>
       </DialogTitle>
       <DialogContent>
         <LoadingBlock q={q} what="the entries" />
@@ -49,7 +49,7 @@ function ReportGrid({ t, label }: { t: ReportTable; label: string }) {
           </TableFooter>
         )}
       </Table>
-      {t.note && <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">{t.note}</Typography>}
+      {t.note && <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">{t.note}</Typography>}
     </Box>
   )
 }

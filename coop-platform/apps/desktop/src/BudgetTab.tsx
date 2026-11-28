@@ -76,8 +76,8 @@ function Budgets({ branchCode, year, canEdit }: { branchCode: number; year: numb
                     {g.rows.map((l) => (
                       <TableRow key={l.accountCode} hover>
                         <TableCell>
-                          <Typography sx={{ fontSize: 13 }}>{l.accountCode} {l.name}</Typography>
-                          <Typography sx={{ fontSize: 11 }} color="text.secondary">{l.group}</Typography>
+                          <Typography>{l.accountCode} {l.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">{l.group}</Typography>
                         </TableCell>
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>{money(l.lastYearActual)}</TableCell>
                         <TableCell align="right">
@@ -106,8 +106,8 @@ function Budgets({ branchCode, year, canEdit }: { branchCode: number; year: numb
           </Box>
           {canEdit && (
             <Stack direction="row" spacing={1} sx={{ mt: 1.5, alignItems: 'center', justifyContent: 'flex-end' }}>
-              {invalid && <Typography sx={{ fontSize: 12 }} color="error">A budget is a number, zero or more.</Typography>}
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">{changes.length ? `${changes.length} change${changes.length === 1 ? '' : 's'} not saved` : ''}</Typography>
+              {invalid && <Typography variant="body2" color="error">A budget is a number, zero or more.</Typography>}
+              <Typography variant="body2" color="text.secondary">{changes.length ? `${changes.length} change${changes.length === 1 ? '' : 's'} not saved` : ''}</Typography>
               <Button onClick={() => setTyped({})} disabled={Object.keys(typed).length === 0}>Undo</Button>
               <Button variant="contained" disabled={changes.length === 0 || invalid} onClick={() => { save.reset(); setAsking(true) }}>Save changes</Button>
             </Stack>
@@ -138,7 +138,7 @@ function VarianceView({ branchCode, year }: { branchCode: number; year: number }
       <LoadingBlock q={q} what="budget versus actual" errors={false} />
       {v && (
         <BusyArea busy={q.isFetching} label="Loading budget versus actual">
-          <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">{v.months} month{v.months === 1 ? '' : 's'} of the {year} budget, spread evenly by month.</Typography>
+          <Typography variant="body2" sx={{ mb: 1 }} color="text.secondary">{v.months} month{v.months === 1 ? '' : 's'} of the {year} budget, spread evenly by month.</Typography>
           <Box sx={(t) => ({ ...glass(t), overflow: 'auto' })}>
             <Table size="small" aria-label="Budget versus actual">
               <TableHead>
@@ -152,7 +152,7 @@ function VarianceView({ branchCode, year }: { branchCode: number; year: number }
                     <TableRow><TableCell colSpan={4} sx={{ fontWeight: 700, bgcolor: 'action.hover' }}>{TYPE_WORDS[type]}</TableCell></TableRow>
                     {v.lines.filter((l) => l.type === type).map((l) => (
                       <TableRow key={l.accountCode} hover>
-                        <TableCell><Typography sx={{ fontSize: 13 }}>{l.accountCode} {l.name}</Typography></TableCell>
+                        <TableCell><Typography>{l.accountCode} {l.name}</Typography></TableCell>
                         <TableCell align="right">{money(l.budget)}</TableCell>
                         <TableCell align="right">{money(l.actual)}</TableCell>
                         <TableCell align="right" sx={{ color: l.favourable ? tint.green[0] : tint.red[0], whiteSpace: 'nowrap' }}
@@ -172,7 +172,7 @@ function VarianceView({ branchCode, year }: { branchCode: number; year: number }
               </TableBody>
             </Table>
           </Box>
-          <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">▲ favourable (revenue above budget, expense below it), ▼ unfavourable.</Typography>
+          <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">▲ favourable (revenue above budget, expense below it), ▼ unfavourable.</Typography>
         </BusyArea>
       )}
     </Box>

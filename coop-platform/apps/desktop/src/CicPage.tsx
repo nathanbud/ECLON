@@ -10,6 +10,8 @@ import {
 import { appBackground, glass } from './glass'
 import { labelOf, CIC_WORDS } from './ui/labels'
 import { LoadingRow } from './ui/Loading'
+import { notifyError } from './ui/notices'
+import { RADIUS } from './theme'
 import { Hinted } from './appleUi'
 
 const STEPS: CicStatus[] = ['DRAFT', 'GENERATED', 'VALIDATED', 'APPROVED', 'SUBMITTED', 'RESULT', 'RECONCILED']
@@ -25,7 +27,6 @@ export default function CicPage() {
   const qc = useQueryClient()
   const batches = useQuery({ queryKey: ['cic-batches'], queryFn: listCicBatches })
   const [selected, setSelected] = useState<number | null>(null)
-  const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [form, setForm] = useState({ submissionType: SUBMISSION_TYPES[0], cutOffDate: today(), providerCode: '', version: '1.0', remarks: '' })
   const [sample, setSample] = useState('')
@@ -52,9 +53,9 @@ export default function CicPage() {
   }
   const run = useMutation({
     mutationFn: async (f: () => Promise<CicBatch | string>) => f(),
-    onMutate: () => { setError(''); setInfo('') },
+    onMutate: () => { setInfo('') },
     onSuccess: (r) => { if (typeof r === 'string') setInfo(r); else refresh(r) },
-    onError: (e) => setError(message(e)),
+    onError: (e) => notifyError(message(e)),
   })
   const act = (f: () => Promise<CicBatch | string>) => run.mutate(f)
   const busy = run.isPending
@@ -63,7 +64,6 @@ export default function CicPage() {
     <Box component="main" sx={(t) => ({ minHeight: 'calc(100dvh - 44px)', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
       <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
         <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mb: 1 }}>CIC submission</Typography>
-        {error && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError('')}>{error}</Alert>}
         {info && <Alert severity="success" sx={{ mb: 1.5 }} onClose={() => setInfo('')}>{info}</Alert>}
 
         <Box component="section" aria-labelledby="cic-new" sx={(t) => ({ p: 2, mb: 2, ...glass(t) })}>
@@ -82,7 +82,7 @@ export default function CicPage() {
 
         <Box component="section" aria-labelledby="cic-batches" sx={(t) => ({ p: 2, mb: 2, ...glass(t) })}>
           <Typography id="cic-batches" sx={{ fontWeight: 600, mb: 1 }}>Batches</Typography>
-          <Box sx={{ overflowX: 'auto', border: 1, borderColor: 'divider', borderRadius: '5px' }}>
+          <Box sx={{ overflowX: 'auto', border: 1, borderColor: 'divider', borderRadius: `${RADIUS}px` }}>
             <Table size="small" aria-label="Batches">
               <TableHead><TableRow>{['Reference', 'Cut-off', 'Type', 'Status', 'Records', 'Created by'].map((c) => <TableCell key={c}>{c}</TableCell>)}</TableRow></TableHead>
               <TableBody>
@@ -93,7 +93,7 @@ export default function CicPage() {
                     <TableCell>{labelOf(r.status, CIC_WORDS)}</TableCell><TableCell>{r.subjects + r.installment_contracts + r.other_contracts}</TableCell><TableCell>{r.created_by}</TableCell>
                   </TableRow>
                 ))}
-                {batches.data?.length === 0 && <TableRow><TableCell colSpan={6}><Typography color="text.secondary" sx={{ py: 1, textAlign: 'center', fontSize: 13 }}>No batches yet. Fill in the form above and choose Create batch.</Typography></TableCell></TableRow>}
+                {batches.data?.length === 0 && <TableRow><TableCell colSpan={6}><Typography color="text.secondary" sx={{ py: 1, textAlign: 'center' }}>No batches yet. Fill in the form above and choose Create batch.</Typography></TableCell></TableRow>}
               </TableBody>
             </Table>
           </Box>
@@ -105,7 +105,7 @@ export default function CicPage() {
             <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap', mb: 1.5 }} aria-label="Steps">
               {STEPS.map((s) => <Chip key={s} size="small" label={s} color={s === b.status ? 'primary' : 'default'} variant={STEPS.indexOf(s) <= STEPS.indexOf(b.status) ? 'filled' : 'outlined'} />)}
             </Stack>
-            <Typography sx={{ fontSize: 13, mb: 1 }}>
+            <Typography sx={{ mb: 1 }}>
               {b.subjects} borrowers · {b.installment_contracts} installment loans · {b.other_contracts} lump-sum loans · {b.errors} with errors · {b.warnings} with warnings
               {b.excluded > 0 ? ` · ${b.excluded} left out` : ''}{b.submission_reference ? ` · CIC reference ${b.submission_reference}` : ''}
             </Typography>
@@ -131,7 +131,7 @@ export default function CicPage() {
                 <TextField size="small" label="Approval note" value={note} onChange={(e) => setNote(e.target.value)} sx={{ width: 260 }} />
                 {b.errors > 0 && <FormControlLabel control={<Checkbox checked={excludeErrors} onChange={(e) => setExcludeErrors(e.target.checked)} />} label="Leave out records with errors" />}
                 <Button variant="contained" color="success" disabled={busy || (b.errors > 0 && !excludeErrors)} onClick={() => act(() => approveCic(b.id, excludeErrors, note))}>Approve</Button>
-                <Typography color="text.secondary" sx={{ fontSize: 12 }}>Someone other than {b.created_by} must approve.</Typography>
+                <Typography variant="body2" color="text.secondary">Someone other than {b.created_by} must approve.</Typography>
               </Stack>
             )}
             {b.status === 'APPROVED' && (
@@ -154,7 +154,7 @@ export default function CicPage() {
             </Tabs>
 
             {tab === 'findings' && (
-              <Box sx={{ overflowX: 'auto', border: 1, borderColor: 'divider', borderRadius: '5px' }}>
+              <Box sx={{ overflowX: 'auto', border: 1, borderColor: 'divider', borderRadius: `${RADIUS}px` }}>
                 <Table size="small" aria-label="Findings">
                   <TableHead><TableRow>{['', 'Record', 'About', 'What is wrong'].map((c) => <TableCell key={c}>{c}</TableCell>)}</TableRow></TableHead>
                   <TableBody>
@@ -166,7 +166,7 @@ export default function CicPage() {
                         <TableCell>{f.field}</TableCell><TableCell>{f.message}</TableCell>
                       </TableRow>
                     ))}
-                    {findings.data?.length === 0 && <TableRow><TableCell colSpan={4}><Typography color="text.secondary" sx={{ py: 1, textAlign: 'center', fontSize: 13 }}>{b.status === 'DRAFT' ? 'Generate the records first.' : 'Nothing found.'}</Typography></TableCell></TableRow>}
+                    {findings.data?.length === 0 && <TableRow><TableCell colSpan={4}><Typography color="text.secondary" sx={{ py: 1, textAlign: 'center' }}>{b.status === 'DRAFT' ? 'Generate the records first.' : 'Nothing found.'}</Typography></TableCell></TableRow>}
                   </TableBody>
                 </Table>
               </Box>
@@ -181,9 +181,9 @@ export default function CicPage() {
                 </TextField>
                 <Button disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button>
                 <Button disabled={(page + 1) * 25 >= (records.data?.total ?? 0)} onClick={() => setPage(page + 1)}>Next</Button>
-                <Typography sx={{ alignSelf: 'center', fontSize: 13 }}>{records.data?.total ?? 0} records</Typography>
+                <Typography sx={{ alignSelf: 'center' }}>{records.data?.total ?? 0} records</Typography>
               </Stack>
-              <Box sx={{ overflowX: 'auto', border: 1, borderColor: 'divider', borderRadius: '5px' }}>
+              <Box sx={{ overflowX: 'auto', border: 1, borderColor: 'divider', borderRadius: `${RADIUS}px` }}>
                 <Table size="small" aria-label="Records">
                   <TableHead><TableRow>{['Type', 'Subject', 'Contract', 'Status', 'In file'].map((c) => <TableCell key={c}>{c}</TableCell>)}</TableRow></TableHead>
                   <TableBody>
@@ -200,7 +200,7 @@ export default function CicPage() {
                 {[...b.logs.MEMBERS, ...b.logs.LOANS, ...b.logs.FILES].map((l, i) => <div key={i}>{l}</div>)}
               </Box>
             )}
-            <Typography color="text.secondary" sx={{ fontSize: 12, mt: 1.5 }}>Encryption, the Excel copy and the transmittal letter are not built: the CIC has not given their layouts.</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>Encryption, the Excel copy and the transmittal letter are not built: the CIC has not given their layouts.</Typography>
           </Box>
         )}
       </Box>

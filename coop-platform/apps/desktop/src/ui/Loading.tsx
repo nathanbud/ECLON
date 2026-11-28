@@ -12,7 +12,7 @@ export function Loading({ what }: { what: string }) {
   return (
     <Box role="status" aria-live="polite" sx={{ py: 1.5 }}>
       <LinearProgress sx={{ mb: 1, borderRadius: 1 }} />
-      <Typography color="text.secondary" sx={{ fontSize: 13 }}>Loading {what}…</Typography>
+      <Typography color="text.secondary">Loading {what}…</Typography>
     </Box>
   )
 }

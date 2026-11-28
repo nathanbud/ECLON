@@ -6,6 +6,7 @@ import { searchMembers, type Me } from './api'
 import { displayName, memberNo, type Id } from './clients'
 import type { View } from './Dashboard'
 import { DOMAINS, HOME, visibleScreens } from './nav/screens'
+import { RADIUS } from './theme'
 import { useMe } from './session'
 
 interface Destination { label: string; hint: string; view: View; tab?: string; keywords: string; group: string }
@@ -98,7 +99,7 @@ export default function GlobalSearch({ onNavigate, onOpenClient }: { onNavigate:
       renderInput={(params) => (
         <TextField
           {...params} inputRef={ref} placeholder={`Search screens, modules and members  (${GLOBAL_SEARCH_SHORTCUT})`}
-          sx={{ '& .MuiInputBase-root': { color: 'inherit' }, '& input::placeholder': { opacity: 0.75 }, '& .MuiOutlinedInput-root': { borderRadius: '5px', fontSize: 12, fontWeight: 400, height: 26, py: '0 !important', bgcolor: 'transparent' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'text.disabled' } }}
+          sx={{ '& .MuiInputBase-root': { color: 'inherit' }, '& input::placeholder': { opacity: 0.75 }, '& .MuiOutlinedInput-root': { borderRadius: `${RADIUS}px`, fontSize: 12, fontWeight: 400, height: 26, py: '0 !important', bgcolor: 'transparent' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' }, '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'text.disabled' } }}
           slotProps={{
             ...params.slotProps,
             htmlInput: { ...params.slotProps.htmlInput, 'aria-label': 'Search the whole app' },
@@ -113,17 +114,17 @@ export default function GlobalSearch({ onNavigate, onOpenClient }: { onNavigate:
       renderOption={(props, o) => {
         const { key, ...rest } = props as typeof props & { key: string }
         return (
-          <Box component="li" key={key} {...rest} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, borderRadius: '5px', mx: 0.5 }}>
+          <Box component="li" key={key} {...rest} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, borderRadius: `${RADIUS}px`, mx: 0.5 }}>
             {o.kind === 'client' && (
               <Avatar sx={{ width: 28, height: 28, fontSize: 11, fontWeight: 600, bgcolor: 'action.hover', color: 'text.secondary' }}><FiUser size={16} aria-hidden /></Avatar>
             )}
-            <Typography noWrap sx={{ fontSize: 13, fontWeight: 500, flex: 1, minWidth: 0 }}>{o.label}</Typography>
-            <Typography noWrap sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{o.hint}</Typography>
+            <Typography noWrap sx={{ fontWeight: 500, flex: 1, minWidth: 0 }}>{o.label}</Typography>
+            <Typography variant="body2" noWrap sx={{ fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{o.hint}</Typography>
           </Box>
         )
       }}
       slotProps={{
-        paper: { sx: { borderRadius: '5px', mt: 0.5, boxShadow: '0 12px 32px rgba(0,0,0,0.18)', border: 1, borderColor: 'divider' } },
+        paper: { sx: { borderRadius: `${RADIUS}px`, mt: 0.5, boxShadow: '0 12px 32px rgba(0,0,0,0.18)', border: 1, borderColor: 'divider' } },
         popper: { style: { minWidth: 400 }, placement: 'bottom' },
         listbox: { sx: { py: 0.5 } },
       }}

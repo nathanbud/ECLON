@@ -5,7 +5,7 @@ import { useMe } from './session'
 import { getCapabilities, getLookups, getMember, getPendingChange, submitChange } from './api'
 import { useLeaveGuard } from './leaveGuard'
 import { ACTIONS, ClientMenu, closeMatch, mod } from './profile/ClientMenu'
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Snackbar } from '@mui/material'
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material'
 import { appBackground, glass } from './glass'
 import { ToolbarPortal } from './toolbarSlot'
 import FindClientDialog, { FindBody } from './FindClientDialog'
@@ -17,6 +17,7 @@ import { NewMemberScreen } from './profile/NewMember'
 import { EditCtx } from './profile/editing'
 import { EditBar, PendingBanner } from './profile/Changes'
 import { CloseDialog, ReactivateDialog } from './MemberRequests'
+import { notify, notifyError } from './ui/notices'
 import { Profile } from './profile/Profile'
 
 // ---- page ---------------------------------------------------------------------------------------------------------
@@ -27,9 +28,7 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [discarding, setDiscarding] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
   const [registering, setRegistering] = useState(false)
   const [resumed, setResumed] = useState<MemberDraft | null>(null)
   const [advanced, setAdvanced] = useState(false)
@@ -62,7 +61,6 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
     setShownKey(key)
     setEditing(false)
     setDraft({})
-    setError(null)
   }
 
   const set = (col: string, value: string, original: string) =>
@@ -72,13 +70,12 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
       else next[col] = value
       return next
     })
-  const leave = () => { setEditing(false); setDraft({}); setError(null); setDiscarding(false) }
+  const leave = () => { setEditing(false); setDraft({}); setDiscarding(false) }
   const cancel = () => (changes > 0 ? setDiscarding(true) : leave())
 
   const save = async () => {
     if (!selected || !member || changes === 0) return
     setSaving(true)
-    setError(null)
     try {
       const done = await submitChange(selected.branchCode, selected.clientId, { changes: draft, expectedUpdatedAt: member.updatedAt })
       await Promise.all([
@@ -91,9 +88,9 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
         qc.invalidateQueries({ queryKey: ['members'] }),
       ])
       leave()
-      setNotice(done.status === 'APPROVED' ? 'Saved. The change is recorded in the audit log' : 'Sent for approval')
+      notify(done.status === 'APPROVED' ? 'Saved. The change is recorded in the audit log' : 'Sent for approval')
     } catch (e) {
-      setError((e as Error).message)
+      notifyError((e as Error).message)
     } finally {
       setSaving(false)
     }
@@ -107,8 +104,8 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
   }
 
   const runs: Record<string, (() => void) | undefined> = {
-    New: caps?.edit && !editing && !registering && !advanced && !saving ? () => { setRegistering(true); setError(null) } : undefined,
-    Edit: caps?.edit && selected && member && !pending && !editing ? () => { setEditing(true); setError(null) } : undefined,
+    New: caps?.edit && !editing && !registering && !advanced && !saving ? () => { setRegistering(true) } : undefined,
+    Edit: caps?.edit && selected && member && !pending && !editing ? () => { setEditing(true) } : undefined,
     Save: editing && changes > 0 && !saving ? save : undefined,
     Cancel: editing && !saving ? cancel : undefined,
   }
@@ -148,26 +145,25 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
           <Button onClick={leave} color="error">Discard</Button>
         </DialogActions>
       </Dialog>
-      <Snackbar open={!!notice}autoHideDuration={3000} onClose={() => setNotice(null)} message={notice} />
 
       <Box component="section" aria-label="Member profile" sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, maxWidth: 1600, width: '100%', mx: 'auto', p: 1.5 }}>
         {advanced
-          ? <AdvancedRegistration onClose={() => setAdvanced(false)} onDone={setNotice} />
+          ? <AdvancedRegistration onClose={() => setAdvanced(false)} onDone={notify} />
           : registering
-          ? <NewMemberScreen key={resumed?.id ?? 'new'} lk={lk} canImages={!!caps?.images} initial={resumed ?? undefined} onClose={() => { setRegistering(false); setResumed(null) }} onDone={setNotice} />
+          ? <NewMemberScreen key={resumed?.id ?? 'new'} lk={lk} canImages={!!caps?.images} initial={resumed ?? undefined} onClose={() => { setRegistering(false); setResumed(null) }} onDone={notify} />
           : selected
           ? (
             <EditCtx.Provider value={{ editing, draft, set }}>
-              {pending && <PendingBanner change={pending} id={selected} canApprove={!!caps?.approve} onDone={setNotice} />}
+              {pending && <PendingBanner change={pending} id={selected} canApprove={!!caps?.approve} onDone={notify} />}
               {member && ((member.accountStatus ?? 1) === 2 || (member.accountStatus ?? 1) === 3) && !editing && (
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 0.5 }}>
                   <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => setReactivating(true)}>Reactivate membership</Button></Gated>
                 </Box>
               )}
-              {reactivating && member && <ReactivateDialog branchCode={selected.branchCode} clientId={selected.clientId} name={displayName(member)} onClose={() => setReactivating(false)} onDone={setNotice} />}
-              {closing && member && <CloseDialog branchCode={selected.branchCode} clientId={selected.clientId} name={displayName(member)} onClose={() => setClosing(false)} onDone={setNotice} />}
-              {editing && <EditBar changes={changes} saving={saving} error={error} direct={!!caps?.direct} onSave={save} onCancel={cancel} />}
-              <Profile key={key} id={selected} lk={lk} canPhoto={!!caps?.images} onNotice={setNotice} />
+              {reactivating && member && <ReactivateDialog branchCode={selected.branchCode} clientId={selected.clientId} name={displayName(member)} onClose={() => setReactivating(false)} onDone={notify} />}
+              {closing && member && <CloseDialog branchCode={selected.branchCode} clientId={selected.clientId} name={displayName(member)} onClose={() => setClosing(false)} onDone={notify} />}
+              {editing && <EditBar changes={changes} saving={saving} direct={!!caps?.direct} onSave={save} onCancel={cancel} />}
+              <Profile key={key} id={selected} lk={lk} canPhoto={!!caps?.images} onNotice={notify} />
             </EditCtx.Provider>
           )
           : (
@@ -176,10 +172,10 @@ export default function ClientProfilePage({ selected, onSelect }: { selected: Id
               <Box sx={(t) => ({ width: '100%', maxWidth: 580, overflow: 'hidden', ...glass(t, { elevated: true }) })}>
                 <FindBody inline lk={lk} onPick={onSelect} />
                 <Box sx={{ p: 1, textAlign: 'center' }}>
-                  <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => { setRegistering(true); setError(null) }}>New Member</Button></Gated>
+                  <Gated allowed={!!caps?.edit} reason={NEEDS_EDIT}><Button size="small" onClick={() => { setRegistering(true) }}>New Member</Button></Gated>
                   <Gated allowed={!!caps?.edit && officer} reason={caps?.edit ? NEEDS_OFFICER : NEEDS_EDIT}><Button size="small" color="warning" onClick={() => setAdvanced(true)}>Advanced mode: import a list</Button></Gated>
                 </Box>
-                {caps?.edit && <DraftsList onResume={(d) => { setResumed(d); setRegistering(true); setError(null) }} />}
+                {caps?.edit && <DraftsList onResume={(d) => { setResumed(d); setRegistering(true) }} />}
               </Box>
             </Box>
           )}

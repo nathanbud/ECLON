@@ -1,10 +1,12 @@
-import { Alert, Autocomplete, Box, Button, Chip, MenuItem, TextField, Skeleton, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, Typography } from '@mui/material'
+import { Alert, Autocomplete, Box, Button, Chip, MenuItem, TextField, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, Typography } from '@mui/material'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
 import { getCoMakerAccounts, getLoans, getMember, getSavings, searchMembers, type Member } from './api'
 import { displayName, memberNo, statusOf } from './clients'
 import { money } from './FoTransactionForm'
 import MoneyField from './MoneyField'
+import { Loading } from './ui/Loading'
+import { SURFACE_RADIUS } from './theme'
 import { tabular } from './ui/format'
 
 const num = tabular
@@ -12,13 +14,13 @@ const num = tabular
 /** What the member has on hold: the savings holds that reduce what they can use. */
 function HoldsTab({ branchCode, clientId }: { branchCode: number; clientId: number }) {
   const { data, error, isLoading } = useQuery({ queryKey: ['member-savings', branchCode, clientId], queryFn: () => getSavings(branchCode, clientId), staleTime: 60_000 })
-  if (isLoading) return <Skeleton variant="rounded" height={90} />
+  if (isLoading) return <Loading what="the co-makers" />
   if (error) return <Alert severity="info">{(error as Error).message}</Alert>
   const rows = data?.accounts.filter((a) => a.statusName !== 'Closed') ?? []
-  if (rows.length === 0) return <Typography color="text.secondary" sx={{ fontSize: 13 }}>This member has no open savings accounts.</Typography>
+  if (rows.length === 0) return <Typography color="text.secondary">This member has no open savings accounts.</Typography>
   return (
     <>
-      <Typography sx={{ fontSize: 13, mb: 1, ...num }}>Total on hold <strong>{money(data?.totalHeld ?? 0)}</strong></Typography>
+      <Typography sx={{ mb: 1, ...num }}>Total on hold <strong>{money(data?.totalHeld ?? 0)}</strong></Typography>
       <Table size="small" aria-label="Savings holds">
         <TableHead><TableRow><TableCell>Account</TableCell><TableCell align="right">Balance</TableCell><TableCell align="right">On hold</TableCell><TableCell align="right">Available</TableCell></TableRow></TableHead>
         <TableBody>
@@ -39,12 +41,12 @@ function HoldsTab({ branchCode, clientId }: { branchCode: number; clientId: numb
 /** The member's other loans with a balance, so the clerk sees what they already owe. */
 function ExistingLoansTab({ branchCode, clientId }: { branchCode: number; clientId: number }) {
   const { data, error, isLoading } = useQuery({ queryKey: ['member-loans', branchCode, clientId, false], queryFn: () => getLoans(branchCode, clientId, false), staleTime: 60_000 })
-  if (isLoading) return <Skeleton variant="rounded" height={90} />
+  if (isLoading) return <Loading what="the collateral" />
   if (error) return <Alert severity="info">{(error as Error).message}</Alert>
-  if (!data || data.loans.length === 0) return <Typography color="text.secondary" sx={{ fontSize: 13 }}>This member has no loans with a balance.</Typography>
+  if (!data || data.loans.length === 0) return <Typography color="text.secondary">This member has no loans with a balance.</Typography>
   return (
     <>
-      <Typography sx={{ fontSize: 13, mb: 1, ...num }}>Outstanding <strong>{money(data.totalOutstanding)}</strong>{data.totalPastDue > 0 && <> · past due <strong>{money(data.totalPastDue)}</strong></>}</Typography>
+      <Typography sx={{ mb: 1, ...num }}>Outstanding <strong>{money(data.totalOutstanding)}</strong>{data.totalPastDue > 0 && <> · past due <strong>{money(data.totalPastDue)}</strong></>}</Typography>
       <Table size="small" aria-label="Existing loans">
         <TableHead><TableRow><TableCell>Loan</TableCell><TableCell align="right">Outstanding</TableCell><TableCell align="right">Days late</TableCell></TableRow></TableHead>
         <TableBody>
@@ -73,7 +75,7 @@ export function CoMakerRows({ branchCode, applicant, ids, holds, onChange, onRem
 }) {
   const members = useQueries({ queries: ids.map((id) => ({ queryKey: ['member', branchCode, id], queryFn: () => getMember(branchCode, id), staleTime: 60_000, retry: false })) })
   const accounts = useQueries({ queries: ids.map((id) => ({ queryKey: ['comaker-accounts', branchCode, id], queryFn: () => getCoMakerAccounts(branchCode, applicant, id), staleTime: 30_000, retry: false })) })
-  if (ids.length === 0) return <Typography sx={{ fontSize: 13, mt: 1 }} color="text.secondary">No co-makers yet. Search above to add one.</Typography>
+  if (ids.length === 0) return <Typography sx={{ mt: 1 }} color="text.secondary">No co-makers yet. Search above to add one.</Typography>
   return (
     <Box sx={{ display: 'grid', gap: 1.25, mt: 1.25 }}>
       {ids.map((id, i) => {
@@ -87,9 +89,9 @@ export function CoMakerRows({ branchCode, applicant, ids, holds, onChange, onRem
         const acct = list.find((x) => `${x.slc}/${x.slt}/${x.refNo}` === key)
         const over = acct != null && Number(h.amount) > acct.available
         return (
-          <Box key={id} sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', p: 1.25 }}>
+          <Box key={id} sx={{ border: 1, borderColor: 'divider', borderRadius: `${SURFACE_RADIUS - 2}px`, p: 1.25 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography sx={{ flex: 1, fontSize: 13, fontWeight: 600 }}>
+              <Typography variant="subtitle2" component="p" sx={{ flex: 1 }}>
                 {members[i]?.isLoading ? `${id} …` : m ? `${displayName(m)} · ${id}` : `${id} · not a member`}
               </Typography>
               {st?.kind === 'default' && <Chip size="small" color="warning" variant="outlined" label="Not active" />}
@@ -131,8 +133,8 @@ export function CoMakerPicker({ applicant, ids, onAdd }: { applicant: number; id
       onChange={(_, m) => { if (m) { onAdd(m.id.clientId); setText(''); setQ('') } }}
       renderOption={({ key, ...props }, m) => (
         <li key={key} {...props}>
-          <Box><Typography sx={{ fontSize: 13 }}>{displayName(m)}</Typography>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary">{memberNo(m.id)}{m.city ? ` · ${m.city}` : ''}</Typography></Box>
+          <Box><Typography>{displayName(m)}</Typography>
+            <Typography variant="body2" color="text.secondary">{memberNo(m.id)}{m.city ? ` · ${m.city}` : ''}</Typography></Box>
         </li>
       )}
       renderInput={(params) => <TextField {...params} label="Search a member to add as co-maker" />} />
@@ -158,7 +160,7 @@ export default function LoanRelatedTabs({ branchCode, clientId, coMakers, collat
     ['Existing loans', <ExistingLoansTab key="l" branchCode={branchCode} clientId={clientId} />],
   ]
   return (
-    <Box component="section" aria-label="Related to the loan" sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', minHeight: 280 }}>
+    <Box component="section" aria-label="Related to the loan" sx={{ border: 1, borderColor: 'divider', borderRadius: `${SURFACE_RADIUS - 2}px`, minHeight: 280 }}>
       <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons={false} sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none', fontSize: 13 } }}>
         {tabs.map(([label]) => (
           <Tab key={label} label={label === 'Collateral' && collateralRequired

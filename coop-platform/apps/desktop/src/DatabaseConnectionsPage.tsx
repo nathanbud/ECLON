@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControlLabel, MenuItem, Snackbar, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControlLabel, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { FiCheckCircle, FiDatabase, FiEdit2, FiPlus, FiRefreshCw, FiTrash2, FiX, FiZap } from 'react-icons/fi'
@@ -11,6 +11,8 @@ import { useLeaveGuard } from './leaveGuard'
 import { SchemaStatusNotice } from './SchemaStatusNotice'
 import { useMe } from './session'
 import { can } from './nav/screens'
+import { notifyError, notify } from './ui/notices'
+import { RADIUS } from './theme'
 import { ScreenTitle } from './appleUi'
 
 interface Form { name: string; host: string; port: string; dbName: string; branchId: number | null; makeDefault: boolean }
@@ -36,8 +38,6 @@ export default function DatabaseConnectionsPage() {
   const [databases, setDatabases] = useState<string[]>([])
   const [branches, setBranches] = useState<BranchOption[]>([])
   const [probe, setProbe] = useState<ConnectionProbe | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<'delete' | 'use' | null>(null)
 
   const list = rows.data ?? []
@@ -47,7 +47,7 @@ export default function DatabaseConnectionsPage() {
   useLeaveGuard(changed ? 'The connection has changes that are not saved.' : null)
 
   const open = (r: ConnectionRow) => {
-    setSel(r.id); setForm(fromRow(r)); setEditing(false); setProbe(null); setError(null)
+    setSel(r.id); setForm(fromRow(r)); setEditing(false); setProbe(null)
     setDatabases([r.dbName]); setBranches(r.branchId != null && r.branchName ? [{ id: r.branchId, name: r.branchName }] : [])
   }
 
@@ -57,37 +57,37 @@ export default function DatabaseConnectionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list.length])
 
-  const fail = (e: unknown) => { setError((e as Error).message); setNotice(null) }
+  const fail = (e: unknown) => { notifyError((e as Error).message); }
   const refreshed = () => qc.invalidateQueries({ queryKey: ['connections'] })
 
   const dbLoad = useMutation({
     mutationFn: () => loadDatabases(form.host, form.port.trim() === '' ? null : Number(form.port)),
-    onSuccess: (names) => { setDatabases(names); setError(null); setNotice(names.length === 0 ? 'The server has no databases for this user.' : `${names.length} database${names.length === 1 ? '' : 's'} found.`) },
+    onSuccess: (names) => { setDatabases(names); notify(names.length === 0 ? 'The server has no databases for this user.' : `${names.length} database${names.length === 1 ? '' : 's'} found.`) },
     onError: fail,
   })
   const branchLoad = useMutation({
     mutationFn: () => loadBranches({ host: form.host, port: form.port.trim() === '' ? null : Number(form.port), dbName: form.dbName }),
-    onSuccess: (list) => { setBranches(list); setError(null); setNotice(`${list.length} branch${list.length === 1 ? '' : 'es'} or office${list.length === 1 ? '' : 's'} found.`) },
+    onSuccess: (list) => { setBranches(list); notify(`${list.length} branch${list.length === 1 ? '' : 'es'} or office${list.length === 1 ? '' : 's'} found.`) },
     onError: fail,
   })
   const tryIt = useMutation({
     mutationFn: () => testConnection({ host: form.host, port: form.port.trim() === '' ? null : Number(form.port), dbName: form.dbName }),
-    onSuccess: (p) => { setProbe(p); setError(null) },
+    onSuccess: (p) => { setProbe(p) },
     onError: fail,
   })
   const save = useMutation({
     mutationFn: () => (sel === 'new' || !row ? createConnection(toIn(form)) : updateConnection(row.id, toIn(form))),
-    onSuccess: async (saved) => { await refreshed(); setEditing(false); setSel(saved.id); setForm(fromRow(saved)); setError(null); setNotice('Saved. The server keeps working on the database it is on until you use this connection.') },
+    onSuccess: async (saved) => { await refreshed(); setEditing(false); setSel(saved.id); setForm(fromRow(saved)); notify('Saved. The server keeps working on the database it is on until you use this connection.') },
     onError: fail,
   })
   const remove = useMutation({
     mutationFn: () => deleteConnection(row!.id),
-    onSuccess: async () => { setConfirm(null); setSel(null); setEditing(false); await refreshed(); setNotice('Deleted.') },
+    onSuccess: async () => { setConfirm(null); setSel(null); setEditing(false); await refreshed(); notify('Deleted.') },
     onError: (e) => { setConfirm(null); fail(e) },
   })
   const use = useMutation({
     mutationFn: () => activateConnection(row!.id),
-    onSuccess: async () => { setConfirm(null); setError(null); setNotice(`The server now works on "${row!.name}". Everyone signs in again.`); await qc.invalidateQueries() },
+    onSuccess: async () => { setConfirm(null); notify(`The server now works on "${row!.name}". Everyone signs in again.`); await qc.invalidateQueries() },
     onError: (e) => { setConfirm(null); fail(e) },
   })
 
@@ -96,8 +96,8 @@ export default function DatabaseConnectionsPage() {
   const complete = form.name.trim() !== '' && form.host.trim() !== '' && portOk && form.dbName !== ''
   const startup = !!row?.startup
 
-  const start = () => { setSel('new'); setForm(blank()); setEditing(true); setDatabases([]); setBranches([]); setProbe(null); setError(null) }
-  const cancel = () => { if (row) open(row); else { setSel(null); setForm(blank()); setEditing(false) } setError(null) }
+  const start = () => { setSel('new'); setForm(blank()); setEditing(true); setDatabases([]); setBranches([]); setProbe(null) }
+  const cancel = () => { if (row) open(row); else { setSel(null); setForm(blank()); setEditing(false) } }
 
   if (!superadmin) {
     return (
@@ -116,7 +116,6 @@ export default function DatabaseConnectionsPage() {
           The database this server works on, and the others it can be moved to. The database user and password are the server&apos;s own settings; none is saved here.
         </ScreenTitle>
         <SchemaStatusNotice showOk canApply={can(me, 'superadmin')} />
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)} role="alert">{error}</Alert>}
         {rows.isError && <Alert severity="error" sx={{ mb: 2 }}>The saved connections could not be read.</Alert>}
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '280px minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
@@ -126,10 +125,10 @@ export default function DatabaseConnectionsPage() {
                 <Box component="li" key={r.id}>
                   <Box
                     component="button" type="button" onClick={() => !changed && open(r)} aria-current={r.id === sel ? 'true' : undefined}
-                    sx={(t) => ({ width: '100%', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit', p: 1, borderRadius: '5px', border: 1, borderColor: r.id === sel ? 'primary.main' : 'transparent', bgcolor: r.id === sel ? t.palette.action.selected : 'transparent', '&:hover': { bgcolor: t.palette.action.hover } })}
+                    sx={(t) => ({ width: '100%', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit', p: 1, borderRadius: `${RADIUS}px`, border: 1, borderColor: r.id === sel ? 'primary.main' : 'transparent', bgcolor: r.id === sel ? t.palette.action.selected : 'transparent', '&:hover': { bgcolor: t.palette.action.hover } })}
                   >
-                    <Typography sx={{ fontSize: 13, fontWeight: 600 }} noWrap>{r.name}</Typography>
-                    <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{r.host}:{r.port} · {r.dbName}</Typography>
+                    <Typography variant="subtitle2" component="p" noWrap>{r.name}</Typography>
+                    <Typography variant="body2" color="text.secondary" noWrap>{r.host}:{r.port} · {r.dbName}</Typography>
                     <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
                       {r.active && <Chip size="small" color="primary" label="In use" />}
                       {r.isDefault && <Chip size="small" variant="outlined" label="Default" />}
@@ -189,7 +188,7 @@ export default function DatabaseConnectionsPage() {
                     {row?.active ? 'In use now' : 'Use this connection'}
                   </Button>
                 </Stack>
-                {startup && <Typography sx={{ fontSize: 12 }} color="text.secondary">This is the setting the server was started with. Save a connection of your own to keep one you can edit.</Typography>}
+                {startup && <Typography variant="body2" color="text.secondary">This is the setting the server was started with. Save a connection of your own to keep one you can edit.</Typography>}
               </Stack>
             )}
           </Box>
@@ -213,7 +212,6 @@ export default function DatabaseConnectionsPage() {
         <DialogActions><Button color="inherit" onClick={() => setConfirm(null)}>Not now</Button><Button variant="contained" disabled={use.isPending} onClick={() => use.mutate()}>Move the server</Button></DialogActions>
       </Dialog>
 
-      <Snackbar open={!!notice} autoHideDuration={6000} onClose={() => setNotice(null)} message={notice} />
     </Box>
   )
 }

@@ -25,7 +25,7 @@ export function CountGrid({ setup, counts, onChange, onSubmit }: { setup: FoSetu
     <Box data-count-grid="" onKeyDown={move} sx={{ display: 'grid', gap: '4px 10px', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
       {setup.denominations.map((d) => (
         <Box key={d.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <Typography sx={{ fontSize: 12, width: 52, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{d.description}</Typography>
+          <Typography variant="body2" sx={{ width: 52, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{d.description}</Typography>
           <TextField
             size="small" value={counts[d.id] ?? ''} placeholder="0" sx={{ width: 70 }}
             onChange={(e) => onChange({ ...counts, [d.id]: e.target.value.replace(/[^0-9]/g, '') })}

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgingLine, AgingOptions, AgingRequest, AgingResult } from '../api/receivables'
 import { AppThemeProvider } from '../theme'
 import { forgetRequest } from './aging'
+import { Notices } from '../ui/notices'
 import ReceivablesAging from './ReceivablesAging'
 
 const run = vi.fn()
@@ -41,7 +42,7 @@ const RESULT: AgingResult = {
 
 function show() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={qc}><AppThemeProvider><ReceivablesAging /></AppThemeProvider></QueryClientProvider>)
+  render(<QueryClientProvider client={qc}><AppThemeProvider><ReceivablesAging /><Notices /></AppThemeProvider></QueryClientProvider>)
 }
 
 describe('Aging of receivables', () => {

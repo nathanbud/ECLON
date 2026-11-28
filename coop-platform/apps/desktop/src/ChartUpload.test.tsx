@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChartImportPreview } from './api'
 import ChartUpload from './ChartUpload'
+import { Notices } from './ui/notices'
 import { AppThemeProvider } from './theme'
 
 const preview = vi.fn()
@@ -26,7 +27,7 @@ const checked = (errors: boolean): ChartImportPreview => ({
 const file = new File(['x'], 'accounts.xlsx')
 
 async function choose(onDone = vi.fn(), onClose = vi.fn()) {
-  render(<AppThemeProvider><ChartUpload onClose={onClose} onDone={onDone} /></AppThemeProvider>)
+  render(<AppThemeProvider><ChartUpload onClose={onClose} onDone={onDone} /><Notices /></AppThemeProvider>)
   await userEvent.upload(screen.getByLabelText('List of accounts'), file)
   await screen.findByRole('table', { name: 'Checked rows' })
   return { onDone, onClose }
@@ -68,7 +69,7 @@ describe('Chart of accounts: adding accounts from a list', () => {
 
   it('says why a file was refused', async () => {
     preview.mockRejectedValue(new Error('The file has a header but no accounts.'))
-    render(<AppThemeProvider><ChartUpload onClose={vi.fn()} onDone={vi.fn()} /></AppThemeProvider>)
+    render(<AppThemeProvider><ChartUpload onClose={vi.fn()} onDone={vi.fn()} /><Notices /></AppThemeProvider>)
     await userEvent.upload(screen.getByLabelText('List of accounts'), file)
     expect(await screen.findByText('The file has a header but no accounts.')).toBeInTheDocument()
     expect(screen.queryByRole('table', { name: 'Checked rows' })).not.toBeInTheDocument()

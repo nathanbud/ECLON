@@ -21,6 +21,7 @@ import { usePageKeys } from './ui/usePageKeys'
 import { ConfirmButton } from './ui/dialogs'
 import { money } from './ui/format'
 import { Gated } from './ui/Gated'
+import { notifyError } from './ui/notices'
 import DocumentsPanel from './DocumentsPanel'
 
 /**
@@ -144,7 +145,7 @@ function JournalWindow({ initialTab, branchCode }: { initialTab?: string; branch
             <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
             <ToolButton icon={<FiChevronUp />} label="Previous" hint="Page Up" disabled={making || entries.length === 0 || at === 0} onClick={() => step(-1)} />
             <ToolButton icon={<FiChevronDown />} label="Next" hint="Page Down" disabled={making || entries.length === 0 || at === entries.length - 1} onClick={() => step(1)} />
-            {shown && !making && <Typography sx={{ fontSize: 12, ml: 1 }} color="text.secondary">{at + 1} of {entries.length}</Typography>}
+            {shown && !making && <Typography variant="body2" sx={{ ml: 1 }} color="text.secondary">{at + 1} of {entries.length}</Typography>}
           </Toolbar>
         )}
 
@@ -179,7 +180,7 @@ function JournalWindow({ initialTab, branchCode }: { initialTab?: string; branch
         {entry && !making && shown && <EntryView type={type as TypeId} entry={shown} user={me.username} admin={me.admin} onChanged={() => void list.refetch()} onOpen={(id) => { void list.refetch().then(() => setOpenId(id)) }} />}
         {entry && !making && !shown && (
           <Panel>
-            <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">Press New to make a {LABEL[type as TypeId]}, or open one below (Find searches them all).</Typography>
+            <Typography sx={{ mb: 1.5 }} color="text.secondary">Press New to make a {LABEL[type as TypeId]}, or open one below (Find searches them all).</Typography>
             <EntryList entries={entries.slice(0, 12)} loading={list.isLoading} error={list.error as Error | null} onOpen={open} />
           </Panel>
         )}
@@ -243,6 +244,7 @@ function NewEntry({ type, branchCode, onDirty, onSaved }: { type: TypeId; branch
     !memo && direct && directReason.trim().length < 10 ? 'why this journal changes a control account (at least 10 characters)' : null,
   ].filter(Boolean) as string[]
   const save = useMutation({
+    onError: notifyError,
     meta: { done: memo ? 'Memo saved as a draft.' : 'Journal saved as a draft.' },
     mutationFn: async () => {
       if (memo) {
@@ -272,8 +274,8 @@ function NewEntry({ type, branchCode, onDirty, onSaved }: { type: TypeId; branch
       </Panel>
 
       <Panel sx={{ mb: 1.5 }}>
-        <Typography component="h2" sx={{ fontSize: 13, fontWeight: 700, mb: 1 }}>GL/SL Entries</Typography>
-        {memo && <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">On a member&rsquo;s account a debit takes money out and a credit puts it in.</Typography>}
+        <Typography component="h2" sx={{ fontWeight: 700, mb: 1 }}>GL/SL Entries</Typography>
+        {memo && <Typography variant="body2" sx={{ mb: 1 }} color="text.secondary">On a member&rsquo;s account a debit takes money out and a credit puts it in.</Typography>}
         <Table size="small" aria-label="GL/SL entries">
           <TableHead>
             <TableRow>
@@ -321,11 +323,11 @@ function NewEntry({ type, branchCode, onDirty, onSaved }: { type: TypeId; branch
           <Box sx={{ mt: 1 }}>
             <FormControlLabel
               control={<Checkbox size="small" checked={direct} onChange={(e) => { touch(); setDirect(e.target.checked) }} />}
-              label={<Typography sx={{ fontSize: 13 }}>This journal changes a control account directly (administrators only)</Typography>}
+              label={<Typography>This journal changes a control account directly (administrators only)</Typography>}
             />
             {direct && (
               <>
-                <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">
+                <Typography variant="body2" sx={{ mb: 1 }} color="text.secondary">
                   A journal changes the general ledger only, so a control account such as Savings Deposit would no longer equal the members&rsquo; accounts.
                   Use a debit/credit memo to change members&rsquo; balances. Use this only for an opening balance or an approved correction; the reason is kept in the audit log.
                 </Typography>
@@ -335,8 +337,7 @@ function NewEntry({ type, branchCode, onDirty, onSaved }: { type: TypeId; branch
             )}
           </Box>
         )}
-        {missing.length > 0 && <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">To save, fill in {missing.join(', ')}.</Typography>}
-        {save.error && <Alert severity="error" sx={{ mt: 1 }}>{(save.error as Error).message}</Alert>}
+        {missing.length > 0 && <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">To save, fill in {missing.join(', ')}.</Typography>}
         <Stack direction="row" sx={{ mt: 1.5, justifyContent: 'flex-end' }}>
           <Button type="submit" variant="contained" startIcon={<FiSave />} disabled={missing.length > 0 || save.isPending}>Save draft</Button>
         </Stack>
@@ -356,11 +357,13 @@ function EntryView({ type, entry, user, admin, onChanged, onOpen }: { type: Type
   const [reason, setReason] = useState('')
   const done = () => { void qc.invalidateQueries({ queryKey: ['backoffice-entry', type, entry.id] }); onChanged() }
   const step = useMutation({
+    onError: notifyError,
     meta: { done: (_, s) => ({ submit: `The ${noun} was sent for review.`, approve: 'Approved. A third person can now post it.', post: `The ${noun} was posted.` } as Record<string, string>)[s as string] ?? null },
     mutationFn: async (s: 'submit' | 'approve' | 'post'): Promise<unknown> => (memo ? memoStep(entry.id, s) : journalStep(entry.id, s)),
     onSuccess: done,
   })
   const ask = useMutation({
+    onError: notifyError,
     meta: { done: (r) => (asking === 'cancel' ? `The ${noun} was cancelled.` : `Reversal draft ${(r as { reference: string }).reference} made. It goes through review and approval like any ${noun}.`) },
     mutationFn: async (): Promise<{ id: number; reference: string }> => (asking === 'cancel' ? cancelMemo(entry.id, reason.trim()) : memo ? reverseMemo(entry.id, reason.trim()) : reverseJournal(entry.id, reason.trim())),
     onSuccess: (r) => { const wasReverse = asking === 'reverse'; setAsking(null); setReason(''); done(); if (wasReverse && r.id !== entry.id) onOpen(r.id) },
@@ -371,13 +374,12 @@ function EntryView({ type, entry, user, admin, onChanged, onOpen }: { type: Type
   const lines = detail.data?.lines ?? []
   const dr = lines.reduce((t, l) => t + l.debit, 0)
   const cr = lines.reduce((t, l) => t + l.credit, 0)
-  const error = (step.error ?? ask.error) as Error | null
-  const s = entry.status
+    const s = entry.status
 
   return (
     <>
       <Panel sx={{ mb: 1.5 }}>
-        <Typography component="h2" sx={{ fontSize: 13, fontWeight: 700, mb: 1 }}>GL/SL Entries</Typography>
+        <Typography component="h2" sx={{ fontWeight: 700, mb: 1 }}>GL/SL Entries</Typography>
         <Table size="small" aria-label="GL/SL entries">
           <TableHead>
             <TableRow>
@@ -392,7 +394,7 @@ function EntryView({ type, entry, user, admin, onChanged, onOpen }: { type: Type
             {lines.map((l, i) => (
               <TableRow key={i}>
                 <TableCell>{i + 1}</TableCell>
-                <TableCell>{l.account}{l.title ? <Typography component="span" sx={{ fontSize: 12, ml: 1 }} color="text.secondary">{l.title}</Typography> : null}</TableCell>
+                <TableCell>{l.account}{l.title ? <Typography variant="body2" component="span" sx={{ ml: 1 }} color="text.secondary">{l.title}</Typography> : null}</TableCell>
                 {memo && <><TableCell>{l.clientId ?? ''}</TableCell><TableCell>{l.clientName ?? ''}</TableCell></>}
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{l.debit ? money(l.debit) : ''}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{l.credit ? money(l.credit) : ''}</TableCell>
@@ -404,13 +406,12 @@ function EntryView({ type, entry, user, admin, onChanged, onOpen }: { type: Type
       </Panel>
 
       <Panel>
-        <Typography sx={{ fontSize: 11 }} color="text.secondary">Description</Typography>
-        <Typography sx={{ fontSize: 13, whiteSpace: 'pre-wrap', mb: 1.5 }}>{entry.description || '—'}</Typography>
+        <Typography variant="caption" color="text.secondary">Description</Typography>
+        <Typography sx={{ whiteSpace: 'pre-wrap', mb: 1.5 }}>{entry.description || '—'}</Typography>
         {detail.data?.cancelReason && <Alert severity="info" sx={{ mb: 1.5 }}>Cancelled: {detail.data.cancelReason}</Alert>}
         {s === 'FOR_REVIEW' && maker && <Alert severity="info" sx={{ mb: 1.5 }}>Someone other than the person who made this {noun} has to approve it.</Alert>}
         {memo && s === 'APPROVED' && (maker || approver) && <Alert severity="info" sx={{ mb: 1.5 }}>A third person, who neither made nor approved it, has to post it.</Alert>}
         {asking && <TextField fullWidth autoFocus size="small" label={asking === 'cancel' ? 'Reason for cancelling' : 'Reason for the reversal'} value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mb: 1.5 }} />}
-        {error && <Alert severity="error" sx={{ mb: 1.5 }}>{error.message}</Alert>}
         <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', flexWrap: 'wrap', rowGap: 1 }}>
           {asking && <Button onClick={() => { setAsking(null); setReason('') }}>Back</Button>}
           {memo && ['DRAFT', 'FOR_REVIEW', 'APPROVED'].includes(s) && !asking && (maker || admin) && <Button color="warning" onClick={() => setAsking('cancel')}>Cancel memo</Button>}
@@ -432,7 +433,7 @@ function EntryView({ type, entry, user, admin, onChanged, onOpen }: { type: Type
       </Panel>
 
       <Panel>
-        <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1 }}>Supporting documents</Typography>
+        <Typography variant="subtitle2" component="p" sx={{ mb: 1 }}>Supporting documents</Typography>
         <DocumentsPanel entityType="JOURNAL" entityId={entry.reference} />
       </Panel>
     </>

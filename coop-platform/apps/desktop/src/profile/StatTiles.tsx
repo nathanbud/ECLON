@@ -6,7 +6,7 @@ import { CoinIcon } from '../ui/moneyIcons'
 import { getLoans, getSavings, getShares, getTimeDeposits } from '../api'
 import { type Id } from '../clients'
 import { glass } from '../glass'
-import { tileFill } from '../theme'
+import { tileFill, RADIUS } from '../theme'
 import { money, tabular } from '../ui/format'
 import { TABS } from './constants'
 import { featureOn, useFeaturesOff } from '../ui/features'
@@ -30,7 +30,7 @@ function Tile({ label, icon, value, loading, foot, lead = false, openLabel, onOp
     <ButtonBase
       onClick={onOpen} aria-label={`${label}: ${value == null ? 'not available' : money(value)}. Open ${openLabel}`}
       sx={(t) => ({
-        display: 'block', textAlign: 'left', width: '100%', p: 1.75, borderRadius: '5px', minHeight: 112,
+        display: 'block', textAlign: 'left', width: '100%', p: 1.75, borderRadius: `${RADIUS}px`, minHeight: 112,
         transition: 'transform 140ms cubic-bezier(.2,.8,.2,1), box-shadow 140ms',
         ...(lead
           ? { backgroundColor: tileFill.blue, color: '#fff', boxShadow: '0 6px 16px rgba(0,98,204,0.28)' }
@@ -41,13 +41,13 @@ function Tile({ label, icon, value, loading, foot, lead = false, openLabel, onOp
       })}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-        <Typography sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: lead ? 'rgba(255,255,255,0.9)' : 'text.secondary' }}>{label}</Typography>
+        <Typography variant="body2" sx={{ fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: lead ? 'rgba(255, 255, 255, 0.9)' : 'text.secondary' }}>{label}</Typography>
         <Box aria-hidden sx={{ display: 'flex', fontSize: 17, color: lead ? 'rgba(255,255,255,0.9)' : 'text.secondary' }}>{icon}</Box>
       </Box>
       {loading
         ? <Skeleton width="70%" height={36} sx={lead ? { bgcolor: 'rgba(255,255,255,0.3)' } : undefined} />
         : <Typography sx={{ fontSize: 26, fontWeight: 300, lineHeight: 1.25, letterSpacing: '-0.01em', ...tabular }}>{value == null ? '—' : money(value)}</Typography>}
-      <Typography sx={{ fontSize: 12, mt: 0.75, color: lead ? 'rgba(255,255,255,0.85)' : 'text.secondary' }}>{loading ? ' ' : foot}</Typography>
+      <Typography variant="body2" sx={{ mt: 0.75, color: lead ? 'rgba(255, 255, 255, 0.85)' : 'text.secondary' }}>{loading ? ' ' : foot}</Typography>
     </ButtonBase>
   )
 }

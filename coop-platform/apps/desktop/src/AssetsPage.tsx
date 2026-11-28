@@ -14,6 +14,7 @@ import { useMe } from './session'
 import { money, parseAmount } from './ui/format'
 import { labelOf } from './ui/labels'
 import { LoadingRow } from './ui/Loading'
+import { notifyError } from './ui/notices'
 import { AboutNote, Hinted } from './appleUi'
 
 const today = () => new Date().toLocaleDateString('en-CA')
@@ -25,7 +26,6 @@ function RegisterDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
   const cats = useQuery({ queryKey: ['asset-categories'], queryFn: listAssetCategories })
   const [f, setF] = useState({ tag: '', name: '', categoryId: '', serial: '', location: '', acquired: today(), inService: '', cost: '', salvage: '', life: '', reference: '' })
-  const [error, setError] = useState<string | null>(null)
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value })
   const cat = (cats.data ?? []).find((c) => String(c.id) === f.categoryId)
   const save = useMutation({
@@ -34,14 +34,13 @@ function RegisterDialog({ onClose }: { onClose: () => void }) {
       salvageValue: f.salvage ? parseAmount(f.salvage) : null, lifeMonths: f.life ? Number(f.life) : null, reference: f.reference,
     }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['assets'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Register an asset</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <Stack direction="row" spacing={1.5}>
             <TextField size="small" label="Tag (sticker no.)" value={f.tag} onChange={set('tag')} sx={{ width: 170 }} />
             <TextField size="small" label="Name" value={f.name} onChange={set('name')} sx={{ flex: 1 }} />
@@ -63,7 +62,7 @@ function RegisterDialog({ onClose }: { onClose: () => void }) {
             <TextField size="small" label={`Life, months${cat ? ` (default ${cat.lifeMonths})` : ''}`} value={f.life} onChange={set('life')} sx={{ flex: 1 }} />
           </Stack>
           <TextField size="small" label="Reference (purchase order, invoice or deed)" value={f.reference} onChange={set('reference')} />
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">Depreciation starts the month after it goes into service. Cost, dates and life cannot be changed afterwards.</Typography>
+          <Typography variant="body2" color="text.secondary">Depreciation starts the month after it goes into service. Cost, dates and life cannot be changed afterwards.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending || !f.categoryId || !f.tag || !f.name || !f.cost} onClick={() => save.mutate()}>Register</Button></DialogActions>
@@ -74,11 +73,10 @@ function RegisterDialog({ onClose }: { onClose: () => void }) {
 function DisposeDialog({ asset, onClose }: { asset: AssetSummary; onClose: () => void }) {
   const qc = useQueryClient()
   const [f, setF] = useState({ date: today(), kind: 'SALE', proceeds: '0', proceedsAccount: '', gainAccount: '', reason: '' })
-  const [error, setError] = useState<string | null>(null)
   const save = useMutation({
     mutationFn: () => askAssetDisposal(asset.id, { disposalDate: f.date, kind: f.kind, proceeds: parseAmount(f.proceeds || '0'), proceedsAccount: f.proceedsAccount || undefined, gainAccount: f.gainAccount || undefined, reason: f.reason }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['asset-disposals'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value })
   return (
@@ -86,8 +84,7 @@ function DisposeDialog({ asset, onClose }: { asset: AssetSummary; onClose: () =>
       <DialogTitle>Dispose of {asset.assetNo} · {asset.name}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
-          <Typography sx={{ fontSize: 13 }}>Net book value now <b>{money(asset.netBookValue)}</b>. Depreciation must be up to date to the month before the disposal date.</Typography>
+          <Typography>Net book value now <b>{money(asset.netBookValue)}</b>. Depreciation must be up to date to the month before the disposal date.</Typography>
           <Stack direction="row" spacing={1.5}>
             <TextField size="small" type="date" label="Disposal date" value={f.date} onChange={set('date')} slotProps={{ inputLabel: { shrink: true } }} sx={{ flex: 1 }} />
             <TextField select size="small" label="Kind" value={f.kind} onChange={set('kind')} sx={{ flex: 1 }}>
@@ -102,7 +99,7 @@ function DisposeDialog({ asset, onClose }: { asset: AssetSummary; onClose: () =>
             </Stack>
           )}
           <TextField size="small" label="Reason" value={f.reason} onChange={set('reason')} />
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">A different accountant approves it; that leaves a draft journal (a loss goes to 6004108) for the usual review and posting.</Typography>
+          <Typography variant="body2" color="text.secondary">A different accountant approves it; that leaves a draft journal (a loss goes to 6004108) for the usual review and posting.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending || !f.reason.trim()} onClick={() => save.mutate()}>Ask for approval</Button></DialogActions>
@@ -119,19 +116,17 @@ function DetailDialog({ id, custodian, onClose }: { id: number; custodian: boole
   const [to, setTo] = useState('')
   const [why, setWhy] = useState('')
   const [m, setM] = useState({ description: '', cost: '', vendor: '', nextDue: '' })
-  const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['asset', id] }); void qc.invalidateQueries({ queryKey: ['assets'] }); void qc.invalidateQueries({ queryKey: ['asset-transfers'] }) }
-  const move = useMutation({ mutationFn: () => askAssetTransfer(id, to, why), onSuccess: () => { setMoving(false); setTo(''); setWhy(''); setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const move = useMutation({ mutationFn: () => askAssetTransfer(id, to, why), onSuccess: () => { setMoving(false); setTo(''); setWhy(''); refresh() }, onError: (e) => notifyError((e as Error).message) })
   const maintain = useMutation({
     mutationFn: () => addAssetMaintenance(id, { description: m.description, cost: m.cost ? parseAmount(m.cost) : undefined, vendor: m.vendor || undefined, nextDue: m.nextDue || null }),
-    onSuccess: () => { setWork(false); setM({ description: '', cost: '', vendor: '', nextDue: '' }); setError(null); refresh() }, onError: (e) => setError((e as Error).message),
+    onSuccess: () => { setWork(false); setM({ description: '', cost: '', vendor: '', nextDue: '' }); refresh() }, onError: (e) => notifyError((e as Error).message),
   })
   const a = d.data?.summary
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>{a ? `${a.assetNo} · ${a.name}` : 'Asset'} {a && <Chip size="small" variant="outlined" color={statusColor(a.status)} label={labelOf(a.status)} sx={{ ml: 1 }} />}</DialogTitle>
       <DialogContent>
-        {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
         {a && d.data && (
           <Stack spacing={2}>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, auto)', gap: 0.5, columnGap: 3, fontSize: 13 }}>
@@ -243,19 +238,17 @@ function Transfers({ accountant, user }: { accountant: boolean; user: string }) 
   const qc = useQueryClient()
   const list = useQuery({ queryKey: ['asset-transfers'], queryFn: () => listAssetTransfers() })
   const [rejecting, setRejecting] = useState<AssetTransfer | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['asset-transfers'] }); void qc.invalidateQueries({ queryKey: ['assets'] }) }
-  const approve = useMutation({ meta: { done: 'Transfer approved.' }, mutationFn: (t: AssetTransfer) => decideAssetTransfer(t.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const approve = useMutation({ meta: { done: 'Transfer approved.' }, mutationFn: (t: AssetTransfer) => decideAssetTransfer(t.id, 'approve'), onSuccess: () => { refresh() }, onError: (e) => notifyError((e as Error).message) })
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>From → to</TableCell><TableCell>Reason</TableCell><TableCell>By</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
           <LoadingRow q={list} what="the transfers" />
           {(list.data ?? []).map((t) => (
             <TableRow key={t.id} hover>
-              <TableCell>{t.transferNo}</TableCell><TableCell>{t.from} → {t.to}</TableCell><TableCell>{t.reason}{t.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{t.decisionNote}</Typography>}</TableCell><TableCell>{t.requestedBy}</TableCell>
+              <TableCell>{t.transferNo}</TableCell><TableCell>{t.from} → {t.to}</TableCell><TableCell>{t.reason}{t.decisionNote && <Typography variant="body2" component="div" color="text.secondary">{t.decisionNote}</Typography>}</TableCell><TableCell>{t.requestedBy}</TableCell>
               <TableCell><Chip size="small" variant="outlined" color={statusColor(t.status)} label={labelOf(t.status)} /></TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {accountant && t.status === 'PENDING' && t.requestedBy !== user && (<><Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(t)}>Approve</Button><Button size="small" color="error" onClick={() => setRejecting(t)}>Reject</Button></>)}
@@ -274,12 +267,10 @@ function Disposals({ accountant, user }: { accountant: boolean; user: string }) 
   const qc = useQueryClient()
   const list = useQuery({ queryKey: ['asset-disposals'], queryFn: listAssetDisposals })
   const [rejecting, setRejecting] = useState<AssetDisposal | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['asset-disposals'] }); void qc.invalidateQueries({ queryKey: ['assets'] }) }
-  const approve = useMutation({ meta: { done: 'Disposal approved.' }, mutationFn: (x: AssetDisposal) => decideAssetDisposal(x.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const approve = useMutation({ meta: { done: 'Disposal approved.' }, mutationFn: (x: AssetDisposal) => decideAssetDisposal(x.id, 'approve'), onSuccess: () => { refresh() }, onError: (e) => notifyError((e as Error).message) })
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Asset</TableCell><TableCell>Date</TableCell><TableCell>Kind</TableCell><TableCell align="right">Book value</TableCell><TableCell align="right">Proceeds</TableCell><TableCell align="right">Gain / loss</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
@@ -288,7 +279,7 @@ function Disposals({ accountant, user }: { accountant: boolean; user: string }) 
             <TableRow key={x.id} hover>
               <TableCell>{x.disposalNo}</TableCell><TableCell>{x.assetNo} · {x.asset}</TableCell><TableCell>{x.disposalDate}</TableCell><TableCell>{labelOf(x.kind)}</TableCell>
               <TableCell align="right">{money(x.bookValue)}</TableCell><TableCell align="right">{money(x.proceeds)}</TableCell><TableCell align="right" sx={{ color: x.gainLoss < 0 ? 'error.main' : undefined }}>{money(x.gainLoss)}</TableCell>
-              <TableCell><Chip size="small" variant="outlined" color={statusColor(x.status)} label={labelOf(x.status)} />{x.journal && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">journal {x.journal}</Typography>}{x.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{x.decisionNote}</Typography>}</TableCell>
+              <TableCell><Chip size="small" variant="outlined" color={statusColor(x.status)} label={labelOf(x.status)} />{x.journal && <Typography variant="body2" component="div" color="text.secondary">journal {x.journal}</Typography>}{x.decisionNote && <Typography variant="body2" component="div" color="text.secondary">{x.decisionNote}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {accountant && x.status === 'PENDING' && x.requestedBy !== user && (<><Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(x)}>Approve</Button><Button size="small" color="error" onClick={() => setRejecting(x)}>Reject</Button></>)}
               </TableCell>
@@ -306,14 +297,13 @@ function Depreciation() {
   const qc = useQueryClient()
   const [through, setThrough] = useState(lastMonthEnd())
   const [asked, setAsked] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const preview = useQuery({ queryKey: ['dep-preview', asked], queryFn: () => previewDepreciation(asked!), enabled: !!asked, retry: false, staleTime: Infinity })
   const history = useQuery({ queryKey: ['dep-runs'], queryFn: listDepreciationRuns })
   const run = useMutation({
     mutationFn: () => runDepreciation(asked!),
-    onSuccess: (r) => { setError(null); setNotice(`Left ${r.length} draft journal(s): ${r.map((x) => x.reference).join(', ')}. Review and post them on Reports > Accounting > Journals.`); void qc.invalidateQueries({ queryKey: ['dep-preview'] }); void qc.invalidateQueries({ queryKey: ['dep-runs'] }); void qc.invalidateQueries({ queryKey: ['assets'] }) },
-    onError: (e) => { setNotice(null); setError((e as Error).message) },
+    onSuccess: (r) => { setNotice(`Left ${r.length} draft journal(s): ${r.map((x) => x.reference).join(', ')}. Review and post them on Reports > Accounting > Journals.`); void qc.invalidateQueries({ queryKey: ['dep-preview'] }); void qc.invalidateQueries({ queryKey: ['dep-runs'] }); void qc.invalidateQueries({ queryKey: ['assets'] }) },
+    onError: (e) => { setNotice(null); notifyError((e as Error).message) },
   })
   const p = preview.data
   return (
@@ -324,9 +314,8 @@ function Depreciation() {
       </AboutNote>
       <Stack direction="row" spacing={1.5} sx={{ mb: 1.5 }}>
         <TextField size="small" type="date" label="Depreciate up to" value={through} onChange={(e) => { setThrough(e.target.value); setAsked(null) }} slotProps={{ inputLabel: { shrink: true } }} helperText="Last day of a month" />
-        <Button variant="outlined" sx={{ mt: 0.25 }} onClick={() => { setError(null); setNotice(null); setAsked(through) }}>Preview</Button>
+        <Button variant="outlined" sx={{ mt: 0.25 }} onClick={() => { setNotice(null); setAsked(through) }}>Preview</Button>
       </Stack>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       {notice && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setNotice(null)}>{notice}</Alert>}
       {preview.error && <Alert severity="warning" sx={{ mb: 1 }}>{(preview.error as Error).message}</Alert>}
       {p && (
@@ -358,19 +347,17 @@ function Depreciation() {
 function CategoryDialog({ category, onClose }: { category?: AssetCategory; onClose: () => void }) {
   const qc = useQueryClient()
   const [f, setF] = useState({ name: category?.name ?? '', asset: category?.assetAccount ?? '', accum: category?.accumAccount ?? '', expense: category?.expenseAccount ?? '50328', life: String(category?.lifeMonths ?? 60), salvage: String(category?.salvagePercent ?? 0), active: category?.active ?? true })
-  const [error, setError] = useState<string | null>(null)
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value })
   const save = useMutation({
     mutationFn: () => saveAssetCategory(category?.id ?? null, { name: f.name, assetAccount: f.asset, accumAccount: f.accum, expenseAccount: f.expense, lifeMonths: Number(f.life), salvagePercent: parseAmount(f.salvage || '0'), active: f.active }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['asset-categories'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{category ? `Edit ${category.name}` : 'New asset category'}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <TextField size="small" label="Name" value={f.name} onChange={set('name')} />
           <Stack direction="row" spacing={1.5}>
             <Hinted tip="e.g. 1160111"><TextField size="small" label="Asset account" value={f.asset} onChange={set('asset')} sx={{ flex: 1 }} /></Hinted>

@@ -6,6 +6,7 @@ import { getBackups, runBackup } from './api'
 import { appBackground, glass } from './glass'
 import { sizeOf, tabular } from './ui/format'
 import { useMe } from './session'
+import { notifyError } from './ui/notices'
 import { AboutNote, ScreenTitle } from './appleUi'
 
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -21,13 +22,12 @@ export default function BackupPage() {
   const admin = me.roles.some((r) => ['ROLE_ADMIN', 'ADMIN'].includes(r))
   const status = useQuery({ queryKey: ['backups'], queryFn: getBackups, enabled: admin })
   const [notice, setNotice] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
   const run = useMutation({
     mutationFn: runBackup,
-    onMutate: () => { setNotice(null); setError(null) },
+    onMutate: () => { setNotice(null) },
     onSuccess: async (r) => { setNotice(r.backup ? `Backup ${r.backup.name} is ready (${sizeOf(r.backup.bytes)}).` : 'The backup finished.'); await qc.invalidateQueries({ queryKey: ['backups'] }) },
-    onError: async (e) => { setError((e as Error).message); await qc.invalidateQueries({ queryKey: ['backups'] }) },
+    onError: async (e) => { notifyError((e as Error).message); await qc.invalidateQueries({ queryKey: ['backups'] }) },
   })
 
   const data = status.data
@@ -41,7 +41,6 @@ export default function BackupPage() {
           Saves everything this application owns, and the fingerprint key, into a dated folder on the server. The old system’s own tables are not included; they are backed up as the database.
         </ScreenTitle>
         {!admin && <Alert severity="info" sx={{ mb: 2 }}>Only an administrator can take or see backups.</Alert>}
-        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
         {notice && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setNotice(null)}>{notice}</Alert>}
         {status.isError && <Alert severity="error" sx={{ mb: 2 }}>The backups could not be read.</Alert>}
         {data && !data.scriptFound && <Alert severity="warning" sx={{ mb: 2 }}>The backup script was not found on the server, so a backup cannot be taken from here.</Alert>}
@@ -49,10 +48,10 @@ export default function BackupPage() {
         <Box sx={(t) => ({ p: 2.5, mb: 2, ...glass(t) })}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
             <Box>
-              <Typography sx={{ fontSize: 15, fontWeight: 600 }}>
+              <Typography variant="h6" component="p">
                 {latest ? `Last backup: ${when(latest.takenAt)}` : 'No backup has been taken yet'}
               </Typography>
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">
+              <Typography variant="body2" color="text.secondary">
                 {data ? `From the ${data.engine === 'postgres' ? 'PostgreSQL' : 'MySQL'} database. Kept in ${data.folder}` : 'Reading…'}
               </Typography>
             </Box>

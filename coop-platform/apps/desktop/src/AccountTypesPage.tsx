@@ -15,14 +15,17 @@ import { appBackground } from './glass'
 import { useLeaveGuard } from './leaveGuard'
 import { AccountPicker } from './ui/AccountPicker'
 import { Loading } from './ui/Loading'
+import { notifyError } from './ui/notices'
 import { money, tabular } from './ui/format'
 
 type Fields = { name: string; fullName: string; priority: string; interestRate: string; minBalance: string; maxBalance: string; dormantAfterMonths: string; disabled: boolean }
 
 const text = (n: number | null) => (n == null ? '' : String(n))
 const number = (s: string) => (s.trim() === '' ? null : Number(s))
+/** A longer name kept from the old system, when it differs from the name; empty means the name is stored in both columns. */
+const olderName = (t: AccountType) => (t.fullName && t.fullName.trim() !== (t.name ?? '').trim() ? t.fullName.trim() : '')
 const fieldsOf = (t: AccountType): Fields => ({
-  name: t.name ?? '', fullName: t.fullName ?? '', priority: text(t.priority), interestRate: text(t.interestRate), minBalance: text(t.minBalance), maxBalance: text(t.maxBalance),
+  name: t.name ?? '', fullName: olderName(t), priority: text(t.priority), interestRate: text(t.interestRate), minBalance: text(t.minBalance), maxBalance: text(t.maxBalance),
   dormantAfterMonths: text(t.dormantAfterMonths), disabled: t.disabled,
 })
 const formOf = (f: Fields, reason: string): AccountTypeForm => ({
@@ -32,6 +35,7 @@ const formOf = (f: Fields, reason: string): AccountTypeForm => ({
 const NUMERIC = ['priority', 'interestRate', 'minBalance', 'maxBalance', 'dormantAfterMonths'] as const
 const same = (a: Fields, b: Fields) =>
   a.name.trim() === b.name.trim() && a.fullName.trim() === b.fullName.trim() && a.disabled === b.disabled && NUMERIC.every((k) => number(a[k]) === number(b[k]))
+const NAME_TIP = 'Up to 20 characters. This is the name shown everywhere: lists, the teller window, passbooks, receipts and reports.'
 const code4 = (n: number) => String(n).padStart(4, '0')
 const label = (a: ChartAccount) => `${a.code} ${a.name ?? ''}`
 
@@ -99,13 +103,13 @@ export default function AccountTypesPage({ kind }: { kind?: string | null } = {}
                     <List dense disablePadding>
                       {c.types.map((t) => (
                         <ListItemButton key={t.code} selected={at?.cls === c.id && at.code === t.code} onClick={() => { setDone(null); setPicked({ cls: c.id, code: t.code }) }} sx={{ py: 0.25, pl: 3, opacity: t.disabled ? 0.55 : 1 }}>
-                          <Typography component="span" color="text.secondary" sx={{ fontSize: 12, width: 40, ...tabular }}>{code4(t.code)}</Typography>
-                          <Typography component="span" noWrap sx={{ fontSize: 13 }}>{t.fullName || t.name}</Typography>
+                          <Typography variant="body2" component="span" color="text.secondary" sx={{ width: 40, ...tabular }}>{code4(t.code)}</Typography>
+                          <Typography component="span" noWrap>{t.name}</Typography>
                         </ListItemButton>
                       ))}
                       {c.types.length === 0 && (
                         <ListItemButton selected={at?.cls === c.id} onClick={() => { setDone(null); setPicked({ cls: c.id, code: null }) }} sx={{ py: 0.25, pl: 3 }}>
-                          <Typography component="span" color="text.secondary" sx={{ fontSize: 13 }}>No types yet</Typography>
+                          <Typography component="span" color="text.secondary">No types yet</Typography>
                         </ListItemButton>
                       )}
                     </List>
@@ -127,12 +131,12 @@ export default function AccountTypesPage({ kind }: { kind?: string | null } = {}
           ) : cls && cls.types.length === 0 ? (
             <Surface label="Class without types">
               <Box sx={{ p: 2 }}>
-                <Typography component="h2" sx={{ fontSize: 17, fontWeight: 600 }}>{cls.name}</Typography>
-                <Typography color="text.secondary" sx={{ fontSize: 13, mt: 0.5, mb: 1.5 }}>This class has no account types yet. Its first type starts with a name and the chart account its balance posts to; the other ledger links are added afterwards.</Typography>
+                <Typography variant="h5" component="h2">{cls.name}</Typography>
+                <Typography color="text.secondary" sx={{ mt: 0.5, mb: 1.5 }}>This class has no account types yet. Its first type starts with a name and the chart account its balance posts to; the other ledger links are added afterwards.</Typography>
                 <Button variant="contained" startIcon={<FiPlus />} onClick={() => { setDone(null); setAdding(cls) }}>Add the first type</Button>
               </Box>
             </Surface>
-          ) : <Typography color="text.secondary" sx={{ fontSize: 13, p: 2 }}>{classes.isLoading ? 'Loading…' : 'Choose a type on the left.'}</Typography>}
+          ) : <Typography color="text.secondary" sx={{ p: 2 }}>{classes.isLoading ? 'Loading…' : 'Choose a type on the left.'}</Typography>}
         </Box>
         {adding && adding.types.length > 0 && (
           <NewTypeDialog cls={adding} onClose={() => setAdding(null)}
@@ -151,8 +155,13 @@ function TypeFields({ cls, f, set, disabled }: { cls: AccountTypeClass; f: Field
   const amount = (v: string) => v.replace(/[^0-9.]/g, '')
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.75 }}>
-      <Hinted tip="Up to 20 characters; shown in lists"><TextField required label="Name" value={f.name} disabled={disabled} onChange={(e) => set({ name: e.target.value })} slotProps={{ htmlInput: { maxLength: 20 } }} /></Hinted>
-      <Hinted tip="Up to 30 characters; the name if left empty"><TextField label="Full name" value={f.fullName} disabled={disabled} onChange={(e) => set({ fullName: e.target.value })} slotProps={{ htmlInput: { maxLength: 30 } }} /></Hinted>
+      <Hinted tip={NAME_TIP}><TextField required label="Name" value={f.name} disabled={disabled} onChange={(e) => set({ name: e.target.value })} slotProps={{ htmlInput: { maxLength: 20 } }} /></Hinted>
+      {f.fullName && (
+        <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 1 }}>
+          <Typography variant="body2" color="text.secondary">Also has a longer name from the old system: {f.fullName}</Typography>
+          {!disabled && <Button size="small" onClick={() => set({ fullName: '' })}>Use the name only</Button>}
+        </Box>
+      )}
       {cls.fields.includes('interestRate') && (
         <Hinted tip={help.interestRate}><TextField label="Interest rate (% a year)" value={f.interestRate} disabled={disabled} onChange={(e) => set({ interestRate: amount(e.target.value) })} slotProps={{ htmlInput: { inputMode: 'decimal' } }} /></Hinted>
       )}
@@ -188,6 +197,7 @@ function TypePanel({ cls, type, onAdd, onSaved, onDeleted }: { cls: AccountTypeC
 
   const links = useQuery({ queryKey: linksKey, queryFn: () => getAccountTypeLinks(cls.id, type.code) })
   const save = useMutation({
+    onError: notifyError,
     mutationFn: (reason: string) => updateAccountType(cls.id, type.code, formOf(f, reason)),
     onSuccess: (t) => { setAsking(false); setF(fieldsOf(t)); onSaved(`${code4(t.code)} ${t.name} was saved.`) },
   })
@@ -208,8 +218,8 @@ function TypePanel({ cls, type, onAdd, onSaved, onDeleted }: { cls: AccountTypeC
         <Box sx={{ p: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 1.5 }}>
             <Box sx={{ flex: 1, minWidth: 220 }}>
-              <Typography component="h2" sx={{ fontSize: 17, fontWeight: 600, lineHeight: 1.3 }}>{type.fullName || type.name}</Typography>
-              <Typography color="text.secondary" sx={{ fontSize: 12 }}>
+              <Typography variant="h5" component="h2" sx={{ lineHeight: 1.3 }}>{type.name}</Typography>
+              <Typography variant="body2" color="text.secondary">
                 {cls.name} · type {code4(type.code)}{type.accounts != null && ` · ${type.accounts.toLocaleString()} account${type.accounts === 1 ? '' : 's'}`}
               </Typography>
             </Box>
@@ -228,7 +238,7 @@ function TypePanel({ cls, type, onAdd, onSaved, onDeleted }: { cls: AccountTypeC
           {editable && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1.5, flexWrap: 'wrap' }}>
               <FormControlLabel control={<Switch checked={!f.disabled} onChange={(e) => setF((cur) => ({ ...cur, disabled: !e.target.checked }))} />} label="In use" />
-              <Typography color="text.secondary" sx={{ fontSize: 12, flex: 1, minWidth: 200 }}>Switched off, it is no longer offered for new accounts; the accounts already opened carry on.</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 200 }}>Switched off, it is no longer offered for new accounts; the accounts already opened carry on.</Typography>
               <Button onClick={() => setF(fieldsOf(type))} disabled={!dirty}>Undo</Button>
               <Button variant="contained" disabled={!dirty || !valid} onClick={() => { save.reset(); setAsking(true) }}>Save</Button>
             </Box>
@@ -253,7 +263,7 @@ function TypePanel({ cls, type, onAdd, onSaved, onDeleted }: { cls: AccountTypeC
                     <TableCell>{l.statusName ?? 'Any'}</TableCell>
                     <TableCell>
                       <Box component="span" sx={tabular}>{l.account}</Box> {l.accountName}
-                      {!l.accountActive && <Typography component="span" color="error" sx={{ fontSize: 12, ml: 1 }}>switched off</Typography>}
+                      {!l.accountActive && <Typography variant="body2" component="span" color="error" sx={{ ml: 1 }}>switched off</Typography>}
                     </TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                       {linksEditable && <Button size="small" onClick={() => setMoving(l)}>Change</Button>}
@@ -266,7 +276,7 @@ function TypePanel({ cls, type, onAdd, onSaved, onDeleted }: { cls: AccountTypeC
             </Table>
           </Box>
         </Surface>
-        <Typography color="text.secondary" sx={{ fontSize: 12, mt: 0.75, px: 0.5 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, px: 0.5 }}>
           A link can be pointed at another account of the same kind. Entries already posted keep the account they were posted to{editable ? '; a link that entries were posted through cannot be removed' : ''}.
         </Typography>
       </Box>
@@ -285,7 +295,7 @@ function TypePanel({ cls, type, onAdd, onSaved, onDeleted }: { cls: AccountTypeC
           <DialogContent>
             {check.isLoading && <Loading what="what uses this type" />}
             {check.error && <Alert severity="error">{(check.error as Error).message}</Alert>}
-            {check.data?.problems.map((p) => <Typography key={p} sx={{ fontSize: 13 }}>{p}</Typography>)}
+            {check.data?.problems.map((p) => <Typography key={p}>{p}</Typography>)}
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setDeleting(false)}>Close</Button>
@@ -311,7 +321,7 @@ function TypePanel({ cls, type, onAdd, onSaved, onDeleted }: { cls: AccountTypeC
 function summary(cls: AccountTypeClass, was: Fields, now: Fields): string {
   const parts: string[] = []
   if (was.name.trim() !== now.name.trim()) parts.push(`name to ${now.name.trim()}`)
-  if (was.fullName.trim() !== now.fullName.trim()) parts.push(`full name to ${now.fullName.trim() || now.name.trim()}`)
+  if (was.fullName && !now.fullName) parts.push('the old longer name dropped')
   if (cls.fields.includes('interestRate') && number(was.interestRate) !== number(now.interestRate)) parts.push(`interest rate from ${was.interestRate || 'none'} to ${now.interestRate || 'none'} percent`)
   const amount = (v: string, none: string) => (v ? money(Number(v)) : none)
   if (cls.fields.includes('minBalance') && number(was.minBalance) !== number(now.minBalance)) parts.push(`minimum balance from ${amount(was.minBalance, 'none')} to ${amount(now.minBalance, 'none')}`)
@@ -328,7 +338,8 @@ function NewTypeDialog({ cls, onClose, onSaved }: { cls: AccountTypeClass; onClo
   const src = sources.find((t) => t.code === copyFrom) ?? sources[0]
   const [f, setF] = useState<Fields>({ ...fieldsOf(src), name: '', fullName: '', disabled: false })
   const [reason, setReason] = useState('')
-  const save = useMutation({ mutationFn: () => createAccountType(cls.id, copyFrom, formOf(f, reason.trim())), onSuccess: onSaved })
+  const save = useMutation({
+    onError: notifyError, mutationFn: () => createAccountType(cls.id, copyFrom, formOf(f, reason.trim())), onSuccess: onSaved })
   const ready = f.name.trim() !== '' && reason.trim() !== '' && !save.isPending
   return (
     <Dialog open onClose={save.isPending ? undefined : onClose} fullWidth maxWidth="sm">
@@ -337,12 +348,11 @@ function NewTypeDialog({ cls, onClose, onSaved }: { cls: AccountTypeClass; onClo
         <DialogContent>
           <Stack spacing={1.75} sx={{ mt: 1 }}>
             <Hinted tip="The new type starts with this one's settings and posts to the same chart accounts until its links are changed."><TextField select label="Copy from" value={copyFrom}
-              onChange={(e) => { const c = Number(e.target.value); setCopyFrom(c); const s = sources.find((t) => t.code === c); if (s) setF((cur) => ({ ...fieldsOf(s), name: cur.name, fullName: cur.fullName, disabled: false })) }}>
-              {sources.map((t) => <MenuItem key={t.code} value={t.code}>{code4(t.code)} {t.fullName || t.name}{t.disabled ? ' (switched off)' : ''}</MenuItem>)}
+              onChange={(e) => { const c = Number(e.target.value); setCopyFrom(c); const s = sources.find((t) => t.code === c); if (s) setF((cur) => ({ ...fieldsOf(s), name: cur.name, fullName: '', disabled: false })) }}>
+              {sources.map((t) => <MenuItem key={t.code} value={t.code}>{code4(t.code)} {t.name}{t.disabled ? ' (switched off)' : ''}</MenuItem>)}
             </TextField></Hinted>
             <TypeFields cls={cls} f={f} set={(p) => setF((cur) => ({ ...cur, ...p }))} disabled={false} />
             <Hinted tip="Kept in the audit log. A type cannot be deleted afterwards, only switched off."><TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
-            {save.error && <Alert severity="error">{(save.error as Error).message}</Alert>}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -373,7 +383,7 @@ function Suggested({ cls, event, number, type, name, options, chosen, onPick }: 
   if (shown.length === 0) return null
   return (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
-      <Typography color="text.secondary" sx={{ fontSize: 12 }}>Suggested:</Typography>
+      <Typography variant="body2" color="text.secondary">Suggested:</Typography>
       {shown.map(({ s, a }) => (
         <Tooltip key={s.account} title={s.why} describeChild>
           <Chip size="small" label={label(a)} onClick={() => onPick(a)} color={chosen === a.code ? 'primary' : 'default'} variant={chosen === a.code ? 'filled' : 'outlined'} />
@@ -393,10 +403,10 @@ function usePostingAccounts() {
 function FirstTypeDialog({ cls, onClose, onSaved }: { cls: AccountTypeClass; onClose: () => void; onSaved: (t: AccountType) => void }) {
   const { chart, options } = usePostingAccounts()
   const [name, setName] = useState('')
-  const [fullName, setFullName] = useState('')
   const [account, setAccount] = useState<ChartAccount | null>(null)
   const [reason, setReason] = useState('')
-  const save = useMutation({ mutationFn: () => createFirstAccountType(cls.id, { name: name.trim(), fullName: fullName.trim(), account: account!.code, reason: reason.trim() }), onSuccess: onSaved })
+  const save = useMutation({
+    onError: notifyError, mutationFn: () => createFirstAccountType(cls.id, { name: name.trim(), fullName: '', account: account!.code, reason: reason.trim() }), onSuccess: onSaved })
   const ready = name.trim() !== '' && account != null && reason.trim() !== '' && !save.isPending
   return (
     <Dialog open onClose={save.isPending ? undefined : onClose} fullWidth maxWidth="sm">
@@ -404,13 +414,12 @@ function FirstTypeDialog({ cls, onClose, onSaved }: { cls: AccountTypeClass; onC
         <DialogTitle>First {cls.name.toLowerCase()} type</DialogTitle>
         <DialogContent>
           <Stack spacing={1.75} sx={{ mt: 1 }}>
-            <TextField required autoFocus label="Name" value={name} onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: 20 } }} />
-            <TextField label="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} slotProps={{ htmlInput: { maxLength: 30 } }} />
+            <Hinted tip={NAME_TIP}><TextField required autoFocus label="Name" value={name} onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: 20 } }} /></Hinted>
             <Hinted tip="The chart account that carries the balance of accounts of this type"><Autocomplete options={options} value={account} onChange={(_, v) => setAccount(v)} loading={chart.isLoading} getOptionLabel={label} isOptionEqualToValue={(a, b) => a.code === b.code}
               renderInput={(p) => <TextField {...p} required label="Balance posts to" />} /></Hinted>
-            <Suggested cls={cls.id} event={11} number={99} name={[fullName, name].join(' ').trim()} options={options} chosen={account?.code ?? null} onPick={setAccount} />
+            <Suggested cls={cls.id} event={11} number={99} name={name.trim()} options={options} chosen={account?.code ?? null} onPick={setAccount} />
             <Hinted tip="Kept in the audit log. A type cannot be deleted afterwards, only switched off."><TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
-            {(save.error || chart.error) && <Alert severity="error">{((save.error ?? chart.error) as Error).message}</Alert>}
+            {(chart.error) && <Alert severity="error">{((chart.error) as Error).message}</Alert>}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -429,7 +438,8 @@ function LinkDialog({ cls, type, link, onClose, onSaved }: { cls: AccountTypeCla
   // posting accounts in use, of the same kind as the one linked now
   const kind = all.data?.find((a) => a.code === link.account)?.type
   const options = useMemo(() => (all.data ?? []).filter((a) => !a.summary && !a.disabled && a.code !== link.account && (kind == null || a.type === kind)), [all.data, link.account, kind])
-  const save = useMutation({ mutationFn: () => changeAccountTypeLink(cls.id, type.code, link.event, link.number, account!.code, reason.trim()), onSuccess: onSaved })
+  const save = useMutation({
+    onError: notifyError, mutationFn: () => changeAccountTypeLink(cls.id, type.code, link.event, link.number, account!.code, reason.trim()), onSuccess: onSaved })
   const ready = account != null && reason.trim() !== '' && !save.isPending
   return (
     <Dialog open onClose={save.isPending ? undefined : onClose} fullWidth maxWidth="sm">
@@ -437,14 +447,14 @@ function LinkDialog({ cls, type, link, onClose, onSaved }: { cls: AccountTypeCla
         <DialogTitle>{link.what}{link.statusName ? ` (${link.statusName.toLowerCase()})` : ''} of {type.name}</DialogTitle>
         <DialogContent>
           <Stack spacing={1.75} sx={{ mt: 1 }}>
-            <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+            <Typography color="text.secondary">
               Now posts to <Box component="span" sx={tabular}>{link.account}</Box> {link.accountName}. New entries will go to the account you choose; entries already posted stay where they are, so move the balance with a journal if the old account should be emptied.
             </Typography>
             <Hinted tip="Accounts of the same kind that take postings and are in use"><Autocomplete options={options} value={account} onChange={(_, v) => setAccount(v)} loading={all.isLoading} getOptionLabel={label} isOptionEqualToValue={(a, b) => a.code === b.code}
               renderInput={(p) => <TextField {...p} required autoFocus label="Post to" />} /></Hinted>
             <Suggested cls={cls.id} event={link.event} number={link.number} type={type.code} options={options} chosen={account?.code ?? null} onPick={setAccount} />
             <Hinted tip="Kept in the audit log"><TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
-            {(save.error || all.error) && <Alert severity="error">{((save.error ?? all.error) as Error).message}</Alert>}
+            {(all.error) && <Alert severity="error">{((all.error) as Error).message}</Alert>}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -472,6 +482,7 @@ function AddLinkDialog({ cls, type, existing, onClose, onSaved }: {
   const byStatus = event === '11'
   const what = choices.data?.events.find((e) => String(e.id) === event)?.name ?? 'The link'
   const save = useMutation({
+    onError: notifyError,
     mutationFn: () => addAccountTypeLink(cls.id, type.code, Number(event), byStatus ? Number(status) : 99, account!.code, reason.trim()),
     onSuccess: (rows) => onSaved(rows, what),
   })
@@ -496,7 +507,7 @@ function AddLinkDialog({ cls, type, existing, onClose, onSaved }: {
             <Suggested cls={cls.id} event={event === '' || (byStatus && status === '') ? null : Number(event)} number={byStatus ? Number(status || 0) : 99} type={type.code}
               options={options} chosen={account?.code ?? null} onPick={setAccount} />
             <Hinted tip="Kept in the audit log"><TextField required label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
-            {(save.error || chart.error || choices.error) && <Alert severity="error">{((save.error ?? chart.error ?? choices.error) as Error).message}</Alert>}
+            {(chart.error || choices.error) && <Alert severity="error">{((chart.error ?? choices.error) as Error).message}</Alert>}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -525,6 +536,7 @@ function Drawers({ onSaved }: { onSaved: (msg: string) => void }) {
   const needed = FIRST_DRAWER_TYPES.filter((t) => setup.data?.types.includes(t.type))
   const accountsOk = !first || needed.filter((t) => t.required).every((t) => accts[t.type]?.code)
   const save = useMutation({
+    onError: notifyError,
     mutationFn: (reason: string) => addCashDrawer(Number(kind), n, reason, first ? Object.fromEntries(Object.entries(accts).filter(([, a]) => a.code).map(([t, a]) => [t, a.code])) : undefined),
     onSuccess: (rows) => { qc.setQueryData(['cash-drawers'], rows); setAdding(false); setNumberText(''); setAccts({}); onSaved(`${kind === '52' ? 'Cashier' : 'Teller'} drawer ${n} was added. Give the number to a person in Settings > Users.`) },
   })
@@ -566,7 +578,7 @@ function Drawers({ onSaved }: { onSaved: (msg: string) => void }) {
           error={numberText !== '' && !free} helperText={numberText !== '' && taken.includes(n) ? 'That drawer already exists.' : '31 to 94, not used yet'} />
         {first && needed.map((t) => (
           <Box key={t.type}>
-            <Typography sx={{ fontSize: 12, mb: 0.25 }} color="text.secondary">{t.label}{t.required ? ' *' : ' (optional)'}</Typography>
+            <Typography variant="body2" sx={{ mb: 0.25 }} color="text.secondary">{t.label}{t.required ? ' *' : ' (optional)'}</Typography>
             <AccountPicker code={accts[t.type]?.code ?? ''} desc={accts[t.type]?.description ?? ''} label={`${t.label} account`} width={360} placeholder="Account number or name"
               search={search} recentKey="coop.cashSetupAccounts"
               onPick={(a) => setAccts((x) => ({ ...x, [t.type]: a ?? { code: '', description: '' } }))} />
@@ -595,6 +607,7 @@ function CashSetupPanel({ onSaved }: { onSaved: (msg: string) => void }) {
   const [accts, setAccts] = useState<Record<string, { code: string; description: string }>>({})
   const [asking, setAsking] = useState(false)
   const save = useMutation({
+    onError: notifyError,
     mutationFn: (reason: string) => setUpCash(Object.fromEntries(Object.entries(accts).filter(([, a]) => a.code).map(([k, a]) => [k, a.code])), reason),
     onSuccess: (r) => {
       qc.setQueryData(['cash-setup'], r)
@@ -612,11 +625,11 @@ function CashSetupPanel({ onSaved }: { onSaved: (msg: string) => void }) {
   return (
     <Surface label="Set up the cash types">
       <Box sx={{ p: 2 }}>
-        <Typography component="h2" sx={{ fontSize: 17, fontWeight: 600 }}>Set up the cash types</Typography>
+        <Typography variant="h5" component="h2">Set up the cash types</Typography>
         <Alert severity="warning" sx={{ my: 1.5 }}>
           The teller window cannot take or count money on this database yet. Missing: {s.missing.join('; ')}.
         </Alert>
-        <Typography color="text.secondary" sx={{ fontSize: 13, mb: 1.5 }}>
+        <Typography color="text.secondary" sx={{ mb: 1.5 }}>
           The cash types (cash on hand, cash in bank, cheques and other cash items, ATM items) are the system&apos;s own and are added as they are. Choose the chart accounts
           your cooperative keeps that money in.
         </Typography>
@@ -625,7 +638,7 @@ function CashSetupPanel({ onSaved }: { onSaved: (msg: string) => void }) {
             const k = `${f.type}/${f.event}`
             return (
               <Box key={k}>
-                <Typography sx={{ fontSize: 12, mb: 0.25 }} color="text.secondary">{f.label}{f.required ? ' *' : ' (optional)'}</Typography>
+                <Typography variant="body2" sx={{ mb: 0.25 }} color="text.secondary">{f.label}{f.required ? ' *' : ' (optional)'}</Typography>
                 <AccountPicker code={accts[k]?.code ?? ''} desc={accts[k]?.description ?? ''} label={`${f.label} account`} width={360} placeholder="Account number or name"
                   search={search} recentKey="coop.cashSetupAccounts"
                   onPick={(a) => setAccts((x) => ({ ...x, [k]: a ?? { code: '', description: '' } }))} />

@@ -1,5 +1,5 @@
 import {
-  Alert, Box, Button, Dialog, DialogActions, DialogContent, GlobalStyles, IconButton, Skeleton, Step, StepButton, Stepper, TextField, ToggleButton, ToggleButtonGroup, Typography,
+  Alert, Box, Button, Dialog, DialogActions, DialogContent, GlobalStyles, IconButton, Step, StepButton, Stepper, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -11,6 +11,9 @@ import {
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
 import { AboutNote, Hinted } from './appleUi'
+import { notifyError } from './ui/notices'
+import { Loading } from './ui/Loading'
+import { RADIUS } from './theme'
 import { useMe } from './session'
 
 const pct = (n: number) => `${Number(n.toFixed(6))}%`
@@ -41,7 +44,7 @@ function StatementDialog({ s, onClose }: { s: DividendStatement | null; onClose:
       <DialogContent>
         {s && (
           <Box id="dividend-statement" sx={{ fontSize: 13 }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 15, mb: 0.25 }}>Combined member distribution statement</Typography>
+            <Typography variant="h6" component="p" sx={{ mb: 0.25 }}>Combined member distribution statement</Typography>
             <Typography sx={{ mb: 1.5 }} color="text.secondary">Financial year {s.year}</Typography>
             {row('Member', `${s.name ?? ''} (${s.clientId})`, true)}
             <Box sx={{ borderTop: '1px solid', borderColor: 'divider', my: 1 }} />
@@ -88,22 +91,21 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
   const [statementOf, setStatementOf] = useState('')
   const [statement, setStatement] = useState<DividendStatement | null>(null)
   const [asked, setAsked] = useState<DividendReq | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState(0)
   const me = useMe()
   const [filled, setFilled] = useState<string | null>(null)
   // the year distributed is the calendar year before the cut-off; its posted appropriation gives the net surplus, the funds and the allocations
   const distributedYear = Number(cutoff.slice(0, 4)) - 1
   const fillFromAppropriation = async () => {
-    setError(null); setFilled(null)
+    setFilled(null)
     try {
       const a = await getPostedAppropriation(me.branchCode ?? 1, distributedYear)
-      if (!a) { setError(`No appropriation of the ${distributedYear} net surplus is posted yet. Post it in Dividends > Appropriation first, or enter the figures here.`); return }
+      if (!a) { notifyError(`No appropriation of the ${distributedYear} net surplus is posted yet. Post it in Dividends > Appropriation first, or enter the figures here.`); return }
       setNetSurplus(String(a.netSurplus)); setFunds(a.funds.map((f) => ({ name: f.name, percent: String(f.percent) })))
       setIscAllocation(String(a.isc)); setPrAllocation(String(a.pr)); setResolution(a.resolution); setAsked(null)
       setFilled(`Filled in from ${a.reference}, the posted appropriation of ${distributedYear}.`)
     } catch (e) {
-      setError((e as Error).message)
+      notifyError((e as Error).message)
     }
   }
 
@@ -115,17 +117,17 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
 
   const build = (): DividendReq | null => {
     const o = parseOverrides(overrides)
-    if (o.error) { setError(o.error); return null }
+    if (o.error) { notifyError(o.error); return null }
     const base = { cutoff, mutualBenefit: Number(mutualBenefit || 0), hospitalization: Number(hospitalization || 0), overrides: o.rows }
-    if (!cutoff || !(base.mutualBenefit >= 0) || !(base.hospitalization >= 0)) { setError('Give a cut-off date, and the insurance amounts as numbers of zero or more.'); return null }
+    if (!cutoff || !(base.mutualBenefit >= 0) || !(base.hospitalization >= 0)) { notifyError('Give a cut-off date, and the insurance amounts as numbers of zero or more.'); return null }
     if (method === 'rates') {
       const nums = [dividendRate, patronageRate].map((x) => Number(x))
-      if (nums.some((n) => !(n >= 0))) { setError('Give the rates as numbers of zero or more.'); return null }
+      if (nums.some((n) => !(n >= 0))) { notifyError('Give the rates as numbers of zero or more.'); return null }
       return { ...base, dividendRate: nums[0], patronageRate: nums[1] }
     }
     const isc = iscAllocation.trim() === '' ? null : Number(iscAllocation), pr = prAllocation.trim() === '' ? null : Number(prAllocation)
-    if (isc === null && pr === null) { setError('Give the amount allocated to interest on share capital, to patronage refund, or both.'); return null }
-    if ([isc, pr, Number(netSurplus)].some((n) => n !== null && !(n >= 0)) || !(Number(netSurplus) > 0)) { setError('Give the net surplus and the allocations as numbers; the net surplus must be more than zero.'); return null }
+    if (isc === null && pr === null) { notifyError('Give the amount allocated to interest on share capital, to patronage refund, or both.'); return null }
+    if ([isc, pr, Number(netSurplus)].some((n) => n !== null && !(n >= 0)) || !(Number(netSurplus) > 0)) { notifyError('Give the net surplus and the allocations as numbers; the net surplus must be more than zero.'); return null }
     const statutory: DividendStatutory[] = funds.filter((f) => f.name.trim() || f.percent.trim()).map((f) => ({ name: f.name.trim(), percent: Number(f.percent) }))
     return { ...base, iscAllocation: isc, prAllocation: pr, netSurplus: Number(netSurplus), statutory, approvalRef: resolution.trim() }
   }
@@ -134,19 +136,19 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
   const prepare = useMutation({
     meta: { done: 'Distribution prepared and stored. Submit it for review in Distributions.' },
     mutationFn: () => prepareDistribution(asked!),
-    onSuccess: (r) => { setError(null); void qc.invalidateQueries({ queryKey: ['distributions'] }); onPrepared?.(r.batch.id) },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: (r) => { void qc.invalidateQueries({ queryKey: ['distributions'] }); onPrepared?.(r.batch.id) },
+    onError: (e) => notifyError((e as Error).message),
   })
-  const register = useMutation({ mutationFn: () => downloadDividendRegister(asked!), onError: (e) => setError((e as Error).message) })
-  const showStatement = useMutation({ mutationFn: () => getDividendStatement(asked!, Number(statementOf)), onSuccess: setStatement, onError: (e) => setError((e as Error).message) })
+  const register = useMutation({ mutationFn: () => downloadDividendRegister(asked!), onError: (e) => notifyError((e as Error).message) })
+  const showStatement = useMutation({ mutationFn: () => getDividendStatement(asked!, Number(statementOf)), onSuccess: setStatement, onError: (e) => notifyError((e as Error).message) })
 
   const p = preview.data
   const identified = !!asked && !!p
   const num = (set: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => { set(e.target.value); setAsked(null); setStep(0) }
-  const label = (t: string) => <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">{t}</Typography>
+  const label = (t: string) => <Typography variant="overline" sx={{ display: 'block', mb: 0.75 }} color="text.secondary">{t}</Typography>
   const STEPS = ['Identify the dividend and patronage', 'Review the figures', 'Allocation']
   const go = (n: number) => { if (n === 0 || identified) setStep(n) }
-  const identify = () => { setError(null); const r = build(); if (r) { setAsked(r); setSplitEdited(false); setStep(1) } }
+  const identify = () => { const r = build(); if (r) { setAsked(r); setSplitEdited(false); setStep(1) } }
 
   return (
     <Box sx={(t) => ({ p: 1.5, flex: 1, minHeight: 0, overflow: 'auto', ...glass(t) })}>
@@ -158,7 +160,6 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
           </Step>
         ))}
       </Stepper>
-      {error && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError(null)}>{error}</Alert>}
 
       {step === 0 && (
         <>
@@ -185,11 +186,11 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
             </>)}
           </Box>
           {method === 'allocation' && (
-            <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '5px', p: 1.5, mb: 1.5 }}>
+            <Box sx={{ border: 1, borderColor: 'divider', borderRadius: `${RADIUS}px`, p: 1.5, mb: 1.5 }}>
               {label('Net surplus and allocation')}
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
                 <Button size="small" variant="outlined" onClick={() => { void fillFromAppropriation() }}>Fill in from the posted appropriation</Button>
-                {filled && <Typography sx={{ fontSize: 12 }} color="text.secondary">{filled}</Typography>}
+                {filled && <Typography variant="body2" color="text.secondary">{filled}</Typography>}
               </Box>
               <AboutNote sx={{ mb: 1 }}>
                 Enter the approved net surplus, the statutory funds set aside from it (they start from Settings; name and percent as the Cooperative Code, the CDA rules and your bylaws
@@ -207,7 +208,7 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
                 </Box>
               ))}
               <Button size="small" startIcon={<FiPlus />} onClick={() => { setFunds([...funds, { name: '', percent: '' }]); setAsked(null) }} sx={{ mb: 1 }}>Add statutory fund</Button>
-              <Typography sx={{ fontSize: 13, mb: 1 }}>Available for distribution: <b>{availableNow === null ? '—' : money(availableNow)}</b></Typography>
+              <Typography sx={{ mb: 1 }}>Available for distribution: <b>{availableNow === null ? '—' : money(availableNow)}</b></Typography>
               <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                 <TextField size="small" label="Allocated to interest on share capital" value={iscAllocation} onChange={num(setIscAllocation)} sx={{ width: 270 }} />
                 <TextField size="small" label="Allocated to patronage refund" value={prAllocation} onChange={num(setPrAllocation)} sx={{ width: 250 }} />
@@ -215,7 +216,7 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
             </Box>
           )}
           <Button variant="contained" disabled={preview.isFetching} onClick={identify}>Identify</Button>
-          {preview.isLoading && <Skeleton variant="rounded" height={60} sx={{ mt: 1.5 }} />}
+          {preview.isLoading && <Loading what="the preview" />}
           {preview.error && <Alert severity="warning" sx={{ mt: 1.5 }}>{(preview.error as Error).message}</Alert>}
         </>
       )}
@@ -223,11 +224,11 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
       {step === 1 && (
         <>
           {label('Step 2: review the figures')}
-          {preview.isLoading && <Skeleton variant="rounded" height={160} />}
+          {preview.isLoading && <Loading what="the preview" />}
           {preview.error && <Alert severity="warning" sx={{ mb: 1 }}>{(preview.error as Error).message}</Alert>}
           {p && (
             <>
-              <Typography sx={{ fontSize: 13, mb: 0.5 }}>Cut-off {p.cutoff}, shares and loans of {p.year} · {p.members.toLocaleString()} members · <b>{money(p.dividend + p.refund)}</b> to distribute</Typography>
+              <Typography sx={{ mb: 0.5 }}>Cut-off {p.cutoff}, shares and loans of {p.year} · {p.members.toLocaleString()} members · <b>{money(p.dividend + p.refund)}</b> to distribute</Typography>
               <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25, fontSize: 13, mb: 1 }}>
                 <span>Total average share-month</span><span>{money(p.totalAverageShareMonth)}</span>
                 <span>Interest on share capital rate</span><span>{pct(p.dividendRate)}</span>
@@ -237,14 +238,14 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
                 <span>Patronage refund</span><span>{money(p.refund)}</span>
               </Box>
               {p.fromAllocation && (
-                <Box sx={{ border: 1, borderColor: 'divider', borderRadius: '5px', p: 1, mb: 1, fontSize: 13 }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 0.5 }}>Reconciliation with the approved allocation</Typography>
+                <Box sx={{ border: 1, borderColor: 'divider', borderRadius: `${RADIUS}px`, p: 1, mb: 1, fontSize: 13 }}>
+                  <Typography sx={{ fontWeight: 700, mb: 0.5 }}>Reconciliation with the approved allocation</Typography>
                   <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25 }}>
                     <span /><b>Allocated</b><b>Distributed</b><b>Difference</b>
                     <span>Interest on share capital</span><span>{money(p.iscAllocation ?? 0)}</span><span>{money(p.dividend)}</span><span>{money((p.iscAllocation ?? 0) - p.dividend)}</span>
                     <span>Patronage refund</span><span>{money(p.prAllocation ?? 0)}</span><span>{money(p.refund)}</span><span>{money((p.prAllocation ?? 0) - p.refund)}</span>
                   </Box>
-                  <Typography sx={{ fontSize: 12, mt: 0.5 }} color="text.secondary">
+                  <Typography variant="body2" sx={{ mt: 0.5 }} color="text.secondary">
                     Available for distribution after the statutory funds: {money(p.availableForDistribution ?? 0)}. A small difference is the centavo each member is rounded to, or members left out below.
                   </Typography>
                 </Box>
@@ -284,7 +285,7 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
           </Box>
           <TextField size="small" multiline minRows={2} maxRows={6} fullWidth sx={{ mb: 1 }} label="Different insurance amounts for some members (optional)" value={overrides} onChange={(e) => { setOverrides(e.target.value); setSplitEdited(true) }}
             placeholder={'one member per line: member no., mutual benefit, hospitalization (blank or - keeps the standard)\n12345, 402.17, 697.83'} />
-          <Button variant="outlined" size="small" disabled={!splitEdited || preview.isFetching} onClick={() => { setError(null); const r = build(); if (r) { setAsked(r); setSplitEdited(false) } }} sx={{ mb: 1.5 }}>Apply to the allocation</Button>
+          <Button variant="outlined" size="small" disabled={!splitEdited || preview.isFetching} onClick={() => { const r = build(); if (r) { setAsked(r); setSplitEdited(false) } }} sx={{ mb: 1.5 }}>Apply to the allocation</Button>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'start', columnGap: 3, rowGap: 0.25, fontSize: 13, mb: 1.5 }}>
             <span>Dividend and patronage refund</span><span>{money(p.dividend + p.refund)}</span>
             <span>To mutual benefit</span><span>{money(p.mutualBenefit)}</span>
@@ -295,9 +296,9 @@ export function DividendPanel({ onPrepared }: { onPrepared?: (id: number) => voi
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2 }}>
             <Button onClick={() => setStep(1)}>Back</Button>
             {!p.alreadyEncoded && <Button variant="contained" disabled={prepare.isPending || p.controls.length > 0 || splitEdited} onClick={() => prepare.mutate()}>{prepare.isPending ? 'Storing…' : 'Prepare for review'}</Button>}
-            {splitEdited && <Typography sx={{ fontSize: 12 }} color="text.secondary">Apply the allocation first.</Typography>}
+            {splitEdited && <Typography variant="body2" color="text.secondary">Apply the allocation first.</Typography>}
           </Box>
-          <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">
+          <Typography variant="body2" sx={{ mb: 1 }} color="text.secondary">
             Preparing stores every member&apos;s figures as a distribution of {p.year}. Someone else reviews and approves it; only then are the vouchers made, from exactly these figures. Preparing the year again replaces a version not yet approved.
           </Typography>
           {p.alreadyEncoded && <Alert severity="info" sx={{ mb: 1 }}>{p.year + 1} already has dividend vouchers, so it cannot be prepared again.</Alert>}

@@ -36,7 +36,7 @@ interface Option { key: string; kind: TellerKind; label: string; sub: string; sa
  * Posting opens the same confirmation as before with everything filled in, because that is where the receipt number, cheques, holds, limits and supervisor approvals are handled.
  */
 /** A small heading over a part of the form. */
-const Label = ({ children }: { children: string }) => <Typography sx={{ fontSize: 12, fontWeight: 600, mt: 0.5 }} color="text.secondary">{children}</Typography>
+const Label = ({ children }: { children: string }) => <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5 }} color="text.secondary">{children}</Typography>
 
 export default function TellerTransaction({ id, preset, only = null, onShowAll }: { id: Id; preset: TellerPreset | null; only?: TellerOnly; onShowAll?: () => void }) {
   const savings = useQuery({ queryKey: ['member-savings', id], queryFn: () => getSavings(id.branchCode, id.clientId), staleTime: 60_000 })
@@ -78,10 +78,10 @@ export default function TellerTransaction({ id, preset, only = null, onShowAll }
     <Box component="section" aria-label="Transaction" sx={(t) => ({ p: 1.75, mb: 1.25, ...glass(t) })}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
         <IconChip icon={<FiRepeat />} color={tileFill.blue} />
-        <Typography component="h2" sx={{ flex: 1, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>Transaction</Typography>
+        <Typography variant="h6" component="h2" sx={{ flex: 1 }}>Transaction</Typography>
         {only && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{KIND_NAMES[only]}</Typography>
+            <Typography variant="body2" color="text.secondary" noWrap>{KIND_NAMES[only]}</Typography>
             {onShowAll && <Button size="small" onClick={onShowAll} sx={{ minHeight: 22, py: 0, px: 0.75 }}>Show all</Button>}
           </Box>
         )}

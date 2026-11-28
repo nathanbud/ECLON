@@ -19,6 +19,7 @@ import { tabIcon } from './navIcons'
 import { ProfileHeader, SideFrame, SideScroll } from './ProfileHeader'
 import { ProfileStrip } from './ProfileStrip'
 import { StatTiles } from './StatTiles'
+import { RADIUS } from '../theme'
 import { takePendingSection } from './sectionRequest'
 
 function TabContent({ tab, m, lk, canImages }: { tab: number; m: Member; lk?: Lookups; canImages: boolean }) {
@@ -84,7 +85,7 @@ function SideTabs({ groups, tab, onChange }: { groups: { label: string; tabs: nu
               <Box aria-hidden sx={{ display: 'flex', fontSize: 17, flexShrink: 0, width: 20, justifyContent: 'center' }}>{main.icon}</Box>
               <Box component="span" sx={{ flex: 1, minWidth: 0 }}>{main.label}</Box>
               {GROUP_KEYS[g.label] && (
-                <Box component="kbd" aria-hidden sx={{ fontFamily: 'inherit', fontSize: 11, fontWeight: 600, lineHeight: 1, px: 0.6, py: 0.35, borderRadius: '4px', border: `1px solid ${mainActive ? 'rgba(0,0,0,0.25)' : SIDE.line}`, opacity: 0.8 }}>{GROUP_KEYS[g.label]}</Box>
+                <Box component="kbd" aria-hidden sx={{ fontFamily: 'inherit', fontSize: 11, fontWeight: 600, lineHeight: 1, px: 0.6, py: 0.35, borderRadius: `${RADIUS}px`, border: `1px solid ${mainActive ? 'rgba(0,0,0,0.25)' : SIDE.line}`, opacity: 0.8 }}>{GROUP_KEYS[g.label]}</Box>
               )}
               {subs.length > 0 && <Box aria-hidden sx={{ display: 'flex', fontSize: 15, opacity: 0.8 }}>{open ? <FiChevronDown /> : <FiChevronRight />}</Box>}
             </ButtonBase>

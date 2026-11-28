@@ -118,7 +118,7 @@ describe('Account types', () => {
     expect(confirm).toBeDisabled()
     await user.type(within(dialog).getByLabelText(/Reason/), 'Board resolution 12')
     await user.click(confirm)
-    await waitFor(() => expect(update).toHaveBeenCalledWith(22, 1, { name: 'SD - Regular', fullName: 'SD - Regular', priority: 99, interestRate: 1.75, minBalance: 500, maxBalance: null, dormantAfterMonths: 24, disabled: false, reason: 'Board resolution 12' }))
+    await waitFor(() => expect(update).toHaveBeenCalledWith(22, 1, { name: 'SD - Regular', fullName: '', priority: 99, interestRate: 1.75, minBalance: 500, maxBalance: null, dormantAfterMonths: 24, disabled: false, reason: 'Board resolution 12' }))
     expect(await screen.findByText('0001 SD - Regular was saved.')).toBeInTheDocument()
   })
 

@@ -1,6 +1,6 @@
 import {
-  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, InputAdornment, MenuItem, Skeleton, Snackbar, Switch, Table, TableBody, TableCell,
-  Tab, TableHead, TableRow, Tabs, TextField, Tooltip, Typography,
+  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, InputAdornment, MenuItem, Switch, Table, TableBody, TableCell,
+  Tab, TableHead, TableRow, Tabs, TextField, Tooltip, Typography, alpha,
 } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
@@ -14,6 +14,8 @@ import LoanDeductions from './LoanDeductions'
 import { AboutNote, Dot, Hinted, listTable, PageTitle, ReasonDialog, SearchField, SectionLabel, Segmented, Surface } from './appleUi'
 import { appBackground } from './glass'
 import { useMe } from './session'
+import { notifyError, notify } from './ui/notices'
+import { Loading } from './ui/Loading'
 import { tabular } from './ui/format'
 
 const num = tabular
@@ -24,8 +26,11 @@ const blank: LoanSetupForm = {
   serviceFeeRate: null, minCoMakers: null, requireCollateral: false, priority: null, yearDays: 365, disabled: false, reason: '', dayCount: null,
 }
 
+/** A longer name kept from the old system, when it differs from the name; empty means the name is stored in both columns. */
+const olderName = (t: LoanSetupType) => (t.fullName && t.fullName.trim() !== t.name.trim() ? t.fullName.trim() : '')
+
 const toForm = (t: LoanSetupType): LoanSetupForm => ({
-  name: t.name, fullName: t.fullName, terms: t.terms, termUnit: t.termUnit, principalMode: t.principalMode, interestMode: t.interestMode, amortization: t.amortization,
+  name: t.name, fullName: olderName(t), terms: t.terms, termUnit: t.termUnit, principalMode: t.principalMode, interestMode: t.interestMode, amortization: t.amortization,
   interestRate: t.interestRate, penaltyRate: t.penaltyRate, serviceFeeRate: t.serviceFeeRate, minCoMakers: t.minCoMakers, requireCollateral: t.requireCollateral,
   priority: t.priority, yearDays: t.yearDays, disabled: t.disabled, reason: '', dayCount: t.dayCount,
 })
@@ -34,7 +39,7 @@ const toForm = (t: LoanSetupType): LoanSetupForm => ({
 function FormSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Box component="fieldset" sx={{ border: 0, p: 0, m: 0, minWidth: 0 }}>
-      <Typography component="legend" color="text.secondary" sx={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', mb: 0.75, p: 0 }}>{title}</Typography>
+      <Typography variant="caption" component="legend" color="text.secondary" sx={{ fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', mb: 0.75, p: 0 }}>{title}</Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1.25 }}>{children}</Box>
     </Box>
   )
@@ -55,27 +60,27 @@ function WiredAccounts({ code }: { code: number }) {
   const qc = useQueryClient()
   const { data, error, isLoading } = useQuery({ queryKey: ['loan-type-accounts', code], queryFn: () => getLoanTypeAccounts(code), staleTime: 60_000 })
   const [reason, setReason] = useState('')
+  // a change asked for without a reason: said under the reason field, where it is typed
+  const [needReason, setNeedReason] = useState(false)
   const [editKey, setEditKey] = useState<string | null>(null)
   const [account, setAccount] = useState('')
   const [adding, setAdding] = useState('')
-  const [fail, setFail] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const keyOf = (e: number, s: number | null) => `${e}-${s ?? 0}`
   const run = async (job: () => Promise<WiredAccount[]>) => {
-    if (reason.trim().length < 3) { setFail('Give a reason for the change first.'); return }
+    if (reason.trim().length < 3) { setNeedReason(true); return }
     setBusy(true)
     try {
       qc.setQueryData(['loan-type-accounts', code], await job())
-      setFail(null); setEditKey(null); setAccount(''); setAdding('')
-    } catch (e) { setFail((e as Error).message) } finally { setBusy(false) }
+      setEditKey(null); setAccount(''); setAdding('')
+    } catch (e) { notifyError((e as Error).message) } finally { setBusy(false) }
   }
   const missing = LINK_KINDS.filter((k) => !data?.some((a) => keyOf(a.event, a.status) === keyOf(k.event, k.status)))
   return (
     <Box sx={{ mt: 1 }}>
       {error && <Alert severity="error" sx={{ py: 0 }}>{(error as Error).message}</Alert>}
-      {fail && <Alert severity="error" sx={{ py: 0, mb: 1 }} onClose={() => setFail(null)}>{fail}</Alert>}
-      {isLoading && <Skeleton variant="rounded" height={90} />}
-      {data && data.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">No ledger accounts are set for this loan type, so nothing can be posted for it.</Typography>}
+      {isLoading && <Loading what="the ledger links" />}
+      {data && data.length === 0 && <Typography color="text.secondary">No ledger accounts are set for this loan type, so nothing can be posted for it.</Typography>}
       {data && data.length > 0 && (
         <Table size="small" aria-label="Ledger accounts of this loan type" sx={{ '& td, & th': { py: 0.4 } }}>
           <TableHead><TableRow><TableCell>Posts</TableCell><TableCell>Account no.</TableCell><TableCell>Account</TableCell><TableCell /></TableRow></TableHead>
@@ -126,7 +131,7 @@ function WiredAccounts({ code }: { code: number }) {
           )}
         </Box>
       )}
-      <Hinted tip="Kept in the audit log with the account before and after. New postings use the new account; entries already posted are not changed. Principal, interest paid, service fee and penalty can be changed but not removed."><TextField size="small" fullWidth label="Reason for a change (needed for Change, Remove and Add)" value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mt: 1.5 }}
+      <Hinted tip="Kept in the audit log with the account before and after. New postings use the new account; entries already posted are not changed. Principal, interest paid, service fee and penalty can be changed but not removed."><TextField size="small" fullWidth error={needReason} helperText={needReason ? 'Give a reason for the change first.' : undefined} label="Reason for a change (needed for Change, Remove and Add)" value={reason} onChange={(e) => { setReason(e.target.value); setNeedReason(false) }} sx={{ mt: 1.5 }}
         slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
     </Box>
   )
@@ -139,7 +144,6 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
   const open = creating || editing != null
   const [form, setForm] = useState<LoanSetupForm>(blank)
   const [copyFrom, setCopyFrom] = useState<number | ''>('')
-  const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [seeded, setSeeded] = useState<string>('')
   const [pane, setPane] = useState<'setup' | 'coa' | 'deductions'>('setup')
@@ -149,7 +153,6 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
     setSeeded(key)
     setForm(editing ? toForm(editing) : blank)
     setCopyFrom('')
-    setError(null)
     setPane('setup')
   }
   if (!open && seeded !== '') setSeeded('')
@@ -162,12 +165,11 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
   }
   const submit = async () => {
     setBusy(true)
-    setError(null)
     try {
       if (editing) { await updateLoanType(editing.code, form); onDone(`${form.name} was saved`) }
       else { await createLoanType(Number(copyFrom), form); onDone(`${form.name} was created`) }
     } catch (e) {
-      setError((e as Error).message)
+      notifyError((e as Error).message)
     } finally {
       setBusy(false)
     }
@@ -199,11 +201,10 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
         <DialogContent sx={{ pt: 0.5, pb: 1, overflow: 'visible' }}>
           <Box sx={{ display: pane !== 'setup' ? 'none' : undefined }}>
           {used && (
-            <Typography color="text.secondary" sx={{ fontSize: 12, mb: 1.5 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
               {editing!.loans.toLocaleString()} loans and {editing!.applications.toLocaleString()} applications use this type. Changes apply to new applications only.
             </Typography>
           )}
-          {error && <Alert severity="error" sx={{ mb: 1.25, py: 0 }}>{error}</Alert>}
           {!editing && (
             <Hinted tip="Brings that type's ledger accounts and deductions. Set the rest below."><TextField select fullWidth required size="small" label="Start from a copy of" value={copyFrom} onChange={(e) => copyChosen(e.target.value === '' ? '' : Number(e.target.value))} sx={{ mb: 1.75 }}
              >
@@ -213,8 +214,15 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, columnGap: 4, rowGap: 1.75, alignItems: 'start' }}>
             <Box sx={{ display: 'grid', gap: 1.75 }}>
               <FormSection title="Name">
-                <TextField required size="small" label="Name" value={form.name} onChange={(e) => set('name', e.target.value)} slotProps={{ htmlInput: { maxLength: 20 } }} />
-                <TextField size="small" label="Full name" value={form.fullName ?? ''} onChange={(e) => set('fullName', e.target.value)} slotProps={{ htmlInput: { maxLength: 30 } }} />
+                <Hinted tip="Up to 20 characters. This is the name shown everywhere: lists, loan applications, the teller window, receipts, the amortization schedule and reports.">
+                  <TextField required size="small" label="Name" value={form.name} onChange={(e) => set('name', e.target.value)} slotProps={{ htmlInput: { maxLength: 20 } }} />
+                </Hinted>
+                {form.fullName && (
+                  <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 1 }}>
+                    <Typography variant="body2" color="text.secondary">Also has a longer name from the old system: {form.fullName}</Typography>
+                    <Button size="small" onClick={() => set('fullName', '')}>Use the name only</Button>
+                  </Box>
+                )}
               </FormSection>
               <FormSection title="Term">
                 <TextField type="number" size="small" label="Term" value={form.terms ?? ''} onChange={(e) => set('terms', numberOrNull(e.target.value))} slotProps={{ htmlInput: { min: 1, max: 600 } }} />
@@ -243,8 +251,8 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
                 <TextField type="number" size="small" label="Minimum co-makers" value={form.minCoMakers ?? ''} onChange={(e) => set('minCoMakers', numberOrNull(e.target.value))} slotProps={{ htmlInput: { min: 0, max: 20 } }} />
                 <TextField type="number" size="small" label="Order in lists" value={form.priority ?? ''} onChange={(e) => set('priority', numberOrNull(e.target.value))} slotProps={{ htmlInput: { min: 0, max: 999 } }} />
                 <Box sx={{ gridColumn: 'span 2', display: 'flex', flexWrap: 'wrap', columnGap: 3 }}>
-                  <FormControlLabel control={<Switch size="small" checked={form.requireCollateral} onChange={(e) => set('requireCollateral', e.target.checked)} />} label={<Typography sx={{ fontSize: 13 }}>Collateral required</Typography>} />
-                  {editing && <FormControlLabel control={<Switch size="small" checked={!form.disabled} onChange={(e) => set('disabled', !e.target.checked)} />} label={<Typography sx={{ fontSize: 13 }}>Available for new applications</Typography>} />}
+                  <FormControlLabel control={<Switch size="small" checked={form.requireCollateral} onChange={(e) => set('requireCollateral', e.target.checked)} />} label={<Typography>Collateral required</Typography>} />
+                  {editing && <FormControlLabel control={<Switch size="small" checked={!form.disabled} onChange={(e) => set('disabled', !e.target.checked)} />} label={<Typography>Available for new applications</Typography>} />}
                 </Box>
               </FormSection>
             </Box>
@@ -280,7 +288,7 @@ function TypesTab({ lists, onNotice }: { lists: LoanSetupLists | undefined; onNo
 
   const rows = useMemo(() => {
     const f = q.trim().toLowerCase()
-    return (data ?? []).filter((t) => (showOff || !t.disabled) && (!f || `${t.name} ${t.fullName ?? ''}`.toLowerCase().includes(f)))
+    return (data ?? []).filter((t) => (showOff || !t.disabled) && (!f || t.name.toLowerCase().includes(f)))
   }, [data, q, showOff])
   const counts = useMemo(() => {
     const all = data ?? []
@@ -292,7 +300,7 @@ function TypesTab({ lists, onNotice }: { lists: LoanSetupLists | undefined; onNo
     <>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5, flexWrap: 'wrap' }}>
         <SearchField value={q} onChange={setQ} placeholder="Search loan types" />
-        <FormControlLabel control={<Switch size="small" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} />} label={<Typography sx={{ fontSize: 13 }}>Show disabled</Typography>} />
+        <FormControlLabel control={<Switch size="small" checked={showOff} onChange={(e) => setShowOff(e.target.checked)} />} label={<Typography>Show disabled</Typography>} />
         <Box sx={{ flex: 1 }} />
         <Button variant="contained" startIcon={<FiPlus />} onClick={() => setCreating(true)}>New loan type</Button>
       </Box>
@@ -305,13 +313,12 @@ function TypesTab({ lists, onNotice }: { lists: LoanSetupLists | undefined; onNo
               <TableCell align="right">Co-makers</TableCell><TableCell align="right">Loans</TableCell><TableCell>Status</TableCell><TableCell width={32} />
             </TableRow></TableHead>
             <TableBody>
-              {isLoading && Array.from({ length: 6 }, (_, i) => <TableRow key={i}><TableCell colSpan={9}><Skeleton /></TableCell></TableRow>)}
+              {isLoading && <TableRow><TableCell colSpan={9} sx={{ borderBottom: 0 }}><Loading what="the loan types" /></TableCell></TableRow>}
               {rows.map((t) => (
                 <TableRow key={t.code} hover tabIndex={0} onClick={() => setEditing(t)} onKeyDown={(e) => onKey(e, t)} aria-label={`Edit ${t.name}`}
-                  sx={{ cursor: 'pointer', opacity: t.disabled ? 0.55 : 1, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}>
+                  sx={{ cursor: 'pointer', '& .MuiTableCell-root': { color: t.disabled ? 'text.secondary' : undefined }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 } }}>
                   <TableCell>
-                    <Typography sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{t.name}</Typography>
-                    {t.fullName && t.fullName !== t.name && <Typography color="text.secondary" sx={{ fontSize: 12 }}>{t.fullName}</Typography>}
+                    <Typography variant="subtitle2" component="p" sx={{ lineHeight: 1.3 }}>{t.name}</Typography>
                   </TableCell>
                   <TableCell sx={num}>{t.terms == null ? '—' : `${t.terms} ${unit(t.termUnit).toLowerCase()}`}</TableCell>
                   <TableCell align="right" sx={num}>{pct(t.interestRate)}</TableCell>
@@ -332,7 +339,7 @@ function TypesTab({ lists, onNotice }: { lists: LoanSetupLists | undefined; onNo
           </Table>
         </Box>
       </Surface>
-      <Typography color="text.secondary" sx={{ fontSize: 12, mt: 1.25, px: 0.5 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25, px: 0.5 }}>
         {counts.active} active · {counts.pending} not yet in the application screen · {counts.off} disabled. A change applies to new applications; loans already made keep the setup they were made with.
       </Typography>
       <TypeDialog editing={editing} creating={creating} types={data ?? []} lists={lists} onClose={close}
@@ -349,16 +356,14 @@ function NamedTab({ kind, noun, lists, onNotice }: { kind: 'purposes' | 'collate
   const [deleting, setDeleting] = useState<SetupNamed | null>(null)
   const [name, setName] = useState('')
   const [cls, setCls] = useState<number>(1)
-  const [fail, setFail] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [q, setQ] = useState('')
   const className = (id: number | null) => lists?.loanClasses.find((c) => c.id === id)?.name ?? ''
-  const open = (r: SetupNamed | 'new') => { setRow(r); setName(r === 'new' ? '' : r.name); setCls(r === 'new' ? 1 : r.loanClass ?? 1); setFail(null) }
+  const open = (r: SetupNamed | 'new') => { setRow(r); setName(r === 'new' ? '' : r.name); setCls(r === 'new' ? 1 : r.loanClass ?? 1) }
   const done = (m: string) => { setRow(null); setDeleting(null); onNotice(m); void qc.invalidateQueries({ queryKey: ['loan-setup', kind] }); void qc.invalidateQueries({ queryKey: ['audit-log'] }) }
   const run = async (f: () => Promise<unknown>, message: string) => {
     setBusy(true)
-    setFail(null)
-    try { await f(); done(message) } catch (e) { setFail((e as Error).message) } finally { setBusy(false) }
+    try { await f(); done(message) } catch (e) { notifyError((e as Error).message) } finally { setBusy(false) }
   }
   const rows = (data ?? []).filter((r) => !q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()))
   return (
@@ -374,7 +379,7 @@ function NamedTab({ kind, noun, lists, onNotice }: { kind: 'purposes' | 'collate
           <Table size="small" aria-label={noun}>
             <TableHead><TableRow><TableCell>Name</TableCell>{kind === 'purposes' && <TableCell>Loan class</TableCell>}<TableCell align="right">Used by loans</TableCell><TableCell /></TableRow></TableHead>
             <TableBody>
-              {isLoading && Array.from({ length: 5 }, (_, i) => <TableRow key={i}><TableCell colSpan={4}><Skeleton /></TableCell></TableRow>)}
+              {isLoading && <TableRow><TableCell colSpan={4} sx={{ borderBottom: 0 }}><Loading what="the list" /></TableCell></TableRow>}
               {rows.map((r) => (
                 <TableRow key={r.id} hover>
                   <TableCell sx={{ fontWeight: 500 }}>{r.name}</TableCell>
@@ -383,7 +388,7 @@ function NamedTab({ kind, noun, lists, onNotice }: { kind: 'purposes' | 'collate
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                     <Button size="small" onClick={() => open(r)}>Rename</Button>
                     <Tooltip title={r.uses > 0 ? 'Loans use this, so it cannot be deleted' : ''}>
-                      <span><Button size="small" color="error" disabled={r.uses > 0} onClick={() => { setDeleting(r); setFail(null) }}>Delete</Button></span>
+                      <span><Button size="small" color="error" disabled={r.uses > 0} onClick={() => { setDeleting(r) }}>Delete</Button></span>
                     </Tooltip>
                   </TableCell>
                 </TableRow>
@@ -393,9 +398,9 @@ function NamedTab({ kind, noun, lists, onNotice }: { kind: 'purposes' | 'collate
           </Table>
         </Box>
       </Surface>
-      <Typography color="text.secondary" sx={{ fontSize: 12, mt: 1.25, px: 0.5 }}>Entries that loans use can be renamed but not deleted.</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25, px: 0.5 }}>Entries that loans use can be renamed but not deleted.</Typography>
       <ReasonDialog
-        open={row != null} title={row === 'new' ? `Add ${noun}` : `Rename ${noun}`} confirm="Save" busy={busy} error={fail} canSubmit={name.trim() !== ''}
+        open={row != null} title={row === 'new' ? `Add ${noun}` : `Rename ${noun}`} confirm="Save" busy={busy} error={null} canSubmit={name.trim() !== ''}
         onCancel={() => setRow(null)}
         onConfirm={(reason) => void run(() => saveSetupNamed(kind, row === 'new' || row == null ? null : row.id, { name, loanClass: kind === 'purposes' ? cls : null, reason }), `${name} was saved`)}
       >
@@ -407,7 +412,7 @@ function NamedTab({ kind, noun, lists, onNotice }: { kind: 'purposes' | 'collate
         )}
       </ReasonDialog>
       <ReasonDialog
-        open={deleting != null} title={`Delete ${deleting?.name ?? ''}?`} intro="This cannot be undone." confirm="Delete" danger busy={busy} error={fail}
+        open={deleting != null} title={`Delete ${deleting?.name ?? ''}?`} intro="This cannot be undone." confirm="Delete" danger busy={busy} error={null}
         onCancel={() => setDeleting(null)} onConfirm={(reason) => deleting && void run(() => deleteSetupNamed(kind, deleting.id, reason), `${deleting.name} was deleted`)}
       />
     </>
@@ -422,13 +427,11 @@ function HoldsTab({ onNotice }: { onNotice: (m: string) => void }) {
   const qc = useQueryClient()
   const { data, error, isLoading } = useQuery({ queryKey: ['hold-setup'], queryFn: getHoldSetup })
   const [ask, setAsk] = useState<{ row: HoldSetupRow; what: 'allow' | 'forbid' | 'default' } | null>(null)
-  const [fail, setFail] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const open = (row: HoldSetupRow, what: 'allow' | 'forbid' | 'default') => { setAsk({ row, what }); setFail(null) }
+  const open = (row: HoldSetupRow, what: 'allow' | 'forbid' | 'default') => { setAsk({ row, what }) }
   const submit = async (reason: string) => {
     if (!ask) return
     setBusy(true)
-    setFail(null)
     try {
       if (ask.what === 'default') await setHoldDefault(ask.row.slc, ask.row.slt, reason)
       else await setHoldable(ask.row.slc, ask.row.slt, ask.what === 'allow', reason)
@@ -438,7 +441,7 @@ function HoldsTab({ onNotice }: { onNotice: (m: string) => void }) {
       void qc.invalidateQueries({ queryKey: ['comaker-accounts'] })
       void qc.invalidateQueries({ queryKey: ['audit-log'] })
     } catch (e) {
-      setFail((e as Error).message)
+      notifyError((e as Error).message)
     } finally {
       setBusy(false)
     }
@@ -455,7 +458,7 @@ function HoldsTab({ onNotice }: { onNotice: (m: string) => void }) {
         Holds already placed on a type stay when it is switched off.
       </AboutNote>
       {error && <Alert severity="error" sx={{ mb: 1.5 }}>{(error as Error).message}</Alert>}
-      {isLoading && <Skeleton variant="rounded" height={180} />}
+      {isLoading && <Loading what="the hold settings" />}
       {groups.map(([group, rows]) => (
         <Box key={group} sx={{ mb: 2.5 }}>
           <SectionLabel>{group}</SectionLabel>
@@ -463,11 +466,11 @@ function HoldsTab({ onNotice }: { onNotice: (m: string) => void }) {
             {rows.map((r, i) => (
               <Box key={`${r.slc}-${r.slt}`} sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 2, px: 2, py: 1.25, borderTop: i ? `0.5px solid ${t.palette.divider}` : 0 })}>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 15, fontWeight: 500 }}>{r.name}</Typography>
-                  <Typography color="text.secondary" sx={{ fontSize: 12 }}>{r.holds.toLocaleString()} {r.holds === 1 ? 'hold' : 'holds'} now</Typography>
+                  <Typography variant="h6" component="p" sx={{ fontWeight: 500 }}>{r.name}</Typography>
+                  <Typography variant="body2" color="text.secondary">{r.holds.toLocaleString()} {r.holds === 1 ? 'hold' : 'holds'} now</Typography>
                 </Box>
                 {r.isDefault ? (
-                  <Box sx={(t) => ({ px: 1.25, py: 0.4, borderRadius: '999px', fontSize: 12, fontWeight: 600, color: t.palette.primary.main, bgcolor: t.palette.mode === 'dark' ? 'rgba(10,132,255,0.22)' : 'rgba(0,122,255,0.12)' })}>Suggested first</Box>
+                  <Box sx={(t) => ({ px: 1.25, py: 0.4, borderRadius: '999px', fontSize: 12, fontWeight: 600, color: t.palette.primary.main, bgcolor: alpha(t.palette.primary.main, t.palette.mode === 'dark' ? 0.22 : 0.12) })}>Suggested first</Box>
                 ) : (
                   <Button size="small" disabled={!r.holdable} onClick={() => open(r, 'default')}>Suggest first</Button>
                 )}
@@ -478,7 +481,7 @@ function HoldsTab({ onNotice }: { onNotice: (m: string) => void }) {
         </Box>
       ))}
       <ReasonDialog
-        open={ask != null} busy={busy} error={fail} confirm="Save" onCancel={() => setAsk(null)} onConfirm={(r) => void submit(r)}
+        open={ask != null} busy={busy} error={null} confirm="Save" onCancel={() => setAsk(null)} onConfirm={(r) => void submit(r)}
         title={ask?.what === 'default' ? `Suggest ${ask.row.name} first` : ask?.what === 'allow' ? `Allow holds on ${ask?.row.name}` : `Stop holds on ${ask?.row.name ?? ''}`}
       />
     </>
@@ -498,7 +501,6 @@ type Tab = (typeof TABS)[number]['value']
 export default function LoanSetupPage({ initialTab = 'types', fullHeight = false }: { initialTab?: Tab; fullHeight?: boolean }) {
   const me = useMe()
   const [tab, setTab] = useState<Tab>(initialTab)
-  const [notice, setNotice] = useState<string | null>(null)
   const lists = useQuery({ queryKey: ['loan-setup-lists'], queryFn: getLoanSetupLists, enabled: me.admin, staleTime: 5 * 60_000 })
   return (
     <Box component="main" sx={(t) => ({ minHeight: fullHeight ? '100dvh' : 'calc(100dvh - 44px)', p: { xs: 2, md: 3 }, background: appBackground(t) })}>
@@ -511,16 +513,15 @@ export default function LoanSetupPage({ initialTab = 'types', fullHeight = false
               animation: 'loanSetupIn 240ms cubic-bezier(.2,.8,.2,1) both', '@keyframes loanSetupIn': { from: { opacity: 0, transform: 'translateY(5px)' }, to: { opacity: 1, transform: 'none' } },
               '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
             }}>
-              {tab === 'types' && <TypesTab lists={lists.data} onNotice={setNotice} />}
+              {tab === 'types' && <TypesTab lists={lists.data} onNotice={notify} />}
               {tab === 'amortization' && <AmortizationTab lists={lists.data} />}
-              {tab === 'purposes' && <NamedTab kind="purposes" noun="loan purpose" lists={lists.data} onNotice={setNotice} />}
-              {tab === 'collateral' && <NamedTab kind="collateral-types" noun="collateral type" lists={lists.data} onNotice={setNotice} />}
-              {tab === 'holds' && <HoldsTab onNotice={setNotice} />}
+              {tab === 'purposes' && <NamedTab kind="purposes" noun="loan purpose" lists={lists.data} onNotice={notify} />}
+              {tab === 'collateral' && <NamedTab kind="collateral-types" noun="collateral type" lists={lists.data} onNotice={notify} />}
+              {tab === 'holds' && <HoldsTab onNotice={notify} />}
             </Box>
           </>
         )}
       </Box>
-      <Snackbar open={notice != null} autoHideDuration={4000} onClose={() => setNotice(null)} message={notice} />
     </Box>
   )
 }

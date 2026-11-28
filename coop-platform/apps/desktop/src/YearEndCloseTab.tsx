@@ -7,6 +7,7 @@ import { useMe } from './session'
 import { ReasonDialog, ConfirmButton } from './ui/dialogs'
 import { money, tabular } from './ui/format'
 import { labelOf } from './ui/labels'
+import { notifyError } from './ui/notices'
 import { AboutNote } from './appleUi'
 
 const statusColor = { PREPARED: 'warning', POSTED: 'success', CANCELLED: 'default' } as const
@@ -24,12 +25,14 @@ export default function YearEndCloseTab({ branchCode }: { branchCode: number }) 
   const list = useQuery({ queryKey: ['year-end', branchCode], queryFn: () => listYearEndCloses(branchCode) })
   const preview = useQuery({ queryKey: ['year-end', branchCode, year], queryFn: () => previewYearEndClose(branchCode, year) })
   const refresh = () => qc.invalidateQueries({ queryKey: ['year-end'] })
-  const prepare = useMutation({ meta: { done: 'Closing prepared. Another accountant can now post it.' }, mutationFn: () => prepareYearEndClose(branchCode, year), onSuccess: refresh })
-  const post = useMutation({ meta: { done: 'Closing posted. The year is closed.' }, mutationFn: (id: number) => postYearEndClose(id), onSuccess: () => { refresh(); qc.invalidateQueries({ queryKey: ['periods'] }) } })
+  const prepare = useMutation({
+    onError: notifyError, meta: { done: 'Closing prepared. Another accountant can now post it.' }, mutationFn: () => prepareYearEndClose(branchCode, year), onSuccess: refresh })
+  const post = useMutation({
+    onError: notifyError, meta: { done: 'Closing posted. The year is closed.' }, mutationFn: (id: number) => postYearEndClose(id), onSuccess: () => { refresh(); qc.invalidateQueries({ queryKey: ['periods'] }) } })
   const years = Array.from({ length: 6 }, (_, i) => lastYear + 1 - i)
   const p = preview.data
   const waiting = p?.waiting ?? null
-  const error = (list.error ?? preview.error ?? prepare.error ?? post.error) as Error | null
+  const error = (list.error ?? preview.error) as Error | null // refused actions pop up (notifyError); a failed load stays here
 
   return (
     <Box>

@@ -89,9 +89,9 @@ function ServerStatus({ status, onConnection }: { status: 'checking' | 'online' 
       <Box role="status" sx={{ minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
           <Box aria-hidden sx={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, bgcolor: status === 'online' ? 'success.main' : status === 'offline' ? 'error.main' : 'text.disabled' }} />
-          <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{status === 'online' ? 'Server online' : status === 'offline' ? 'Server not reachable' : 'Checking the server…'}</Typography>
+          <Typography variant="body2" color="text.secondary" noWrap>{status === 'online' ? 'Server online' : status === 'offline' ? 'Server not reachable' : 'Checking the server…'}</Typography>
         </Box>
-        <Typography sx={{ fontSize: 12, pl: 2 }} color="text.secondary" noWrap>{server.name}{active ? ` · Database: ${active.name}${active.branch ? ` · ${active.branch}` : ''}` : ''}</Typography>
+        <Typography variant="body2" sx={{ pl: 2 }} color="text.secondary" noWrap>{server.name}{active ? ` · Database: ${active.name}${active.branch ? ` · ${active.branch}` : ''}` : ''}</Typography>
       </Box>
       <Button size="small" color="inherit" startIcon={<FiDatabase />} onClick={onConnection} sx={{ flexShrink: 0, fontSize: 12 }}>Connection</Button>
     </Box>
@@ -145,13 +145,13 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
           <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1.25, mb: 3 }}>
             <Mark size={32} logo={b.logo} alt={b.name} />
             <Box>
-              <Typography component="p" sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{b.name}</Typography>
-              {!b.custom && <Typography sx={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }} color="text.secondary">{brand.coop}</Typography>}
+              <Typography variant="h5" component="p" sx={{ lineHeight: 1.1 }}>{b.name}</Typography>
+              {!b.custom && <Typography variant="caption" sx={{ letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }} color="text.secondary">{brand.coop}</Typography>}
             </Box>
           </Box>
 
           <Typography component="h2" sx={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.15, mb: 0.75 }}>Welcome back</Typography>
-          <Typography sx={{ fontSize: 15, mb: 3.5 }} color="text.secondary">Sign in to {brand.product} with your own account.</Typography>
+          <Typography variant="h6" component="p" sx={{ mb: 3.5 }} color="text.secondary">Sign in to {brand.product} with your own account.</Typography>
 
           {endedBecause === ACCOUNT_DISABLED_SIGNED_OUT ? <DisabledNotice text={endedBecause} /> : endedBecause && <Alert severity="info" sx={{ mb: 2 }}>{endedBecause}</Alert>}
           {status === 'offline' && (
@@ -187,7 +187,7 @@ export default function SignInPage({ onSignedIn }: { onSignedIn: (me: Me) => voi
             {busy ? <CircularProgress size={22} color="inherit" aria-label="Signing in" /> : 'Sign in'}
           </Button>
 
-          <Typography sx={{ fontSize: 12, lineHeight: 1.5 }} color="text.secondary">
+          <Typography variant="body2" sx={{ lineHeight: 1.5 }} color="text.secondary">
             No password yet, or yours expired? Ask an administrator for a temporary one. Everything you do here is recorded under your name.
           </Typography>
         </Box>

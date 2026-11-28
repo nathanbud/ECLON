@@ -34,7 +34,7 @@ vi.mock('./api', async (orig) => ({
 
 function show() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={qc}><AppThemeProvider><DatabaseConnectionsPage /></AppThemeProvider></QueryClientProvider>)
+  render(<QueryClientProvider client={qc}><AppThemeProvider><DatabaseConnectionsPage /><Notices /></AppThemeProvider></QueryClientProvider>)
 }
 
 describe('database connection settings', () => {
@@ -145,3 +145,4 @@ describe('database connection settings', () => {
 })
 
 import { within } from '@testing-library/react'
+import { Notices } from './ui/notices'

@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Chip, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { FiCheckCircle } from 'react-icons/fi'
 import { getInbox, listChanges, type InboxItem } from './api'
@@ -8,6 +8,7 @@ import { appBackground, glass } from './glass'
 import { useMe } from './session'
 import MemberRequestsPanel from './MemberRequests'
 import WorkflowInbox from './WorkflowInbox'
+import { Loading } from './ui/Loading'
 import { ScreenTitle } from './appleUi'
 
 const when = (at: string) => new Date(at.replace(' ', 'T')).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -25,12 +26,12 @@ function Everything({ onOpen }: { onOpen: (v: View, tab?: string) => void }) {
   return (
     <Box component="section" aria-label="Everything waiting for you" sx={{ mb: 3 }}>
       {list.error && <Alert severity="error" sx={{ mb: 1 }}>{(list.error as Error).message}</Alert>}
-      {list.isLoading && <Skeleton variant="rounded" height={120} />}
+      {list.isLoading && <Loading what="what is waiting" />}
       {list.data && items.length === 0 && (
         <Box sx={(t) => ({ p: 4, textAlign: 'center', ...glass(t) })}>
           <Box sx={{ fontSize: 28, color: 'success.main', display: 'flex', justifyContent: 'center', mb: 1 }}><FiCheckCircle /></Box>
           <Typography sx={{ fontWeight: 600 }}>Nothing is waiting for you</Typography>
-          <Typography sx={{ fontSize: 13 }} color="text.secondary">Journals, memos, purchases, stock adjustments and member requests that need you appear here.</Typography>
+          <Typography color="text.secondary">Journals, memos, purchases, stock adjustments and member requests that need you appear here.</Typography>
         </Box>
       )}
       {items.length > 0 && (
@@ -46,7 +47,7 @@ function Everything({ onOpen }: { onOpen: (v: View, tab?: string) => void }) {
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{i.at ? when(i.at) : ''}</TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                     {DECIDED_HERE.has(i.kind)
-                      ? <Typography component="span" sx={{ fontSize: 12 }} color="text.secondary">Decide below</Typography>
+                      ? <Typography variant="body2" component="span" color="text.secondary">Decide below</Typography>
                       : <Button size="small" onClick={() => onOpen(i.view as View, i.tab ?? undefined)}>Open</Button>}
                   </TableCell>
                 </TableRow>
@@ -71,17 +72,17 @@ export default function ApprovalsPage({ onOpenClient, onOpen }: { onOpenClient: 
           Everything that needs your approval or action, from every part of the system. Open an item to decide it where it belongs.
         </ScreenTitle>
         <Everything onOpen={onOpen} />
-        <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, mb: 0.5 }}>Member profile changes</Typography>
-        <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
+        <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>Member profile changes</Typography>
+        <Typography sx={{ mb: 1.5 }} color="text.secondary">
           {me.canApprove ? 'Changes to member profiles waiting for a Membership Officer.' : 'Your changes that are waiting for a Membership Officer.'}
         </Typography>
         {error && <Alert severity="error">{(error as Error).message}</Alert>}
-        {isLoading && <Skeleton variant="rounded" height={160} />}
+        {isLoading && <Loading what="the profile changes" />}
         {data && data.length === 0 && (
           <Box sx={(t) => ({ p: 4, textAlign: 'center', ...glass(t) })}>
             <Box sx={{ fontSize: 28, color: 'success.main', display: 'flex', justifyContent: 'center', mb: 1 }}><FiCheckCircle /></Box>
             <Typography sx={{ fontWeight: 600 }}>Nothing is waiting</Typography>
-            <Typography sx={{ fontSize: 13 }} color="text.secondary">New requests appear here.</Typography>
+            <Typography color="text.secondary">New requests appear here.</Typography>
           </Box>
         )}
         {data && data.length > 0 && (

@@ -61,7 +61,7 @@ function Review() {
       )}
       {review.error && <Alert severity="error">{(review.error as Error).message}</Alert>}
       {review.data && (
-        <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+        <Typography color="text.secondary">
           {periods.length === 0
             ? 'No savings type has a dormancy period, so no account goes dormant. Set one under Settings > Products.'
             : `As of ${review.data.asOf}. Periods: ${periods.map((t) => `${t.typeName ?? t.typeCode} ${t.months} months`).join(', ')}.`}
@@ -85,7 +85,7 @@ function Review() {
               {rows.map((r) => (
                 <TableRow key={keyOf(r)} hover selected={chosen.has(keyOf(r))} onClick={() => toggle(keyOf(r))} sx={{ cursor: 'pointer' }}>
                   <TableCell padding="checkbox"><Checkbox size="small" checked={chosen.has(keyOf(r))} slotProps={{ input: { 'aria-label': `Choose ${r.clientName} ${account(r)}` } }} /></TableCell>
-                  <TableCell>{r.clientName} <Typography component="span" color="text.secondary" sx={{ fontSize: 12 }}>#{r.clientId}</Typography></TableCell>
+                  <TableCell>{r.clientName} <Typography variant="body2" component="span" color="text.secondary">#{r.clientId}</Typography></TableCell>
                   <TableCell>{account(r)}</TableCell>
                   <TableCell sx={tabular}>{r.opened ?? '—'}</TableCell>
                   <TableCell sx={tabular}>{r.lastActivity ?? 'Never'}</TableCell>
@@ -129,7 +129,7 @@ function Dormant() {
               <LoadingRow q={found} what="the accounts" errors={false} />
               {(found.data ?? []).map((r) => (
                 <TableRow key={keyOf(r)} hover>
-                  <TableCell>{r.clientName} <Typography component="span" color="text.secondary" sx={{ fontSize: 12 }}>#{r.clientId}</Typography></TableCell>
+                  <TableCell>{r.clientName} <Typography variant="body2" component="span" color="text.secondary">#{r.clientId}</Typography></TableCell>
                   <TableCell>{account(r)}</TableCell>
                   <TableCell sx={tabular}>{r.lastActivity ?? 'Never'}</TableCell>
                   <TableCell align="right" sx={tabular}>{money(r.balance)}</TableCell>

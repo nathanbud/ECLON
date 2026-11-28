@@ -35,8 +35,8 @@ export default function ProductRolesPage() {
         <LoadingBlock q={q} what="the product roles" />
         {r && (
           <Box sx={(t) => ({ ...glass(t), p: 2 })}>
-            <Typography sx={{ fontSize: 15, fontWeight: 600 }}>Vouchers payable</Typography>
-            <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
+            <Typography variant="h6" component="p">Vouchers payable</Typography>
+            <Typography sx={{ mb: 1.5 }} color="text.secondary">
               The member account a loan&apos;s net proceeds and a cash or check voucher are credited to, and paid out from at the teller.
             </Typography>
             {r.vouchersPayable == null && (

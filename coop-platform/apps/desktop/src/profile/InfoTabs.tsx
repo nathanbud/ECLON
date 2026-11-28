@@ -1,13 +1,14 @@
 import { HISTORY_PAGE, getMemberBilling, getMemberDetails, getMemberHistory, getMemberTemplate, type Lookups, type Member } from '../api'
 import { useEffect, useRef, useState } from 'react'
 import { EmptyState, Field, Section, SelectField, TableCard } from './fields'
-import { Alert, Box, Button, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
+import { Alert, Box, Button, Table, TableBody, TableCell, TableHead, TableRow, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 import { memberNo, statusOf, type Id } from '../clients'
 import { fmtDate, formatField, when, yearsSince } from './format'
 import { useEdit } from './editing'
 import { PhAddressFields, StreetField } from './PhAddress'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { FiInfo } from 'react-icons/fi'
+import { Loading } from '../ui/Loading'
 import { Hinted } from '../appleUi'
 
 /**
@@ -160,7 +161,7 @@ export function DetailsTab({ id, tab, title, lk }: { id: Id; tab: string; title:
     staleTime: 60_000,
   })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
-  if (isLoading) return <Skeleton variant="rounded" height={180} />
+  if (isLoading) return <Loading what="the details" />
   // While editing, empty fields are shown too so a value can be added where there is none yet.
   const sections = (data?.[tab] ?? []).filter((s) => editing || s.fields.some((f) => f.value != null))
   if (sections.length === 0) {
@@ -203,7 +204,7 @@ export function HistoryTab({ id }: { id: Id }) {
     getNextPageParam: (last, pages) => (last.length >= HISTORY_PAGE ? pages.length : undefined),
   })
   if (q.error) return <Alert severity="error">{(q.error as Error).message}</Alert>
-  if (q.isLoading) return <Skeleton variant="rounded" height={220} />
+  if (q.isLoading) return <Loading what="the details" />
   const rows = q.data?.pages.flat() ?? []
   if (rows.length === 0) return <EmptyState icon={<FiInfo />} title="No history" hint="No activity has been logged for this member." />
   return (
@@ -219,7 +220,7 @@ export function HistoryTab({ id }: { id: Id }) {
                 <TableCell>{r.activity ?? '—'}</TableCell>
                 <TableCell>
                   {r.info}
-                  {(r.from || r.to) && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{r.from ?? '—'} → {r.to ?? '—'}</Typography>}
+                  {(r.from || r.to) && <Typography variant="body2" component="div" color="text.secondary">{r.from ?? '—'} → {r.to ?? '—'}</Typography>}
                 </TableCell>
               </TableRow>
             ))}
@@ -240,7 +241,7 @@ export function HistoryTab({ id }: { id: Id }) {
 export function BillingTab({ id }: { id: Id }) {
   const { data, error, isLoading } = useQuery({ queryKey: ['member-billing', id], queryFn: () => getMemberBilling(id.branchCode, id.clientId), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
-  if (isLoading) return <Skeleton variant="rounded" height={160} />
+  if (isLoading) return <Loading what="the details" />
   if (!data || data.length === 0) return <EmptyState icon={<FiInfo />} title="No billing records" hint="Nothing has been billed to this member." />
   return (
     <TableCard>

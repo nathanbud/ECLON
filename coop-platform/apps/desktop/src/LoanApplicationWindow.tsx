@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Chip, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
 import {
@@ -13,6 +13,8 @@ import LoanApplicantCard from './LoanApplicantCard'
 import LoanStepper from './LoanStepper'
 import { labelOf } from './ui/labels'
 import LoanDeductionFields, { deductionInput, type DeductionAmounts, type Payoffs } from './LoanDeductionFields'
+import { notifyError } from './ui/notices'
+import { Loading } from './ui/Loading'
 import { InfoTip } from './appleUi'
 
 
@@ -42,15 +44,15 @@ function Summary({ d }: { d: LoanApplicationDetail }) {
   const a = d.item
   return (
     <Box sx={{ mb: 1.5 }}>
-      <Typography sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em' }}>{a.clientName ?? `Member ${a.clientId}`} · {money(a.amount)}</Typography>
-      <Typography sx={{ fontSize: 13 }} color="text.secondary">
+      <Typography variant="h5" component="p">{a.clientName ?? `Member ${a.clientId}`} · {money(a.amount)}</Typography>
+      <Typography color="text.secondary">
         {a.documentNo} · {a.typeName} · {a.terms} months · loan ref {a.refNo} · encoded by {a.encodedByName ?? '—'} on {a.date}
       </Typography>
       {d.coMakerHolds.length > 0 && (
         <Box sx={{ mt: 1 }}>
-          <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }} color="text.secondary">Co-maker holds</Typography>
+          <Typography variant="caption" sx={{ fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }} color="text.secondary">Co-maker holds</Typography>
           {d.coMakerHolds.map((h) => (
-            <Typography key={h.clientId} sx={{ fontSize: 13, ...cell }}>
+            <Typography key={h.clientId} sx={{ ...cell }}>
               {h.name ?? `Member ${h.clientId}`} · {money(h.amount)} on {h.accountType ?? h.slt} {h.refNo} · {h.placed ? 'held' : 'held when the release is posted'}
             </Typography>
           ))}
@@ -95,7 +97,7 @@ function DeductionStep({ d, onSaved, onError }: { d: LoanApplicationDetail; onSa
     mutationFn: () => saveLoanDeductions(it.branchCode, it.clientId, it.id, deductionInput(ded, paid)),
     onSuccess: onSaved, onError,
   })
-  if (template.isLoading) return <Skeleton variant="rounded" height={160} />
+  if (template.isLoading) return <Loading what="the loan type's setup" />
   if (template.error) return <Alert severity="error">{(template.error as Error).message}</Alert>
   if (!template.data) return null
   return (
@@ -119,7 +121,6 @@ export default function LoanApplicationWindow() {
   // Changing the member remounts the form, which clears it, as picking a different member does.
   const [formKey, setFormKey] = useState(0)
   const [picked, setPicked] = useState<{ branchCode: number; clientId: number } | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [ending, setEnding] = useState<'cancel' | 'disapprove' | null>(null)
   const [reason, setReason] = useState('')
   const close = () => { void closeThisWindow() }
@@ -155,8 +156,8 @@ export default function LoanApplicationWindow() {
     for (const k of ['loan-application', 'loan-applications', 'loan-release', 'loan-releases', 'member-loans']) void qc.invalidateQueries({ queryKey: [k] })
     announceLoanApplicationSaved()
   }
-  const done = () => { setError(null); setViewStep(null); setEnding(null); setReason(''); refresh() }
-  const fail = (e: unknown) => setError((e as Error).message)
+  const done = () => { setViewStep(null); setEnding(null); setReason(''); refresh() }
+  const fail = (e: unknown) => notifyError((e as Error).message)
   const verify = useMutation({ meta: { done: 'Application verified.' }, mutationFn: () => verifyLoanApplication(appId!), onSuccess: done, onError: fail })
   const approve = useMutation({ meta: { done: 'Application approved.' }, mutationFn: () => approveLoanApplication(appId!), onSuccess: done, onError: fail })
   const end = useMutation({
@@ -177,9 +178,8 @@ export default function LoanApplicationWindow() {
     </>
   )
   const problems = d?.problems.map((p) => <Alert key={p} severity="warning" sx={{ mb: 1 }}>{p}</Alert>)
-  const needDetail = (render: (x: LoanApplicationDetail) => ReactNode) => detail.isLoading ? <Skeleton variant="rounded" height={160} />
+  const needDetail = (render: (x: LoanApplicationDetail) => ReactNode) => detail.isLoading ? <Loading what="the application" />
     : detail.error ? <Alert severity="info">{(detail.error as Error).message}</Alert> : d ? render(d) : null
-  const errorAlert = error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>
 
   let page: ReactNode = null
   if (appId == null) {
@@ -189,7 +189,7 @@ export default function LoanApplicationWindow() {
       <StepPage title="Verification" hint="Check the application, the member's record and documents, and the figures from the Deduction step."
         actions={<>{endRow}{status === NEW && !waiting && <Button variant="contained" disabled={busy} onClick={() => verify.mutate()}>Verify</Button>}
           {status != null && status !== NEW && !stopped && <Chip color="success" variant="outlined" label="Verified" />}</>}>
-        {errorAlert}{waiting && <Alert severity="info" sx={{ mb: 1 }}>The deductions are not in yet, so this application cannot be verified.</Alert>}
+        {waiting && <Alert severity="info" sx={{ mb: 1 }}>The deductions are not in yet, so this application cannot be verified.</Alert>}
         {needDetail((x) => <><Summary d={x} />{problems}<Lines d={x} /></>)}
       </StepPage>
     )
@@ -197,7 +197,7 @@ export default function LoanApplicationWindow() {
     page = (
       <StepPage title="Deduction" hint="Fees, share capital and pay-offs come out of the proceeds. Fill them in; the application can be verified once they are saved."
         actions={<>{endRow}<Chip color="warning" variant="outlined" label="Waiting for deductions" /></>}>
-        {errorAlert}
+        
         {perms.data?.canDeduct
           ? needDetail((x) => <DeductionStep d={x} onSaved={done} onError={fail} />)
           : <Alert severity="info">This application waits for its deductions. Someone who may do the <b>2 · Deduction</b> step fills them in (Settings &gt; Users, Receivables, Loan process).</Alert>}
@@ -207,11 +207,11 @@ export default function LoanApplicationWindow() {
     page = (
       <StepPage title="Deduction" hint="Fees, share capital and pay-offs come out of the proceeds. This is the net the member receives."
         actions={<>{endRow}{!stopped && <Chip color="success" variant="outlined" label="Deductions done" />}</>}>
-        {errorAlert}{needDetail((x) => (
+        {needDetail((x) => (
           <>
             <Summary d={x} />{problems}<Lines d={x} />
             <Typography sx={{ mt: 1.5, ...cell }}>Deductions {money(x.totalDeductions)} · Net proceeds <strong>{money(x.netProceeds)}</strong></Typography>
-            <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">To change a deduction, disapprove or cancel this application and encode it again.</Typography>
+            <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">To change a deduction, disapprove or cancel this application and encode it again.</Typography>
           </>
         ))}
       </StepPage>
@@ -221,7 +221,7 @@ export default function LoanApplicationWindow() {
       <StepPage title="Approval" hint="Approving creates the release voucher. The encoder cannot approve, and the verifier cannot approve unless an administrator allowed it."
         actions={<>{endRow}{(status === NEW || status === VERIFIED) && !waiting && <Button variant="contained" disabled={busy || !!d?.problems.length} onClick={() => approve.mutate()}>Approve</Button>}
           {status === APPROVED && <Chip color="success" variant="outlined" label="Approved" />}</>}>
-        {errorAlert}{needDetail((x) => (
+        {needDetail((x) => (
           <>
             <Summary d={x} />{problems}
             <Typography sx={cell}>Net proceeds <strong>{money(x.netProceeds)}</strong> after deductions of {money(x.totalDeductions)}</Typography>
@@ -237,17 +237,17 @@ export default function LoanApplicationWindow() {
           {releaseStatus === 'WAITING FOR APPROVAL' && <Chip color="warning" variant="outlined" label="Waiting for release in Front Office" />}
           {releaseStatus === 'APPROVED' && <Chip color="warning" variant="outlined" label="Approved, waiting to be posted in Front Office" />}
           {releaseStatus === 'POSTED' && <Chip color="success" label={d?.item.releasedOn ? `Released on ${d.item.releasedOn}` : 'Released'} />}</>}>
-        {errorAlert}
+        
         {status !== APPROVED && <Alert severity="info">The application must be approved before it can be released.</Alert>}
-        {voucher.isLoading && <Skeleton variant="rounded" height={160} />}
+        {voucher.isLoading && <Loading what="the release voucher" />}
         {status === APPROVED && voucher.error && (
-          <Typography sx={{ fontSize: 13 }} color="text.secondary">
+          <Typography color="text.secondary">
             {releaseStatus ? 'Where the release stands is shown above. ' : ''}The release voucher's lines are shown to those who may look up Cash Vouchers (Settings &gt; Users, Transaction Types).
           </Typography>
         )}
         {v && (
           <>
-            <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">
+            <Typography sx={{ mb: 1 }} color="text.secondary">
               Voucher {v.documentNo} · {v.clientName ?? `Member ${v.clientId}`} · dated {v.date} · {labelOf(v.status).toLowerCase()}{v.approvedByName ? ` · approved by ${v.approvedByName}` : ''}
             </Typography>
             {voucher.data?.problems.map((p) => <Alert key={p} severity="warning" sx={{ mb: 1 }}>{p}</Alert>)}

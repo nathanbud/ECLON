@@ -1,4 +1,4 @@
-import { Alert, Box, Button, List, ListItemButton, ListItemText, ListSubheader, Skeleton, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Box, Button, List, ListItemButton, ListItemText, ListSubheader, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { listReports, logExport, runReport, type ReportColumn, type ReportInfo, type ReportResult } from './api'
@@ -7,6 +7,8 @@ import { appBackground, glass } from './glass'
 import { useMe } from './session'
 import ReceivablesAging from './reports/ReceivablesAging'
 import SlReconciliation from './reports/SlReconciliation'
+import { notifyError } from './ui/notices'
+import { Loading } from './ui/Loading'
 import { ScreenTitle } from './appleUi'
 
 /** Reports with a screen of their own, listed above the others (the tab name is how the menu opens one). */
@@ -60,8 +62,8 @@ function ResultTable({ r }: { r: ReportResult }) {
           {totals && <TableRow>{totals.map((v, j) => <TableCell key={j} align={align(columns[j])} sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', borderTop: '2px solid', borderColor: 'divider' }}>{fmt(columns[j], v)}</TableCell>)}</TableRow>}
         </TableBody>
       </Table>
-      {r.table.note && <Typography sx={{ fontSize: 13, mt: 1.5 }} color="text.secondary">{r.table.note}</Typography>}
-      <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">Run by {r.ranBy} on {r.ranAt.replace('T', ' ')}</Typography>
+      {r.table.note && <Typography sx={{ mt: 1.5 }} color="text.secondary">{r.table.note}</Typography>}
+      <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">Run by {r.ranBy} on {r.ranAt.replace('T', ' ')}</Typography>
     </Box>
   )
 }
@@ -78,15 +80,13 @@ export default function ReportsPage({ onOpen, initialTab }: { onOpen: (v: View) 
   const [picked, setPicked] = useState<ReportInfo | null>(null)
   const [own, setOwn] = useState<string | null>(accountant && initialTab && OWN.includes(initialTab) ? initialTab : null)
   const [values, setValues] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
-  const run = useMutation({ mutationFn: () => runReport(picked!.id, values), onError: (e) => setError((e as Error).message) })
+  const run = useMutation({ mutationFn: () => runReport(picked!.id, values), onError: (e) => notifyError((e as Error).message) })
   const groups = [...new Set((list.data ?? []).map((r) => r.group))]
 
   const pick = (r: ReportInfo) => {
     setPicked(r)
     setOwn(null)
     setValues(Object.fromEntries(r.params.map((p) => [p.name, p.defaultValue])))
-    setError(null)
     run.reset()
   }
   return (
@@ -94,7 +94,7 @@ export default function ReportsPage({ onOpen, initialTab }: { onOpen: (v: View) 
       <Box sx={{ maxWidth: 1350, mx: 'auto', display: 'grid', gridTemplateColumns: { xs: '1fr', md: '300px 1fr' }, gap: 2, alignItems: 'start' }}>
         <Box sx={(t) => ({ p: 1, ...glass(t) })} className="no-print">
           {accountant && <Button fullWidth sx={{ justifyContent: 'flex-start', mb: 1 }} onClick={() => onOpen('accounting')}>Trial balance, statements, periods →</Button>}
-          {list.isLoading && <Skeleton variant="rounded" height={160} />}
+          {list.isLoading && <Loading what="the reports" />}
           {list.data?.length === 0 && <Typography sx={{ p: 1 }} color="text.secondary">No reports are open to your roles.</Typography>}
           <List dense disablePadding>
             {accountant && (
@@ -131,12 +131,11 @@ export default function ReportsPage({ onOpen, initialTab }: { onOpen: (v: View) 
                   <TextField key={p.name} size="small" label={p.label} type={p.type === 'date' ? 'date' : 'text'} value={values[p.name] ?? ''} onChange={(e) => setValues({ ...values, [p.name]: e.target.value })}
                     slotProps={p.type === 'date' ? { inputLabel: { shrink: true } } : undefined} sx={{ width: p.type === 'date' ? 170 : 220 }} />
                 ))}
-                <Button variant="contained" sx={{ mt: 0.25 }} disabled={run.isPending} onClick={() => { setError(null); run.mutate() }}>Run</Button>
+                <Button variant="contained" sx={{ mt: 0.25 }} disabled={run.isPending} onClick={() => { run.mutate() }}>Run</Button>
                 {run.data && <Button sx={{ mt: 0.25 }} onClick={() => { download(`${picked.id}.csv`, toCsv(run.data)); void logExport('REPORT', picked.id, run.data.table.rows.length) }}>Save as CSV</Button>}
                 {run.data && <Button sx={{ mt: 0.25 }} onClick={() => window.print()}>Print</Button>}
               </Stack>
-              {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
-              {run.isPending && <><Skeleton variant="rounded" height={120} /><Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">Loan reports read the whole loan ledger and can take 10 to 30 seconds.</Typography></>}
+              {run.isPending && <><Loading what="the report" /><Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">Loan reports read the whole loan ledger and can take 10 to 30 seconds.</Typography></>}
               {run.data && <ResultTable r={run.data} />}
             </>
           )}

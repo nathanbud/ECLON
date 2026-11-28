@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
+import { Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiPlus, FiTrash2 } from 'react-icons/fi'
@@ -11,6 +11,7 @@ import { useMe } from './session'
 import { money, parseAmount } from './ui/format'
 import { ReasonDialog } from './ui/dialogs'
 import { labelOf } from './ui/labels'
+import { notifyError } from './ui/notices'
 import { LoadingRow } from './ui/Loading'
 
 const color = (s: string) => (s === 'APPROVED' || s === 'RECEIVED' ? 'success' : s === 'SUBMITTED' || s === 'DRAFT' ? 'warning' : s === 'ORDERED' || s === 'PARTIAL' ? 'info' : 'default') as 'success' | 'warning' | 'info' | 'default'
@@ -45,7 +46,7 @@ function LinesEditor({ rows, onChange, priceLabel, products }: { rows: Row[]; on
       ))}
       <Stack direction="row" sx={{ alignItems: 'center' }}>
         <Button size="small" startIcon={<FiPlus />} onClick={() => onChange([...rows, blank()])}>Add line</Button>
-        <Typography sx={{ flex: 1, textAlign: 'right', fontSize: 13 }}>Total <b>{money(total)}</b></Typography>
+        <Typography sx={{ flex: 1, textAlign: 'right' }}>Total <b>{money(total)}</b></Typography>
       </Stack>
     </Box>
   )
@@ -57,18 +58,16 @@ function NewRequestDialog({ onClose }: { onClose: () => void }) {
   const [purpose, setPurpose] = useState('')
   const [neededBy, setNeededBy] = useState('')
   const [rows, setRows] = useState<Row[]>([blank()])
-  const [error, setError] = useState<string | null>(null)
   const save = useMutation({
     mutationFn: () => createRequest({ purpose, neededBy: neededBy || null, lines: rows.map((r) => ({ description: r.description, unit: r.unit, quantity: parseAmount(r.quantity), estCost: parseAmount(r.price || '0') })) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['pr-list'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>New purchase request</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <TextField size="small" label="What is it for?" value={purpose} onChange={(e) => setPurpose(e.target.value)} />
           <TextField size="small" type="date" label="Needed by (optional)" value={neededBy} onChange={(e) => setNeededBy(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 200 }} />
           <LinesEditor rows={rows} onChange={setRows} priceLabel="Est. cost each" />
@@ -88,20 +87,18 @@ function NewOrderDialog({ request, onClose }: { request?: PrSummary; onClose: ()
   const [expected, setExpected] = useState('')
   const [remarks, setRemarks] = useState('')
   const [edited, setEdited] = useState<Row[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const products = useQuery({ queryKey: ['inv-products', 'active'], queryFn: () => listInvProducts(undefined, true), retry: false })
   const rows = edited ?? (detail.data?.lines.map((l) => ({ description: l.description, unit: l.unit, quantity: String(l.quantity), price: String(l.estCost), productId: '' })) ?? [blank()])
   const save = useMutation({
     mutationFn: () => createOrder({ supplierId: Number(supplierId), requestId: request?.id ?? null, expectedDate: expected || null, remarks, lines: rows.map((r) => ({ description: r.description, unit: r.unit, quantity: parseAmount(r.quantity), unitCost: parseAmount(r.price || '0'), productId: r.productId ? Number(r.productId) : null })) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['po-list'] }); void qc.invalidateQueries({ queryKey: ['pr-list'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>New purchase order{request ? ` for ${request.requestNo}` : ''}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <TextField select size="small" label="Supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
             {(suppliers.data ?? []).map((s) => <MenuItem key={s.id} value={String(s.id)}>{s.name} ({s.code})</MenuItem>)}
           </TextField>
@@ -124,15 +121,13 @@ function Requests({ buyer, approver, user }: { buyer: boolean; approver: boolean
   const [creating, setCreating] = useState(false)
   const [ordering, setOrdering] = useState<PrSummary | null>(null)
   const [reason, setReason] = useState<{ r: PrSummary; kind: 'reject' | 'cancel' } | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const approve = useMutation({ meta: { done: 'Purchase request approved.' },
     mutationFn: (r: PrSummary) => decideRequest(r.id, 'approve'),
-    onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['pr-list'] }) },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['pr-list'] }) },
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       {buyer && <Button variant="contained" startIcon={<FiPlus />} sx={{ mb: 1.5 }} onClick={() => setCreating(true)}>New request</Button>}
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Date</TableCell><TableCell>Purpose</TableCell><TableCell>By</TableCell><TableCell align="right">Estimate</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
@@ -141,9 +136,9 @@ function Requests({ buyer, approver, user }: { buyer: boolean; approver: boolean
           {(list.data ?? []).map((r) => (
             <TableRow key={r.id} hover>
               <TableCell>{r.requestNo}</TableCell><TableCell>{r.requestDate}</TableCell>
-              <TableCell>{r.purpose}{r.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{r.decisionNote}</Typography>}</TableCell>
+              <TableCell>{r.purpose}{r.decisionNote && <Typography variant="body2" component="div" color="text.secondary">{r.decisionNote}</Typography>}</TableCell>
               <TableCell>{r.requestedBy}</TableCell><TableCell align="right">{money(r.total)}</TableCell>
-              <TableCell><Chip size="small" color={color(r.status)} variant="outlined" label={labelOf(r.status)} />{r.waiting && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">waiting for {r.waiting}</Typography>}</TableCell>
+              <TableCell><Chip size="small" color={color(r.status)} variant="outlined" label={labelOf(r.status)} />{r.waiting && <Typography variant="body2" component="div" color="text.secondary">waiting for {r.waiting}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {approver && r.status === 'SUBMITTED' && r.requestedBy !== user && (<>
                   {!r.waiting && <Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(r)}>Approve</Button>}
@@ -173,15 +168,13 @@ function Orders({ buyer, approver, receiver, user }: { buyer: boolean; approver:
   const [creating, setCreating] = useState(false)
   const [cancelling, setCancelling] = useState<PoSummary | null>(null)
   const [receiving, setReceiving] = useState<PoSummary | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const approve = useMutation({ meta: { done: 'Purchase order approved.' },
     mutationFn: (o: PoSummary) => approveOrder(o.id),
-    onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['po-list'] }) },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['po-list'] }) },
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       {buyer && <Button variant="contained" startIcon={<FiPlus />} sx={{ mb: 1.5 }} onClick={() => setCreating(true)}>New order</Button>}
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Date</TableCell><TableCell>Supplier</TableCell><TableCell>Request</TableCell><TableCell align="right">Total</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
@@ -191,7 +184,7 @@ function Orders({ buyer, approver, receiver, user }: { buyer: boolean; approver:
             <TableRow key={o.id} hover>
               <TableCell>{o.orderNo}</TableCell><TableCell>{o.orderDate}</TableCell><TableCell>{o.supplier}</TableCell><TableCell>{o.requestNo ?? ''}</TableCell>
               <TableCell align="right">{money(o.total)}</TableCell>
-              <TableCell><Chip size="small" color={color(o.status)} variant="outlined" label={labelOf(o.status)} />{o.waiting && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">waiting for {o.waiting}</Typography>}</TableCell>
+              <TableCell><Chip size="small" color={color(o.status)} variant="outlined" label={labelOf(o.status)} />{o.waiting && <Typography variant="body2" component="div" color="text.secondary">waiting for {o.waiting}</Typography>}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {approver && o.status === 'DRAFT' && o.createdBy !== user && !o.waiting && <Button size="small" disabled={approve.isPending} onClick={() => approve.mutate(o)}>Approve</Button>}
                 {receiver && (o.status === 'APPROVED' || o.status === 'PARTIAL') && o.createdBy !== user && <Button size="small" onClick={() => setReceiving(o)}>Receive</Button>}
@@ -220,7 +213,6 @@ function ReceiveDialog({ order, onClose }: { order: PoSummary; onClose: () => vo
   const [warehouseId, setWarehouseId] = useState('')
   const [note, setNote] = useState('')
   const [remarks, setRemarks] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const lines = detail.data?.lines ?? []
   const left = (i: number) => lines[i].quantity - lines[i].received
   const value = (i: number) => qty[i] ?? String(left(i))
@@ -231,14 +223,13 @@ function ReceiveDialog({ order, onClose }: { order: PoSummary; onClose: () => vo
       lines: lines.map((_, i) => ({ lineNo: i + 1, quantity: parseAmount(value(i)), batchNo: batch[i] || undefined, expiryDate: expiry[i] || null })).filter((l) => l.quantity > 0),
     }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['po-list'] }); void qc.invalidateQueries({ queryKey: ['gr-list'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>Receive goods on {order.orderNo} from {order.supplier}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <Stack direction="row" spacing={1.5}>
             <TextField size="small" label="Supplier delivery receipt no." value={note} onChange={(e) => setNote(e.target.value)} sx={{ width: 240 }} />
             <TextField size="small" label="Remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} sx={{ flex: 1 }} />
@@ -288,7 +279,7 @@ function Receipts({ approver, user }: { approver: boolean; user: string }) {
           {(list.data ?? []).map((g) => (
             <TableRow key={g.id} hover>
               <TableCell>{g.receiptNo}</TableCell><TableCell>{g.receiptDate}</TableCell><TableCell>{g.orderNo}</TableCell><TableCell>{g.supplier}</TableCell><TableCell>{g.deliveryNote ?? ''}</TableCell><TableCell>{g.receivedBy}</TableCell>
-              <TableCell><Chip size="small" variant="outlined" color={g.status === 'RECEIVED' ? 'success' : 'default'} label={labelOf(g.status)} />{g.reverseNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{g.reverseNote}</Typography>}</TableCell>
+              <TableCell><Chip size="small" variant="outlined" color={g.status === 'RECEIVED' ? 'success' : 'default'} label={labelOf(g.status)} />{g.reverseNote && <Typography variant="body2" component="div" color="text.secondary">{g.reverseNote}</Typography>}</TableCell>
               <TableCell align="right">{approver && g.status === 'RECEIVED' && g.receivedBy !== user && <Button size="small" color="warning" onClick={() => setReversing(g)}>Reverse</Button>}</TableCell>
             </TableRow>
           ))}
@@ -306,19 +297,17 @@ function SupplierDialog({ supplier, onClose }: { supplier?: Supplier; onClose: (
     code: supplier?.code ?? '', name: supplier?.name ?? '', tin: supplier?.tin ?? '', address: supplier?.address ?? '', phone: supplier?.phone ?? '', email: supplier?.email ?? '',
     contact: supplier?.contact ?? '', taxable: supplier?.taxable ?? true, active: supplier?.active ?? true, termsText: String(supplier?.termsDays ?? 0),
   })
-  const [error, setError] = useState<string | null>(null)
   const set = (k: keyof SupplierIn) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value })
   const save = useMutation({
     mutationFn: () => { const { termsText, ...rest } = f; const body = { ...rest, termsDays: Number(termsText) || 0 }; return supplier ? updateSupplier(supplier.id, body) : createSupplier(body) },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['suppliers'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{supplier ? `Edit ${supplier.name}` : 'New supplier'}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <Stack direction="row" spacing={1.5}>
             <TextField size="small" label="Code" value={f.code} disabled={!!supplier} onChange={set('code')} sx={{ width: 140 }} />
             <TextField size="small" label="Name" value={f.name} onChange={set('name')} sx={{ flex: 1 }} />

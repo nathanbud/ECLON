@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { encodeTdClose, quoteTdClose, type TdCloseEncoded, type TdCloseQuote, type TdCloseReq } from './api'
 import MoneyField from './MoneyField'
 import { money as peso } from './ui/format'
+import { notifyError } from './ui/notices'
 import { Hinted } from './appleUi'
 
 
@@ -67,7 +68,7 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
       const r = await encodeTdClose(body)
       setDone(r)
       void qc.invalidateQueries({ queryKey: ['member-time-deposits'] }); void qc.invalidateQueries({ queryKey: ['td-maturities'] }); void qc.invalidateQueries({ queryKey: ['td-maturity-count'] })
-    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+    } catch (e) { notifyError(e) } finally { setBusy(false) }
   }
 
   if (done) {
@@ -143,12 +144,12 @@ export default function TimeDepositCloseDialog({ clientId, typeCode, refNo, labe
               </Box>
               {!isLockIn && !quote?.preterm && <FormControlLabel control={<Checkbox checked={fee} onChange={(_, v) => setFee(v)} />} label="Renewal certificate fee 10.00 (taken from the new certificate)" />}
               {quote?.newPrincipal != null && (
-                <Typography sx={{ fontSize: 13 }}>The new certificate is <b>{peso(quote.newPrincipal)}</b>, maturing <b>{quote.newMaturity}</b>.
+                <Typography>The new certificate is <b>{peso(quote.newPrincipal)}</b>, maturing <b>{quote.newMaturity}</b>.
                   {quote.withdraw != null && quote.withdraw > 0 && <> {peso(quote.withdraw)} goes to the member vouchers payable.</>}</Typography>
               )}
             </>
           )}
-          {!renew && quote && <Typography sx={{ fontSize: 13 }}>{quote.preterm ? 'This ends the certificate early. ' : ''}All of it, <b>{peso(quote.due)}</b>, goes to the member vouchers payable account to be paid out.</Typography>}
+          {!renew && quote && <Typography>{quote.preterm ? 'This ends the certificate early. ' : ''}All of it, <b>{peso(quote.due)}</b>, goes to the member vouchers payable account to be paid out.</Typography>}
           <TextField size="small" label="Explanation (optional)" value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder={quote?.preterm ? 'PRE-TERMINATION OF TD' : renew ? 'RENEWAL OF MATURED TD' : 'MATURED TD WITHDRAWAL'} />
           {quote?.problems.map((p) => <Alert key={p} severity="warning">{p}</Alert>)}
         </Box>

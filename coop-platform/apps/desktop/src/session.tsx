@@ -56,15 +56,15 @@ function LockScreen({ me, onUnlock }: { me: Me; onUnlock: () => void }) {
             boxShadow: '0 10px 30px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.35)',
           })}
         >{initials}</Box>
-        <Typography component="h1" sx={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>{nameCase(me.name)}</Typography>
-        <Typography sx={{ fontSize: 13, mt: 0.5, mb: 2.5 }} color="text.secondary">Locked after a while away. Nothing was lost.</Typography>
+        <Typography variant="h3" component="h1">{nameCase(me.name)}</Typography>
+        <Typography sx={{ mt: 0.5, mb: 2.5 }} color="text.secondary">Locked after a while away. Nothing was lost.</Typography>
         <TextField
           type="password" label="Password" size="small" value={password} onChange={(e) => setPassword(e.target.value)} fullWidth autoFocus autoComplete="current-password"
         />
         <Button type="submit" variant="contained" fullWidth disabled={busy || !password} sx={{ mt: 1.5 }}>
           {busy ? <CircularProgress size={18} color="inherit" /> : 'Unlock'}
         </Button>
-        {error && <Typography role="alert" sx={{ mt: 1.5, fontSize: 13 }} color="error">{error}</Typography>}
+        {error && <Typography role="alert" sx={{ mt: 1.5 }} color="error">{error}</Typography>}
         <Button color="inherit" onClick={() => signOut()} sx={{ mt: 3, fontSize: 13, fontWeight: 500, opacity: 0.7, textTransform: 'none', borderRadius: 999 }}>Sign out</Button>
       </Box>
     </Box>

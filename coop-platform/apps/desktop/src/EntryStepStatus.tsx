@@ -11,7 +11,7 @@ const WAITS = ['being sent for review by the person who made it', 'approval by s
  */
 export function EntryStepStatus({ status }: { status: string }) {
   const at = entryStep(status)
-  if (at == null) return <Typography component="span" sx={{ fontSize: 13, fontWeight: 600 }} color={status === 'CANCELLED' ? 'error.main' : 'text.secondary'}>{status === 'CANCELLED' ? 'Cancelled' : status}</Typography>
+  if (at == null) return <Typography variant="subtitle2" component="span" color={status === 'CANCELLED' ? 'error.main' : 'text.secondary'}>{status === 'CANCELLED' ? 'Cancelled' : status}</Typography>
   const posted = at >= ENTRY_STEPS.length
   const label = posted
     ? `Posted. All ${ENTRY_STEPS.length} steps done.`
@@ -21,7 +21,7 @@ export function EntryStepStatus({ status }: { status: string }) {
     <Tooltip title={<>{steps}{!posted && <><br />Waiting for {WAITS[at]}.</>}</>}>
       <Box role="img" aria-label={label} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, flex: 'none' }}>
         {ENTRY_STEPS.map((s, i) => <StepDot key={s} state={i < at ? 'done' : i === at ? 'current' : 'todo'} />)}
-        <Typography component="span" sx={{ fontSize: 13, fontWeight: 600, ml: 0.75, minWidth: 64, color: posted ? 'success.main' : undefined }}>
+        <Typography variant="subtitle2" component="span" sx={{ ml: 0.75, minWidth: 64, color: posted ? 'success.main' : undefined }}>
           {posted ? 'Posted' : ENTRY_STEPS[at]}
         </Typography>
       </Box>

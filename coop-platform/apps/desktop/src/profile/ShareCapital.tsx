@@ -3,7 +3,7 @@ import TransactionDialog, { txRowProps, type TxKey } from '../TransactionDialog'
 import { useState } from 'react'
 import { getShareHistory, getShares, postSharePayment, postShareWithdrawal, type ShareAccount, type SharePaymentReceipt, type ShareWithdrawalOut } from '../api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, FormControlLabel, Switch } from '@mui/material'
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Table, TableBody, TableCell, TableHead, TableRow, TextField, FormControlLabel, Switch } from '@mui/material'
 import { DetailPanel, EmptyState, TableCard } from './fields'
 import { FiInfo } from 'react-icons/fi'
 import { CoMakerNote } from './CoMakerNote'
@@ -12,6 +12,8 @@ import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from '../Cheque
 import MoneyField from '../MoneyField'
 import PrintInvoice from '../ServiceInvoice'
 import { useRequestKey } from '../ui/requestKey'
+import { notifyError } from '../ui/notices'
+import { Loading } from '../ui/Loading'
 import { Hinted } from '../appleUi'
 
 export function ShareCapitalTab({ id }: { id: Id; teller?: boolean }) {
@@ -19,7 +21,7 @@ export function ShareCapitalTab({ id }: { id: Id; teller?: boolean }) {
   const [showClosed, setShowClosed] = useState(false)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-shares', id], queryFn: () => getShares(id.branchCode, id.clientId), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
-  if (isLoading) return <Skeleton variant="rounded" height={160} />
+  if (isLoading) return <Loading what="the share capital" />
   if (!data || data.accounts.length === 0) return <EmptyState icon={<FiInfo />} title="No share capital" hint="This member has no share capital accounts." />
   const closedCount = data.accounts.filter((a) => a.status !== 15).length
   const shown = showClosed ? data.accounts : data.accounts.filter((a) => a.status === 15)
@@ -80,8 +82,10 @@ export function SharePaymentDialog({ id, account, initialAmount = '', initialExp
       qc.invalidateQueries({ queryKey: ['member-share-history'] })
     } catch (e) {
       const msg = (e as Error).message
-      setError(msg)
-      setAskConfirm(msg.includes('confirm it'))
+      // a possible duplicate asks here (Post anyway); any other refusal pops up
+      const duplicate = msg.includes('confirm it')
+      setAskConfirm(duplicate)
+      if (duplicate) setError(msg); else notifyError(msg)
     } finally {
       setBusy(false)
     }
@@ -137,18 +141,17 @@ export function ShareWithdrawalDialog({ id, account, initialAmount = '', initial
   const [amount, setAmount] = useState(initialAmount)
   const [explanation, setExplanation] = useState(initialExplanation)
   const [done, setDone] = useState<ShareWithdrawalOut | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const value = Number(amount)
   const valid = amount.trim() !== '' && Number.isFinite(value) && value > 0
 
   const submit = async () => {
-    setBusy(true); setError(null)
+    setBusy(true)
     try {
       setDone(await postShareWithdrawal({ clientId: id.clientId, typeCode: account.typeCode, refNo: account.refNo, amount: value, explanation }))
       qc.invalidateQueries({ queryKey: ['loan-releases'] })
     } catch (e) {
-      setError((e as Error).message)
+      notifyError(e)
     } finally {
       setBusy(false)
     }
@@ -173,7 +176,6 @@ export function ShareWithdrawalDialog({ id, account, initialAmount = '', initial
             <Box>It now waits for approval and posting on the Disburse tab.</Box>
           </Box>
         )}
-        {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       </DialogContent>
       <DialogActions>
         {done ? <Button onClick={onClose}>Close</Button> : (

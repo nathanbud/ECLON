@@ -10,7 +10,7 @@ import { StepDot } from './ui/StepDot'
  */
 export function LoanStepStatus({ application }: { application: Pick<LoanApplicationItem, 'status' | 'statusName' | 'waitingForDeductions' | 'releaseStatus' | 'releasedOn'> }) {
   const at = currentStep(application)
-  if (at == null) return <Typography sx={{ fontSize: 13 }} color="text.secondary">{application.statusName}</Typography>
+  if (at == null) return <Typography color="text.secondary">{application.statusName}</Typography>
   const released = at >= LOAN_STEPS.length
   const release = releaseWords(application)
   const label = released
@@ -21,7 +21,7 @@ export function LoanStepStatus({ application }: { application: Pick<LoanApplicat
     <Tooltip title={<>{steps}{release && <><br />{release}</>}</>}>
       <Box role="img" aria-label={label} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, flex: 'none' }}>
         {LOAN_STEPS.map((s, i) => <StepDot key={s} state={i < at ? 'done' : i === at ? 'current' : 'todo'} />)}
-        <Typography component="span" sx={{ fontSize: 13, fontWeight: 600, ml: 0.75, minWidth: 96, color: released ? 'success.main' : undefined }}>
+        <Typography variant="subtitle2" component="span" sx={{ ml: 0.75, minWidth: 96, color: released ? 'success.main' : undefined }}>
           {released ? 'Released' : LOAN_STEPS[at]}
         </Typography>
       </Box>

@@ -10,7 +10,7 @@ import { signOut } from './api'
 import { useInboxCount } from './nav/SideNav'
 import { BusinessDayChip } from './BusinessDayChip'
 import { useMe } from './session'
-import { tileFill } from './theme'
+import { tileFill, RADIUS } from './theme'
 import { ToolbarSlotTarget, useHasMenu } from './toolbarSlot'
 import { nameCase } from './ui/format'
 
@@ -18,7 +18,7 @@ import { nameCase } from './ui/format'
 const drag = { 'data-tauri-drag-region': '' }
 
 // Toolbar icons are flat and square-cornered, like a code editor's title bar.
-const flatIcon = { flexShrink: 0, borderRadius: '5px', p: 0.5, fontSize: 15, color: 'inherit', opacity: 0.8, '&:hover': { opacity: 1 }, '&.Mui-disabled': { opacity: 0.4, color: 'inherit' } } as const
+const flatIcon = { flexShrink: 0, borderRadius: `${RADIUS}px`, p: 0.5, fontSize: 15, color: 'inherit', opacity: 0.8, '&:hover': { opacity: 1 }, '&.Mui-disabled': { opacity: 0.4, color: 'inherit' } } as const
 
 const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
@@ -39,8 +39,8 @@ function Clock() {
     return () => clearInterval(t)
   }, [])
   return (
-    <Typography component="time" dateTime={now.toISOString()} {...drag}
-      sx={{ fontSize: 12, fontWeight: 400, opacity: 0.65, fontVariantNumeric: 'tabular-nums', mr: 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
+    <Typography variant="body2" component="time" dateTime={now.toISOString()} {...drag}
+      sx={{ fontWeight: 400, opacity: 0.65, fontVariantNumeric: 'tabular-nums', mr: 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
       <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>{now.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}{' · '}</Box>
       {now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
     </Typography>
@@ -74,8 +74,8 @@ export function WindowControls() {
   const glow = (t: Theme) => (t.palette.mode === 'dark' ? t.palette.primary.main : ink(t))
   const halo = (c: string, strong: boolean) => `drop-shadow(0 0 ${strong ? 3 : 2}px ${alpha(c, strong ? 0.95 : 0.6)}) drop-shadow(0 0 ${strong ? 8 : 5}px ${alpha(c, strong ? 0.7 : 0.35)})`
   const btn = (label: string, onClick: () => void, icon: React.ReactNode, danger = false) => (
-    <IconButton aria-label={label} title={label} onClick={onClick} disableRipple sx={(t) => ({
-      width: 30, minWidth: 30, p: 0, height: 26, borderRadius: '6px', color: ink(t), fontSize: 13, opacity: 0.9,
+    <Tooltip title={label}><IconButton aria-label={label} onClick={onClick} disableRipple sx={(t) => ({
+      width: 30, minWidth: 30, p: 0, height: 26, borderRadius: `${RADIUS}px`, color: ink(t), fontSize: 13, opacity: 0.9,
       transition: 'background-color 120ms ease, color 120ms ease, opacity 120ms ease, box-shadow 160ms ease',
       '& svg': { filter: halo(glow(t), false), transition: 'filter 160ms ease' },
       '&:hover svg, &.Mui-focusVisible svg': { filter: halo(danger ? t.palette.error.main : glow(t), true) },
@@ -85,7 +85,7 @@ export function WindowControls() {
       },
       '&:active': { bgcolor: danger ? t.palette.error.dark : alpha(ink(t), 0.26) },
       '&.Mui-focusVisible': { outline: `2px solid ${ink(t)}`, outlineOffset: -2 },
-    })}>{icon}</IconButton>
+    })}>{icon}</IconButton></Tooltip>
   )
   // The three sit on that panel at the right end of the bar. Its left edge is an S-shaped curve (drawn as an SVG in the same colour),
   // wider at the top and sweeping in to the bottom, so the panel meets the sign-out button with a bend instead of a hard line.
@@ -125,7 +125,7 @@ export default function TopBar({ title, onHome, onNavigate, onOpenClient, onMenu
         {/* The logo is the menu button: it opens and closes the menu of screens. */}
         <Tooltip title="Menu (M)">
           <IconButton aria-label={waiting ? `Menu, ${waiting} waiting for you` : 'Menu'} aria-haspopup="true" aria-expanded={menuOpen} aria-keyshortcuts="M" onClick={onMenu} size="small"
-            sx={(t) => ({ borderRadius: '5px', p: 0.5, mr: 0.25, bgcolor: menuOpen ? t.palette.action.selected : 'transparent', '&:hover': { bgcolor: t.palette.action.hover } })}>
+            sx={(t) => ({ borderRadius: `${RADIUS}px`, p: 0.5, mr: 0.25, bgcolor: menuOpen ? t.palette.action.selected : 'transparent', '&:hover': { bgcolor: t.palette.action.hover } })}>
             <Badge color="error" variant={waiting ? 'dot' : undefined} invisible={!waiting} overlap="circular" sx={{ '& .MuiBadge-badge': { right: -1, top: -1 } }}><Logo /></Badge>
           </IconButton>
         </Tooltip>
@@ -133,7 +133,7 @@ export default function TopBar({ title, onHome, onNavigate, onOpenClient, onMenu
           <>
             <Box aria-hidden sx={{ display: 'flex', color: 'text.disabled', fontSize: 13 }}><FiChevronRight /></Box>
             <Tooltip title="Home (H)"><IconButton aria-label="Home" aria-keyshortcuts="H" onClick={onHome} size="small" sx={flatIcon}><FiHome /></IconButton></Tooltip>
-            {!hasMenu && <Typography {...drag} noWrap sx={{ fontSize: 13, fontWeight: 400, color: 'inherit', opacity: 0.8 }}>{title}</Typography>}
+            {!hasMenu && <Typography {...drag} noWrap sx={{ fontWeight: 400, color: 'inherit', opacity: 0.8 }}>{title}</Typography>}
           </>
         )}
         <ToolbarSlotTarget />

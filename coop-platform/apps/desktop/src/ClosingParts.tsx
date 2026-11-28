@@ -1,5 +1,6 @@
 import {
   Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, MenuItem, Stack, Switch, TextField, Typography,
+  Tooltip,
 } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -10,6 +11,7 @@ import {
 import { ReasonDialog } from './appleUi'
 import { glass } from './glass'
 import { tint } from './theme'
+import { notifyError } from './ui/notices'
 import { BusyArea, LoadingBlock } from './ui/Loading'
 
 const STATUS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -34,6 +36,7 @@ export function Checklist({ branchCode, scope, period, canEdit }: { branchCode: 
   const [asking, setAsking] = useState<CloseItem | null>(null)
   const [note, setNote] = useState('')
   const tick = useMutation({
+    onError: notifyError,
     mutationFn: ({ item, done, note: n }: { item: string; done: boolean; note?: string }) => tickCloseItem(branchCode, scope, period, item, done, n),
     onSuccess: (r) => { qc.setQueryData(key, r); qc.invalidateQueries({ queryKey: ['close-status'] }); setAsking(null); setNote('') },
   })
@@ -52,12 +55,12 @@ export function Checklist({ branchCode, scope, period, canEdit }: { branchCode: 
                 <Box key={i.key} role="listitem" sx={(t) => ({ display: 'flex', gap: 1.25, alignItems: 'flex-start', px: 1.75, py: 1.25, borderTop: n === 0 ? 0 : `1px solid ${t.palette.divider}` })}>
                   <Box aria-hidden sx={{ color: s.color, fontSize: 16, mt: '2px' }}>{s.icon}</Box>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{i.label}</Typography>
-                    <Typography sx={{ fontSize: 12 }} color="text.secondary">{i.help}</Typography>
-                    {i.detail && <Typography sx={{ fontSize: 12, color: i.status === 'ATTENTION' ? tint.orange[0] : 'text.secondary' }}>{i.detail}</Typography>}
-                    {i.by && <Typography sx={{ fontSize: 12 }} color="text.secondary">{i.automatic ? 'Accepted' : 'Done'} by {i.by}, {fmtAt(i.at)}{i.note ? `: “${i.note}”` : ''}</Typography>}
+                    <Typography variant="subtitle2" component="p">{i.label}</Typography>
+                    <Typography variant="body2" color="text.secondary">{i.help}</Typography>
+                    {i.detail && <Typography variant="body2" sx={{ color: i.status === 'ATTENTION' ? tint.orange[0] : 'text.secondary' }}>{i.detail}</Typography>}
+                    {i.by && <Typography variant="body2" color="text.secondary">{i.automatic ? 'Accepted' : 'Done'} by {i.by}, {fmtAt(i.at)}{i.note ? `: “${i.note}”` : ''}</Typography>}
                   </Box>
-                  <Typography sx={{ fontSize: 12, color: s.color, whiteSpace: 'nowrap', mt: '2px' }}>{s.label}</Typography>
+                  <Typography variant="body2" sx={{ color: s.color, whiteSpace: 'nowrap', mt: '2px' }}>{s.label}</Typography>
                   {canEdit && !locked && (
                     pending
                       ? <Button size="small" onClick={() => { tick.reset(); setNote(''); setAsking(i) }}>{i.automatic ? 'Explain and accept' : 'Mark done'}</Button>
@@ -67,7 +70,7 @@ export function Checklist({ branchCode, scope, period, canEdit }: { branchCode: 
               )
             })}
           </Box>
-          <Typography sx={{ fontSize: 12, mt: 1 }} color={r.complete ? 'success.main' : 'text.secondary'} role="status">
+          <Typography variant="body2" sx={{ mt: 1 }} color={r.complete ? 'success.main' : 'text.secondary'} role="status">
             {r.complete ? 'Every item is done.' : `${r.open} item${r.open === 1 ? '' : 's'} still to do.`}
           </Typography>
         </BusyArea>
@@ -79,7 +82,6 @@ export function Checklist({ branchCode, scope, period, canEdit }: { branchCode: 
           <TextField autoFocus multiline minRows={2} label={asking?.automatic ? 'Why it can be accepted' : 'Note (optional)'} value={note} onChange={(e) => setNote(e.target.value)}
             required={asking?.automatic} slotProps={{ htmlInput: { maxLength: 500 } }}
             helperText={asking?.automatic ? 'At least 10 characters; kept with the close and in the audit log.' : undefined} />
-          {tick.error && <Alert severity="error">{(tick.error as Error).message}</Alert>}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAsking(null)} disabled={tick.isPending}>Cancel</Button>
@@ -109,6 +111,7 @@ export function MonthReview({ branchCode, canEdit }: { branchCode: number; canEd
   const [note, setNote] = useState('')
   const review = useQuery({ queryKey: ['close-review', branchCode, 'month', month], queryFn: () => getCloseReview(branchCode, 'month', month) })
   const sign = useMutation({
+    onError: notifyError,
     meta: { done: `${month} was signed off.` },
     mutationFn: () => signOffMonth(branchCode, month, note.trim() || undefined),
     onSuccess: (r: CloseReview) => {
@@ -123,20 +126,19 @@ export function MonthReview({ branchCode, canEdit }: { branchCode: number; canEd
         <TextField select size="small" label="Month" value={month} onChange={(e) => setMonth(e.target.value)} sx={{ width: 160 }}>
           {months.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
         </TextField>
-        <Typography sx={{ fontSize: 12, flex: 1, minWidth: 220 }} color="text.secondary">
+        <Typography variant="body2" sx={{ flex: 1, minWidth: 220 }} color="text.secondary">
           {r?.monthlyClose ? 'Monthly closing is required: signing a month off also closes its accounting period.' : 'Monthly closing is optional here: signing off records the review and leaves the month open.'}
         </Typography>
         {r?.signedBy
-          ? <Typography sx={{ fontSize: 13, color: tint.green[0] }}>Signed off by {r.signedBy}, {fmtAt(r.signedAt)}</Typography>
-          : canEdit && <Button variant="contained" disabled={!r?.complete || !r.ended} title={!r?.complete ? 'Finish every item first' : undefined} onClick={() => { sign.reset(); setSigning(true) }}>Sign off {month}</Button>}
+          ? <Typography sx={{ color: tint.green[0] }}>Signed off by {r.signedBy}, {fmtAt(r.signedAt)}</Typography>
+          : canEdit && <Tooltip title={!r?.complete ? 'Finish every item first' : ''}><span><Button variant="contained" disabled={!r?.complete || !r.ended} onClick={() => { sign.reset(); setSigning(true) }}>Sign off {month}</Button></span></Tooltip>}
       </Stack>
       <Checklist key={month} branchCode={branchCode} scope="month" period={month} canEdit={canEdit} />
       <Dialog open={signing} onClose={sign.isPending ? undefined : () => setSigning(false)} fullWidth maxWidth="xs">
         <DialogTitle>Sign off {month}</DialogTitle>
         <DialogContent sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
-          <Typography sx={{ fontSize: 13 }}>{r?.monthlyClose ? 'The month’s accounting period will be closed: nothing more can be posted into it.' : 'The review is recorded with your name; the month stays open.'}</Typography>
+          <Typography>{r?.monthlyClose ? 'The month’s accounting period will be closed: nothing more can be posted into it.' : 'The review is recorded with your name; the month stays open.'}</Typography>
           <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 500 } }} />
-          {sign.error && <Alert severity="error">{(sign.error as Error).message}</Alert>}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSigning(false)} disabled={sign.isPending}>Cancel</Button>
@@ -164,7 +166,7 @@ export function ClosingPolicy({ branchCode, admin }: { branchCode: number; admin
   const changed = draft != null && (draft.monthlyClose !== p.monthlyClose || Number(draft.yearEndDueDays) !== p.yearEndDueDays)
   return (
     <Box sx={(t) => ({ ...glass(t), p: 1.5, mb: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' })}>
-      <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Closing policy</Typography>
+      <Typography variant="subtitle2" component="p">Closing policy</Typography>
       <FormControlLabel disabled={!admin} control={<Switch checked={editing.monthlyClose} onChange={(e) => setDraft({ ...editing, monthlyClose: e.target.checked })} />}
         label="Monthly closing required" />
       <TextField size="small" type="number" label="Year-end close due (days after 31 December)" value={editing.yearEndDueDays} disabled={!admin}
@@ -209,8 +211,8 @@ export function YearChecklist({ branchCode, canEdit }: { branchCode: number; can
   const year = s.yearToClose ?? (s.lastClosedYear != null ? s.lastClosedYear + 1 : lastYear)
   return (
     <Box sx={{ mb: 2.5 }}>
-      <Typography sx={{ fontSize: 15, fontWeight: 700, mb: 0.5 }}>Year-end checklist {year}</Typography>
-      <Typography sx={{ fontSize: 12, mb: 1.25 }} color="text.secondary">
+      <Typography variant="h6" component="p" sx={{ mb: 0.5 }}>Year-end checklist {year}</Typography>
+      <Typography variant="body2" sx={{ mb: 1.25 }} color="text.secondary">
         The closing of {year} can be prepared and posted only once every item is done: the year-end adjustments made, and anything the books show wanting explained.
       </Typography>
       <Checklist branchCode={branchCode} scope="year" period={String(year)} canEdit={canEdit} />

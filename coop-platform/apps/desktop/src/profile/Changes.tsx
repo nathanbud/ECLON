@@ -3,9 +3,10 @@ import { type Id } from '../clients'
 import { approveChange, rejectChange, type Change, withdrawChange } from '../api'
 import { useMe } from '../session'
 import { useState } from 'react'
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { glass } from '../glass'
 import { FiCheckCircle, FiClock, FiEdit2, FiSave } from 'react-icons/fi'
+import { notifyError } from '../ui/notices'
 import { when } from './format'
 
 /** Re-reads everything a decision on a change can alter. */
@@ -22,20 +23,18 @@ export function PendingBanner({ change, id, canApprove, onDone }: { change: Chan
   const me = useMe()
   const mine = change.requestedBy.toLowerCase() === me.username.toLowerCase()
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState(false)
   const [note, setNote] = useState('')
 
   const run = async (action: () => Promise<unknown>, done: string) => {
     setBusy(true)
-    setError(null)
     try {
       await action()
       await refreshAfterDecision(qc, id)
       setRejecting(false)
       onDone(done)
     } catch (e) {
-      setError((e as Error).message)
+      notifyError((e as Error).message)
     } finally {
       setBusy(false)
     }
@@ -45,9 +44,9 @@ export function PendingBanner({ change, id, canApprove, onDone }: { change: Chan
     <Box sx={(t) => ({ mb: 1.5, p: 2, ...glass(t), borderColor: 'warning.main' })} role="region" aria-label="Change waiting for approval">
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
         <FiClock aria-hidden />
-        <Typography sx={{ fontWeight: 600, fontSize: 13 }}>Waiting for approval</Typography>
+        <Typography variant="subtitle2" component="p">Waiting for approval</Typography>
       </Box>
-      <Typography sx={{ fontSize: 13, mb: 1.25 }} color="text.secondary">
+      <Typography sx={{ mb: 1.25 }} color="text.secondary">
         {mine ? 'You' : change.requestedByName} asked for {change.items.length} change{change.items.length === 1 ? '' : 's'} on {when(change.requestedAt)}.
         {' '}{mine ? 'A Membership Officer who is not you has to approve it.' : canApprove ? '' : 'A Membership Officer has to approve it.'}
       </Typography>
@@ -63,7 +62,6 @@ export function PendingBanner({ change, id, canApprove, onDone }: { change: Chan
           ))}
         </TableBody>
       </Table>
-      {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
         {mine && <Button size="small" disabled={busy} onClick={() => run(() => withdrawChange(change.id), 'Change withdrawn')}>Withdraw</Button>}
         {canApprove && !mine && (
@@ -93,14 +91,14 @@ export function PendingBanner({ change, id, canApprove, onDone }: { change: Chan
 
 /** Shown while a profile is being edited: what is pending, and the way to save or leave. */
 /** `direct`: this person is a Membership Officer, so saving applies the changes at once (and logs them) instead of sending them for approval. */
-export function EditBar({ changes, saving, error, direct = false, onSave, onCancel }: {
-  changes: number; saving: boolean; error: string | null; direct?: boolean; onSave: () => void; onCancel: () => void
+export function EditBar({ changes, saving, direct = false, onSave, onCancel }: {
+  changes: number; saving: boolean; direct?: boolean; onSave: () => void; onCancel: () => void
 }) {
   return (
     <Box sx={{ mb: 1.5 }}>
       <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1, ...glass(t) })}>
         <FiEdit2 aria-hidden />
-        <Typography sx={{ flex: 1, fontSize: 13 }} role="status">
+        <Typography sx={{ flex: 1 }} role="status">
           Editing. {changes === 0 ? 'No changes yet.' : `${changes} change${changes === 1 ? '' : 's'} ready.`} {direct ? 'Saving applies them at once and records them in the audit log.' : 'Saving sends them to a Membership Officer for approval.'}
         </Typography>
         <Button size="small" onClick={onCancel} disabled={saving}>Cancel</Button>
@@ -108,7 +106,6 @@ export function EditBar({ changes, saving, error, direct = false, onSave, onCanc
           {direct ? (saving ? 'Saving…' : 'Save changes') : (saving ? 'Sending…' : 'Send for approval')}
         </Button>
       </Box>
-      {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
     </Box>
   )
 }

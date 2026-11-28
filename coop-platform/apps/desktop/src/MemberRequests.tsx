@@ -7,6 +7,7 @@ import { getMemberDefaults } from './api/memberDefaults'
 import { glass } from './glass'
 import { useMe } from './session'
 import { ReasonDialog, ConfirmButton } from './ui/dialogs'
+import { notifyError } from './ui/notices'
 import { Gated } from './ui/Gated'
 
 const when = (at: string) => new Date(at.replace(' ', 'T')).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
@@ -27,7 +28,8 @@ export function CloseDialog({ branchCode, clientId, name, onClose, onDone }: { b
   const [died, setDied] = useState('')
   const [note, setNote] = useState('')
   const [proofs, setProofs] = useState<File[]>([])
-  const [error, setError] = useState<string | null>(null)
+  // what was wrong with the files just picked: shown under the list, beside the files (a refused send pops up instead)
+  const [fileProblem, setFileProblem] = useState<string | null>(null)
   const maxMb = setup.data?.maxMegabytes ?? 10
   const extensions = setup.data?.extensions ?? []
 
@@ -45,7 +47,7 @@ export function CloseDialog({ branchCode, clientId, name, onClose, onDone }: { b
       else next.push(f)
     }
     setProofs(next)
-    setError(problems.length > 0 ? [...new Set(problems)].join(' ') : null)
+    setFileProblem(problems.length > 0 ? [...new Set(problems)].join(' ') : null)
   }
 
   const save = useMutation({
@@ -69,14 +71,13 @@ export function CloseDialog({ branchCode, clientId, name, onClose, onDone }: { b
       onDone(failed.length === 0 ? sent : `Closing sent for approval, but not attached: ${failed.join('; ')}. Attach them from the member's Documents tab.`)
       onClose()
     },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={save.isPending ? undefined : onClose} maxWidth="xs" fullWidth>
       <DialogTitle>Close membership of {name}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <TextField select size="small" label="Reason" value={reason} onChange={(e) => setReason(e.target.value)}>
             {Object.entries(REASONS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
           </TextField>
@@ -85,27 +86,28 @@ export function CloseDialog({ branchCode, clientId, name, onClose, onDone }: { b
           <Box>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <Button size="small" variant="outlined" startIcon={<FiPaperclip />} disabled={proofs.length >= MAX_PROOFS || save.isPending} onClick={() => input.current?.click()}>Attach proof</Button>
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">Optional. PDF, PNG, JPEG, Word, Excel, CSV or text, up to {maxMb} MB each, at most {MAX_PROOFS}.</Typography>
+              <Typography variant="body2" color="text.secondary">Optional. PDF, PNG, JPEG, Word, Excel, CSV or text, up to {maxMb} MB each, at most {MAX_PROOFS}.</Typography>
             </Stack>
             <input ref={input} type="file" hidden multiple aria-label="Proof documents" accept={extensions.map((e) => `.${e}`).join(',')} onChange={(e) => { add(e.target.files); e.target.value = '' }} />
             {proofs.length > 0 && (
               <Stack component="ul" spacing={0.5} sx={{ listStyle: 'none', p: 0, mt: 1, mb: 0 }} aria-label="Documents to attach">
                 {proofs.map((f) => (
                   <Box component="li" key={`${f.name}-${f.size}`} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography noWrap sx={{ fontSize: 13, flex: 1, minWidth: 0 }}>{f.name}</Typography>
-                    <Typography sx={{ fontSize: 12 }} color="text.secondary">{fileSize(f.size)}</Typography>
+                    <Typography noWrap sx={{ flex: 1, minWidth: 0 }}>{f.name}</Typography>
+                    <Typography variant="body2" color="text.secondary">{fileSize(f.size)}</Typography>
                     <Button size="small" color="inherit" aria-label={`Remove ${f.name}`} disabled={save.isPending} sx={{ minWidth: 0, p: 0.5 }} onClick={() => setProofs(proofs.filter((x) => x !== f))}><FiX /></Button>
                   </Box>
                 ))}
               </Stack>
             )}
+            {fileProblem && <Alert severity="error" sx={{ mt: 1 }}>{fileProblem}</Alert>}
           </Box>
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">The member is not deleted: the record stays, marked Closed. Share capital, savings and loans must be at zero first, and a Membership Officer other than you approves.</Typography>
+          <Typography variant="body2" color="text.secondary">The member is not deleted: the record stays, marked Closed. Share capital, savings and loans must be at zero first, and a Membership Officer other than you approves.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={save.isPending}>Cancel</Button>
-        <Button variant="contained" color="error" disabled={save.isPending} onClick={() => { setError(null); save.mutate() }}>{save.isPending ? 'Sending…' : 'Send for approval'}</Button>
+        <Button variant="contained" color="error" disabled={save.isPending} onClick={() => { save.mutate() }}>{save.isPending ? 'Sending…' : 'Send for approval'}</Button>
       </DialogActions>
     </Dialog>
   )
@@ -119,28 +121,26 @@ export function ReactivateDialog({ branchCode, clientId, name, onClose, onDone }
   // the member types this cooperative registers (Settings > Membership > Member defaults); the first one until another is chosen
   const clientType = picked ?? String(types.data?.types[0]?.code ?? '')
   const [note, setNote] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const save = useMutation({
     mutationFn: () => requestReactivation({ branchCode, clientId, clientType: Number(clientType), note }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['member-requests'] }); onDone('Reactivation sent for approval'); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>Reactivate {name}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <TextField select size="small" label="Membership" value={clientType} onChange={(e) => setClientType(e.target.value)}>
             {(types.data?.types ?? []).map((t) => <MenuItem key={t.code} value={String(t.code)}>{t.name}</MenuItem>)}
           </TextField>
           <TextField size="small" label="Reason" value={note} onChange={(e) => setNote(e.target.value)} />
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">The same member record comes back, with its history. A Membership Officer other than you approves; a member who left owing money (bad debts or offset) also needs an administrator. A deceased member cannot be reactivated. Check the cooperative's rule on paying share capital again before approving.</Typography>
+          <Typography variant="body2" color="text.secondary">The same member record comes back, with its history. A Membership Officer other than you approves; a member who left owing money (bad debts or offset) also needs an administrator. A deceased member cannot be reactivated. Check the cooperative's rule on paying share capital again before approving.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" disabled={save.isPending || !clientType || note.trim().length < 3} onClick={() => { setError(null); save.mutate() }}>Send for approval</Button>
+        <Button variant="contained" disabled={save.isPending || !clientType || note.trim().length < 3} onClick={() => { save.mutate() }}>Send for approval</Button>
       </DialogActions>
     </Dialog>
   )
@@ -152,24 +152,21 @@ function ImportBatches() {
   const qc = useQueryClient()
   const list = useQuery({ queryKey: ['member-imports', 'PENDING'], queryFn: () => listMemberImports('PENDING'), refetchInterval: 30_000 })
   const [rejecting, setRejecting] = useState<ImportBatch | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['member-imports'] }); void qc.invalidateQueries({ queryKey: ['member-requests'] }); void qc.invalidateQueries({ queryKey: ['members'] }) }
   const act = useMutation({
     mutationFn: ({ b, kind }: { b: ImportBatch; kind: 'approve' | 'withdraw' }) => (kind === 'approve' ? approveMemberImport(b.id) : withdrawMemberImport(b.id)),
     onSuccess: (b, v) => {
-      setError(null)
       if (v.kind === 'approve') setResult(`${b.fileName}: ${b.openedCount ?? 0} member${b.openedCount === 1 ? '' : 's'} opened${b.failedCount ? `, ${b.failedCount} could not be opened and are left as separate requests (${b.decisionNote ?? ''})` : ''}.`)
       refresh()
     },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   const items = list.data ?? []
   if (items.length === 0 && !result && !list.error) return null
   return (
     <Box sx={{ mt: 3 }}>
-      <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, mb: 0.5 }}>Member lists (Advanced mode)</Typography>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
+      <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>Member lists (Advanced mode)</Typography>
       {result && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setResult(null)}>{result}</Alert>}
       {items.length > 0 && (
         <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
@@ -216,20 +213,18 @@ export default function MemberRequestsPanel() {
   const policy = useQuery({ queryKey: ['membership-policy'], queryFn: getMembershipPolicy, staleTime: 60_000, retry: false })
   const ownRegistrations = !!policy.data?.officerRegistersDirectly && me.roles.some((x) => x.replace('ROLE_', '') === 'MEMBERSHIP_OFFICER')
   const [rejecting, setRejecting] = useState<MemberRequest | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['member-requests'] }) }
   const act = useMutation({ meta: { done: (_, v) => ((v as { kind: string }).kind === 'approve' ? 'Request approved.' : 'Request withdrawn.') },
     mutationFn: ({ r, kind }: { r: MemberRequest; kind: 'approve' | 'withdraw' }) => (kind === 'approve' ? approveMemberRequest(r.id) : withdrawMemberRequest(r.id)),
-    onSuccess: () => { setError(null); refresh() },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: () => { refresh() },
+    onError: (e) => notifyError((e as Error).message),
   })
   const items = list.data ?? []
   if (items.length === 0 && !list.error) return <ImportBatches />
   return (
     <>
     <Box sx={{ mt: 3 }}>
-      <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, mb: 0.5 }}>New members and closings</Typography>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
+      <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>New members and closings</Typography>
       <Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}>
         <Table size="small" aria-label="Member requests waiting for approval">
           <TableHead><TableRow><TableCell>Request</TableCell><TableCell>Asked by</TableCell><TableCell>When</TableCell><TableCell /></TableRow></TableHead>

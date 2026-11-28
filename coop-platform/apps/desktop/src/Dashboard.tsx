@@ -71,7 +71,7 @@ function Tile({ screen, color, onOpen, badge, large = false }: { screen: Screen;
 
 /** The label above an area. */
 function AreaLabel({ children }: { children: string }) {
-  return <Typography component="h2" color="text.secondary" sx={{ fontSize: 17, fontWeight: 400, lineHeight: 1.3, mb: 0.75, whiteSpace: 'nowrap' }}>{children}</Typography>
+  return <Typography variant="h5" component="h2" color="text.secondary" sx={{ fontWeight: 400, lineHeight: 1.3, mb: 0.75, whiteSpace: 'nowrap' }}>{children}</Typography>
 }
 
 const when = (at: string | null) => (at ? new Date(at.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '')
@@ -89,7 +89,7 @@ const ROW_GAP = 4
 function WaitingPanel({ children }: { children: ReactNode }) {
   return (
     <Box sx={(t) => ({ ...glass(t), borderRadius: tileRadius, height: TALL, px: 1.5, display: 'grid', alignItems: 'end', pb: 1 })}>
-      <Typography sx={{ fontSize: 13 }} color="text.secondary">{children}</Typography>
+      <Typography color="text.secondary">{children}</Typography>
     </Box>
   )
 }
@@ -106,7 +106,7 @@ function WaitingRow({ item, onOpen }: { item: InboxItem; onOpen: () => void }) {
         const c = t.palette.mode === 'dark' ? tint[fam.color][1] : tileFill[fam.color]
         return {
           position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center', width: '100%', height: '100%', minWidth: 0,
-          textAlign: 'left', pl: 1.5, pr: 1, borderRadius: '8px', overflow: 'hidden',
+          textAlign: 'left', pl: 1.5, pr: 1, borderRadius: `${SURFACE_RADIUS - 2}px`, overflow: 'hidden',
           bgcolor: alpha(c, t.palette.mode === 'dark' ? 0.2 : 0.1), border: 1, borderColor: alpha(c, 0.22),
           transition: `background-color 160ms ${EASE}, transform 160ms ${EASE}`,
           '&::before': { content: '""', position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, bgcolor: c },
@@ -117,10 +117,10 @@ function WaitingRow({ item, onOpen }: { item: InboxItem; onOpen: () => void }) {
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}>
-        <Typography component="span" sx={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, lineHeight: 1.25 }} noWrap>{item.label}</Typography>
-        {dated && <Typography component="span" color="text.secondary" sx={{ fontSize: 11, lineHeight: 1.25, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{dated}</Typography>}
+        <Typography variant="subtitle2" component="span" sx={{ flex: 1, minWidth: 0, lineHeight: 1.25 }} noWrap>{item.label}</Typography>
+        {dated && <Typography variant="caption" component="span" color="text.secondary" sx={{ lineHeight: 1.25, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{dated}</Typography>}
       </Box>
-      <Typography component="span" color="text.secondary" sx={{ fontSize: 12, lineHeight: 1.25 }} noWrap>
+      <Typography variant="body2" component="span" color="text.secondary" sx={{ lineHeight: 1.25 }} noWrap>
         <Box component="span" sx={(t) => ({ fontWeight: 600, color: t.palette.mode === 'dark' ? tint[fam.color][1] : tileFill[fam.color] })}>{fam.area}</Box>
         {' · '}{item.summary}
       </Typography>
@@ -148,7 +148,7 @@ function WaitingArea({ onOpen }: { onOpen: (v: View, tab?: string) => void }) {
       </Box>
       {loading && (
         <Box sx={rows} aria-label="Checking what is waiting">
-          {Array.from({ length: SHOWN }, (_, n) => <Skeleton key={n} variant="rounded" sx={{ height: '100%', borderRadius: '8px' }} />)}
+          {Array.from({ length: SHOWN }, (_, n) => <Skeleton key={n} variant="rounded" sx={{ height: '100%', borderRadius: `${SURFACE_RADIUS - 2}px` }} />)}
         </Box>
       )}
       {/* a failed check is said as such, never shown as an empty list */}
@@ -197,7 +197,7 @@ export default function Dashboard({ onOpen }: { onOpen: (v: View, tab?: string) 
             <Typography component="h1" sx={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.3, overflowWrap: 'anywhere' }}>
               Good {hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}, {nameCase(me.name)}
             </Typography>
-            <Typography color="text.secondary" sx={{ fontSize: 15, lineHeight: 1.35 }}>
+            <Typography variant="h6" component="p" color="text.secondary" sx={{ lineHeight: 1.35 }}>
               {waiting}
             </Typography>
           </Box>

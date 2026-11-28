@@ -3,7 +3,7 @@ import TransactionDialog, { txRowProps, type TxKey } from '../TransactionDialog'
 import { useEffect, useState } from 'react'
 import { askFoOverride, checkSavingsWithdrawal, getSavings, getSavingsHistory, postSavingsDeposit, postSavingsWithdrawal, type SavingsAccount, type SavingsReceipt, type SavingsWithdrawalCheck } from '../api'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, FormControlLabel, Switch } from '@mui/material'
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Table, TableBody, TableCell, TableHead, TableRow, TextField, FormControlLabel, Switch } from '@mui/material'
 import { DetailPanel, EmptyState, TableCard } from './fields'
 import { FiInfo } from 'react-icons/fi'
 import { CoMakerNote } from './CoMakerNote'
@@ -12,6 +12,8 @@ import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from '../Cheque
 import MoneyField from '../MoneyField'
 import PrintInvoice from '../ServiceInvoice'
 import { useRequestKey } from '../ui/requestKey'
+import { notifyError } from '../ui/notices'
+import { Loading } from '../ui/Loading'
 import { Hinted } from '../appleUi'
 
 export function SavingsTab({ id, teller = false }: { id: Id; teller?: boolean }) {
@@ -19,7 +21,7 @@ export function SavingsTab({ id, teller = false }: { id: Id; teller?: boolean })
   const [showClosed, setShowClosed] = useState(false)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-savings', id], queryFn: () => getSavings(id.branchCode, id.clientId), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
-  if (isLoading) return <Skeleton variant="rounded" height={160} />
+  if (isLoading) return <Loading what="the savings accounts" />
   if (!data || data.accounts.length === 0) return <EmptyState icon={<FiInfo />} title="No savings" hint="This member has no savings accounts." />
   const num = { fontVariantNumeric: 'tabular-nums' } as const
   const closedCount = data.accounts.filter((a) => a.status !== 15).length
@@ -113,7 +115,7 @@ export function SavingsCashDialog({ id, account, mode, initialAmount = '', initi
         if (n.status === 'NONE' || n.status === 'REJECTED') await askFoOverride({ draftId: null, kind: n.kind, description: n.description, amount: n.amount, limitAmount: n.limit })
       }
       setCheck(await checkSavingsWithdrawal(body))
-    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+    } catch (e) { notifyError(e) } finally { setBusy(false) }
   }
 
   const submit = async (confirmDuplicate: boolean) => {
@@ -125,8 +127,10 @@ export function SavingsCashDialog({ id, account, mode, initialAmount = '', initi
       qc.invalidateQueries({ queryKey: ['member-savings-history'] })
     } catch (e) {
       const msg = (e as Error).message
-      setError(msg)
-      setAskConfirm(msg.includes('confirm it'))
+      // a possible duplicate asks here (Post anyway); any other refusal pops up
+      const duplicate = msg.includes('confirm it')
+      setAskConfirm(duplicate)
+      if (duplicate) setError(msg); else notifyError(msg)
     } finally { setBusy(false) }
   }
 

@@ -1,5 +1,5 @@
 import {
-  Alert, Box, Button, Chip, Collapse, IconButton, InputAdornment, MenuItem, Skeleton, Table, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField, Typography,
+  Alert, Box, Button, Chip, Collapse, IconButton, InputAdornment, MenuItem, Table, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField, Typography,
 } from '@mui/material'
 import { DatabaseChangeNotice } from './DatabaseChangeNotice'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -9,7 +9,8 @@ import { getAuditFacets, getAuditIntegrity, getAuditLog, sealAuditLog, verifyAud
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
 import { ScreenTitle } from './appleUi'
-import { BusyArea } from './ui/Loading'
+import { notifyError } from './ui/notices'
+import { BusyArea, Loading } from './ui/Loading'
 
 const SIZE = 50
 /** The date, and the time to the millisecond: 13 Nov 2026 · 05:16:17.874. Read from the text itself, so no time zone shifts it. */
@@ -31,7 +32,7 @@ function changedFields(e: AuditEntry) {
 
 /** What changed, field by field: the field, its value before and its value after. */
 function Changes({ changes }: { changes: AuditChange[] }) {
-  const empty = <Typography component="span" color="text.disabled" sx={{ fontSize: 12, fontStyle: 'italic' }}>none</Typography>
+  const empty = <Typography variant="body2" component="span" color="text.disabled" sx={{ fontStyle: 'italic' }}>none</Typography>
   return (
     <Table size="small" aria-label="What changed" sx={(t) => ({ '& td, & th': { py: 0.5, verticalAlign: 'top' }, '& th': { color: t.palette.text.secondary, fontWeight: 600 } })}>
       <TableHead><TableRow><TableCell sx={{ width: '24%' }}>Field</TableCell><TableCell sx={{ width: '38%' }}>Before</TableCell><TableCell>After</TableCell></TableRow></TableHead>
@@ -60,21 +61,20 @@ function Integrity() {
   const qc = useQueryClient()
   const status = useQuery({ queryKey: ['audit-integrity'], queryFn: getAuditIntegrity, staleTime: 30_000 })
   const [result, setResult] = useState<AuditVerification | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const verify = useMutation({ mutationFn: verifyAuditLog, onSuccess: (r) => { setError(null); setResult(r) }, onError: (e) => setError((e as Error).message) })
-  const seal = useMutation({ mutationFn: sealAuditLog, onSuccess: (s) => { setError(null); qc.setQueryData(['audit-integrity'], s); setResult(null) }, onError: (e) => setError((e as Error).message) })
+  const verify = useMutation({ mutationFn: verifyAuditLog, onSuccess: (r) => { setResult(r) }, onError: (e) => notifyError((e as Error).message) })
+  const seal = useMutation({ mutationFn: sealAuditLog, onSuccess: (s) => { qc.setQueryData(['audit-integrity'], s); setResult(null) }, onError: (e) => notifyError((e as Error).message) })
   const s = status.data
   if (!s) return null
   const when = s.lastSealedAt ? new Date(s.lastSealedAt.replace(' ', 'T')).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : null
   return (
     <Box sx={(t) => ({ p: 1.5, mb: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', ...glass(t) })}>
       <Box sx={{ flex: 1, minWidth: 260 }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+        <Typography variant="subtitle2" component="p">
           {!s.installed ? 'Tamper protection is not set up on this database yet.' : s.seals === 0 ? 'The audit log has not been sealed yet.' : `Sealed through entry #${s.lastSealedId}${when ? `, ${when}` : ''}.`}
         </Typography>
         {!s.installed && <DatabaseChangeNotice>Entries are kept, but cannot be sealed against changes until it is.</DatabaseChangeNotice>}
         {s.installed && (
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">
+          <Typography variant="body2" color="text.secondary">
             {s.unsealedRows} newer entr{s.unsealedRows === 1 ? 'y is' : 'ies are'} not sealed yet. {s.nightly ? 'The log is sealed every night.' : 'The nightly seal is switched off.'} Each seal is chained to the one before, so a changed or removed entry can be found.
           </Typography>
         )}
@@ -85,7 +85,6 @@ function Integrity() {
           <Button size="small" disabled={seal.isPending || s.unsealedRows === 0} onClick={() => seal.mutate()}>Seal now</Button>
         </>
       )}
-      {error && <Alert severity="error" sx={{ width: '100%' }}>{error}</Alert>}
       {result && (result.ok
         ? <Alert severity="success" sx={{ width: '100%' }}>All {result.sealsChecked} seal{result.sealsChecked === 1 ? '' : 's'} match: {result.rowsChecked.toLocaleString()} sealed entries are exactly as they were when sealed.</Alert>
         : <Alert severity="error" sx={{ width: '100%' }}>
@@ -147,7 +146,7 @@ export default function AuditLogPage() {
                   <TableRow><TableCell width={36} /><TableCell>When</TableCell><TableCell>Person</TableCell><TableCell>Action</TableCell><TableCell>Record</TableCell><TableCell>What changed</TableCell><TableCell>Where</TableCell><TableCell>Reason</TableCell></TableRow>
                 </TableHead>
                 <TableBody>
-                  {isLoading && Array.from({ length: 8 }, (_, i) => <TableRow key={i}><TableCell colSpan={8}><Skeleton /></TableCell></TableRow>)}
+                  {isLoading && <TableRow><TableCell colSpan={8} sx={{ borderBottom: 0 }}><Loading what="the audit log" /></TableCell></TableRow>}
                   {data?.content.map((e) => (
                     <Fragment key={e.id}>
                       <TableRow hover onClick={() => setOpen(open === e.id ? null : e.id)} sx={{ cursor: 'pointer', '& > td': { borderBottom: open === e.id ? 0 : undefined } }}>
@@ -167,11 +166,11 @@ export default function AuditLogPage() {
                           <Collapse in={open === e.id} unmountOnExit>
                             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, py: 1.25 }}>
                               <Box sx={{ gridColumn: '1 / -1' }}>
-                                <Typography sx={{ fontSize: 12 }} color="text.secondary">When, to the millisecond</Typography>
-                                <Typography sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{when(e.at)}</Typography>
+                                <Typography variant="body2" color="text.secondary">When, to the millisecond</Typography>
+                                <Typography sx={{ fontVariantNumeric: 'tabular-nums' }}>{when(e.at)}</Typography>
                               </Box>
                               <Box sx={{ gridColumn: '1 / -1' }}>
-                                {e.changes.length > 0 ? <Changes changes={e.changes} /> : <Typography sx={{ fontSize: 13 }} color="text.secondary">No values were recorded for this entry.</Typography>}
+                                {e.changes.length > 0 ? <Changes changes={e.changes} /> : <Typography color="text.secondary">No values were recorded for this entry.</Typography>}
                               </Box>
                               {(e.previous || e.current) && (
                                 <Box component="details" sx={{ gridColumn: '1 / -1', '& summary': { cursor: 'pointer', fontSize: 12, color: 'text.secondary' } }}>
@@ -179,15 +178,15 @@ export default function AuditLogPage() {
                                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 1 }}>
                                     {([['Before', e.previous], ['After', e.current]] as const).map(([label, v]) => (
                                       <Box key={label}>
-                                        <Typography sx={{ fontSize: 12 }} color="text.secondary">{label}</Typography>
+                                        <Typography variant="body2" color="text.secondary">{label}</Typography>
                                         <Box component="pre" sx={{ m: 0, fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'ui-monospace, Consolas, monospace' }}>{pretty(v)}</Box>
                                       </Box>
                                     ))}
                                   </Box>
                                 </Box>
                               )}
-                              {e.clientInfo && <Box sx={{ gridColumn: '1 / -1' }}><Typography sx={{ fontSize: 12 }} color="text.secondary">Device</Typography><Typography sx={{ fontSize: 13 }}>{e.clientInfo}</Typography></Box>}
-                              {e.reason && <Box sx={{ gridColumn: '1 / -1' }}><Typography sx={{ fontSize: 12 }} color="text.secondary">Reason</Typography><Typography sx={{ fontSize: 13 }}>{e.reason}</Typography></Box>}
+                              {e.clientInfo && <Box sx={{ gridColumn: '1 / -1' }}><Typography variant="body2" color="text.secondary">Device</Typography><Typography>{e.clientInfo}</Typography></Box>}
+                              {e.reason && <Box sx={{ gridColumn: '1 / -1' }}><Typography variant="body2" color="text.secondary">Reason</Typography><Typography>{e.reason}</Typography></Box>}
                             </Box>
                           </Collapse>
                         </TableCell>

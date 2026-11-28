@@ -1,9 +1,11 @@
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, Typography } from '@mui/material'
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useState, type KeyboardEvent } from 'react'
 import { getTransaction } from './api'
 import { type Id } from './clients'
 import { money } from './ui/format'
+import { Loading } from './ui/Loading'
+import { RADIUS } from './theme'
 import { fmtDate } from './profile/format'
 
 /** Which transaction a ledger row came from: the year of its date, the transaction code and the control number. */
@@ -37,8 +39,8 @@ const num = { fontVariantNumeric: 'tabular-nums' } as const
 function Fact({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <Box sx={{ display: 'flex', gap: 1, minWidth: 0, py: 0.25 }}>
-      <Typography component="span" color="text.secondary" sx={{ fontSize: 13, width: 96, flexShrink: 0 }}>{label}</Typography>
-      <Typography component="span" sx={{ fontSize: 13, minWidth: 0, overflowWrap: 'anywhere' }}>{value || '—'}</Typography>
+      <Typography component="span" color="text.secondary" sx={{ width: 96, flexShrink: 0 }}>{label}</Typography>
+      <Typography component="span" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>{value || '—'}</Typography>
     </Box>
   )
 }
@@ -55,13 +57,13 @@ export default function TransactionDialog({ id, tx, onClose }: { id: Id; tx: TxK
     <Dialog open onClose={onClose} maxWidth="lg" fullWidth aria-labelledby="tx-title">
       <DialogTitle id="tx-title" sx={{ display: 'flex', alignItems: 'baseline', gap: 2, flexWrap: 'wrap' }}>
         <Box component="span" sx={{ flex: 1, minWidth: 0, fontSize: 17 }}>
-          Transaction{h?.clientNo ? ` : ${h.clientNo}` : ''}{h?.client ? ` - ${h.client}` : ''} <Typography component="span" color="text.secondary" sx={{ fontSize: 13 }}>Control no. {String(tx.ctlNo).padStart(8, '0')}</Typography>
+          Transaction{h?.clientNo ? ` : ${h.clientNo}` : ''}{h?.client ? ` - ${h.client}` : ''} <Typography component="span" color="text.secondary">Control no. {String(tx.ctlNo).padStart(8, '0')}</Typography>
         </Box>
         {h && <Box component="span" sx={{ fontSize: 22, fontWeight: 700, letterSpacing: '0.04em', color: h.status === 'APPROVED' ? 'success.main' : 'warning.main' }}>{h.status}</Box>}
       </DialogTitle>
       <DialogContent>
         {error && <Alert severity="error">{(error as Error).message}</Alert>}
-        {isLoading && <Skeleton variant="rounded" height={260} />}
+        {isLoading && <Loading what="the transaction" />}
         {data && h && (
           <>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '3fr 2fr' }, gap: 2, mb: 1.5 }}>
@@ -106,7 +108,7 @@ export default function TransactionDialog({ id, tx, onClose }: { id: Id; tx: TxK
               )}
               {tab === 1 && (
                 data.cheques.length === 0
-                  ? <Typography color="text.secondary" sx={{ p: 2, fontSize: 13 }}>No cheques came with this transaction.</Typography>
+                  ? <Typography color="text.secondary" sx={{ p: 2 }}>No cheques came with this transaction.</Typography>
                   : (
                     <Table size="small" stickyHeader aria-label="Cheques">
                       <TableHead>
@@ -133,8 +135,8 @@ export default function TransactionDialog({ id, tx, onClose }: { id: Id; tx: TxK
             </Box>
 
             <Fact label="Source reference" value={h.sourceReference} />
-            <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mt: 1, mb: 0.25 }} color="text.secondary">Description</Typography>
-            <Typography sx={{ fontSize: 13, whiteSpace: 'pre-wrap', minHeight: 40, p: 1, border: 1, borderColor: 'divider', borderRadius: '5px' }}>{h.explanation ?? ''}</Typography>
+            <Typography variant="overline" sx={{ display: 'block', mt: 1, mb: 0.25 }} color="text.secondary">Description</Typography>
+            <Typography sx={{ whiteSpace: 'pre-wrap', minHeight: 40, p: 1, border: 1, borderColor: 'divider', borderRadius: `${RADIUS}px` }}>{h.explanation ?? ''}</Typography>
           </>
         )}
       </DialogContent>

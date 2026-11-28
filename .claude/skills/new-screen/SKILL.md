@@ -36,7 +36,8 @@ sizes). Paths below are under `coop-platform/apps/desktop/src` unless they say o
 | A list loading or failing | `LoadingRow` as the first row of the table body (`LoadingBlock` outside a table) | a Skeleton, a blank area, a separate error box |
 | A list reloading with old figures on screen | `BusyArea busy=...`, `placeholderData: keepPreviousData` | nothing (people act on figures about to change) |
 | An action that worked | `meta: { done: '...' }` on the mutation, or `notify(text)` (`ui/notices.tsx`) | a Snackbar of the screen's own |
-| An action refused | `notifyError(e)` (centred glass card over dialogs) or `onError: notifyError` | an `Alert` in the page or dialog that pushes content down |
+| An action refused | `notifyError(e)` (centred glass card over dialogs) or `onError: notifyError`; an audited change with a reason uses `ReasonDialog` (`appleUi.tsx`), which pops its `error` up itself | an `Alert` in the page or dialog that pushes content down |
+| A check that runs while typing, "may be a duplicate, confirm it", a count that asks for a reason | shown in the dialog, next to what the person does about it (the teller dialogs, `DrawerOpen`, `DraftPostDialog` do this) | a pop-up (it would repeat every few seconds or hide the question) |
 | A field's own problem | the field's `error` + `helperText`, shown once the person leaves it | a pop-up |
 | A failed request's words | `errorFrom` / `friendlyError` (`api/http.ts`) | building `Request failed (status)` |
 | Posting to the ledger or anything that cannot be undone | `ConfirmButton` (`ui/dialogs.tsx`), saying what happens (amount, who, date) and that it cannot be edited; one request key per action (`useRequestKey`, `ui/requestKey.ts`) | a plain button |

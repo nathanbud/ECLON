@@ -8,6 +8,7 @@ import { useMe } from './session'
 import { AboutNote, listTable, PageTitle, SectionLabel, Surface } from './appleUi'
 import { appBackground } from './glass'
 import { ConfirmButton, ReasonDialog } from './ui/dialogs'
+import { notifyError } from './ui/notices'
 import { LoadingBlock, LoadingRow } from './ui/Loading'
 
 /** At least this many letters for a reason (closing a day that failed a check, reopening one); the server checks the same. */
@@ -28,10 +29,10 @@ function CheckRow({ c }: { c: DayCheck }) {
       sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start', py: 1, px: 1.5, borderTop: 1, borderColor: 'divider', '&:first-of-type': { borderTop: 0 } }}>
       <Box component="span" aria-hidden sx={{ color, fontSize: 17, mt: '1px', flex: 'none' }}>{icon}</Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-          {c.label}{!c.ok && !c.mustPass && <Typography component="span" sx={{ fontSize: 12, fontWeight: 400, ml: 1 }} color="text.secondary">to review</Typography>}
+        <Typography variant="subtitle2" component="p">
+          {c.label}{!c.ok && !c.mustPass && <Typography variant="body2" component="span" sx={{ fontWeight: 400, ml: 1 }} color="text.secondary">to review</Typography>}
         </Typography>
-        {c.detail && <Typography sx={{ fontSize: 12 }} color="text.secondary">{c.detail}</Typography>}
+        {c.detail && <Typography variant="body2" color="text.secondary">{c.detail}</Typography>}
       </Box>
     </Box>
   )
@@ -43,6 +44,7 @@ function StartPanel({ s }: { s: BusinessDayState }) {
   const [confirmed, setConfirmed] = useState(false)
   const check = useQuery({ queryKey: ['business-day-start-check', date], queryFn: () => checkStartDay(date), enabled: !!date, retry: false })
   const start = useMutation({
+    onError: notifyError,
     meta: { done: (r: unknown) => `Business day ${(r as BusinessDayState).open?.words ?? ''} started. Postings now carry this date.` },
     mutationFn: () => startDay(date, confirmed),
     onSuccess: (r) => { qc.setQueryData(['business-day'], r); void qc.invalidateQueries({ queryKey: ['business-day-status'] }) },
@@ -53,7 +55,7 @@ function StartPanel({ s }: { s: BusinessDayState }) {
   const min = s.lastClosed ? plusDays(s.lastClosed.date, 1) : undefined
   return (
     <Box sx={{ p: 2 }}>
-      <Typography sx={{ fontSize: 13, mb: 1.5 }}>
+      <Typography sx={{ mb: 1.5 }}>
         Opening a day lets the branch post again. Everything posted until End Day carries the date you open, even after midnight.
       </Typography>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' }, mb: 1.5 }}>
@@ -72,10 +74,9 @@ function StartPanel({ s }: { s: BusinessDayState }) {
         <Alert severity="warning" sx={{ mb: 1 }}>
           <Box component="ul" sx={{ m: 0, pl: 2 }}>{warnings.map((w) => <li key={w}>{w}</li>)}</Box>
           <FormControlLabel sx={{ mt: 0.5 }} control={<Checkbox size="small" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />}
-            label={<Typography sx={{ fontSize: 13 }}>I have checked this; open the day anyway.</Typography>} />
+            label={<Typography>I have checked this; open the day anyway.</Typography>} />
         </Alert>
       )}
-      {start.error && <Alert severity="error">{(start.error as Error).message}</Alert>}
     </Box>
   )
 }
@@ -85,6 +86,7 @@ function EndPanel({ s }: { s: BusinessDayState }) {
   const [reason, setReason] = useState('')
   const failing = s.checks.filter((c) => c.mustPass && !c.ok)
   const end = useMutation({
+    onError: notifyError,
     meta: { done: () => `Business day ${s.open?.words ?? ''} ended. Nothing more can be posted until the next day is started.` },
     mutationFn: () => endDay(failing.length > 0 ? reason.trim() : null),
     onSuccess: (r) => { qc.setQueryData(['business-day'], r); setReason(''); void qc.invalidateQueries({ queryKey: ['business-day-status'] }) },
@@ -109,7 +111,6 @@ function EndPanel({ s }: { s: BusinessDayState }) {
         onConfirm={() => end.mutate()}>
         {end.isPending ? 'Running the jobs and ending…' : 'End Day'}
       </ConfirmButton>
-      {end.error && <Alert severity="error" sx={{ mt: 1.5 }}>{(end.error as Error).message}</Alert>}
     </Box>
   )
 }
@@ -123,6 +124,7 @@ function JobsPanel({ s }: { s: BusinessDayState }) {
   const qc = useQueryClient()
   const q = useQuery({ queryKey: ['business-day-jobs', s.open?.date], queryFn: () => getDayJobs(s.open?.date), retry: false })
   const run = useMutation({
+    onError: notifyError,
     meta: { done: (r: unknown) => ((r as DayJobs).status === 'FAILED' ? 'The end-of-day jobs ran; a step failed and is tried again on the next run.' : 'The end-of-day jobs ran.') },
     mutationFn: runDayJobs,
     onSuccess: (r) => { qc.setQueryData(['business-day-jobs', s.open?.date], r); void qc.invalidateQueries({ queryKey: ['business-day'] }) },
@@ -142,13 +144,13 @@ function JobsPanel({ s }: { s: BusinessDayState }) {
                 {done ? <FiCheckCircle /> : failed ? <FiXCircle /> : <FiInfo />}
               </Box>
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                <Typography variant="subtitle2" component="p">
                   {st.label}
-                  <Typography component="span" sx={{ fontSize: 12, fontWeight: 400, ml: 1 }} color="text.secondary">
+                  <Typography variant="body2" component="span" sx={{ fontWeight: 400, ml: 1 }} color="text.secondary">
                     {done ? `done ${st.finishedAt ?? ''}` : failed ? `failed (${st.attempts} ${st.attempts === 1 ? 'try' : 'tries'})` : 'not run yet'}
                   </Typography>
                 </Typography>
-                {(st.error ?? st.result) && <Typography sx={{ fontSize: 12 }} color={failed ? 'error' : 'text.secondary'}>{st.error ?? st.result}</Typography>}
+                {(st.error ?? st.result) && <Typography variant="body2" color={failed ? 'error' : 'text.secondary'}>{st.error ?? st.result}</Typography>}
               </Box>
             </Box>
           )
@@ -158,7 +160,6 @@ function JobsPanel({ s }: { s: BusinessDayState }) {
         {s.mayEnd && <Button size="small" variant="outlined" disabled={run.isPending} onClick={() => run.mutate()}>{run.isPending ? 'Running… (this can take a minute)' : 'Run the jobs now'}</Button>}
         <AboutNote>End Day runs them by itself before it closes the day. Nothing is posted by them except the interest runs that fall due, which wait for approval.</AboutNote>
       </Box>
-      {run.error && <Alert severity="error" sx={{ mx: 2, mb: 1.5 }}>{(run.error as Error).message}</Alert>}
     </Box>
   )
 }
@@ -175,14 +176,14 @@ function DrawerRule() {
   return (
     <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
       <Box sx={{ flex: 1, minWidth: 240 }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Open the drawer before cash</Typography>
-        <Typography sx={{ fontSize: 12 }} color="text.secondary">
+        <Typography variant="subtitle2" component="p">Open the drawer before cash</Typography>
+        <Typography variant="body2" color="text.secondary">
           {policyOn === false ? 'Off: tellers may take and pay out cash without counting their drawer first.'
             : 'On: each teller and cashier counts their drawer once at the start of the business day (Cash Handover > Open my drawer) before any cash crosses the window.'}
         </Typography>
       </Box>
       {admin && policyOn !== undefined && (
-        <FormControlLabel control={<Switch checked={policyOn} onChange={(e) => setAsking(e.target.checked)} />} label={<Typography sx={{ fontSize: 13 }}>{policyOn ? 'On' : 'Off'}</Typography>} />
+        <FormControlLabel control={<Switch checked={policyOn} onChange={(e) => setAsking(e.target.checked)} />} label={<Typography>{policyOn ? 'On' : 'Off'}</Typography>} />
       )}
       {asking !== null && (
         <ReasonDialog title={asking ? 'Require opening the drawer' : 'Stop requiring the drawer count'} label="Why (kept in the audit log)" onClose={() => setAsking(null)}
@@ -222,8 +223,8 @@ export default function BusinessDayPage() {
               <Surface label="Business day status">
                 <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
                   <Box sx={{ flex: 1, minWidth: 220 }}>
-                    <Typography sx={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>{s.open ? s.open.words : 'No business day is open'}</Typography>
-                    <Typography sx={{ fontSize: 13 }} color="text.secondary">
+                    <Typography variant="h3" component="p">{s.open ? s.open.words : 'No business day is open'}</Typography>
+                    <Typography color="text.secondary">
                       {s.open ? `Started by ${s.open.openedBy} at ${s.open.openedAt}.`
                         : s.lastClosed ? `The last day, ${s.lastClosed.words}, was ended by ${s.lastClosed.closedBy} at ${s.lastClosed.closedAt}.` : 'No business day has been started yet.'}
                     </Typography>
@@ -244,7 +245,7 @@ export default function BusinessDayPage() {
                 <SectionLabel>Start Day</SectionLabel>
                 <Surface label="Start Day">
                   {s.mayStart ? <StartPanel key={s.suggested ?? ''} s={s} />
-                    : <Typography sx={{ p: 2, fontSize: 13 }} color="text.secondary">Your account does not have the Start Day right. An administrator gives it in Settings &gt; Users, tab Transactions, Business day.</Typography>}
+                    : <Typography sx={{ p: 2 }} color="text.secondary">Your account does not have the Start Day right. An administrator gives it in Settings &gt; Users, tab Transactions, Business day.</Typography>}
                 </Surface>
               </Box>
             )}
@@ -268,7 +269,7 @@ export default function BusinessDayPage() {
                   <SectionLabel>End Day</SectionLabel>
                   <Surface label="End Day">
                     {s.mayEnd ? <EndPanel s={s} />
-                      : <Typography sx={{ p: 2, fontSize: 13 }} color="text.secondary">Your account does not have the End Day right. An administrator gives it in Settings &gt; Users, tab Transactions, Business day.</Typography>}
+                      : <Typography sx={{ p: 2 }} color="text.secondary">Your account does not have the End Day right. An administrator gives it in Settings &gt; Users, tab Transactions, Business day.</Typography>}
                   </Surface>
                 </Box>
               </Box>
@@ -286,16 +287,16 @@ export default function BusinessDayPage() {
                   <TableHead><TableRow><TableCell>Business day</TableCell><TableCell>Started</TableCell><TableCell>Ended</TableCell><TableCell>Note</TableCell></TableRow></TableHead>
                   <TableBody>
                     <LoadingRow q={q} what="the days" />
-                    {s.recent.length === 0 && <TableRow><TableCell colSpan={4}><Typography sx={{ fontSize: 13 }} color="text.secondary">No business day yet.</Typography></TableCell></TableRow>}
+                    {s.recent.length === 0 && <TableRow><TableCell colSpan={4}><Typography color="text.secondary">No business day yet.</Typography></TableCell></TableRow>}
                     {s.recent.map((d) => (
                       <TableRow key={d.date}>
                         <TableCell>{d.words}</TableCell>
-                        <TableCell>{d.openedBy}<Typography sx={{ fontSize: 12 }} color="text.secondary">{d.openedAt}</Typography></TableCell>
-                        <TableCell>{d.status === 'OPEN' ? <Chip size="small" color="success" variant="outlined" label="Open" /> : <>{d.closedBy}<Typography sx={{ fontSize: 12 }} color="text.secondary">{d.closedAt}</Typography></>}</TableCell>
+                        <TableCell>{d.openedBy}<Typography variant="body2" color="text.secondary">{d.openedAt}</Typography></TableCell>
+                        <TableCell>{d.status === 'OPEN' ? <Chip size="small" color="success" variant="outlined" label="Open" /> : <>{d.closedBy}<Typography variant="body2" color="text.secondary">{d.closedAt}</Typography></>}</TableCell>
                         <TableCell sx={{ maxWidth: 320 }}>
                           {d.overrideReason
-                            ? <><Typography sx={{ fontSize: 13, color: 'warning.main', fontWeight: 600 }}>Ended with checks failing</Typography><Typography sx={{ fontSize: 12 }}>{d.overrideReason}</Typography><Typography sx={{ fontSize: 12 }} color="text.secondary">{d.failedChecks}</Typography></>
-                            : d.status === 'CLOSED' ? <Typography sx={{ fontSize: 12 }} color="text.secondary">All checks passed</Typography> : null}
+                            ? <><Typography variant="subtitle2" component="p" sx={{ color: 'warning.main' }}>Ended with checks failing</Typography><Typography variant="body2">{d.overrideReason}</Typography><Typography variant="body2" color="text.secondary">{d.failedChecks}</Typography></>
+                            : d.status === 'CLOSED' ? <Typography variant="body2" color="text.secondary">All checks passed</Typography> : null}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -304,7 +305,7 @@ export default function BusinessDayPage() {
               </Surface>
               <Stack direction="row" spacing={1.5} sx={{ mt: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
                 {s.mayReopen && <Button color="warning" onClick={() => setReopening(true)}>Reopen {s.lastClosed?.words}</Button>}
-                {s.legacyDate && <Typography sx={{ fontSize: 12 }} color="text.secondary">The old system's own business date was {s.legacyDate}; it is not changed from here.</Typography>}
+                {s.legacyDate && <Typography variant="body2" color="text.secondary">The old system's own business date was {s.legacyDate}; it is not changed from here.</Typography>}
               </Stack>
             </Box>
           </Stack>

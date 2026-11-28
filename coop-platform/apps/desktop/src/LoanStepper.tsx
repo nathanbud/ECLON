@@ -1,5 +1,6 @@
 import { Box, ButtonBase, Typography } from '@mui/material'
 import { FiCheck } from 'react-icons/fi'
+import { SURFACE_RADIUS } from './theme'
 
 export interface Step { label: string }
 
@@ -24,7 +25,7 @@ export default function LoanStepper({ steps, current, viewing, onView, stopped }
           <Box component="li" key={s.label} sx={{ display: 'flex', alignItems: 'flex-start', flex: i === steps.length - 1 ? '0 0 auto' : 1, minWidth: 0 }}>
             <ButtonBase disabled={!clickable} onClick={() => onView(i)} aria-current={viewing === i ? 'step' : undefined}
               aria-label={`Step ${i + 1}, ${s.label}, ${state}`} focusRipple
-              sx={{ flexDirection: 'column', gap: 0.5, borderRadius: '8px', px: 0.5, py: 0.25, '&.Mui-disabled': { pointerEvents: 'none' } }}>
+              sx={{ flexDirection: 'column', gap: 0.5, borderRadius: `${SURFACE_RADIUS - 2}px`, px: 0.5, py: 0.25, '&.Mui-disabled': { pointerEvents: 'none' } }}>
               <Box sx={(t) => ({
                 width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
                 transition: 'background-color .25s ease, border-color .25s ease, color .25s ease, box-shadow .25s ease',

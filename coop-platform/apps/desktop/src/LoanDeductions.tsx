@@ -1,4 +1,4 @@
-import { Alert, Box, Button, FormControlLabel, MenuItem, Skeleton, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, FormControlLabel, MenuItem, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiPlus } from 'react-icons/fi'
@@ -7,6 +7,8 @@ import {
   type LoanDeduction, type LoanDeductionForm, type LoanDeductionKind,
 } from './api'
 import { tabular } from './ui/format'
+import { notifyError } from './ui/notices'
+import { Loading } from './ui/Loading'
 import { Hinted } from './appleUi'
 
 type Draft = { id: number | null; description: string; order: string; kind: LoanDeductionKind | ''; member: string; event: string; account: string; hidePrinting: boolean; editableTarget: boolean }
@@ -34,18 +36,19 @@ export default function LoanDeductions({ code }: { code: number }) {
   const { data, error, isLoading } = useQuery({ queryKey: key, queryFn: () => getLoanDeductions(code), staleTime: 60_000 })
   const options = useQuery({ queryKey: ['loan-type-deduction-options', code], queryFn: () => getLoanDeductionOptions(code), staleTime: 60_000 })
   const [reason, setReason] = useState('')
+  // a change asked for without a reason: said under the reason field, where it is typed
+  const [needReason, setNeedReason] = useState(false)
   const [draft, setDraft] = useState<Draft | null>(null)
-  const [fail, setFail] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const set = (p: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...p } : d))
 
   const run = async (job: () => Promise<LoanDeduction[]>) => {
-    if (reason.trim().length < 3) { setFail('Give a reason for the change first.'); return }
+    if (reason.trim().length < 3) { setNeedReason(true); return }
     setBusy(true)
     try {
       qc.setQueryData(key, await job())
-      setFail(null); setDraft(null)
-    } catch (e) { setFail((e as Error).message) } finally { setBusy(false) }
+      setDraft(null)
+    } catch (e) { notifyError((e as Error).message) } finally { setBusy(false) }
   }
 
   const formOf = (d: Draft): LoanDeductionForm => {
@@ -64,9 +67,8 @@ export default function LoanDeductions({ code }: { code: number }) {
   return (
     <Box sx={{ mt: 1 }}>
       {error && <Alert severity="error" sx={{ py: 0 }}>{(error as Error).message}</Alert>}
-      {fail && <Alert severity="error" sx={{ py: 0, mb: 1 }} onClose={() => setFail(null)}>{fail}</Alert>}
-      {isLoading && <Skeleton variant="rounded" height={90} />}
-      {data && data.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">This loan type has no deductions: the whole amount is released to the member.</Typography>}
+      {isLoading && <Loading what="the deductions" />}
+      {data && data.length === 0 && <Typography color="text.secondary">This loan type has no deductions: the whole amount is released to the member.</Typography>}
       {data && data.length > 0 && (
         <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
           <Table size="small" stickyHeader aria-label="Deductions of this loan type" sx={{ '& td, & th': { py: 0.4 } }}>
@@ -75,10 +77,10 @@ export default function LoanDeductions({ code }: { code: number }) {
               {data.map((l) => (
                 <TableRow key={l.id} selected={draft?.id === l.id}>
                   <TableCell sx={tabular}>{l.order}</TableCell>
-                  <TableCell>{l.description}{l.hidePrinting && <Typography component="span" color="text.secondary" sx={{ fontSize: 12, ml: 1 }}>not printed</Typography>}</TableCell>
+                  <TableCell>{l.description}{l.hidePrinting && <Typography variant="body2" component="span" color="text.secondary" sx={{ ml: 1 }}>not printed</Typography>}</TableCell>
                   <TableCell sx={{ color: l.kind === 'OTHER' ? 'text.secondary' : undefined }}>{l.target}</TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    <Button size="small" disabled={busy} onClick={() => { setFail(null); setDraft(draftOf(l)) }}>Change</Button>
+                    <Button size="small" disabled={busy} onClick={() => { setDraft(draftOf(l)) }}>Change</Button>
                     {l.removable && <Button size="small" color="error" disabled={busy} onClick={() => void run(() => removeLoanDeduction(code, l.id, reason.trim()))}>Remove</Button>}
                   </TableCell>
                 </TableRow>
@@ -117,10 +119,10 @@ export default function LoanDeductions({ code }: { code: number }) {
               )}
             </>
           ) : (
-            <Typography color="text.secondary" sx={{ fontSize: 12, gridColumn: '1 / -1' }}>Only the wording of this line can be changed here; where it goes stays as it is.</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ gridColumn: '1 / -1' }}>Only the wording of this line can be changed here; where it goes stays as it is.</Typography>
           )}
           <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FormControlLabel control={<Switch size="small" checked={draft.hidePrinting} onChange={(e) => set({ hidePrinting: e.target.checked })} />} label={<Typography sx={{ fontSize: 13 }}>Leave it off the printed slip</Typography>} />
+            <FormControlLabel control={<Switch size="small" checked={draft.hidePrinting} onChange={(e) => set({ hidePrinting: e.target.checked })} />} label={<Typography>Leave it off the printed slip</Typography>} />
             <Box sx={{ flex: 1 }} />
             <Button size="small" color="inherit" onClick={() => setDraft(null)} disabled={busy}>Cancel</Button>
             <Button size="small" variant="contained" disabled={busy || !complete(draft)}
@@ -130,10 +132,10 @@ export default function LoanDeductions({ code }: { code: number }) {
           </Box>
         </Box>
       ) : (
-        <Button size="small" startIcon={<FiPlus />} sx={{ mt: 1 }} disabled={busy || !data} onClick={() => { setFail(null); setDraft(blank(nextOrder)) }}>Add a deduction</Button>
+        <Button size="small" startIcon={<FiPlus />} sx={{ mt: 1 }} disabled={busy || !data} onClick={() => { setDraft(blank(nextOrder)) }}>Add a deduction</Button>
       )}
 
-      <Hinted tip="Kept in the audit log with the line before and after. The amount of each deduction is typed on the application. Applications already saved keep their own lines; the net proceeds line cannot be removed."><TextField size="small" fullWidth label="Reason for a change (needed for Add, Save and Remove)" value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mt: 1.5 }}
+      <Hinted tip="Kept in the audit log with the line before and after. The amount of each deduction is typed on the application. Applications already saved keep their own lines; the net proceeds line cannot be removed."><TextField size="small" fullWidth error={needReason} helperText={needReason ? 'Give a reason for the change first.' : undefined} label="Reason for a change (needed for Add, Save and Remove)" value={reason} onChange={(e) => { setReason(e.target.value); setNeedReason(false) }} sx={{ mt: 1.5 }}
        
         slotProps={{ htmlInput: { maxLength: 255 } }} /></Hinted>
     </Box>

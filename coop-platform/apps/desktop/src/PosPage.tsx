@@ -13,6 +13,7 @@ import { useMe } from './session'
 import { useLeaveGuard } from './leaveGuard'
 import { money, parseAmount } from './ui/format'
 import { labelOf } from './ui/labels'
+import { notifyError } from './ui/notices'
 import { LoadingRow } from './ui/Loading'
 
 const qty = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 })
@@ -66,7 +67,6 @@ function Register() {
   const [method, setMethod] = useState('CASH')
   const [tendered, setTendered] = useState('')
   const [reference, setReference] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<number | null>(null)
 
   const price = (p: PosProduct) => (p.price ?? 0) * (1 - (p.promoPercent ?? 0) / 100)
@@ -84,14 +84,13 @@ function Register() {
       lines: cart.map((l) => ({ productId: l.product.id, quantity: parseAmount(l.quantity) })), payments: [{ method, amount: paid, reference }],
     }),
     onSuccess: (s) => {
-      setError(null); setCart([]); setDiscountId(''); setCustomer(''); setTendered(''); setReference(''); setReceipt(s.id)
+      setCart([]); setDiscountId(''); setCustomer(''); setTendered(''); setReference(''); setReceipt(s.id)
       void qc.invalidateQueries({ queryKey: ['pos-products'] }); void qc.invalidateQueries({ queryKey: ['pos-sales'] }); void qc.invalidateQueries({ queryKey: ['inv-products'] })
     },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       <Stack direction="row" spacing={1.5} sx={{ mb: 1.5 }}>
         <TextField select size="small" label="Store" value={warehouse} onChange={(e) => { setWarehouse(e.target.value); setCart([]) }} sx={{ width: 260 }}>
           {(warehouses.data ?? []).map((w) => <MenuItem key={w.id} value={String(w.id)}>{w.name}</MenuItem>)}
@@ -139,8 +138,8 @@ function Register() {
               </TextField>
               <TextField size="small" label="Customer (optional)" value={customer} onChange={(e) => setCustomer(e.target.value)} sx={{ flex: 1 }} />
             </Stack>
-            <Typography sx={{ fontSize: 13 }}>Subtotal {money(subtotal)}{off > 0 && <> · discount −{money(off)}</>}</Typography>
-            <Typography sx={{ fontSize: 22, fontWeight: 700 }}>Total {money(total)}</Typography>
+            <Typography>Subtotal {money(subtotal)}{off > 0 && <> · discount −{money(off)}</>}</Typography>
+            <Typography variant="h3" component="p">Total {money(total)}</Typography>
             <Stack direction="row" spacing={1.5}>
               <TextField select size="small" label="Pay by" value={method} onChange={(e) => setMethod(e.target.value)} sx={{ width: 120 }}>
                 <MenuItem value="CASH">Cash</MenuItem><MenuItem value="CARD">Card</MenuItem><MenuItem value="OTHER">Other</MenuItem>
@@ -165,19 +164,17 @@ function ReturnDialog({ sale, onClose }: { sale: PosSale; onClose: () => void })
   const d = useQuery({ queryKey: ['pos-sale', sale.id], queryFn: () => getPosSale(sale.id) })
   const [back, setBack] = useState<Record<number, string>>({})
   const [reason, setReason] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const lines = d.data?.lines ?? []
   const save = useMutation({
     mutationFn: () => createPosReturn({ saleId: sale.id, reason, lines: lines.map((l) => ({ saleLineNo: l.lineNo, quantity: parseAmount(back[l.lineNo] ?? '0') })).filter((l) => l.quantity > 0) }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['pos-returns'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Return against {sale.saleNo}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <Table size="small">
             <TableHead><TableRow><TableCell>Item</TableCell><TableCell align="right">Sold</TableCell><TableCell align="right">Back already</TableCell><TableCell align="right" sx={{ width: 110 }}>Returning</TableCell></TableRow></TableHead>
             <TableBody>
@@ -190,7 +187,7 @@ function ReturnDialog({ sale, onClose }: { sale: PosSale; onClose: () => void })
             </TableBody>
           </Table>
           <TextField size="small" label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">A POS supervisor approves the return; the goods go back into stock and the refund is paid then.</Typography>
+          <Typography variant="body2" color="text.secondary">A POS supervisor approves the return; the goods go back into stock and the refund is paid then.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions><Button onClick={onClose}>Cancel</Button><Button variant="contained" disabled={save.isPending || !reason.trim()} onClick={() => save.mutate()}>Ask for the return</Button></DialogActions>
@@ -234,12 +231,10 @@ function Returns({ supervisor, user }: { supervisor: boolean; user: string }) {
   const qc = useQueryClient()
   const list = useQuery({ queryKey: ['pos-returns'], queryFn: listPosReturns })
   const [rejecting, setRejecting] = useState<PosReturn | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['pos-returns'] }); void qc.invalidateQueries({ queryKey: ['pos-sales'] }); void qc.invalidateQueries({ queryKey: ['inv-products'] }) }
-  const approve = useMutation({ meta: { done: 'Return approved.' }, mutationFn: (r: PosReturn) => decidePosReturn(r.id, 'approve'), onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const approve = useMutation({ meta: { done: 'Return approved.' }, mutationFn: (r: PosReturn) => decidePosReturn(r.id, 'approve'), onSuccess: () => { refresh() }, onError: (e) => notifyError((e as Error).message) })
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       <Table size="small">
         <TableHead><TableRow><TableCell>No.</TableCell><TableCell>Sale</TableCell><TableCell>Reason</TableCell><TableCell align="right">Refund</TableCell><TableCell>By</TableCell><TableCell>Status</TableCell><TableCell /></TableRow></TableHead>
         <TableBody>
@@ -247,7 +242,7 @@ function Returns({ supervisor, user }: { supervisor: boolean; user: string }) {
           {(list.data ?? []).map((r) => (
             <TableRow key={r.id} hover>
               <TableCell>{r.returnNo}</TableCell><TableCell>{r.saleNo}</TableCell>
-              <TableCell>{r.reason}{r.decisionNote && <Typography component="div" sx={{ fontSize: 12 }} color="text.secondary">{r.decisionNote}</Typography>}</TableCell>
+              <TableCell>{r.reason}{r.decisionNote && <Typography variant="body2" component="div" color="text.secondary">{r.decisionNote}</Typography>}</TableCell>
               <TableCell align="right">{money(r.refund)}</TableCell><TableCell>{r.requestedBy}</TableCell>
               <TableCell><Chip size="small" variant="outlined" color={r.status === 'APPROVED' ? 'success' : r.status === 'PENDING' ? 'warning' : 'default'} label={labelOf(r.status)} /></TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
@@ -274,22 +269,20 @@ function Pricing({ supervisor }: { supervisor: boolean }) {
   const [price, setPrice] = useState('')
   const [dc, setDc] = useState({ code: '', name: '', kind: 'PERCENT', value: '', sup: false })
   const [pr, setPr] = useState({ name: '', product: '', percent: '', from: today(), to: today() })
-  const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const fail = (e: unknown) => { setNotice(null); setError((e as Error).message) }
-  const ok = (m: string) => { setError(null); setNotice(m) }
+  const fail = (e: unknown) => { setNotice(null); notifyError((e as Error).message) }
+  const ok = (m: string) => { setNotice(m) }
   const setP = useMutation({ mutationFn: () => setPosPrice(Number(product), parseAmount(price)), onSuccess: () => { ok('Price set.'); setPrice(''); void qc.invalidateQueries({ queryKey: ['pos-products'] }) }, onError: fail })
   const addD = useMutation({ mutationFn: () => addPosDiscount({ code: dc.code, name: dc.name, kind: dc.kind, value: parseAmount(dc.value), requiresSupervisor: dc.sup }), onSuccess: () => { ok('Discount added.'); setDc({ ...dc, code: '', name: '', value: '' }); void qc.invalidateQueries({ queryKey: ['pos-discounts'] }) }, onError: fail })
-  const toggleD = useMutation({ mutationFn: (x: { id: number; active: boolean }) => updatePosDiscount(x.id, { active: x.active }), onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['pos-discounts'] }) }, onError: fail })
+  const toggleD = useMutation({ mutationFn: (x: { id: number; active: boolean }) => updatePosDiscount(x.id, { active: x.active }), onSuccess: () => { void qc.invalidateQueries({ queryKey: ['pos-discounts'] }) }, onError: fail })
   const addP = useMutation({ mutationFn: () => addPosPromotion({ name: pr.name, productId: Number(pr.product), percentOff: parseAmount(pr.percent), startDate: pr.from, endDate: pr.to }), onSuccess: () => { ok('Promotion added.'); setPr({ ...pr, name: '', percent: '' }); void qc.invalidateQueries({ queryKey: ['pos-promotions'] }); void qc.invalidateQueries({ queryKey: ['pos-products'] }) }, onError: fail })
-  const toggleP = useMutation({ mutationFn: (x: { id: number; active: boolean }) => setPosPromotion(x.id, x.active), onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['pos-promotions'] }) }, onError: fail })
+  const toggleP = useMutation({ mutationFn: (x: { id: number; active: boolean }) => setPosPromotion(x.id, x.active), onSuccess: () => { void qc.invalidateQueries({ queryKey: ['pos-promotions'] }) }, onError: fail })
   const label = (p: { sku: string; name: string }) => `${p.sku} · ${p.name}`
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       {notice && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setNotice(null)}>{notice}</Alert>}
       {!supervisor && <Alert severity="info" sx={{ mb: 1 }}>Only a POS supervisor changes prices, discounts and promotions.</Alert>}
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Selling price</Typography>
+      <Typography variant="overline" sx={{ display: 'block', mb: 1 }} color="text.secondary">Selling price</Typography>
       {supervisor && (
         <Stack direction="row" spacing={1.5} sx={{ mb: 3 }}>
           <TextField select size="small" label="Product" value={product} onChange={(e) => setProduct(e.target.value)} sx={{ width: 320 }}>{(products.data ?? []).map((p) => <MenuItem key={p.id} value={String(p.id)}>{label(p)}</MenuItem>)}</TextField>
@@ -297,7 +290,7 @@ function Pricing({ supervisor }: { supervisor: boolean }) {
           <Button variant="contained" disabled={setP.isPending || !product || !price} onClick={() => setP.mutate()}>Set price</Button>
         </Stack>
       )}
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Discounts</Typography>
+      <Typography variant="overline" sx={{ display: 'block', mb: 1 }} color="text.secondary">Discounts</Typography>
       {supervisor && (
         <Stack direction="row" spacing={1.5} sx={{ mb: 1.5, alignItems: 'center' }}>
           <TextField size="small" label="Code" value={dc.code} onChange={(e) => setDc({ ...dc, code: e.target.value })} sx={{ width: 110 }} />
@@ -317,7 +310,7 @@ function Pricing({ supervisor }: { supervisor: boolean }) {
           ))}
         </TableBody>
       </Table>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Promotions</Typography>
+      <Typography variant="overline" sx={{ display: 'block', mb: 1 }} color="text.secondary">Promotions</Typography>
       {supervisor && (
         <Stack direction="row" spacing={1.5} sx={{ mb: 1.5 }}>
           <TextField size="small" label="Name" value={pr.name} onChange={(e) => setPr({ ...pr, name: e.target.value })} sx={{ width: 180 }} />

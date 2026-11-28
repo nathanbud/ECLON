@@ -61,7 +61,7 @@ export default function ChangePasswordScreen({ me, onDone }: { me: Me; onDone: (
             <Box sx={{ display: 'flex', '& svg': { width: 28, height: 28 } }}><Logo /></Box>
             <Typography component="h1" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>Choose your password</Typography>
           </Box>
-          <Typography sx={{ fontSize: 13, mb: 2.5 }} color="text.secondary">
+          <Typography sx={{ mb: 2.5 }} color="text.secondary">
             Welcome, {nameCase(me.name)}. You signed in with a temporary password. Choose one only you know to continue.
           </Typography>
           <TextField

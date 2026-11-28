@@ -1,8 +1,9 @@
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from '@mui/material'
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FiCamera, FiRefreshCw, FiUpload } from 'react-icons/fi'
 import { uploadMemberPhoto } from './api'
+import { notifyError } from './ui/notices'
 import type { Id } from './clients'
 
 const MAX_SIDE = 640
@@ -38,7 +39,6 @@ export default function MemberPhotoDialog({ id, name, onClose, onDone, onPick }:
   const [camera, setCamera] = useState(false)
   const [blob, setBlob] = useState<Blob | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   const stopCamera = useCallback(() => {
@@ -49,19 +49,18 @@ export default function MemberPhotoDialog({ id, name, onClose, onDone, onPick }:
   useEffect(() => stopCamera, [stopCamera])
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
 
-  const keep = (b: Blob) => { setBlob(b); setPreview(URL.createObjectURL(b)); setError(null) }
+  const keep = (b: Blob) => { setBlob(b); setPreview(URL.createObjectURL(b)) }
 
   const startCamera = async () => {
-    setError(null)
     setBlob(null)
     setPreview(null)
-    if (!navigator.mediaDevices?.getUserMedia) { setError('This window cannot use a camera. Upload a picture instead.'); return }
+    if (!navigator.mediaDevices?.getUserMedia) { notifyError('This window cannot use a camera. Upload a picture instead.'); return }
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false })
       stream.current = s
       setCamera(true)
     } catch {
-      setError('The camera could not be opened. Check that it is connected and that this app may use it, or upload a picture instead.')
+      notifyError('The camera could not be opened. Check that it is connected and that this app may use it, or upload a picture instead.')
     }
   }
   // The video element exists only once the camera view is showing.
@@ -72,14 +71,14 @@ export default function MemberPhotoDialog({ id, name, onClose, onDone, onPick }:
   const snap = async () => {
     const v = video.current
     if (!v || !v.videoWidth) return
-    try { keep(await toJpeg(v, v.videoWidth, v.videoHeight)); stopCamera() } catch (e) { setError((e as Error).message) }
+    try { keep(await toJpeg(v, v.videoWidth, v.videoHeight)); stopCamera() } catch (e) { notifyError((e as Error).message) }
   }
 
   const pick = async (file: File | undefined) => {
     if (!file) return
     stopCamera()
-    if (!/^image\/(jpeg|png|webp|bmp|gif)$/.test(file.type)) { setError('Choose a picture file (JPEG or PNG).'); return }
-    try { keep(await fileToJpeg(file)) } catch { setError('That file could not be read as a picture.') }
+    if (!/^image\/(jpeg|png|webp|bmp|gif)$/.test(file.type)) { notifyError('Choose a picture file (JPEG or PNG).'); return }
+    try { keep(await fileToJpeg(file)) } catch { notifyError('That file could not be read as a picture.') }
   }
 
   const save = async () => {
@@ -92,7 +91,7 @@ export default function MemberPhotoDialog({ id, name, onClose, onDone, onPick }:
       onDone('Photo saved')
       onClose()
     } catch (e) {
-      setError((e as Error).message)
+      notifyError((e as Error).message)
       setSaving(false)
     }
   }
@@ -102,13 +101,12 @@ export default function MemberPhotoDialog({ id, name, onClose, onDone, onPick }:
       <DialogTitle>Photo of {name}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 0.5 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <Box sx={{ aspectRatio: '4 / 3', bgcolor: 'action.hover', borderRadius: 1, overflow: 'hidden', display: 'grid', placeItems: 'center' }}>
             {camera
               ? <video ref={video} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
               : preview
                 ? <Box component="img" src={preview} alt="New photo" sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                : <Typography sx={{ fontSize: 13 }} color="text.secondary">Take a picture or choose a file.</Typography>}
+                : <Typography color="text.secondary">Take a picture or choose a file.</Typography>}
           </Box>
           <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
             {camera
@@ -117,7 +115,7 @@ export default function MemberPhotoDialog({ id, name, onClose, onDone, onPick }:
             <Button startIcon={<FiUpload />} onClick={() => fileInput.current?.click()}>Upload</Button>
             <input ref={fileInput} type="file" accept="image/jpeg,image/png" hidden onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = '' }} />
           </Stack>
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">The new picture is added and shown from now on. Earlier photos are kept.</Typography>
+          <Typography variant="body2" color="text.secondary">The new picture is added and shown from now on. Earlier photos are kept.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions>

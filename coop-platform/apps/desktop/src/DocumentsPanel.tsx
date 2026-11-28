@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { FiPlus } from 'react-icons/fi'
@@ -8,6 +8,7 @@ import {
 } from './api'
 import { ReasonDialog } from './ui/dialogs'
 import { labelOf } from './ui/labels'
+import { notifyError } from './ui/notices'
 import { LoadingRow } from './ui/Loading'
 
 const size = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`)
@@ -20,24 +21,22 @@ function UploadDialog({ entityType, entityId, onClose }: { entityType?: string; 
   const input = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [f, setF] = useState({ entityType: entityType ?? 'MEMBER', entityId: entityId ?? '', title: '', description: '', classification: '', retentionDate: '' })
-  const [error, setError] = useState<string | null>(null)
   const fixed = !!entityType
   const min = setup.data?.minRetentionYears[f.entityType] ?? 5
   const save = useMutation({
     mutationFn: () => uploadDocument(file!, { entityType: f.entityType, entityId: f.entityId, title: f.title, description: f.description, classification: f.classification, retentionDate: f.retentionDate }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['documents'] }); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Attach a document</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
             <Button variant="outlined" onClick={() => input.current?.click()}>Choose file</Button>
             <input ref={input} type="file" hidden accept={(setup.data?.extensions ?? []).map((e) => `.${e}`).join(',')} onChange={(e) => { const x = e.target.files?.[0] ?? null; setFile(x); if (x && !f.title) setF({ ...f, title: x.name.replace(/\.[^.]+$/, '') }) }} />
-            <Typography sx={{ fontSize: 13 }} color={file ? 'text.primary' : 'text.secondary'}>{file ? `${file.name} · ${size(file.size)}` : `PDF, PNG, JPEG, Word, Excel, CSV or text, up to ${setup.data?.maxMegabytes ?? 10} MB`}</Typography>
+            <Typography color={file ? 'text.primary' : 'text.secondary'}>{file ? `${file.name} · ${size(file.size)}` : `PDF, PNG, JPEG, Word, Excel, CSV or text, up to ${setup.data?.maxMegabytes ?? 10} MB`}</Typography>
           </Stack>
           {!fixed && (
             <Stack direction="row" spacing={1.5}>
@@ -75,19 +74,17 @@ function DetailDialog({ id, onClose }: { id: number; onClose: () => void }) {
   const input = useRef<HTMLInputElement>(null)
   const [who, setWho] = useState('')
   const [removing, setRemoving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['documents'] }) }
-  const fail = (e: unknown) => setError((e as Error).message)
-  const grant = useMutation({ mutationFn: () => grantDocument(id, who.trim()), onSuccess: () => { setWho(''); setError(null); refresh() }, onError: fail })
-  const revoke = useMutation({ mutationFn: (u: string) => revokeDocument(id, u), onSuccess: () => { setError(null); refresh() }, onError: fail })
-  const version = useMutation({ mutationFn: (f: File) => uploadDocument(f, {}, id), onSuccess: () => { setError(null); refresh(); onClose() }, onError: fail })
+  const fail = (e: unknown) => notifyError((e as Error).message)
+  const grant = useMutation({ mutationFn: () => grantDocument(id, who.trim()), onSuccess: () => { setWho(''); refresh() }, onError: fail })
+  const revoke = useMutation({ mutationFn: (u: string) => revokeDocument(id, u), onSuccess: () => { refresh() }, onError: fail })
+  const version = useMutation({ mutationFn: (f: File) => uploadDocument(f, {}, id), onSuccess: () => { refresh(); onClose() }, onError: fail })
   const get = (v: DocInfo) => downloadDocument(v.id, v.fileName).catch(fail)
   const doc = d.data?.document
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>{doc ? `${doc.docNo} · ${doc.title}` : 'Document'} {doc && <Chip size="small" variant="outlined" color={classColor(doc.classification)} label={doc.classification.toLowerCase()} sx={{ ml: 1 }} />}</DialogTitle>
       <DialogContent>
-        {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
         {doc && d.data && (
           <Stack spacing={2}>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, auto)', gap: 0.5, columnGap: 3, fontSize: 13 }}>
@@ -96,8 +93,8 @@ function DetailDialog({ id, onClose }: { id: number; onClose: () => void }) {
               <span>Kept until</span><b>{doc.retentionDate}</b><span>Size</span><b>{size(doc.sizeBytes)}</b>
               <span>Status</span><b>{labelOf(doc.status)}</b><span>Version</span><b>{doc.version}</b>
             </Box>
-            <Typography sx={{ fontSize: 12, wordBreak: 'break-all' }} color="text.secondary">SHA-256 {doc.sha256}</Typography>
-            {doc.description && <Typography sx={{ fontSize: 13 }}>{doc.description}</Typography>}
+            <Typography variant="body2" sx={{ wordBreak: 'break-all' }} color="text.secondary">SHA-256 {doc.sha256}</Typography>
+            {doc.description && <Typography>{doc.description}</Typography>}
             <Stack direction="row" spacing={1}>
               <Button variant="contained" onClick={() => void get(doc)}>Download</Button>
               {manage && doc.status === 'ACTIVE' && <Button variant="outlined" onClick={() => input.current?.click()} disabled={version.isPending}>Upload a new version</Button>}
@@ -116,7 +113,7 @@ function DetailDialog({ id, onClose }: { id: number; onClose: () => void }) {
                 <Typography sx={label} color="text.secondary">Also allowed to read it</Typography>
                 <Stack direction="row" spacing={1} sx={{ my: 1, flexWrap: 'wrap', rowGap: 1 }}>
                   {d.data.grants.map((u) => <Chip key={u} label={u} onDelete={() => revoke.mutate(u)} />)}
-                  {d.data.grants.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">Nobody beyond what its classification gives.</Typography>}
+                  {d.data.grants.length === 0 && <Typography color="text.secondary">Nobody beyond what its classification gives.</Typography>}
                 </Stack>
                 <Stack direction="row" spacing={1.5}>
                   <TextField size="small" label="User name" value={who} onChange={(e) => setWho(e.target.value)} sx={{ width: 220 }} />
@@ -151,10 +148,8 @@ export default function DocumentsPanel({ entityType, entityId, canUpload = true 
   const list = useQuery({ queryKey: ['documents', 'list', entityType, entityId, q, history], queryFn: () => listDocuments({ entityType, entityId, q, history }) })
   const [creating, setCreating] = useState(false)
   const [open, setOpen] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
   return (
     <Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       <Stack direction="row" spacing={1.5} sx={{ mb: 1.5, alignItems: 'center' }}>
         {!entityType && <TextField size="small" label="Search title, file or record number" value={q} onChange={(e) => setQ(e.target.value)} sx={{ width: 300 }} />}
         {canUpload && <Button variant="contained" startIcon={<FiPlus />} onClick={() => setCreating(true)}>Attach a document</Button>}
@@ -171,7 +166,7 @@ export default function DocumentsPanel({ entityType, entityId, canUpload = true 
               <TableCell><Chip size="small" variant="outlined" color={classColor(d.classification)} label={d.classification.toLowerCase()} /></TableCell>
               <TableCell>v{d.version}</TableCell><TableCell>{d.createdBy}, {d.createdAt.slice(0, 10)}</TableCell><TableCell>{d.retentionDate}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                <Button size="small" onClick={() => void downloadDocument(d.id, d.fileName).catch((e: Error) => setError(e.message))}>Download</Button>
+                <Button size="small" onClick={() => void downloadDocument(d.id, d.fileName).catch((e: Error) => notifyError(e.message))}>Download</Button>
                 <Button size="small" onClick={() => setOpen(d.id)}>Details</Button>
               </TableCell>
             </TableRow>

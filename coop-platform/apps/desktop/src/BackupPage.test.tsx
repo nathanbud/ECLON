@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Me } from './api'
 import BackupPage from './BackupPage'
 import { AppThemeProvider } from './theme'
+import { Notices } from './ui/notices'
 import { sizeOf } from './ui/format'
 
 let roles: string[] = ['ROLE_ADMIN']
@@ -25,7 +26,7 @@ const entry = (name: string, complete: boolean) => ({
 
 function show() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={qc}><AppThemeProvider><BackupPage /></AppThemeProvider></QueryClientProvider>)
+  render(<QueryClientProvider client={qc}><AppThemeProvider><BackupPage /><Notices /></AppThemeProvider></QueryClientProvider>)
 }
 
 describe('backup screen', () => {

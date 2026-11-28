@@ -7,6 +7,7 @@ import { useLeaveGuard } from './leaveGuard'
 import { can } from './nav/screens'
 import { useMe } from './session'
 import { LoadingBlock } from './ui/Loading'
+import { notifyError } from './ui/notices'
 import { ScreenTitle } from './appleUi'
 
 const KEY = ['features']
@@ -42,6 +43,7 @@ function List({ rows }: { rows: FeatureRow[] }) {
   const count = Object.keys(changes).length
   useLeaveGuard(count ? 'The features have changes that are not saved.' : null)
   const save = useMutation({
+    onError: notifyError,
     mutationFn: () => saveFeatures(changes, reason.trim()),
     meta: { done: 'Features saved and recorded in the audit log. Open windows update within about 15 seconds.' },
     onSuccess: (fresh) => {
@@ -59,10 +61,10 @@ function List({ rows }: { rows: FeatureRow[] }) {
           <Stack key={r.key} direction="row" sx={(t) => ({ px: 2, py: 1.25, gap: 2, alignItems: 'center', borderTop: i ? `1px solid ${t.palette.divider}` : 0,
             bgcolor: draft[r.key] !== r.on ? t.palette.action.selected : undefined })}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{r.label}</Typography>
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">{r.note}</Typography>
+              <Typography variant="subtitle2" component="p">{r.label}</Typography>
+              <Typography variant="body2" color="text.secondary">{r.note}</Typography>
             </Box>
-            <Typography sx={{ fontSize: 12, width: 24 }} color={draft[r.key] ? 'success.main' : 'text.secondary'}>{draft[r.key] ? 'On' : 'Off'}</Typography>
+            <Typography variant="body2" sx={{ width: 24 }} color={draft[r.key] ? 'success.main' : 'text.secondary'}>{draft[r.key] ? 'On' : 'Off'}</Typography>
             <Switch checked={!!draft[r.key]} disabled={!editable} onChange={(_, v) => setDraft((d) => ({ ...d, [r.key]: v }))}
               slotProps={{ input: { 'aria-label': `${r.label} ${draft[r.key] ? 'on' : 'off'}` } }} />
           </Stack>
@@ -70,7 +72,6 @@ function List({ rows }: { rows: FeatureRow[] }) {
       </Box>
       {editable && (
         <Box sx={(t) => ({ ...glass(t), p: 2, position: 'sticky', bottom: 8 })}>
-          {save.error && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => save.reset()}>{(save.error as Error).message}</Alert>}
           <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1.5, alignItems: { sm: 'center' } }}>
             <TextField label="Reason for the change" value={reason} onChange={(e) => setReason(e.target.value)} disabled={!count} sx={{ flex: 1 }}
               helperText={count ? `${count} change${count > 1 ? 's' : ''} not saved. Kept in the audit log with each change.` : 'Switch an area above, then give the reason here.'} />

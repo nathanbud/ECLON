@@ -9,6 +9,7 @@ import { glass } from './glass'
 import MoneyField from './MoneyField'
 import { money } from './ui/format'
 import { ConfirmButton } from './ui/dialogs'
+import { notifyError } from './ui/notices'
 import { LoadingBlock } from './ui/Loading'
 
 const today = () => new Date().toLocaleDateString('en-CA')
@@ -33,7 +34,6 @@ export default function PenaltyWaiversTab() {
   const [account, setAccount] = useState('')
   const [reason, setReason] = useState('')
   const [note, setNote] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const clientId = Number(clientText) || 0
   const loans = useQuery({ queryKey: ['waiver-loans', clientId], queryFn: () => getLoans(1, clientId, false), enabled: clientId > 0, retry: false })
   const loan = (loans.data?.loans ?? []).find((l) => `${l.typeCode}/${l.refNo}` === loanKey)
@@ -43,36 +43,35 @@ export default function PenaltyWaiversTab() {
 
   const ask = useMutation({ meta: { done: 'Sent for approval.' },
     mutationFn: () => askPenaltyWaiver(req!),
-    onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['penalty-waiver-check'] }) },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['penalty-waiver-check'] }) },
+    onError: (e) => notifyError((e as Error).message),
   })
   const post = useMutation({
     mutationFn: () => postPenaltyWaiver(req!),
     onSuccess: (p) => {
-      setError(null); setNote(`Posted. Journal ${p.documentNo}: ${money(p.amount)} penalty waived.`); setAmount(''); setReason(''); setLoanKey('')
+      setNote(`Posted. Journal ${p.documentNo}: ${money(p.amount)} penalty waived.`); setAmount(''); setReason(''); setLoanKey('')
       void qc.invalidateQueries({ queryKey: ['penalty-waiver-check'] })
     },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   const decide = useMutation({ meta: { done: (_, v) => ((v as { approve: boolean }).approve ? 'Waiver approved.' : 'Waiver rejected.') },
     mutationFn: (v: { id: number; approve: boolean }) => decidePenaltyWaiver(v.id, v.approve, v.approve ? 'approved' : 'rejected from the waiver list'),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['penalty-waiver-pending'] }) },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
 
   const rows = report.data?.rows ?? []
   return (
     <Box sx={{ display: 'grid', gap: 2 }}>
       {note && <Alert severity="success" onClose={() => setNote(null)}>{note}</Alert>}
-      {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
 
       <LoadingBlock q={pending} what="the waivers waiting" />
       {(pending.data ?? []).length > 0 && (
         <Box sx={(t) => ({ p: 1.5, ...glass(t) })}>
-          <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Waivers waiting for your approval</Typography>
+          <Typography variant="overline" sx={{ display: 'block', mb: 0.75 }} color="text.secondary">Waivers waiting for your approval</Typography>
           {(pending.data ?? []).map((p) => (
             <Box key={p.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.5 }}>
-              <Typography sx={{ fontSize: 13, flex: 1 }}>{p.requested_by}: {p.description} · <b>{money(p.amount)}</b></Typography>
+              <Typography sx={{ flex: 1 }}>{p.requested_by}: {p.description} · <b>{money(p.amount)}</b></Typography>
               <Button size="small" variant="contained" disabled={decide.isPending} onClick={() => decide.mutate({ id: p.id, approve: true })}>Approve</Button>
               <Button size="small" disabled={decide.isPending} onClick={() => decide.mutate({ id: p.id, approve: false })}>Reject</Button>
             </Box>
@@ -81,14 +80,14 @@ export default function PenaltyWaiversTab() {
       )}
 
       <Box sx={(t) => ({ p: 1.5, ...glass(t) })}>
-        <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Penalties waived at the window</Typography>
+        <Typography variant="overline" sx={{ display: 'block', mb: 0.75 }} color="text.secondary">Penalties waived at the window</Typography>
         <Box sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField size="small" type="date" label="From" value={from} onChange={(e) => setFrom(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
           <TextField size="small" type="date" label="To" value={to} onChange={(e) => setTo(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-          {report.data && <Typography sx={{ fontSize: 13 }}>{rows.length} payment{rows.length === 1 ? '' : 's'} · waived <b>{money(report.data.total)}</b></Typography>}
+          {report.data && <Typography>{rows.length} payment{rows.length === 1 ? '' : 's'} · waived <b>{money(report.data.total)}</b></Typography>}
         </Box>
         {report.isError && <Alert severity="error">{(report.error as Error).message}</Alert>}
-        {report.isSuccess && rows.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">No payment in these dates charged less than the suggested penalty.</Typography>}
+        {report.isSuccess && rows.length === 0 && <Typography color="text.secondary">No payment in these dates charged less than the suggested penalty.</Typography>}
         {rows.length > 0 && (
           <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
             <Table size="small" stickyHeader aria-label="Penalties waived">
@@ -113,8 +112,8 @@ export default function PenaltyWaiversTab() {
       </Box>
 
       <Box sx={(t) => ({ p: 1.5, ...glass(t) })}>
-        <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Record a waiver in the books</Typography>
-        <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary">
+        <Typography variant="overline" sx={{ display: 'block', mb: 0.75 }} color="text.secondary">Record a waiver in the books</Typography>
+        <Typography variant="body2" sx={{ mb: 1 }} color="text.secondary">
           This is the accountant&apos;s journal for a penalty that was waived. It does not change what the member owes; a different accountant or administrator has to approve it.
         </Typography>
         <Box sx={{ display: 'grid', gap: 1, maxWidth: 560 }}>

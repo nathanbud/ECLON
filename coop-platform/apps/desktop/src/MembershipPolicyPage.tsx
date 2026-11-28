@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { changeMembershipPolicy, getMembershipPolicy, type MembershipPolicy } from './api'
 import { appBackground, glass } from './glass'
+import { notifyError } from './ui/notices'
 import { useMe } from './session'
 
 /** One policy switch: what it does, and a reason that must be given before it can be moved (the reason goes to the audit log). */
@@ -11,23 +12,21 @@ function PolicySwitch({ name, label, on, children, superadminOnly = false }: { n
   const may = superadminOnly ? me.roles.some((r) => r.replace('ROLE_', '') === 'SUPERADMIN') : me.admin
   const qc = useQueryClient()
   const [reason, setReason] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const save = useMutation({
     mutationFn: (value: boolean) => changeMembershipPolicy({ [name]: value }, reason),
-    onSuccess: () => { setError(null); setSaved(true); setReason(''); void qc.invalidateQueries({ queryKey: ['membership-policy'] }) },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: () => { setSaved(true); setReason(''); void qc.invalidateQueries({ queryKey: ['membership-policy'] }) },
+    onError: (e) => notifyError((e as Error).message),
   })
   const ready = may && !save.isPending && reason.trim().length >= 3
   return (
     <Box sx={(t) => ({ p: 2, mb: 2, ...glass(t) })}>
       <FormControlLabel control={<Switch checked={on} disabled={!ready} onChange={(_, v) => { setSaved(false); save.mutate(v) }} />} label={label} />
-      <Typography sx={{ fontSize: 13, mt: 0.5, mb: 1.5 }} color="text.secondary">{children}</Typography>
+      <Typography sx={{ mt: 0.5, mb: 1.5 }} color="text.secondary">{children}</Typography>
       {may
         ? <TextField size="small" fullWidth label="Reason for changing (needed to switch)" value={reason} onChange={(e) => { setReason(e.target.value); setSaved(false) }} />
-        : <Typography sx={{ fontSize: 13 }} color="text.secondary">Only {superadminOnly ? 'a super administrator' : 'an administrator'} can change this.</Typography>}
-      {error && <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>}
-      {saved && <Typography sx={{ fontSize: 13, mt: 1 }} color="success.main">Saved and recorded in the audit log.</Typography>}
+        : <Typography color="text.secondary">Only {superadminOnly ? 'a super administrator' : 'an administrator'} can change this.</Typography>}
+      {saved && <Typography sx={{ mt: 1 }} color="success.main">Saved and recorded in the audit log.</Typography>}
     </Box>
   )
 }

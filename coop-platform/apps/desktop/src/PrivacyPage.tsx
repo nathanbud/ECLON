@@ -13,6 +13,7 @@ import { ReasonDialog } from './ui/dialogs'
 import { BranchSelect } from './ui/BranchSelect'
 import { labelOf, PRIVACY_REQUEST_WORDS } from './ui/labels'
 import { LoadingBlock, LoadingRow } from './ui/Loading'
+import { notifyError } from './ui/notices'
 import { AboutNote } from './appleUi'
 
 interface Field { key: string; label: string; kind?: 'text' | 'long' | 'date' | 'datetime' | 'number' | 'bool'; options?: string[]; required?: boolean }
@@ -77,19 +78,17 @@ function Cells({ row, columns }: { row: Row; columns: string[] }) {
 
 function RowForm({ fields, initial, title, onSave, onClose }: { fields: Field[]; initial?: Row; title: string; onSave: (v: Record<string, string>) => Promise<unknown>; onClose: () => void }) {
   const [v, setV] = useState<Record<string, string>>(() => Object.fromEntries(fields.map((f) => [f.key, initial?.[f.key] == null ? '' : f.kind === 'datetime' ? String(initial[f.key]).slice(0, 16) : String(initial[f.key])])))
-  const [error, setError] = useState<string | null>(null)
   const set = (k: string, x: string) => setV((p) => ({ ...p, [k]: x }))
   const save = () => {
     const out: Record<string, string> = {}
     for (const f of fields) if (!initial || v[f.key] !== String(initial[f.key] ?? '').slice(0, f.kind === 'datetime' ? 16 : 9999)) out[f.key] = v[f.key]
-    onSave(out).then(onClose, (e: Error) => setError(e.message))
+    onSave(out).then(onClose, (e: Error) => notifyError(e.message))
   }
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           {fields.map((f) => f.kind === 'bool' ? (
             <TextField key={f.key} select size="small" label={f.label} value={v[f.key] === '1' ? '1' : '0'} onChange={(e) => set(f.key, e.target.value)}>
               <MenuItem value="0">No</MenuItem><MenuItem value="1">Yes</MenuItem>
@@ -113,16 +112,14 @@ function RegisterTab({ reg }: { reg: Register }) {
   const qc = useQueryClient()
   const rows = useQuery({ queryKey: ['privacy', reg.key], queryFn: () => listRegister(reg.key) })
   const [editing, setEditing] = useState<Row | 'new' | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['privacy', reg.key] }); void qc.invalidateQueries({ queryKey: ['privacy-review'] }) }
-  const activate = useMutation({ mutationFn: activateNotice, onSuccess: () => { setError(null); refresh() }, onError: (e) => setError((e as Error).message) })
+  const activate = useMutation({ mutationFn: activateNotice, onSuccess: () => { refresh() }, onError: (e) => notifyError((e as Error).message) })
   return (
     <Box>
       <Stack direction="row" spacing={1} sx={{ mb: 1.5, alignItems: 'center' }}>
-        <Typography color="text.secondary" sx={{ flex: 1, fontSize: 13 }}>{reg.note}</Typography>
+        <Typography color="text.secondary" sx={{ flex: 1 }}>{reg.note}</Typography>
         <Button variant="contained" size="small" onClick={() => setEditing('new')}>Add</Button>
       </Stack>
-      {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
       <Box sx={(t) => ({ overflowX: 'auto', ...glass(t) })}>
         <Table size="small">
           <TableHead><TableRow>{reg.columns.map((c) => <TableCell key={c}>{label(c)}</TableCell>)}<TableCell /></TableRow></TableHead>
@@ -158,17 +155,15 @@ function NewRequest({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
   const me = useMe()
   const [f, setF] = useState({ requestType: 'ACCESS', branch: String(me.branchCode ?? 1), client: '', name: '', contact: '', summary: '' })
-  const [error, setError] = useState<string | null>(null)
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }))
   const save = () => addPrivacyRequest({
     requestType: f.requestType, branchCode: f.client ? Number(f.branch) : undefined, clientId: f.client ? Number(f.client) : undefined, requesterName: f.name, contact: f.contact || undefined, summary: f.summary,
-  }).then(() => { void qc.invalidateQueries({ queryKey: ['privacy-requests'] }); onClose() }, (e: Error) => setError(e.message))
+  }).then(() => { void qc.invalidateQueries({ queryKey: ['privacy-requests'] }); onClose() }, (e: Error) => notifyError(e.message))
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Log a request about someone's data</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <TextField select size="small" label="Request" value={f.requestType} onChange={(e) => set('requestType', e.target.value)}>{TYPES.map((t) => <MenuItem key={t} value={t}>{label(t)}</MenuItem>)}</TextField>
           <Stack direction="row" spacing={1}>
             <BranchSelect label="Member’s branch" value={Number(f.branch)} onChange={(b) => set('branch', String(b))} />
@@ -189,9 +184,8 @@ function RequestsTab() {
   const rows = useQuery({ queryKey: ['privacy-requests'], queryFn: listPrivacyRequests })
   const [adding, setAdding] = useState(false)
   const [asking, setAsking] = useState<{ row: Row; step: RequestStep; title: string; label: string } | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const refresh = () => qc.invalidateQueries({ queryKey: ['privacy-requests'] })
-  const run = (p: Promise<unknown>) => p.then(() => { setError(null); return refresh() }, (e: Error) => setError(e.message))
+  const run = (p: Promise<unknown>) => p.then(() => { return refresh() }, (e: Error) => notifyError(e.message))
   const today = new Date().toISOString().slice(0, 10)
   return (
     <Box>
@@ -201,7 +195,6 @@ function RequestsTab() {
         </AboutNote>
         <Button variant="contained" size="small" onClick={() => setAdding(true)}>Log a request</Button>
       </Stack>
-      {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
       <Stack spacing={1}>
         <LoadingBlock q={rows} what="the requests" />
         {(rows.data ?? []).map((r) => {
@@ -218,10 +211,10 @@ function RequestsTab() {
                 {late && <Chip size="small" color="error" label="Overdue" />}
                 {open && r.identity_verified === 1 && <Chip size="small" variant="outlined" label="Identity checked" />}
                 <Box sx={{ flex: 1 }} />
-                <Typography color="text.secondary" sx={{ fontSize: 12 }}>Due {String(r.due_on)}</Typography>
+                <Typography variant="body2" color="text.secondary">Due {String(r.due_on)}</Typography>
               </Stack>
-              <Typography sx={{ fontSize: 13, mt: 0.5 }}>{String(r.requester_name)}{r.client_id != null ? ` · member ${r.branch_code}-${r.client_id}` : ''} — {String(r.summary)}</Typography>
-              {r.outcome != null && <Typography color="text.secondary" sx={{ fontSize: 13 }}>Outcome: {String(r.outcome)}</Typography>}
+              <Typography sx={{ mt: 0.5 }}>{String(r.requester_name)}{r.client_id != null ? ` · member ${r.branch_code}-${r.client_id}` : ''} — {String(r.summary)}</Typography>
+              {r.outcome != null && <Typography color="text.secondary">Outcome: {String(r.outcome)}</Typography>}
               {open && (
                 <Stack direction="row" spacing={0.5} useFlexGap sx={{ mt: 1, flexWrap: 'wrap' }}>
                   {r.identity_verified !== 1 && <Button size="small" onClick={() => setAsking({ row: r, step: 'verify-identity', title: 'Identity checked', label: 'How was the identity checked?' })}>Check identity</Button>}

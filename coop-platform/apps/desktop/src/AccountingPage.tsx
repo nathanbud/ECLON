@@ -24,6 +24,7 @@ import { BusyArea, Loading, LoadingBlock } from './ui/Loading'
 import { ReasonDialog } from './appleUi'
 import BudgetTab from './BudgetTab'
 import OpeningBalancesTab from './OpeningBalancesTab'
+import { notifyError } from './ui/notices'
 import { ClosingPolicy, CloseStatusNotice, MonthReview, YearChecklist } from './ClosingParts'
 
 const today = () => new Date().toLocaleDateString('en-CA')
@@ -183,8 +184,8 @@ function Statements({ branchCode }: { branchCode: number }) {
           {options.map(({ unit: u, depth }) => (
             <MenuItem key={u.id} value={String(u.id)} sx={{ pl: 2 + depth * 2 }}>
               <Box sx={{ minWidth: 0 }}>
-                <Typography sx={{ fontSize: 13, color: u.disabled ? 'text.disabled' : undefined }}>{u.name}</Typography>
-                <Typography sx={{ fontSize: 11 }} color="text.secondary">{u.kindName}{u.kindChosen ? '' : ' (suggested)'}{u.children > 0 ? ` · ${u.children} under it` : ''}</Typography>
+                <Typography sx={{ color: u.disabled ? 'text.disabled' : undefined }}>{u.name}</Typography>
+                <Typography variant="caption" color="text.secondary">{u.kindName}{u.kindChosen ? '' : ' (suggested)'}{u.children > 0 ? ` · ${u.children} under it` : ''}</Typography>
               </Box>
             </MenuItem>
           ))}
@@ -209,16 +210,16 @@ function Statements({ branchCode }: { branchCode: number }) {
       {q.error && <Alert severity="error" sx={{ mb: 2 }}>{(q.error as Error).message}</Alert>}
       <YearBalances branchCode={branchCode} />
       {q.isLoading && <Loading what="the statement" />}
-      {!columns && !comparing && shownUnit && <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1, px: 0.5 }}>{unitHeading(shownUnit)}</Typography>}
+      {!columns && !comparing && shownUnit && <Typography variant="subtitle2" component="p" sx={{ mb: 1, px: 0.5 }}>{unitHeading(shownUnit)}</Typography>}
       {columns && cons.data && (
         <>
-          <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1, px: 0.5 }}>Consolidating statement: {cons.data.unit.name}</Typography>
+          <Typography variant="subtitle2" component="p" sx={{ mb: 1, px: 0.5 }}>Consolidating statement: {cons.data.unit.name}</Typography>
           <BusyArea busy={cons.isFetching} label="Loading the statement"><Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}><ConsolidatingTable c={cons.data} /></Box></BusyArea>
         </>
       )}
       {comparing && comp.data && (
         <>
-          <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1, px: 0.5 }}>Comparative statement: {comp.data.unit.name}</Typography>
+          <Typography variant="subtitle2" component="p" sx={{ mb: 1, px: 0.5 }}>Comparative statement: {comp.data.unit.name}</Typography>
           <BusyArea busy={comp.isFetching} label="Loading the statement"><Box sx={(t) => ({ overflow: 'auto', ...glass(t) })}><ConsolidatingTable c={comp.data} /></Box></BusyArea>
         </>
       )}
@@ -276,8 +277,8 @@ function EquityTable({ e }: { e: ChangesInEquity }) {
         {e.rows.map((r) => (
           <TableRow key={r.accountCode + r.description} hover>
             <TableCell>
-              <Typography sx={{ fontSize: 13 }}>{r.accountCode ? `${r.accountCode} ` : ''}{r.description}</Typography>
-              <Typography sx={{ fontSize: 11 }} color="text.secondary">{r.group}</Typography>
+              <Typography>{r.accountCode ? `${r.accountCode} ` : ''}{r.description}</Typography>
+              <Typography variant="caption" color="text.secondary">{r.group}</Typography>
             </TableCell>
             {num(r.beginning)}{num(r.increases)}{num(r.decreases)}{showOther && num(r.other)}{num(r.ending)}
           </TableRow>
@@ -340,7 +341,7 @@ function CashFlowClasses({ branchCode, canEdit, onClose }: { branchCode: number;
     <Dialog open onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>Cash flow classes</DialogTitle>
       <DialogContent>
-        <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
+        <Typography sx={{ mb: 1.5 }} color="text.secondary">
           The class of each balance-sheet heading; the accounts under it follow it. Suggested classes come from the headings&apos; names; choose another where the
           cooperative&apos;s policy says so.
         </Typography>
@@ -352,8 +353,8 @@ function CashFlowClasses({ branchCode, canEdit, onClose }: { branchCode: number;
             {rows.map((r) => (
               <TableRow key={r.code} hover>
                 <TableCell>
-                  <Typography sx={{ fontSize: 13 }}>{r.code} {r.name}</Typography>
-                  <Typography sx={{ fontSize: 11 }} color="text.secondary">{r.chosen ? 'Chosen' : r.inheritedFrom ? `From ${r.inheritedFrom}` : 'Suggested'}</Typography>
+                  <Typography>{r.code} {r.name}</Typography>
+                  <Typography variant="caption" color="text.secondary">{r.chosen ? 'Chosen' : r.inheritedFrom ? `From ${r.inheritedFrom}` : 'Suggested'}</Typography>
                 </TableCell>
                 <TableCell>
                   <TextField select size="small" value={r.category} disabled={!canEdit} fullWidth aria-label={`Class of ${r.code}`}
@@ -395,7 +396,7 @@ function YearBalances({ branchCode }: { branchCode: number }) {
   const running = s.state === 'running'
   return (
     <Stack direction="row" spacing={1.5} useFlexGap sx={{ mb: 1.5, px: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
-      <Typography sx={{ fontSize: 12 }} color="text.secondary">
+      <Typography variant="body2" color="text.secondary">
         Earlier years summed: {upTo(s.builtYears)}; by unit: {upTo(s.builtYearsByUnit)}.{running ? ' Summing now…' : ''}{s.state.startsWith('failed') ? ` The last run failed: ${s.state.slice(8)}` : ''}
       </Typography>
       {me.admin && missing && !running && <Button size="small" disabled={build.isPending} onClick={() => build.mutate()}>Build balances</Button>}
@@ -420,7 +421,7 @@ function ConsolidatingTable({ c }: { c: ConsolidatingStatement }) {
           {c.columns.map((col) => (
             <TableCell key={`${col.id}-${col.ownEntries}`} align="right" sx={head}>
               <Box>{col.name}</Box>
-              <Typography component="div" sx={{ fontSize: 11 }} color="text.secondary">{col.kindName}</Typography>
+              <Typography variant="caption" component="div" color="text.secondary">{col.kindName}</Typography>
             </TableCell>
           ))}
           <TableCell align="right" sx={{ ...head, bgcolor: 'action.hover' }}>{c.totalName ?? 'Consolidated'}</TableCell>
@@ -470,12 +471,14 @@ function Periods({ branchCode }: { branchCode: number }) {
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
   const refresh = () => qc.invalidateQueries({ queryKey: ['periods'] })
-  const add = useMutation({ meta: { done: 'Period added.' },
+  const add = useMutation({
+    onError: notifyError, meta: { done: 'Period added.' },
     mutationFn: () => createPeriod({ branchCode, name: name.trim(), startDate: start, endDate: end }),
     onSuccess: () => { setName(''); setStart(''); setEnd(''); refresh() },
   })
-  const move = useMutation({ meta: { done: (_, v) => ({ OPEN: 'Period reopened.', SOFT_CLOSED: 'Period closed for review.', CLOSED: 'Period closed.', LOCKED: 'Period locked.' } as Record<string, string>)[(v as { status: string }).status] ?? null }, mutationFn: (v: { id: number; status: PeriodStatus }) => setPeriodStatus(v.id, v.status), onSuccess: refresh })
-  const error = (list.error ?? add.error ?? move.error) as Error | null
+  const move = useMutation({
+    onError: notifyError, meta: { done: (_, v) => ({ OPEN: 'Period reopened.', SOFT_CLOSED: 'Period closed for review.', CLOSED: 'Period closed.', LOCKED: 'Period locked.' } as Record<string, string>)[(v as { status: string }).status] ?? null }, mutationFn: (v: { id: number; status: PeriodStatus }) => setPeriodStatus(v.id, v.status), onSuccess: refresh })
+  const error = (list.error) as Error | null // refused actions pop up (notifyError); a failed load stays here
   return (
     <Box>
       <Stack direction="row" spacing={1.5} useFlexGap sx={{ mb: 2, flexWrap: "wrap" }}>

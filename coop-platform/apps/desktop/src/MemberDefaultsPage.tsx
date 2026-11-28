@@ -5,6 +5,7 @@ import { getMemberDefaultsSetup, saveMemberDefaults, type MemberDefaultsSetup } 
 import { appBackground, glass } from './glass'
 import { useLeaveGuard } from './leaveGuard'
 import { LoadingBlock } from './ui/Loading'
+import { notifyError } from './ui/notices'
 import { Hinted, ScreenTitle } from './appleUi'
 
 const KEY = ['member-defaults-setup']
@@ -40,6 +41,7 @@ function Form({ s }: { s: MemberDefaultsSetup }) {
   const changed = stored !== now
   useLeaveGuard(changed ? 'The member defaults have changes that are not saved.' : null)
   const save = useMutation({
+    onError: notifyError,
     mutationFn: () => saveMemberDefaults(dept === '' ? null : Number(dept), office === '' ? null : Number(office), types, reason.trim()),
     meta: { done: 'Member defaults saved and recorded in the audit log.' },
     onSuccess: (fresh) => {
@@ -68,13 +70,13 @@ function Form({ s }: { s: MemberDefaultsSetup }) {
             {s.offices.map((o) => <MenuItem key={o.code} value={String(o.code)}>{o.code} · {o.name}</MenuItem>)}
           </TextField></Hinted>
           <Box component="fieldset" sx={{ border: 0, m: 0, p: 0 }}>
-            <Typography component="legend" sx={{ fontSize: 13, fontWeight: 600, mb: 0.5 }}>Member types that can be registered</Typography>
+            <Typography variant="subtitle2" component="legend" sx={{ mb: 0.5 }}>Member types that can be registered</Typography>
             {s.memberTypes.length === 0
-              ? <Typography sx={{ fontSize: 13 }} color="text.secondary">This database has no member types yet: load them in Settings &gt; System &gt; Starter setup.</Typography>
+              ? <Typography color="text.secondary">This database has no member types yet: load them in Settings &gt; System &gt; Starter setup.</Typography>
               : (
                 <FormGroup sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
                   {s.memberTypes.map((t) => (
-                    <FormControlLabel key={t.code} disabled={ro} label={<Typography sx={{ fontSize: 13 }}>{t.name}</Typography>}
+                    <FormControlLabel key={t.code} disabled={ro} label={<Typography>{t.name}</Typography>}
                       control={<Checkbox size="small" checked={types.includes(t.code)} onChange={(_, on) => toggle(t.code, on)} />} />
                   ))}
                 </FormGroup>
@@ -84,7 +86,6 @@ function Form({ s }: { s: MemberDefaultsSetup }) {
       </Box>
       {!ro && (
         <Box sx={(t) => ({ ...glass(t), p: 2 })}>
-          {save.error && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => save.reset()}>{(save.error as Error).message}</Alert>}
           {types.length === 0 && <Alert severity="warning" sx={{ mb: 1.5 }}>Choose at least one member type, or no one can be registered.</Alert>}
           <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1.5, alignItems: { sm: 'center' } }}>
             <TextField label="Reason for the change" value={reason} onChange={(e) => setReason(e.target.value)} disabled={!changed} sx={{ flex: 1 }}

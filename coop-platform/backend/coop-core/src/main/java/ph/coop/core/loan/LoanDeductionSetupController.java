@@ -115,7 +115,7 @@ public class LoanDeductionSetupController {
         String target = switch (kind) {
             case LoanDeductionRules.NET_PROCEEDS -> "Net proceeds: what the member receives";
             case LoanDeductionRules.MEMBER_ACCOUNT -> {
-                List<String> n = jdbc.queryForList("SELECT SLTypeM_DESC2 FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", String.class, branch, cls, type);
+                List<String> n = jdbc.queryForList("SELECT SLTypeM_DESC FROM sltype WHERE SLTypeBR_CODE = ? AND SLTypeSLC_CODE = ? AND SLTypeSLT_CODE = ?", String.class, branch, cls, type);
                 yield "The member's " + (n.isEmpty() || n.get(0) == null ? "account " + cls + "/" + type : n.get(0));
             }
             case LoanDeductionRules.LOAN_CHARGE -> "This loan: " + LoanSetupController.eventRole(event).toLowerCase();
@@ -192,7 +192,7 @@ public class LoanDeductionSetupController {
 
     private Options options(int code, int branch) {
         List<MemberType> types = jdbc.query("""
-            SELECT s.SLTypeSLC_CODE, s.SLTypeSLT_CODE, s.SLTypeM_DESC2 FROM sltype s
+            SELECT s.SLTypeSLC_CODE, s.SLTypeSLT_CODE, s.SLTypeM_DESC FROM sltype s
             WHERE s.SLTypeBR_CODE = ? AND s.SLTypeSLC_CODE IN (22, 26, 29, 31) AND COALESCE(s.SLTypeIsDisabled, 0) = 0
               AND EXISTS (SELECT 1 FROM glcontrol g WHERE g.GLControlBR_CODE = s.SLTypeBR_CODE AND g.GLControlSLC_CODE = s.SLTypeSLC_CODE AND g.GLControlSLT_CODE = s.SLTypeSLT_CODE AND g.GLControlSLE_CODE = 11)
             ORDER BY s.SLTypeSLC_CODE, s.SLTypeSLT_CODE

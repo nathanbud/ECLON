@@ -8,6 +8,7 @@ import {
 import { glass } from './glass'
 import MoneyField from './MoneyField'
 import { money, tabular } from './ui/format'
+import { notifyError } from './ui/notices'
 import { labelOf } from './ui/labels'
 
 const iso = (d: Date) => d.toLocaleDateString('en-CA')
@@ -124,11 +125,13 @@ function ReconcileDialog({ branchCode, bank, onClose }: { branchCode: number; ba
 
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['banks'] }); void qc.invalidateQueries({ queryKey: ['bank-recons'] }); void qc.invalidateQueries({ queryKey: ['bank-sheet'] }) }
   const save = useMutation({
+    onError: notifyError,
     mutationFn: () => saveBankRecon(branchCode, bank.id, { statementDate: date, statementBalance: statement, outstanding: items.filter((i) => outstanding.has(keyOf(i.key))).map((i) => i.key), note }),
     onSuccess: (r) => { setSaved(r); refresh() },
   })
-  const finalize = useMutation({ mutationFn: (id: number) => finalizeBankRecon(id), onSuccess: (r) => { setSaved(r); refresh() } })
-  const error = (sheet.error ?? save.error ?? finalize.error) as Error | null
+  const finalize = useMutation({
+    onError: notifyError, mutationFn: (id: number) => finalizeBankRecon(id), onSuccess: (r) => { setSaved(r); refresh() } })
+  const error = (sheet.error) as Error | null // refused actions pop up (notifyError); a failed load stays here
   const toggle = (k: string) => setOutstanding((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
 
   return (
@@ -140,8 +143,8 @@ function ReconcileDialog({ branchCode, bank, onClose }: { branchCode: number; ba
           <MoneyField size="small" label="Balance on the bank statement" value={balance} onValueChange={(v) => setBalance(v)} slotProps={{ htmlInput: { step: '0.01' } }} sx={{ width: 240 }} />
           <TextField size="small" label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} sx={{ flex: 1, minWidth: 200 }} />
         </Stack>
-        {sheet.data?.previousDate && <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">Last reconciled through {sheet.data.previousDate}. Entries that were outstanding then are ticked.</Typography>}
-        <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">Tick the entries the bank has <strong>not</strong> cleared yet (deposits in transit, cheques not cashed).</Typography>
+        {sheet.data?.previousDate && <Typography sx={{ mb: 1 }} color="text.secondary">Last reconciled through {sheet.data.previousDate}. Entries that were outstanding then are ticked.</Typography>}
+        <Typography sx={{ mb: 1 }} color="text.secondary">Tick the entries the bank has <strong>not</strong> cleared yet (deposits in transit, cheques not cashed).</Typography>
         {error && <Alert severity="error" sx={{ mb: 1 }}>{error.message}</Alert>}
         <Box sx={{ maxHeight: 320, overflow: 'auto', mb: 2 }}>
           <Table size="small" stickyHeader aria-label="Entries to reconcile">
@@ -183,7 +186,7 @@ function ReconcileDialog({ branchCode, bank, onClose }: { branchCode: number; ba
         )}
         {history.data && history.data.length > 0 && (
           <Box sx={{ mt: 2 }}>
-            <Typography sx={{ fontWeight: 600, fontSize: 13, mb: 0.5 }}>Earlier reconciliations</Typography>
+            <Typography variant="subtitle2" component="p" sx={{ mb: 0.5 }}>Earlier reconciliations</Typography>
             <Table size="small" aria-label="Earlier reconciliations">
               <TableBody>
                 {history.data.map((r) => (

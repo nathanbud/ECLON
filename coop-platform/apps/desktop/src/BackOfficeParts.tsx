@@ -31,8 +31,8 @@ export function TypePicker({ types, value, onChange, extra }: {
         const here = !!t.entry
         return (
           <MenuItem key={t.id} value={String(t.id)} sx={{ display: 'block', py: 0.5 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: here ? 600 : 400 }} color={here ? 'text.primary' : 'text.secondary'}>{t.name}</Typography>
-            <Typography sx={{ fontSize: 11 }} color="text.secondary">
+            <Typography sx={{ fontWeight: here ? 600 : 400 }} color={here ? 'text.primary' : 'text.secondary'}>{t.name}</Typography>
+            <Typography variant="caption" color="text.secondary">
               {[t.code, t.entries > 0 ? `${t.entries.toLocaleString('en-US')} in the old data` : 'never used', here ? null : t.madeElsewhere ? 'made elsewhere' : 'not available yet'].filter(Boolean).join(' · ')}
             </Typography>
           </MenuItem>
@@ -41,8 +41,8 @@ export function TypePicker({ types, value, onChange, extra }: {
       {extra && <Divider />}
       {extra && (
         <MenuItem value={extra.value} sx={{ display: 'block', py: 0.5 }}>
-          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{extra.label}</Typography>
-          <Typography sx={{ fontSize: 11 }} color="text.secondary">{extra.note}</Typography>
+          <Typography variant="subtitle2" component="p">{extra.label}</Typography>
+          <Typography variant="caption" color="text.secondary">{extra.note}</Typography>
         </MenuItem>
       )}
     </TextField>
@@ -53,8 +53,8 @@ export function TypePicker({ types, value, onChange, extra }: {
 export function NotMadeHere({ type, otherwise }: { type: BackOfficeType; otherwise: string }) {
   return (
     <Panel>
-      <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, mb: 0.5 }}>{type.name} <Typography component="span" sx={{ fontSize: 13 }} color="text.secondary">({type.code || `type ${type.id}`})</Typography></Typography>
-      <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">
+      <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>{type.name} <Typography component="span" color="text.secondary">({type.code || `type ${type.id}`})</Typography></Typography>
+      <Typography sx={{ mb: 1.5 }} color="text.secondary">
         {type.entries > 0
           ? `The old system has ${type.entries.toLocaleString('en-US')} of these, the last dated ${fmtDate(type.lastUsed ?? '') ?? type.lastUsed}.`
           : 'The old system never used this type.'}
@@ -82,8 +82,8 @@ export function Panel({ children, sx }: { children: ReactNode; sx?: object }) {
 export function ReadOnly({ label, value }: { label: string; value: string }) {
   return (
     <Box sx={{ minWidth: 110 }}>
-      <Typography sx={{ fontSize: 11 }} color="text.secondary">{label}</Typography>
-      <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{value}</Typography>
+      <Typography variant="caption" color="text.secondary">{label}</Typography>
+      <Typography variant="subtitle2" component="p">{value}</Typography>
     </Box>
   )
 }
@@ -98,7 +98,7 @@ export function EntryList({ entries, loading, error, onOpen, empty = 'No entries
   entries: Entry[]; loading: boolean; error: Error | null; onOpen: (id: number) => void; empty?: string; sort?: Sort; onSort?: (key: SortKey) => void
 }) {
   if (error) return <Alert severity="error">{error.message}</Alert>
-  if (loading) return <Typography sx={{ fontSize: 13 }} color="text.secondary">Loading…</Typography>
+  if (loading) return <Typography color="text.secondary">Loading…</Typography>
   if (entries.length === 0) return <Alert severity="info">{empty}</Alert>
   return (
     <Table size="small" aria-label="Entries">
@@ -156,7 +156,7 @@ export function FindDialog({ entries, loading, error, typeLabel, onClose, onOpen
             </IconButton>
           </Tooltip>
         </Stack>
-        <Typography sx={{ fontSize: 12, mb: 1 }} color="text.secondary" aria-live="polite">
+        <Typography variant="body2" sx={{ mb: 1 }} color="text.secondary" aria-live="polite">
           {found.length} of {entries.length} · {describeSort(sort)}. Press a column heading to sort by it.
         </Typography>
         <EntryList entries={found} loading={loading} error={error} onOpen={onOpen} sort={sort} onSort={(key) => setSort((s) => nextSort(s, key))}
@@ -171,9 +171,9 @@ export function Totals({ debit, credit }: { debit: number; credit: number }) {
   const difference = Math.round((debit - credit) * 100) / 100
   return (
     <Stack direction="row" spacing={3} sx={{ mt: 1.5, justifyContent: 'flex-end', fontVariantNumeric: 'tabular-nums' }} aria-label="Totals">
-      <Typography sx={{ fontSize: 13 }}>Debit <b>{money(debit)}</b></Typography>
-      <Typography sx={{ fontSize: 13 }}>Credit <b>{money(credit)}</b></Typography>
-      <Typography sx={{ fontSize: 13 }} color={difference === 0 ? 'success.main' : 'error.main'}>Difference <b>{money(Math.abs(difference))}</b></Typography>
+      <Typography>Debit <b>{money(debit)}</b></Typography>
+      <Typography>Credit <b>{money(credit)}</b></Typography>
+      <Typography color={difference === 0 ? 'success.main' : 'error.main'}>Difference <b>{money(Math.abs(difference))}</b></Typography>
     </Stack>
   )
 }
@@ -183,7 +183,7 @@ export function DiscardDialog({ onKeep, onDiscard }: { onKeep: () => void; onDis
   return (
     <Dialog open onClose={onKeep} maxWidth="xs" fullWidth>
       <DialogTitle>Discard the entry?</DialogTitle>
-      <DialogContent><Typography sx={{ fontSize: 13 }}>The entry you are making has not been saved. Discarding it loses what you typed.</Typography></DialogContent>
+      <DialogContent><Typography>The entry you are making has not been saved. Discarding it loses what you typed.</Typography></DialogContent>
       <DialogActions>
         <Button onClick={onKeep}>Keep editing</Button>
         <Button color="warning" variant="contained" onClick={onDiscard}>Discard</Button>

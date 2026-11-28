@@ -16,8 +16,9 @@ import ChartUpload from './ChartUpload'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
 import { BusyArea } from './ui/Loading'
-import { tint } from './theme'
+import { tint, RADIUS, SURFACE_RADIUS } from './theme'
 import { suggestHeadings, nextCode, type HeadingSuggestion } from './ui/chartSuggest'
+import { notifyError } from './ui/notices'
 import {
   codeProblem, counts, matches, nameProblem, normalOf, passes, POSTING_WORDS, postingOf, toCsv, TYPE_NAMES, TYPE_ONE, type ChartFilter, type Posting, type Status,
 } from './ui/chartTree'
@@ -65,7 +66,7 @@ function Pill({ color, children, outlined }: { color: string; children: ReactNod
 function TypeMark({ type, summary, dark }: { type: number; summary: boolean; dark: boolean }) {
   const c = colorOf(type, dark)
   return (
-    <Box aria-hidden sx={{ width: 22, height: 22, borderRadius: '6px', flexShrink: 0, display: 'grid', placeItems: 'center', color: c, bgcolor: `${c}1F`, fontSize: 12 }}>
+    <Box aria-hidden sx={{ width: 22, height: 22, borderRadius: `${RADIUS}px`, flexShrink: 0, display: 'grid', placeItems: 'center', color: c, bgcolor: `${c}1F`, fontSize: 12 }}>
       {summary ? <FiLayers /> : <FiGrid />}
     </Box>
   )
@@ -209,7 +210,7 @@ export default function AccountsPage() {
       <Box sx={{ maxWidth: 1180, mx: 'auto' }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
           <Box sx={{ flex: 1, minWidth: 260 }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', mb: 0.5 }} color="text.secondary">Accounting</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', mb: 0.5 }} color="text.secondary">Accounting</Typography>
             <ScreenTitle title="Chart of Accounts">
               The ledger accounts the books are kept in, as a hierarchy: each heading totals the accounts under it, and only posting accounts take entries. An account
               number starts with its heading&apos;s number and never changes; an account is switched off, never deleted, so its history stays.
@@ -234,11 +235,11 @@ export default function AccountsPage() {
                 '&:focus-visible': { outline: `2px solid ${t.palette.primary.main}` },
               })}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box aria-hidden sx={{ width: 26, height: 26, borderRadius: '7px', display: 'grid', placeItems: 'center', color: c.color, bgcolor: `${c.color}1F`, fontSize: 15 }}>{c.icon}</Box>
-                <Typography sx={{ fontSize: 11 }} color="text.secondary">{c.note}</Typography>
+                <Box aria-hidden sx={{ width: 26, height: 26, borderRadius: `${SURFACE_RADIUS - 2}px`, display: 'grid', placeItems: 'center', color: c.color, bgcolor: `${c.color}1F`, fontSize: 15 }}>{c.icon}</Box>
+                <Typography variant="caption" color="text.secondary">{c.note}</Typography>
               </Box>
-              <Typography sx={{ fontSize: 22, fontWeight: 700, mt: 1, fontVariantNumeric: 'tabular-nums' }}>{data ? c.value.toLocaleString() : '–'}</Typography>
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">{c.label}</Typography>
+              <Typography variant="h3" component="p" sx={{ mt: 1, fontVariantNumeric: 'tabular-nums' }}>{data ? c.value.toLocaleString() : '–'}</Typography>
+              <Typography variant="body2" color="text.secondary">{c.label}</Typography>
             </Box>
           ))}
         </Box>
@@ -290,7 +291,7 @@ export default function AccountsPage() {
           </TableContainer>
           </BusyArea>
           <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', px: 1.5, py: 1, borderTop: `1px solid ${t.palette.divider}` })}>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary" role="status">
+            <Typography variant="body2" color="text.secondary" role="status">
               {pending ? 'Opening the headings…' : filtering
                 ? <>{matching.length.toLocaleString()} account{matching.length === 1 ? '' : 's'} match, shown with the headings above them</>
                 : <>Showing {shown.length.toLocaleString()} of {typeCounts[filter.type].toLocaleString()} accounts; open a heading to see what is under it</>}
@@ -299,7 +300,7 @@ export default function AccountsPage() {
             <AboutNote label="Keyboard">↑ and ↓ move between rows, → opens and ← closes a heading, Enter opens the account. Double-click a row to open it too.</AboutNote>
           </Box>
         </Surface>
-        <Typography sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 1.25, px: 0.5, fontSize: 12 }} color="text.secondary">
+        <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 1.25, px: 0.5 }} color="text.secondary">
           Account numbers and their grouping should follow the cooperative&apos;s approved chart of accounts and accounting policies.
         </Typography>
 
@@ -336,7 +337,8 @@ const ChartRow = memo(function ChartRow({ a, index, depth, opened, childCount, h
       onKeyDown={(e) => onRowKey(e, index)}
       onDoubleClick={() => onEdit(a)}
       sx={(t) => ({
-        opacity: a.disabled ? 0.55 : hit ? 1 : 0.7, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 },
+        // a switched-off account (its Status says so) and a row that only leads to a search hit read quieter in the secondary colour, never faded
+        '& .MuiTableCell-root': { color: a.disabled || !hit ? 'text.secondary' : undefined }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 },
         bgcolor: a.summary && depth === 0 ? (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)') : undefined,
         '& .act': { opacity: 0, transition: 'opacity .15s' }, '&:hover .act, &:focus-within .act, &:focus-visible .act': { opacity: 1 },
       })}
@@ -348,7 +350,7 @@ const ChartRow = memo(function ChartRow({ a, index, depth, opened, childCount, h
               <FiChevronRight style={{ transition: 'transform .18s ease', transform: opened ? 'rotate(90deg)' : 'none' }} />
             </IconButton>
           ) : <Box sx={{ width: 26, flexShrink: 0 }} />}
-          <Typography component="span" sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', fontWeight: a.summary ? 700 : 500 }}><Marked text={a.code} q={q} /></Typography>
+          <Typography component="span" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: a.summary ? 700 : 500 }}><Marked text={a.code} q={q} /></Typography>
           {a.inUse && (
             <Tooltip title="The system posts to this account (a product, bank or branch setting), so it cannot be switched off">
               <Box component="span" aria-label="Used by the system" sx={{ display: 'inline-flex', ml: 0.75, color: 'text.secondary' }}><FiLock size={12} /></Box>
@@ -364,7 +366,7 @@ const ChartRow = memo(function ChartRow({ a, index, depth, opened, childCount, h
               sx={{ all: 'unset', cursor: 'pointer', display: 'block', color: 'text.primary', fontSize: 13, fontWeight: a.summary ? 700 : 500, lineHeight: 1.35, '&:hover': { color: 'primary.main', textDecoration: 'underline' } }}>
               <Marked text={a.name ?? '(no name)'} q={q} />
             </Box>
-            <Typography sx={{ fontSize: 11, lineHeight: 1.35, display: 'flex', alignItems: 'center', gap: 0.5 }} color="text.secondary" noWrap>
+            <Typography variant="caption" sx={{ lineHeight: 1.35, display: 'flex', alignItems: 'center', gap: 0.5 }} color="text.secondary" noWrap>
               {a.description
                 ? <Marked text={a.description} q={q} />
                 : a.parent ? <><FiCornerDownRight size={10} />Under {parentName ?? a.parent}</> : 'Top heading'}
@@ -374,12 +376,12 @@ const ChartRow = memo(function ChartRow({ a, index, depth, opened, childCount, h
       </TableCell>
       <TableCell><Pill color={color}>{TYPE_ONE[a.type] ?? '–'}</Pill></TableCell>
       <TableCell>
-        <Typography component="span" sx={{ fontSize: 13 }}>{a.normalBalance === 'D' ? 'Debit' : 'Credit'}</Typography>
+        <Typography component="span">{a.normalBalance === 'D' ? 'Debit' : 'Credit'}</Typography>
         {a.contra && <Tooltip title={`A contra account: it runs against its type, whose accounts are normally ${normalOf(a.type) === 'D' ? 'debit' : 'credit'}`}><Box component="span" sx={{ ml: 0.75 }}><Pill color={tint.gray[0]} outlined>Contra</Pill></Box></Tooltip>}
       </TableCell>
       <TableCell>
         {posting === 'heading'
-          ? <Typography component="span" sx={{ fontSize: 13 }} color="text.secondary">Heading</Typography>
+          ? <Typography component="span" color="text.secondary">Heading</Typography>
           : <Pill color={posting === 'journal' ? tint.indigo[0] : tint.teal[0]}>{POSTING_WORDS[posting]}</Pill>}
       </TableCell>
       <TableCell>{a.disabled ? <Pill color={tint.orange[0]}>Switched off</Pill> : <Pill color={tint.green[0]}>Active</Pill>}</TableCell>
@@ -431,10 +433,10 @@ function Part({ n, title, note, children, partRef }: { n: string; title: string;
   return (
     <Box ref={partRef} component="section" aria-label={title} sx={{ scrollMarginTop: 12 }}>
       <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start', mb: 1.75 }}>
-        <Box sx={(t) => ({ fontSize: 11, fontWeight: 700, color: 'primary.main', bgcolor: t.palette.mode === 'dark' ? 'rgba(10,132,255,0.16)' : 'rgba(10,108,220,0.08)', borderRadius: '5px', px: 0.75, py: 0.5 })}>{n}</Box>
+        <Box sx={(t) => ({ fontSize: 11, fontWeight: 700, color: 'primary.main', bgcolor: t.palette.mode === 'dark' ? 'rgba(10,132,255,0.16)' : 'rgba(10,108,220,0.08)', borderRadius: `${RADIUS}px`, px: 0.75, py: 0.5 })}>{n}</Box>
         <Box>
-          <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{title}</Typography>
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">{note}</Typography>
+          <Typography sx={{ fontWeight: 700 }}>{title}</Typography>
+          <Typography variant="body2" color="text.secondary">{note}</Typography>
         </Box>
       </Box>
       <Stack spacing={1.75}>{children}</Stack>
@@ -447,14 +449,14 @@ function Choice({ on, onClick, letter, title, note, color, disabled }: { on: boo
   return (
     <Box component="button" type="button" role="radio" aria-checked={on} disabled={disabled} onClick={onClick}
       sx={(t) => ({
-        all: 'unset', cursor: disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: '7px', flex: 1, minWidth: 0,
+        all: 'unset', cursor: disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: `${SURFACE_RADIUS - 2}px`, flex: 1, minWidth: 0,
         border: `1px solid ${on ? t.palette.primary.main : t.palette.divider}`, bgcolor: on ? (t.palette.mode === 'dark' ? 'rgba(10,132,255,0.12)' : 'rgba(10,108,220,0.05)') : 'transparent',
         opacity: disabled && !on ? 0.5 : 1, '&:focus-visible': { outline: `2px solid ${t.palette.primary.main}`, outlineOffset: 1 },
       })}>
-      <Box aria-hidden sx={{ width: 24, height: 24, borderRadius: '6px', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 12, color, bgcolor: `${color}1F`, flexShrink: 0 }}>{letter}</Box>
+      <Box aria-hidden sx={{ width: 24, height: 24, borderRadius: `${RADIUS}px`, display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 12, color, bgcolor: `${color}1F`, flexShrink: 0 }}>{letter}</Box>
       <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{title}</Typography>
-        <Typography sx={{ fontSize: 11 }} color="text.secondary">{note}</Typography>
+        <Typography variant="subtitle2" component="p">{title}</Typography>
+        <Typography variant="caption" color="text.secondary">{note}</Typography>
       </Box>
     </Box>
   )
@@ -511,6 +513,7 @@ function AccountPanel({ panel, chart, dark, onClose, onSaved, onTab }: {
   const missing = [!name.trim() && 'the account name', nameIssue && 'another name', !editing && codeIssue && 'a free account number', parent == null && 'its heading', !reason.trim() && 'the reason'].filter(Boolean)
 
   const save = useMutation({
+    onError: notifyError,
     mutationFn: () => editing
       ? updateChartAccount(editing.code, { name, parent, glOnly, disabled, reason, normalBalance: normal, description })
       : createChartAccount({ code, name, summary, parent, glOnly: summary ? false : glOnly, reason, normalBalance: normal, description }),
@@ -523,9 +526,9 @@ function AccountPanel({ panel, chart, dark, onClose, onSaved, onTab }: {
       slotProps={{ paper: { sx: { width: narrow ? '100%' : 460, display: 'flex', flexDirection: 'column' } } }}>
       <Box sx={{ px: 2.5, pt: 2.25, pb: 1.5, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }} color="text.secondary">Chart of accounts</Typography>
+          <Typography variant="caption" sx={{ fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }} color="text.secondary">Chart of accounts</Typography>
           <Typography component="h2" sx={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', mt: 0.5 }} noWrap>{title}</Typography>
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">
+          <Typography variant="body2" color="text.secondary">
             {editing ? `${TYPE_ONE[editing.type]} ${editing.summary ? 'heading' : 'account'} · the number never changes` : under ? `Under ${under.code} ${under.name ?? ''}` : 'Add an account to the ledger structure.'}
           </Typography>
         </Box>
@@ -539,14 +542,14 @@ function AccountPanel({ panel, chart, dark, onClose, onSaved, onTab }: {
       )}
       {panel.mode === 'edit' && panel.tab === 'history' ? (
         <Box sx={{ flex: 1, overflowY: 'auto', px: 2.5, py: 2 }}>
-          {history.isLoading && <Typography color="text.secondary" sx={{ fontSize: 13 }}>Loading the history…</Typography>}
+          {history.isLoading && <Typography color="text.secondary">Loading the history…</Typography>}
           {history.error && <Alert severity="error">{(history.error as Error).message}</Alert>}
-          {history.data?.length === 0 && <Typography color="text.secondary" sx={{ fontSize: 13 }}>No change has been recorded for this account since the audit log began; it came from the old system.</Typography>}
+          {history.data?.length === 0 && <Typography color="text.secondary">No change has been recorded for this account since the audit log began; it came from the old system.</Typography>}
           <Stack spacing={1.5}>
             {history.data?.map((h, i) => (
               <Box key={i} sx={(t) => ({ ...glass(t), p: 1.5 })}>
-                <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{HISTORY_WORDS[h.action] ?? h.action}</Typography>
-                <Typography sx={{ fontSize: 12 }} color="text.secondary">{h.at.replace('T', ' ').slice(0, 19)} · {h.by}{h.reason ? ` · “${h.reason}”` : ''}</Typography>
+                <Typography variant="subtitle2" component="p">{HISTORY_WORDS[h.action] ?? h.action}</Typography>
+                <Typography variant="body2" color="text.secondary">{h.at.replace('T', ' ').slice(0, 19)} · {h.by}{h.reason ? ` · “${h.reason}”` : ''}</Typography>
                 {h.changes.length > 0 && (
                   <Table size="small" sx={{ mt: 1, '& td, & th': { fontSize: 12, px: 0.75 } }}>
                     <TableHead><TableRow><TableCell>Field</TableCell><TableCell>Before</TableCell><TableCell>After</TableCell></TableRow></TableHead>
@@ -569,14 +572,14 @@ function AccountPanel({ panel, chart, dark, onClose, onSaved, onTab }: {
                 {i > 0 && <Box aria-hidden sx={(t) => ({ flex: 1, minWidth: 8, height: '1px', bgcolor: t.palette.divider })} />}
                 <Box role="listitem" component="button" type="button" onClick={() => goTo(i)}
                   aria-label={`${i + 1} ${s.label}${s.ok ? ', done' : ''}`}
-                  sx={{ all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 0.75, whiteSpace: 'nowrap', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', borderRadius: '4px' } }}>
+                  sx={{ all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 0.75, whiteSpace: 'nowrap', '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', borderRadius: `${RADIUS}px` } }}>
                   <Box sx={(t) => ({
                     width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 700,
                     color: s.ok ? '#fff' : 'text.secondary', bgcolor: s.ok ? t.palette.success.main : t.palette.action.hover,
                   })}>{s.ok ? '✓' : i + 1}</Box>
                   <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
-                    <Typography sx={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{s.label}</Typography>
-                    <Typography sx={{ fontSize: 11, lineHeight: 1.2 }} color="text.secondary">{s.note}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>{s.label}</Typography>
+                    <Typography variant="caption" sx={{ lineHeight: 1.2 }} color="text.secondary">{s.note}</Typography>
                   </Box>
                 </Box>
               </Box>
@@ -614,13 +617,13 @@ function AccountPanel({ panel, chart, dark, onClose, onSaved, onTab }: {
                 options={parents} value={parentRow} onChange={(_, v) => { setParent(v?.code ?? null); if (v) setType(v.type); setOwnCode(null) }}
                 getOptionLabel={(p) => `${p.code} ${p.name ?? ''}`} isOptionEqualToValue={(a, b) => a.code === b.code}
                 disabled={editing != null && !moving}
-                renderOption={(props, p) => <li {...props} key={p.code}><Box sx={{ pl: `${Math.max(0, p.code.length - 1) * 6}px` }}><Typography sx={{ fontSize: 13 }}>{p.code} {p.name}</Typography></Box></li>}
+                renderOption={(props, p) => <li {...props} key={p.code}><Box sx={{ pl: `${Math.max(0, p.code.length - 1) * 6}px` }}><Typography>{p.code} {p.name}</Typography></Box></li>}
                 renderInput={(p) => <TextField {...p} required label="Heading it goes under" error={touched && parent == null}
                   helperText={editing && !moving ? 'It has ledger entries, so it stays where it is.' : touched && parent == null ? 'Choose the heading this account goes under.' : 'The heading that totals it.'} />}
               />
               {suggested.length > 0 && (
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75, mt: '-6px !important' }}>
-                  <Typography color="text.secondary" sx={{ fontSize: 12 }}>Suggested:</Typography>
+                  <Typography variant="body2" color="text.secondary">Suggested:</Typography>
                   {suggested.map((s) => (
                     <Tooltip key={s.heading.code} describeChild title={`${s.why}. Puts it under ${s.heading.code} ${s.heading.name ?? ''} as ${s.nextCode}.`}>
                       <Chip size="small" label={`${s.heading.code} ${s.heading.name ?? ''}`} onClick={() => place(s)}
@@ -630,12 +633,12 @@ function AccountPanel({ panel, chart, dark, onClose, onSaved, onTab }: {
                 </Box>
               )}
               <Box role="radiogroup" aria-label="Normal balance">
-                <Typography sx={{ fontSize: 12, fontWeight: 600, mb: 0.75 }}>Normal balance</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.75 }}>Normal balance</Typography>
                 <Box sx={{ display: 'flex', gap: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
                   <Choice on={normal === 'D'} onClick={() => setBalance('D')} letter="D" title="Debit" note="Assets and expenses" color={tint.blue[dark ? 1 : 0]} />
                   <Choice on={normal === 'C'} onClick={() => setBalance('C')} letter="C" title="Credit" note="Liabilities, equity and income" color={tint.green[dark ? 1 : 0]} />
                 </Box>
-                <Typography sx={{ fontSize: 12, mt: 0.75 }} color={typeNow && normal !== normalOf(typeNow) ? 'warning.main' : 'text.secondary'}>
+                <Typography variant="body2" sx={{ mt: 0.75 }} color={typeNow && normal !== normalOf(typeNow) ? 'warning.main' : 'text.secondary'}>
                   {!typeNow ? 'Suggested from the type once it is chosen.'
                     : normal === normalOf(typeNow) ? `${normal === 'D' ? 'Debit' : 'Credit'}, as every ${TYPE_ONE[typeNow].toLowerCase()} account.`
                     : `A contra account: it runs against its type (normally ${normalOf(typeNow) === 'D' ? 'debit' : 'credit'}), as an allowance for losses or accumulated depreciation does.`}
@@ -646,22 +649,22 @@ function AccountPanel({ panel, chart, dark, onClose, onSaved, onTab }: {
             <Part n="03" title="Posting and status" note="How the account can be used." partRef={(el) => { parts.current[2] = el }}>
               {editing == null ? (
                 <FormControlLabel control={<Switch checked={!summary} onChange={(e) => setSummary(!e.target.checked)} />}
-                  label={<Box><Typography sx={{ fontSize: 13, fontWeight: 600 }}>Posting account</Typography><Typography sx={{ fontSize: 12 }} color="text.secondary">Takes entries. Off: a heading that only totals the accounts under it.</Typography></Box>} />
+                  label={<Box><Typography variant="subtitle2" component="p">Posting account</Typography><Typography variant="body2" color="text.secondary">Takes entries. Off: a heading that only totals the accounts under it.</Typography></Box>} />
               ) : (
-                <Typography sx={{ fontSize: 13 }}>{editing.summary ? 'A heading: it totals the accounts under it and takes no entries.' : 'A posting account: it takes entries.'}</Typography>
+                <Typography>{editing.summary ? 'A heading: it totals the accounts under it and takes no entries.' : 'A posting account: it takes entries.'}</Typography>
               )}
               {!(editing ? editing.summary : summary) && (
                 <FormControlLabel control={<Switch checked={glOnly} onChange={(e) => setGlOnly(e.target.checked)} />}
-                  label={<Box><Typography sx={{ fontSize: 13, fontWeight: 600 }}>Takes journal entries</Typography><Typography sx={{ fontSize: 12 }} color="text.secondary">Off: a subsidiary ledger account, posted to only through members&apos; loans, savings or share capital.</Typography></Box>} />
+                  label={<Box><Typography variant="subtitle2" component="p">Takes journal entries</Typography><Typography variant="body2" color="text.secondary">Off: a subsidiary ledger account, posted to only through members&apos; loans, savings or share capital.</Typography></Box>} />
               )}
               {editing && (
                 <FormControlLabel control={<Switch checked={!disabled} onChange={(e) => setDisabled(!e.target.checked)} disabled={!disabled && (usage.data?.usedBy.length ?? 0) > 0} />}
-                  label={<Box><Typography sx={{ fontSize: 13, fontWeight: 600 }}>Account is active</Typography><Typography sx={{ fontSize: 12 }} color="text.secondary">
+                  label={<Box><Typography variant="subtitle2" component="p">Account is active</Typography><Typography variant="body2" color="text.secondary">
                     {(usage.data?.usedBy.length ?? 0) > 0 ? `Used by the system as ${usage.data!.usedBy.join(' and ')}, so it stays on.` : 'Switched off, it cannot be chosen for new entries; its history stays.'}
                   </Typography></Box>} />
               )}
               {editing && usage.data && (
-                <Typography sx={{ fontSize: 12 }} color="text.secondary">
+                <Typography variant="body2" color="text.secondary">
                   {usage.data.entries.toLocaleString()} ledger {usage.data.entries === 1 ? 'entry' : 'entries'}{usage.data.children > 0 && ` · ${usage.data.children} account${usage.data.children === 1 ? '' : 's'} under it`}
                 </Typography>
               )}
@@ -672,10 +675,9 @@ function AccountPanel({ panel, chart, dark, onClose, onSaved, onTab }: {
               <TextField required label="Reason for this change" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 255 } }}
                 error={touched && !reason.trim()} helperText={touched && !reason.trim() ? 'Give the reason for this change.' : undefined} />
             </Hinted>
-            {save.error && <Alert severity="error">{(save.error as Error).message}</Alert>}
           </Box>
           <Box sx={(t) => ({ px: 2.5, py: 1.5, borderTop: `1px solid ${t.palette.divider}`, display: 'flex', alignItems: 'center', gap: 1 })}>
-            <Typography sx={{ flex: 1, fontSize: 12 }} color="text.secondary">{!ready && touched && missing.length > 0 ? `Still needed: ${missing.join(', ')}.` : ''}</Typography>
+            <Typography variant="body2" sx={{ flex: 1 }} color="text.secondary">{!ready && touched && missing.length > 0 ? `Still needed: ${missing.join(', ')}.` : ''}</Typography>
             <Button onClick={onClose} disabled={save.isPending}>Cancel</Button>
             <Button type="submit" form="account-form" variant="contained" disabled={save.isPending} startIcon={editing ? <FiPower /> : <FiPlus />}>
               {save.isPending ? 'Saving…' : editing ? 'Save changes' : 'Save account'}

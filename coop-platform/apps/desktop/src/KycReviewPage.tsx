@@ -43,7 +43,7 @@ export default function KycReviewPage({ onOpenMember }: { onOpenMember: (id: Id)
         <ScreenTitle title="KYC review" sx={{ px: 0.5, mb: 0.5 }}>
           Active members whose Know Your Customer record needs attention. Open a member to put it right in the KYC section.
         </ScreenTitle>
-        <Typography color="text.secondary" sx={{ fontSize: 13, px: 0.5, mb: 2, minHeight: 20 }}>
+        <Typography color="text.secondary" sx={{ px: 0.5, mb: 2, minHeight: 20 }}>
           {complete !== undefined && active > 0 && `${complete.toLocaleString()} of ${active.toLocaleString()} active members are complete.`}
         </Typography>
 
@@ -79,8 +79,8 @@ export default function KycReviewPage({ onOpenMember }: { onOpenMember: (id: Id)
                   onKeyDown={(e) => { if (e.key === 'Enter') onOpenMember({ branchCode: r.branchCode, clientId: r.clientId }) }}
                 >
                   <TableCell>
-                    <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{r.name || 'Unnamed member'}</Typography>
-                    <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{memberNo(r)}</Typography>
+                    <Typography sx={{ fontWeight: 500 }}>{r.name || 'Unnamed member'}</Typography>
+                    <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{memberNo(r)}</Typography>
                   </TableCell>
                   <TableCell><Dot color={kind.color}>{kind.label}</Dot></TableCell>
                   <TableCell>{r.idType ?? '—'}</TableCell>
@@ -91,14 +91,14 @@ export default function KycReviewPage({ onOpenMember }: { onOpenMember: (id: Id)
                 </TableRow>
               ))}
               {data && data.rows.length === 0 && (
-                <TableRow><TableCell colSpan={7} sx={{ py: 4, textAlign: 'center' }}><Typography color="text.secondary" sx={{ fontSize: 13 }}>{kind.empty}</Typography></TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} sx={{ py: 4, textAlign: 'center' }}><Typography color="text.secondary">{kind.empty}</Typography></TableCell></TableRow>
               )}
             </TableBody>
           </Table>
           </BusyArea>
           {data && data.total > SIZE && (
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1, px: 1.5, py: 1 }}>
-              <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{from.toLocaleString()}–{to.toLocaleString()} of {data.total.toLocaleString()}</Typography>
+              <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{from.toLocaleString()}–{to.toLocaleString()} of {data.total.toLocaleString()}</Typography>
               <Button size="small" variant="outlined" aria-label="Previous page" disabled={page === 0} onClick={() => setPage((p) => p - 1)} sx={{ minWidth: 0, px: 0.75 }}><FiChevronLeft /></Button>
               <Button size="small" variant="outlined" aria-label="Next page" disabled={to >= data.total} onClick={() => setPage((p) => p + 1)} sx={{ minWidth: 0, px: 0.75 }}><FiChevronRight /></Button>
             </Box>

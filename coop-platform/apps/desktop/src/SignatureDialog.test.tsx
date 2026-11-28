@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SignatureDialog from './SignatureDialog'
+import { Notices } from './ui/notices'
 import { AppThemeProvider } from './theme'
 
 const upload = vi.fn()
@@ -24,7 +25,7 @@ afterEach(() => vi.restoreAllMocks())
 
 function show(onDone = vi.fn(), onClose = vi.fn()) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={qc}><AppThemeProvider><SignatureDialog id={{ branchCode: 1, clientId: 77 }} name="Budikey, Nathaniel" onClose={onClose} onDone={onDone} /></AppThemeProvider></QueryClientProvider>)
+  render(<QueryClientProvider client={qc}><AppThemeProvider><SignatureDialog id={{ branchCode: 1, clientId: 77 }} name="Budikey, Nathaniel" onClose={onClose} onDone={onDone} /><Notices /></AppThemeProvider></QueryClientProvider>)
   return { onDone, onClose }
 }
 
@@ -75,7 +76,7 @@ describe('signature pad', () => {
 describe('signature on file', () => {
   it('shows the signature first and offers to replace it, then opens the pad', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(<QueryClientProvider client={qc}><AppThemeProvider><SignatureDialog id={{ branchCode: 1, clientId: 77 }} name="Budikey, Nathaniel" current="blob:sig" onClose={() => {}} onDone={() => {}} /></AppThemeProvider></QueryClientProvider>)
+    render(<QueryClientProvider client={qc}><AppThemeProvider><SignatureDialog id={{ branchCode: 1, clientId: 77 }} name="Budikey, Nathaniel" current="blob:sig" onClose={() => {}} onDone={() => {}} /><Notices /></AppThemeProvider></QueryClientProvider>)
     expect(screen.getByRole('img', { name: /Signature of Budikey/ })).toBeInTheDocument()
     expect(screen.queryByLabelText('Signature pad')).not.toBeInTheDocument()
     await userEvent.setup().click(screen.getByRole('button', { name: 'Replace signature' }))
@@ -84,7 +85,7 @@ describe('signature on file', () => {
 
   it('only shows what is on file to a person who may not capture', () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(<QueryClientProvider client={qc}><AppThemeProvider><SignatureDialog id={{ branchCode: 1, clientId: 77 }} name="Budikey, Nathaniel" current={null} canCapture={false} onClose={() => {}} onDone={() => {}} /></AppThemeProvider></QueryClientProvider>)
+    render(<QueryClientProvider client={qc}><AppThemeProvider><SignatureDialog id={{ branchCode: 1, clientId: 77 }} name="Budikey, Nathaniel" current={null} canCapture={false} onClose={() => {}} onDone={() => {}} /><Notices /></AppThemeProvider></QueryClientProvider>)
     expect(screen.getByText('No signature on file')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /signature$/i })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Signature pad')).not.toBeInTheDocument()

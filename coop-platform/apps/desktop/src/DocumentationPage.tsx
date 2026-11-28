@@ -1,5 +1,6 @@
 import { Box, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import type { ReactNode } from 'react'
+import { RADIUS } from './theme'
 import { appBackground, glass } from './glass'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
@@ -164,7 +165,7 @@ const DOCS: [string, string][] = [
 function Card({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Box sx={(t) => ({ p: 2, mb: 2, ...glass(t) })}>
-      <Typography component="h2" sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">{title}</Typography>
+      <Typography variant="overline" component="h2" sx={{ display: 'block', mb: 1 }} color="text.secondary">{title}</Typography>
       {children}
     </Box>
   )
@@ -193,12 +194,12 @@ export default function DocumentationPage() {
         <Card title="Keyboard shortcuts">
           {SHORTCUTS.map((g) => (
             <Box key={g.area} sx={{ mb: 1.5 }}>
-              <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 0.5 }}>{g.area}</Typography>
+              <Typography sx={{ fontWeight: 700, mb: 0.5 }}>{g.area}</Typography>
               <Table size="small" aria-label={`${g.area} shortcuts`}>
                 <TableBody>
                   {g.rows.map(([key, what]) => (
                     <TableRow key={key}>
-                      <TableCell sx={{ width: '26%', whiteSpace: 'nowrap' }}><Box component="kbd" sx={{ fontFamily: 'inherit', fontSize: 12, px: 0.75, py: 0.25, border: 1, borderColor: 'divider', borderRadius: '5px' }}>{key}</Box></TableCell>
+                      <TableCell sx={{ width: '26%', whiteSpace: 'nowrap' }}><Box component="kbd" sx={{ fontFamily: 'inherit', fontSize: 12, px: 0.75, py: 0.25, border: 1, borderColor: 'divider', borderRadius: `${RADIUS}px` }}>{key}</Box></TableCell>
                       <TableCell>{what}</TableCell>
                     </TableRow>
                   ))}
@@ -206,13 +207,13 @@ export default function DocumentationPage() {
               </Table>
             </Box>
           ))}
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">On a Mac, Ctrl is the Command key (⌘).</Typography>
+          <Typography variant="body2" color="text.secondary">On a Mac, Ctrl is the Command key (⌘).</Typography>
         </Card>
 
         <Card title="Rules the system follows"><Pairs rows={RULES} head={['Rule', 'What it means']} /></Card>
         <Card title="Where to do things"><Pairs rows={WHERE} head={['Task', 'Where']} /></Card>
         <Card title="Design notes in the project">
-          <Typography sx={{ fontSize: 13, mb: 1 }} color="text.secondary">These files are in the project's documentation folder. They record how each part of the old system was read and how the new code reproduces it.</Typography>
+          <Typography sx={{ mb: 1 }} color="text.secondary">These files are in the project's documentation folder. They record how each part of the old system was read and how the new code reproduces it.</Typography>
           <Pairs rows={DOCS} head={['File', 'About']} />
         </Card>
       </Box>

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 import { FiSearch, FiX } from 'react-icons/fi'
 import { searchMembers, type Lookups } from './api'
+import { RADIUS } from './theme'
 import { displayName, memberNo, statusOf, type Id } from './clients'
 
 const MAX_RESULTS = 8
@@ -68,23 +69,23 @@ export default function MemberSearchBox({ onPick, lk, width = '100%' }: { onPick
           }}
         />
         {showList && (
-          <Paper elevation={6} sx={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, mt: 0.5, width: { xs: '100%', md: 'max(100%, 420px)' }, borderRadius: '5px', overflow: 'hidden' }}>
+          <Paper elevation={6} sx={{ position: 'absolute', zIndex: 20, top: '100%', left: 0, mt: 0.5, width: { xs: '100%', md: 'max(100%, 420px)' }, borderRadius: `${RADIUS}px`, overflow: 'hidden' }}>
             <Box component="ul" id={listId} role="listbox" aria-label="Matching members" sx={{ listStyle: 'none', m: 0, p: 0.5, maxHeight: 340, overflow: 'auto' }}>
-              {error && <Typography sx={{ p: 1.5, fontSize: 13 }} color="error">Search failed. Try again.</Typography>}
+              {error && <Typography sx={{ p: 1.5 }} color="error">Search failed. Try again.</Typography>}
               {!error && !isFetching && results.length === 0 && (
-                <Typography sx={{ p: 1.5, fontSize: 13 }} color="text.secondary">No members match “{q}”.{!inactive && ' Only active members are listed.'}</Typography>
+                <Typography sx={{ p: 1.5 }} color="text.secondary">No members match “{q}”.{!inactive && ' Only active members are listed.'}</Typography>
               )}
               {results.map((m, i) => (
                 <Box
                   component="li" key={`${m.id.branchCode}-${m.id.clientId}`} id={`${listId}-${i}`} role="option" aria-selected={i === active}
                   onClick={() => pick(m.id)} onMouseMove={() => setActive(i)}
-                  sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.25, py: 0.75, borderRadius: '5px', cursor: 'pointer', bgcolor: i === active ? t.palette.action.selected : 'transparent' })}
+                  sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.25, py: 0.75, borderRadius: `${RADIUS}px`, cursor: 'pointer', bgcolor: i === active ? t.palette.action.selected : 'transparent' })}
                 >
                   <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography noWrap sx={{ fontSize: 13, fontWeight: 500 }}>{displayName(m)}</Typography>
-                    <Typography noWrap sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{memberNo(m.id)}{m.city ? ` · ${m.city}` : ''}</Typography>
+                    <Typography noWrap sx={{ fontWeight: 500 }}>{displayName(m)}</Typography>
+                    <Typography variant="body2" noWrap sx={{ fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{memberNo(m.id)}{m.city ? ` · ${m.city}` : ''}</Typography>
                   </Box>
-                  <Typography sx={{ fontSize: 12, flexShrink: 0 }} color="text.secondary">{statusOf(m, lk).label}</Typography>
+                  <Typography variant="body2" sx={{ flexShrink: 0 }} color="text.secondary">{statusOf(m, lk).label}</Typography>
                 </Box>
               ))}
             </Box>

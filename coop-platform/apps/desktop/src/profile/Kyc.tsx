@@ -1,10 +1,12 @@
-import { Alert, Box, Button, Chip, FormControlLabel, MenuItem, Skeleton, Switch, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, FormControlLabel, MenuItem, Switch, TextField, Typography } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { FiUpload } from 'react-icons/fi'
 import { getKyc, getKycScan, saveKyc, uploadKycScan, type Kyc, type KycInput, type KycStatus } from '../api'
 import { type Id } from '../clients'
 import { useMe } from '../session'
+import { Loading } from '../ui/Loading'
+import { RADIUS } from '../theme'
 import { Section } from './fields'
 
 const STATUS: Record<KycStatus, { label: string; color: 'default' | 'success' | 'warning' | 'error'; hint: string }> = {
@@ -49,7 +51,7 @@ export function KycTab({ id, canImages }: { id: Id; canImages: boolean }) {
   const key = data ? `${data.updatedAt}|${data.status}` : null
   if (data && loaded !== key) { setLoaded(key); setForm(toInput(data)) }
 
-  if (isLoading) return <Skeleton variant="rounded" height={260} />
+  if (isLoading) return <Loading what="the KYC record" />
   if (error || !data) return <Alert severity="error">{(error as Error | null)?.message ?? 'The KYC record could not be loaded.'}</Alert>
 
   const st = STATUS[data.status]
@@ -93,8 +95,8 @@ export function KycTab({ id, canImages }: { id: Id; canImages: boolean }) {
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexWrap: 'wrap' }}>
         <Chip label={st.label} color={st.color} variant={data.status === 'COMPLETE' ? 'filled' : 'outlined'} sx={{ fontWeight: 600 }} />
-        <Typography sx={{ fontSize: 13, flex: 1, minWidth: 220 }} color="text.secondary" role="status">{st.hint}</Typography>
-        {data.updatedBy && <Typography sx={{ fontSize: 12 }} color="text.secondary">Last saved by {data.updatedBy}{data.updatedAt ? `, ${data.updatedAt.replace('T', ' ').slice(0, 16)}` : ''}</Typography>}
+        <Typography sx={{ flex: 1, minWidth: 220 }} color="text.secondary" role="status">{st.hint}</Typography>
+        {data.updatedBy && <Typography variant="body2" color="text.secondary">Last saved by {data.updatedBy}{data.updatedAt ? `, ${data.updatedAt.replace('T', ' ').slice(0, 16)}` : ''}</Typography>}
       </Box>
 
       <Section title="Valid ID">
@@ -107,8 +109,8 @@ export function KycTab({ id, canImages }: { id: Id; canImages: boolean }) {
         <TextField size="small" type="date" label="Expiry date" value={form.idExpiry ?? ''} onChange={(e) => set('idExpiry', e.target.value || null)} disabled={ro} slotProps={{ inputLabel: { shrink: true } }} />
         <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
           {scan.data
-            ? <Box component="img" src={scan.data} alt="Scan of the ID" sx={{ maxHeight: 120, maxWidth: 220, objectFit: 'contain', borderRadius: '5px', border: 1, borderColor: 'divider', bgcolor: '#fff' }} />
-            : <Typography sx={{ fontSize: 13 }} color="text.secondary">{data.hasScan ? 'Loading the scan…' : 'No scan of the ID on file.'}</Typography>}
+            ? <Box component="img" src={scan.data} alt="Scan of the ID" sx={{ maxHeight: 120, maxWidth: 220, objectFit: 'contain', borderRadius: `${RADIUS}px`, border: 1, borderColor: 'divider', bgcolor: '#fff' }} />
+            : <Typography color="text.secondary">{data.hasScan ? 'Loading the scan…' : 'No scan of the ID on file.'}</Typography>}
           {canEdit && canImages && (
             <>
               <Button size="small" variant="outlined" startIcon={<FiUpload />} disabled={busy} onClick={() => file.current?.click()}>{data.hasScan ? 'Replace scan' : 'Add a scan'}</Button>
@@ -143,7 +145,7 @@ export function KycTab({ id, canImages }: { id: Id; canImages: boolean }) {
             {dirty && <Button onClick={() => { setForm(toInput(data)); setMessage(null) }} disabled={busy}>Undo changes</Button>}
           </Box>
         )
-        : <Typography sx={{ fontSize: 13 }} color="text.secondary">You can read this record. Recording KYC needs permission to edit members.</Typography>}
+        : <Typography color="text.secondary">You can read this record. Recording KYC needs permission to edit members.</Typography>}
     </Box>
   )
 }

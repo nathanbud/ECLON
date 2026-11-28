@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DraftPostPlan, FoDraftPayload, Me, VoucherSetup, WaitingVoucher } from './api'
 import BackOfficePage from './BackOfficePage'
+import { Notices } from './ui/notices'
 import { AppThemeProvider } from './theme'
 
 vi.mock('./session', () => ({ useMe: () => ({ username: 'maker', name: 'Maker', roles: ['ROLE_ACCOUNTANT'], canEdit: false, canApprove: false, admin: false, mustChangePassword: false, branchCode: 1 }) as Me }))
@@ -52,7 +53,7 @@ vi.mock('./api', async (orig) => ({
 
 function show() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={qc}><AppThemeProvider><BackOfficePage initialTab="Disbursements" /></AppThemeProvider></QueryClientProvider>)
+  render(<QueryClientProvider client={qc}><AppThemeProvider><BackOfficePage initialTab="Disbursements" /><Notices /></AppThemeProvider></QueryClientProvider>)
 }
 type User = ReturnType<typeof userEvent.setup>
 const fillVoucher = async (user: User) => {

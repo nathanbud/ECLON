@@ -50,7 +50,7 @@ function GroupRows({ g }: { g: ReconGroup }) {
         <TableCell>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Box component="span" aria-hidden sx={{ display: 'flex', color: g.reconciled ? 'success.main' : 'error.main' }}>{g.reconciled ? <FiCheckCircle /> : <FiAlertTriangle />}</Box>
-            <Typography sx={{ fontSize: 13, fontWeight: g.reconciled ? 400 : 600 }}>{g.title}</Typography>
+            <Typography sx={{ fontWeight: g.reconciled ? 400 : 600 }}>{g.title}</Typography>
           </Box>
         </TableCell>
         <TableCell align="right" sx={tabular}>{money(g.members)}</TableCell>
@@ -116,7 +116,7 @@ export default function SlReconciliation() {
       {run.isPending && (
         <Box role="status" sx={{ display: 'flex', alignItems: 'center', gap: 1.25, py: 3 }}>
           <CircularProgress size={18} />
-          <Typography sx={{ fontSize: 13 }} color="text.secondary">Adding up every member&apos;s ledger and the control accounts. This takes a few minutes; you can leave this screen open and carry on elsewhere.</Typography>
+          <Typography color="text.secondary">Adding up every member&apos;s ledger and the control accounts. This takes a few minutes; you can leave this screen open and carry on elsewhere.</Typography>
         </Box>
       )}
       {run.isError && <Alert severity="error" role="alert">{(run.error as Error).message}</Alert>}
@@ -130,7 +130,7 @@ export default function SlReconciliation() {
                 {r.unreconciled === 0
                   ? <Chip color="success" icon={<FiCheckCircle />} label={r.groups.length === 1 ? 'The group reconciles' : `All ${r.groups.length} groups reconcile`} />
                   : <Chip color="error" icon={<FiAlertTriangle />} label={`${r.unreconciled} of ${r.groups.length} group${r.groups.length === 1 ? '' : 's'} ${r.unreconciled === 1 ? 'does' : 'do'} not reconcile`} />}
-                {r.unreconciled > 0 && <Typography sx={{ fontSize: 13, ...tabular }}>Differences add up to {money(r.totalDifference)}</Typography>}
+                {r.unreconciled > 0 && <Typography sx={{ ...tabular }}>Differences add up to {money(r.totalDifference)}</Typography>}
               </Box>
               <Table size="small" aria-label="SL reconciliation">
                 <TableHead>
@@ -144,7 +144,7 @@ export default function SlReconciliation() {
                 </TableHead>
                 <TableBody>{r.groups.map((g) => <GroupRows key={g.title + g.accounts.map((a) => a.account).join()} g={g} />)}</TableBody>
               </Table>
-              <Typography sx={{ fontSize: 12, mt: 1.5 }} color="text.secondary">
+              <Typography variant="body2" sx={{ mt: 1.5 }} color="text.secondary">
                 As of {r.asOf}. Liabilities and equity (savings, share capital, payables) are shown as positive credit balances. Difference = ledger less members.
                 Run by {r.ranBy} on {r.ranAt.replace('T', ' ')}{r.kept ? ' (shown again from a run in the last ten minutes)' : ''}.
               </Typography>

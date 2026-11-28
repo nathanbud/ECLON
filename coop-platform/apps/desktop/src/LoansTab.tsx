@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Skeleton, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { DetailPanel } from './profile/fields'
@@ -11,6 +11,8 @@ import ChequeFields, { chequeSum, chequesToApi, type ChequeRow } from './ChequeF
 import MoneyField from './MoneyField'
 import { moneyOr, tabular } from './ui/format'
 import { useRequestKey } from './ui/requestKey'
+import { notifyError } from './ui/notices'
+import { Loading } from './ui/Loading'
 import { Hinted } from './appleUi'
 
 const money = (n: number | null | undefined) => moneyOr(n, '—')
@@ -26,12 +28,12 @@ export default function LoansTab({ branchCode, clientId }: { branchCode: number;
   const [profile, setProfile] = useState<LoanItem | null>(null)
   const { data, error, isLoading } = useQuery({ queryKey: ['member-loans', branchCode, clientId, paid], queryFn: () => getLoans(branchCode, clientId, paid), staleTime: 60_000 })
   if (error) return <Alert severity="error">{(error as Error).message}</Alert>
-  if (isLoading) return <Skeleton variant="rounded" height={160} />
+  if (isLoading) return <Loading what="the loans" />
   return (
     <>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
         <Box sx={{ flex: 1, fontSize: 13 }}>
-          {data && <>Outstanding principal <strong>{money(data.totalOutstanding)}</strong>{data.totalPastDue > 0 && <> · past due <strong style={{ color: 'var(--mui-palette-error-main, #d32f2f)' }}>{money(data.totalPastDue)}</strong></>}</>}
+          {data && <>Outstanding principal <strong>{money(data.totalOutstanding)}</strong>{data.totalPastDue > 0 && <> · past due <Box component="strong" sx={{ color: 'error.main' }}>{money(data.totalPastDue)}</Box></>}</>}
         </Box>
         <FormControlLabel control={<Switch size="small" checked={paid} onChange={(e) => setPaid(e.target.checked)} />} label="Show paid loans" />
       </Box>
@@ -109,7 +111,7 @@ export function LoanPaymentDialog({ clientId, loan, initialAmount = '', initialE
     try {
       await askFoOverride({ draftId: null, kind: a.kind, description: a.description, amount: a.amount, limitAmount: null })
       setCheck(await checkLoanPayment(body))
-    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+    } catch (e) { notifyError(e) } finally { setBusy(false) }
   }
 
   const submit = async (confirmDuplicate: boolean) => {
@@ -120,8 +122,10 @@ export function LoanPaymentDialog({ clientId, loan, initialAmount = '', initialE
       qc.invalidateQueries({ queryKey: ['member-loan'] })
     } catch (e) {
       const msg = (e as Error).message
-      setError(msg)
-      setAskConfirm(msg.includes('confirm it'))
+      // a possible duplicate asks here (Post anyway); any other refusal pops up
+      const duplicate = msg.includes('confirm it')
+      setAskConfirm(duplicate)
+      if (duplicate) setError(msg); else notifyError(msg)
     } finally { setBusy(false) }
   }
 
@@ -216,7 +220,7 @@ function LoanDetail({ branchCode, clientId, loan, onClose }: { branchCode: numbe
     <DetailPanel title={`${l.type ?? `Type ${l.typeCode}`} #${l.refNo} · ${l.statusName} · ${money(l.amount)} · owes ${money(l.outstanding)}`} onClose={onClose}>
         {error && <Alert severity="error">{(error as Error).message}</Alert>}
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '4px 16px', mb: 1.5, fontSize: 13 }}>
-          {facts.map(([k, v]) => <Box key={k}><Typography component="span" sx={{ fontSize: 12 }} color="text.secondary">{k}: </Typography>{v}</Box>)}
+          {facts.map(([k, v]) => <Box key={k}><Typography variant="body2" component="span" color="text.secondary">{k}: </Typography>{v}</Box>)}
         </Box>
         {l.pastDuePrincipal > 0 && <Alert severity="warning" sx={{ mb: 1 }}>Principal past due {money(l.pastDuePrincipal)}; the oldest unpaid instalment is {l.daysPastDue} days late.</Alert>}
         {data && data.coMakers.length > 0 && <Box sx={{ fontSize: 13, mb: 1 }}>Co-makers: {data.coMakers.map((c) => c.name ?? `client ${c.clientId}`).join('; ')}</Box>}

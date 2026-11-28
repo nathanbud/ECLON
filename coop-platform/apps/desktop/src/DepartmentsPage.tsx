@@ -6,6 +6,7 @@ import { addDepartment, changeDepartment, deleteDepartment, getDepartments, setD
 import { DatabaseChangeNotice } from './DatabaseChangeNotice'
 import { appBackground, glass } from './glass'
 import { LoadingRow } from './ui/Loading'
+import { notifyError } from './ui/notices'
 import { Hinted, ReasonDialog, ScreenTitle } from './appleUi'
 
 const KEY = ['departments']
@@ -79,7 +80,7 @@ export default function DepartmentsPage() {
               <TableBody>
                 <LoadingRow q={q} what="the departments" />
                 {data && data.departments.length === 0 && (
-                  <TableRow><TableCell colSpan={cols}><Typography sx={{ fontSize: 13 }} color="text.secondary">No departments yet.</Typography></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={cols}><Typography color="text.secondary">No departments yet.</Typography></TableCell></TableRow>
                 )}
                 {data?.departments.map((d) => {
                   const blocked = cannotDelete(d, data.defaultForMembers)
@@ -88,11 +89,11 @@ export default function DepartmentsPage() {
                       <TableCell sx={{ fontVariantNumeric: 'tabular-nums' }}>{d.id}</TableCell>
                       <TableCell>
                         <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
-                          <Typography sx={{ fontSize: 13, color: d.disabled ? 'text.disabled' : undefined }}>{d.name}</Typography>
+                          <Typography sx={{ color: d.disabled ? 'text.disabled' : undefined }}>{d.name}</Typography>
                           {d.disabled && <Chip size="small" label="Switched off" />}
                         </Stack>
                         {(d.tin || d.address) && (
-                          <Typography sx={{ fontSize: 11 }} color="text.secondary">{[d.tin && `TIN ${d.tin}`, d.address].filter(Boolean).join(' · ')}</Typography>
+                          <Typography variant="caption" color="text.secondary">{[d.tin && `TIN ${d.tin}`, d.address].filter(Boolean).join(' · ')}</Typography>
                         )}
                       </TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>
@@ -104,7 +105,7 @@ export default function DepartmentsPage() {
                             </Button>
                           </Tooltip>
                         ) : (
-                          <Typography sx={{ fontSize: 13 }} color={d.kindChosen ? undefined : 'text.secondary'}>{d.kindName}{d.kindChosen ? '' : ' (suggested)'}</Typography>
+                          <Typography color={d.kindChosen ? undefined : 'text.secondary'}>{d.kindName}{d.kindChosen ? '' : ' (suggested)'}</Typography>
                         )}
                       </TableCell>
                       <TableCell>{d.parentName ?? '–'}</TableCell>
@@ -152,6 +153,7 @@ function DepartmentDialog({ open, data, onClose }: { open: NonNullable<Open>; da
   const maxName = data.lengths.DeptDesc ?? 30
 
   const save = useMutation({
+    onError: notifyError,
     mutationFn: () => {
       const body = { name: name.trim(), parent: parent ? Number(parent) : null, tin: tin.trim(), address: address.trim(), reason: reason.trim() }
       if (open.kind === 'add') return addDepartment({ ...body, id })
@@ -189,16 +191,15 @@ function DepartmentDialog({ open, data, onClose }: { open: NonNullable<Open>; da
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {save.error && <Alert severity="error">{(save.error as Error).message}</Alert>}
           {open.kind === 'switch' && (
-            <Typography sx={{ fontSize: 13 }}>
+            <Typography>
               {dept?.disabled
                 ? `${dept.name} can be chosen again for members and users.`
                 : `${dept?.name} will no longer be offered for members and users. The records that already use it keep it.`}
             </Typography>
           )}
           {open.kind === 'delete' && (
-            <Typography sx={{ fontSize: 13 }}>
+            <Typography>
               Department {dept?.id}, {dept?.name}, will be removed. If anything in the books still uses it, nothing is deleted and you will be told to switch it off.
             </Typography>
           )}

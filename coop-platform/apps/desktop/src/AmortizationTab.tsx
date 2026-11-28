@@ -1,11 +1,12 @@
-import { Alert, Box, Button, MenuItem, Skeleton, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, MenuItem, TextField, Typography } from '@mui/material'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { getAmortKinds, previewAmortization, type AmortKind, type AmortTry, type LoanSetupLists } from './api'
 import { AboutNote, Dot, listTable, SectionLabel, Surface } from './appleUi'
 import MoneyField from './MoneyField'
 import { money } from './ui/format'
-import { BusyArea } from './ui/Loading'
+import { SURFACE_RADIUS } from './theme'
+import { BusyArea, Loading } from './ui/Loading'
 
 const day = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 const today = () => new Date().toLocaleDateString('en-CA')
@@ -17,11 +18,11 @@ function KindRow({ k, first }: { k: AmortKind; first: boolean }) {
   return (
     <Box sx={(t) => ({ px: 2, py: 1.5, borderTop: first ? 0 : `0.5px solid ${t.palette.divider}` })}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-        <Typography sx={{ fontSize: 15, fontWeight: 600, flex: 1 }}>{k.name}</Typography>
+        <Typography variant="h6" component="p" sx={{ flex: 1 }}>{k.name}</Typography>
         {k.supported ? <Dot color="success">Mapped</Dot> : <Dot color="grey">Not mapped</Dot>}
       </Box>
-      <Typography color="text.secondary" sx={{ fontSize: 12, lineHeight: 1.45 }}>{k.formula}</Typography>
-      <Typography color="text.secondary" sx={{ fontSize: 12, mt: 0.75 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.45 }}>{k.formula}</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
         {k.loans.toLocaleString()} {k.loans === 1 ? 'loan' : 'loans'}
         {k.types.length > 0 ? ` · loan types: ${k.types.join(', ')}` : ' · no loan type uses it'}
       </Typography>
@@ -31,9 +32,9 @@ function KindRow({ k, first }: { k: AmortKind; first: boolean }) {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <Box sx={(t) => ({ p: 1.25, borderRadius: '10px', bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)' })}>
-      <Typography color="text.secondary" sx={{ fontSize: 11 }}>{label}</Typography>
-      <Typography sx={{ fontSize: 17, fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>{value}</Typography>
+    <Box sx={(t) => ({ p: 1.25, borderRadius: `${SURFACE_RADIUS}px`, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)' })}>
+      <Typography variant="caption" color="text.secondary">{label}</Typography>
+      <Typography variant="h5" component="p" sx={{ fontVariantNumeric: 'tabular-nums' }}>{value}</Typography>
     </Box>
   )
 }
@@ -72,7 +73,7 @@ export default function AmortizationTab({ lists }: { lists: LoanSetupLists | und
       <Box>
         <SectionLabel>Kinds</SectionLabel>
         <Surface label="Amortization kinds">
-          {kinds.isLoading && <Skeleton variant="rounded" height={240} />}
+          {kinds.isLoading && <Loading what="the amortization methods" />}
           {kinds.data?.map((k, i) => <KindRow key={k.id} k={k} first={i === 0} />)}
         </Surface>
         <AboutNote sx={{ mt: 1.25, px: 0.5 }}>
@@ -96,7 +97,7 @@ export default function AmortizationTab({ lists }: { lists: LoanSetupLists | und
               <TextField select size="small" label="Paid" value={mode} onChange={(e) => setMode(Number(e.target.value))}>
                 {modes.map((m) => <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>)}
               </TextField>
-              <TextField size="small" type="number" label="Interest (a year)" value={rate} onChange={(e) => setRate(e.target.value)} slotProps={{ htmlInput: { min: 0, max: 100, step: 0.01 }, input: { endAdornment: <Typography color="text.secondary" sx={{ fontSize: 13 }}>%</Typography> } }} />
+              <TextField size="small" type="number" label="Interest (a year)" value={rate} onChange={(e) => setRate(e.target.value)} slotProps={{ htmlInput: { min: 0, max: 100, step: 0.01 }, input: { endAdornment: <Typography color="text.secondary">%</Typography> } }} />
               <TextField select size="small" label="Interest days" value={dayCount} disabled={kind !== 3} onChange={(e) => setDayCount(Number(e.target.value))}>
                 <MenuItem value={1}>30 days a month</MenuItem><MenuItem value={2}>Real days</MenuItem>
               </TextField>
@@ -128,10 +129,10 @@ export default function AmortizationTab({ lists }: { lists: LoanSetupLists | und
                 {rows.length > 7 && <Button size="small" onClick={() => setAll((a) => !a)} sx={{ mt: 0.5 }}>{all ? 'Show fewer' : `Show all ${rows.length} payments`}</Button>}
               </Box></BusyArea>
             )}
-            {!valid && <Typography color="text.secondary" sx={{ fontSize: 13, mt: 2 }}>Fill in the amount, term, how it is paid and the rate to see the schedule.</Typography>}
+            {!valid && <Typography color="text.secondary" sx={{ mt: 2 }}>Fill in the amount, term, how it is paid and the rate to see the schedule.</Typography>}
           </Box>
         </Surface>
-        <Typography color="text.secondary" sx={{ fontSize: 12, mt: 1.25, px: 0.5 }}>This is the schedule the loan application would build. Nothing is saved.</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25, px: 0.5 }}>This is the schedule the loan application would build. Nothing is saved.</Typography>
       </Box>
     </Box>
   )

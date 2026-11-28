@@ -12,6 +12,7 @@ import FingerprintDialog from '../FingerprintDialog'
 import PrivacyNoticeDialog from '../PrivacyNoticeDialog'
 import { useMe } from '../session'
 import MemberPhotoDialog from '../MemberPhotoDialog'
+import { RADIUS } from '../theme'
 import SignatureDialog from '../SignatureDialog'
 
 const KYC_LABEL = { NONE: 'not started', INCOMPLETE: 'incomplete', EXPIRED: 'ID expired', REVIEW_DUE: 'review due', COMPLETE: 'complete' } as const
@@ -37,7 +38,7 @@ export const tag = (kind: Kind) => {
 export function SideFrame({ children, label }: { children?: ReactNode; label: string }) {
   return (
     <Box component="aside" aria-label={label} sx={(t) => ({
-      display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', borderRadius: '5px', color: SIDE.text,
+      display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', borderRadius: `${RADIUS}px`, color: SIDE.text,
       backgroundColor: t.palette.mode === 'dark' ? SIDE.bgDark : SIDE.bg,
       border: `1px solid ${t.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'transparent'}`,
       boxShadow: t.palette.mode === 'dark' ? 'none' : '0 8px 24px rgba(20,40,90,0.16)',
@@ -63,7 +64,7 @@ export function SideScroll({ children }: { children: ReactNode }) {
 /** The square picture with a coloured frame. */
 export function Ring({ color, children }: { color: string; children: ReactNode }) {
   return (
-    <Box sx={{ width: PHOTO + 16, height: PHOTO + 16, borderRadius: '5px', border: `1px solid ${color}`, p: '5px', boxSizing: 'border-box', position: 'relative', mx: 'auto' }}>
+    <Box sx={{ width: PHOTO + 16, height: PHOTO + 16, borderRadius: `${RADIUS}px`, border: `1px solid ${color}`, p: '5px', boxSizing: 'border-box', position: 'relative', mx: 'auto' }}>
       {children}
     </Box>
   )
@@ -107,7 +108,7 @@ export function ProfileHeader({ m, lk, canPhoto = false, onNotice, children }: {
           )}
         </Ring>
         <Typography component="h2" sx={{ mt: 1.5, fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.2, overflowWrap: 'anywhere' }}>{displayName(m)}</Typography>
-        <Typography sx={{ fontSize: 13, mt: 0.25, fontVariantNumeric: 'tabular-nums', color: SIDE.muted }}>
+        <Typography sx={{ mt: 0.25, fontVariantNumeric: 'tabular-nums', color: SIDE.muted }}>
           {memberNo(m.id)}{m.referenceId ? ` · Ref ${m.referenceId}` : ''}
         </Typography>
         {/* The fingerprint, signature and privacy-notice tags. Status and alert are on the right, beside the member type. */}

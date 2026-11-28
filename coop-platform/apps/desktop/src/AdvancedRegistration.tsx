@@ -1,9 +1,10 @@
-import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Snackbar, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { FiDownload, FiUpload } from 'react-icons/fi'
 import { downloadMemberImportTemplate, previewMemberImport, uploadMemberImport, type ImportPreview } from './api'
 import { glass } from './glass'
+import { notifyError, notify } from './ui/notices'
 import { useLeaveGuard } from './leaveGuard'
 
 const STEP = 300
@@ -21,35 +22,32 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
   const [shown, setShown] = useState(STEP)
   const [skip, setSkip] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [downloaded, setDownloaded] = useState<string | null>(null)
   useLeaveGuard(preview && preview.ok > 0 ? 'A checked list of members has not been sent yet.' : null)
 
   const choose = async (f: File | undefined) => {
     if (!f) return
-    setFile(f); setPreview(null); setError(null); setSkip(false); setShown(STEP); setBusy('Checking the list…')
-    try { setPreview(await previewMemberImport(f)) } catch (e) { setError((e as Error).message) } finally { setBusy(null) }
+    setFile(f); setPreview(null); setSkip(false); setShown(STEP); setBusy('Checking the list…')
+    try { setPreview(await previewMemberImport(f)) } catch (e) { notifyError((e as Error).message) } finally { setBusy(null) }
   }
 
   const download = async (kind: 'xlsx' | 'csv') => {
-    setError(null)
     try {
       await downloadMemberImportTemplate(kind)
-      setDownloaded(`members-template.${kind} has finished downloading. Look for it in your Downloads folder.`)
+      notify(`members-template.${kind} has finished downloading. Look for it in your Downloads folder.`)
     } catch (e) {
-      setError(`The blank list could not be downloaded: ${(e as Error).message}`)
+      notifyError(`The blank list could not be downloaded: ${(e as Error).message}`)
     }
   }
 
   const send = async () => {
     if (!file) return
-    setBusy('Sending…'); setError(null)
+    setBusy('Sending…')
     try {
       const b = await uploadMemberImport(file, skip)
       void qc.invalidateQueries({ queryKey: ['member-imports'] })
       onDone(`${b.okRows} member${b.okRows === 1 ? '' : 's'} from ${b.fileName} sent for approval`)
       onClose()
-    } catch (e) { setError((e as Error).message) } finally { setBusy(null) }
+    } catch (e) { notifyError((e as Error).message) } finally { setBusy(null) }
   }
 
   const rows = (preview?.rows ?? []).filter((r) => !onlyProblems || !r.ok)
@@ -58,12 +56,12 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
     <Box sx={{ maxWidth: 1100, width: '100%', mx: 'auto' }}>
       <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, mb: 1.5, ...glass(t) })}>
         <Chip size="small" color="warning" label="Advanced mode" />
-        <Typography sx={{ flex: 1, fontSize: 15, fontWeight: 600 }}>Register members from a list</Typography>
+        <Typography variant="h6" component="p" sx={{ flex: 1 }}>Register members from a list</Typography>
         <Button size="small" onClick={onClose} disabled={!!busy}>Back</Button>
       </Box>
 
       <Box sx={(t) => ({ p: 2, mb: 1.5, ...glass(t) })}>
-        <Typography sx={{ fontSize: 13, mb: 1 }}>
+        <Typography sx={{ mb: 1 }}>
           Upload a CSV or Excel (.xlsx) file with one member per row and the column names in the first row. Required for each member: <strong>LName, FName, DateOfBirth, Gender, CivilStatus</strong>.
           Gender and CivilStatus may be written as their names (for example Female, Single) or codes; MemberType is Regular or Associate (Regular if left out); dates are written 2026-04-24 or are Excel dates.
           Any other column named like a profile field (CellNum, EmailAddress, ResAddCity, Profession and so on) is filled in too; columns it does not know are ignored.
@@ -74,15 +72,11 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
           <Button size="small" color="inherit" onClick={() => void download('csv')}>or CSV</Button>
           <Button size="small" variant="contained" startIcon={<FiUpload />} disabled={!!busy} onClick={() => input.current?.click()}>Choose a file</Button>
           <input ref={input} type="file" hidden accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = '' }} />
-          {file && <Typography sx={{ fontSize: 13 }} color="text.secondary">{file.name}</Typography>}
+          {file && <Typography color="text.secondary">{file.name}</Typography>}
         </Stack>
       </Box>
 
-      <Snackbar open={!!downloaded} autoHideDuration={5000} onClose={() => setDownloaded(null)}>
-        <Alert severity="success" variant="filled" onClose={() => setDownloaded(null)}>{downloaded}</Alert>
-      </Snackbar>
-      {error && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError(null)}>{error}</Alert>}
-      {busy && <Typography sx={{ fontSize: 13, mb: 1.5 }} color="text.secondary">{busy}</Typography>}
+      {busy && <Typography sx={{ mb: 1.5 }} color="text.secondary">{busy}</Typography>}
 
       {preview && (
         <Box sx={(t) => ({ p: 2, ...glass(t) })}>
@@ -109,7 +103,7 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
           </Box>
           {rows.length > shown && (
             <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mt: 0.5 }}>
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">Showing {shown} of {rows.length} rows.</Typography>
+              <Typography variant="body2" color="text.secondary">Showing {shown} of {rows.length} rows.</Typography>
               <Button size="small" onClick={() => setShown((n) => n + STEP)}>Show {Math.min(STEP, rows.length - shown)} more</Button>
               <Button size="small" color="inherit" onClick={() => setShown(rows.length)}>Show all</Button>
             </Stack>
@@ -123,7 +117,7 @@ export default function AdvancedRegistration({ onClose, onDone }: { onClose: () 
               {preview.ok > 0 ? `Send ${skip || preview.errors === 0 ? preview.ok : 'the'} ${preview.ok === 1 && (skip || preview.errors === 0) ? 'member' : 'members'} for approval` : 'Nothing to send'}
             </Button>
           </Stack>
-          <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">Nothing is saved until you send. A Membership Officer other than you then approves the whole list, which opens the members.</Typography>
+          <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">Nothing is saved until you send. A Membership Officer other than you then approves the whole list, which opens the members.</Typography>
         </Box>
       )}
     </Box>

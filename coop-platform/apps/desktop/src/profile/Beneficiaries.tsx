@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Skeleton, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FiUsers } from 'react-icons/fi'
@@ -7,6 +7,8 @@ import { type Id } from '../clients'
 import { useMe } from '../session'
 import { ReasonDialog } from '../ui/dialogs'
 import { EmptyState, TableCard } from './fields'
+import { notifyError } from '../ui/notices'
+import { Loading } from '../ui/Loading'
 import { fmtDate } from './format'
 
 const TYPES: [number, string][] = [[1, 'Principal'], [2, 'Secondary']]
@@ -18,7 +20,6 @@ function BeneficiaryDialog({ id, lk, existing, onClose, onSent }: { id: Id; lk?:
   const [born, setBorn] = useState(existing?.dateOfBirth ?? '')
   const [job, setJob] = useState(existing?.occupation ?? '')
   const [type, setType] = useState(String(existing && existing.typeCode !== 99 ? existing.typeCode : 1))
-  const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const relations = Object.entries(lk?.relation ?? {}).sort((a, b) => a[1].localeCompare(b[1]))
   const valid = name.trim().length >= 2 && relation !== ''
@@ -27,14 +28,13 @@ function BeneficiaryDialog({ id, lk, existing, onClose, onSent }: { id: Id; lk?:
     requestBeneficiary({
       branchCode: id.branchCode, clientId: id.clientId, action: existing ? 'EDIT' : 'ADD', benefId: existing?.id ?? null, name: name.trim(), relation: Number(relation),
       dateOfBirth: born || null, occupation: job.trim() || null, type: Number(type), note: null,
-    }).then((r) => { onSent(`Sent for approval as request #${r.id}. A Membership Officer other than you decides it.`); onClose() }, (e: Error) => { setError(e.message); setBusy(false) })
+    }).then((r) => { onSent(`Sent for approval as request #${r.id}. A Membership Officer other than you decides it.`); onClose() }, (e: Error) => { notifyError(e.message); setBusy(false) })
   }
   return (
     <Dialog open onClose={busy ? undefined : onClose} maxWidth="xs" fullWidth>
       <DialogTitle>{existing ? 'Change beneficiary' : 'Add beneficiary'}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 1 }}>
-          {error && <Alert severity="error">{error}</Alert>}
           <TextField autoFocus required label="Name" value={name} onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: 50 } }} />
           <TextField select required label="Relationship to the member" value={relation} onChange={(e) => setRelation(e.target.value)}>
             {relations.map(([code, label]) => <MenuItem key={code} value={code}>{label}</MenuItem>)}
@@ -44,7 +44,7 @@ function BeneficiaryDialog({ id, lk, existing, onClose, onSent }: { id: Id; lk?:
           <TextField select label="Type" value={type} onChange={(e) => setType(e.target.value)}>
             {TYPES.map(([code, label]) => <MenuItem key={code} value={String(code)}>{label}</MenuItem>)}
           </TextField>
-          <Typography sx={{ fontSize: 12 }} color="text.secondary">The change takes effect only when a Membership Officer other than you approves it.</Typography>
+          <Typography variant="body2" color="text.secondary">The change takes effect only when a Membership Officer other than you approves it.</Typography>
         </Stack>
       </DialogContent>
       <DialogActions>
@@ -62,21 +62,19 @@ export function BeneficiariesTab({ id, lk }: { id: Id; lk?: Lookups }) {
   const [form, setForm] = useState<{ existing?: Beneficiary } | null>(null)
   const [removing, setRemoving] = useState<Beneficiary | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const { data, error: loadError, isLoading } = useQuery({ queryKey: ['member-beneficiaries', id], queryFn: () => getBeneficiaries(id.branchCode, id.clientId), staleTime: 60_000 })
   const waiting = useQuery({ queryKey: ['member-requests', 'PENDING'], queryFn: () => listMemberRequests('PENDING'), enabled: me.canEdit || me.canApprove, retry: false })
   const mine: MemberRequest[] = (waiting.data ?? []).filter((r) => r.kind === 'BENEF' && r.clientId === id.clientId && r.branchCode === id.branchCode)
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['member-requests'] }); void qc.invalidateQueries({ queryKey: ['pending-count'] }) }
   const pendingFor = (b: Beneficiary) => mine.some((r) => r.payload.benefId === String(b.id))
-  const withdraw = (r: MemberRequest) => withdrawMemberRequest(r.id).then(() => { setError(null); refresh() }, (e: Error) => setError(e.message))
+  const withdraw = (r: MemberRequest) => withdrawMemberRequest(r.id).then(() => { refresh() }, (e: Error) => notifyError(e.message))
 
   if (loadError) return <Alert severity="error">{(loadError as Error).message}</Alert>
-  if (isLoading) return <Skeleton variant="rounded" height={140} />
+  if (isLoading) return <Loading what="the beneficiaries" />
   const rows = data ?? []
   return (
     <>
       {notice && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setNotice(null)}>{notice}</Alert>}
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       {me.canEdit && <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}><Button size="small" variant="contained" onClick={() => setForm({})}>Add beneficiary</Button></Box>}
       {rows.length === 0 ? (
         <EmptyState icon={<FiUsers />} title="No beneficiaries" hint="No beneficiary is recorded for this member." />
@@ -94,7 +92,7 @@ export function BeneficiariesTab({ id, lk }: { id: Id; lk?: Lookups }) {
                   {me.canEdit && (
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                       {pendingFor(b)
-                        ? <Typography component="span" sx={{ fontSize: 12 }} color="text.secondary">Change waiting</Typography>
+                        ? <Typography variant="body2" component="span" color="text.secondary">Change waiting</Typography>
                         : <><Button size="small" onClick={() => setForm({ existing: b })}>Change</Button><Button size="small" color="error" onClick={() => setRemoving(b)}>Remove</Button></>}
                     </TableCell>
                   )}
@@ -106,11 +104,11 @@ export function BeneficiariesTab({ id, lk }: { id: Id; lk?: Lookups }) {
       )}
       {mine.length > 0 && (
         <Box sx={{ mt: 2 }}>
-          <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.5 }} color="text.secondary">Waiting for approval</Typography>
+          <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }} color="text.secondary">Waiting for approval</Typography>
           <Stack spacing={0.5}>
             {mine.map((r) => (
               <Box key={r.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 13 }}>
-                <Box sx={{ flex: 1 }}>{r.summary} <Typography component="span" sx={{ fontSize: 12 }} color="text.secondary">· asked by {r.requestedBy}</Typography></Box>
+                <Box sx={{ flex: 1 }}>{r.summary} <Typography variant="body2" component="span" color="text.secondary">· asked by {r.requestedBy}</Typography></Box>
                 {r.requestedBy.toLowerCase() === me.username.toLowerCase() && <Button size="small" onClick={() => void withdraw(r)}>Withdraw</Button>}
               </Box>
             ))}

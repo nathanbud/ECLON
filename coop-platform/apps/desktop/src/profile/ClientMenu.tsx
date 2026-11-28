@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { FiChevronDown, FiEdit2, FiPlus, FiSave, FiSearch, FiTrash2, FiUserX, FiX } from 'react-icons/fi'
+import { RADIUS } from '../theme'
 import { Button, Divider, ListItemIcon, ListItemText, Menu, MenuItem, Tooltip, Typography } from '@mui/material'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
@@ -23,7 +24,7 @@ export const CLOSE_SHORTCUT = `${MOD}${isMac ? '⇧' : 'Shift+'}C`
 export const closeMatch = (e: KeyboardEvent) => mod(e) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'c'
 
 const Shortcut = ({ children }: { children: ReactNode }) => (
-  <Typography component="span" sx={{ ml: 4, fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{children}</Typography>
+  <Typography variant="body2" component="span" sx={{ ml: 4, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{children}</Typography>
 )
 
 /** The "Client Profile" menu in the title bar: find plus the record actions, each with its shortcut. */
@@ -57,12 +58,12 @@ export function ClientMenu({ onFind, actions, editOn, pendingNote, onCloseMember
         <Button
           ref={button} size="small" onClick={(e) => setAnchor(e.currentTarget)} endIcon={<FiChevronDown />}
           aria-haspopup="menu" aria-expanded={!!anchor} aria-keyshortcuts="Alt+C"
-          sx={{ color: 'inherit', fontSize: 13, fontWeight: 400, px: 0.75, py: 0.25, minWidth: 0, borderRadius: '5px', '& .MuiButton-endIcon': { ml: 0.25 }, '&:hover': { bgcolor: 'action.hover' } }}
+          sx={{ color: 'inherit', fontSize: 13, fontWeight: 400, px: 0.75, py: 0.25, minWidth: 0, borderRadius: `${RADIUS}px`, '& .MuiButton-endIcon': { ml: 0.25 }, '&:hover': { bgcolor: 'action.hover' } }}
         >
           <u>C</u>lient Profile
         </Button>
       </Tooltip>
-      <Menu anchorEl={anchor} open={!!anchor} onClose={close} slotProps={{ paper: { sx: { borderRadius: '5px', minWidth: 270, mt: 0.5 } } }}>
+      <Menu anchorEl={anchor} open={!!anchor} onClose={close} slotProps={{ paper: { sx: { borderRadius: `${RADIUS}px`, minWidth: 270, mt: 0.5 } } }}>
         <MenuItem onClick={() => { close(); onFind() }}>
           <ListItemIcon sx={{ minWidth: 32, fontSize: 15 }}><FiSearch /></ListItemIcon>
           <ListItemText slotProps={{ primary: { sx: { fontSize: 13 } } }}>Find Member</ListItemText>
@@ -80,7 +81,7 @@ export function ClientMenu({ onFind, actions, editOn, pendingNote, onCloseMember
         </MenuItem>
         {(!editOn || pendingNote) && <Divider />}
         {(!editOn || pendingNote) && (
-          <Typography sx={{ px: 2, py: 0.75, fontSize: 12, maxWidth: 270 }} color="text.secondary">
+          <Typography variant="body2" sx={{ px: 2, py: 0.75, maxWidth: 270 }} color="text.secondary">
             {pendingNote ?? 'You cannot edit members with this account, or editing is turned off on this server.'}
           </Typography>
         )}

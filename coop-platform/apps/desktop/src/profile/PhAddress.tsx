@@ -116,8 +116,8 @@ export function PhAddressFields({ cols, stored, children }: { cols: Cols; stored
           return (
             <li key={k} {...rest}>
               <Box sx={{ minWidth: 0 }}>
-                <Typography sx={{ fontSize: 13 }} noWrap>{o.name}</Typography>
-                {o.sub && <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{o.sub}</Typography>}
+                <Typography noWrap>{o.name}</Typography>
+                {o.sub && <Typography variant="body2" color="text.secondary" noWrap>{o.sub}</Typography>}
               </Box>
             </li>
           )

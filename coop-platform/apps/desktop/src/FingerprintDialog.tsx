@@ -16,7 +16,7 @@ export const LEFT = [6, 7, 8, 9, 10]
 export function Fingers({ title, ids, s, selected, onPick }: { title: string; ids: number[]; s: FingerprintSummary; selected: number | null; onPick: (f: number) => void }) {
   return (
     <Box>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">{title}</Typography>
+      <Typography variant="overline" sx={{ display: 'block', mb: 0.75 }} color="text.secondary">{title}</Typography>
       <Stack direction="row" spacing={0.75}>
         {ids.map((f) => {
           const row = s.fingers.find((x) => x.finger === f)
@@ -106,7 +106,7 @@ export default function FingerprintDialog({ id, name, canManage, onClose, onDone
           {s && !s.consent && (
             <Box sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}>
               <Typography sx={{ fontWeight: 600, mb: 0.5 }}>Member's consent</Typography>
-              <Typography sx={{ fontSize: 13 }} color="text.secondary">
+              <Typography color="text.secondary">
                 A fingerprint is sensitive personal information. It is used only to confirm this member's identity, is kept encrypted, is never shown or shared, and is erased if the member withdraws consent.
                 Read this to the member and record their agreement before scanning.
               </Typography>
@@ -115,18 +115,18 @@ export default function FingerprintDialog({ id, name, canManage, onClose, onDone
                     <FormControlLabel control={<Checkbox checked={agreed} onChange={(_, v) => setAgreed(v)} />} label="The member has been told this and agrees" sx={{ mt: 0.5 }} />
                     <Box><Button variant="contained" size="small" disabled={!agreed || consent.isPending} onClick={() => consent.mutate()}>Record consent</Button></Box>
                   </>
-                : <Typography sx={{ fontSize: 13, mt: 1 }} color="text.secondary">No consent is on file. A person with edit permission can record it.</Typography>}
+                : <Typography sx={{ mt: 1 }} color="text.secondary">No consent is on file. A person with edit permission can record it.</Typography>}
             </Box>
           )}
           {s?.consent && (
             <>
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">Consent recorded {s.consent.givenAt?.slice(0, 16)} by {s.consent.recordedBy}. {s.fingers.length} of 10 fingers enrolled{s.fingers.length < s.recommended ? ` (enrol at least ${s.recommended} in case one is injured)` : ''}.</Typography>
+              <Typography variant="body2" color="text.secondary">Consent recorded {s.consent.givenAt?.slice(0, 16)} by {s.consent.recordedBy}. {s.fingers.length} of 10 fingers enrolled{s.fingers.length < s.recommended ? ` (enrol at least ${s.recommended} in case one is injured)` : ''}.</Typography>
               <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 1.5 }}>
                 <Fingers title="Right hand" ids={RIGHT} s={s} selected={finger} onPick={setFinger} />
                 <Fingers title="Left hand" ids={LEFT} s={s} selected={finger} onPick={setFinger} />
               </Stack>
-              {busy && <Box><LinearProgress /><Typography sx={{ fontSize: 13, mt: 0.5 }}>{busy}</Typography></Box>}
-              {last && !busy && <Typography sx={{ fontSize: 12 }} color="text.secondary">Last scan quality: {last.quality} (needs {s.minQuality})</Typography>}
+              {busy && <Box><LinearProgress /><Typography sx={{ mt: 0.5 }}>{busy}</Typography></Box>}
+              {last && !busy && <Typography variant="body2" color="text.secondary">Last scan quality: {last.quality} (needs {s.minQuality})</Typography>}
               <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
                 {canManage && <Button variant="contained" size="small" disabled={finger == null || !!busy || !scanner.data} onClick={enrol}>{enrolled ? 'Scan again' : 'Scan and enrol'}</Button>}
                 <Button size="small" disabled={s.fingers.length === 0 || !!busy || !scanner.data} onClick={check}>Check a finger</Button>
