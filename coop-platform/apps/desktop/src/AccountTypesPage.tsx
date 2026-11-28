@@ -176,7 +176,6 @@ function TypeFields({ cls, f, set, disabled }: { cls: AccountTypeClass; f: Field
         <Hinted tip="With no deposit or withdrawal for this long, an account is listed under Savings dormancy for review. Empty for never."><TextField label="Dormant after (months)" value={f.dormantAfterMonths} disabled={disabled} onChange={(e) => set({ dormantAfterMonths: e.target.value.replace(/\D/g, '') })} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 } }}
           /></Hinted>
       )}
-      <Hinted tip="0 to 999; a smaller number comes first"><TextField label="Order in lists" value={f.priority} disabled={disabled} onChange={(e) => set({ priority: e.target.value.replace(/\D/g, '') })} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 } }} /></Hinted>
     </Box>
   )
 }
@@ -327,7 +326,6 @@ function summary(cls: AccountTypeClass, was: Fields, now: Fields): string {
   if (cls.fields.includes('minBalance') && number(was.minBalance) !== number(now.minBalance)) parts.push(`minimum balance from ${amount(was.minBalance, 'none')} to ${amount(now.minBalance, 'none')}`)
   if (cls.fields.includes('maxBalance') && number(was.maxBalance) !== number(now.maxBalance)) parts.push(`maximum balance from ${amount(was.maxBalance, 'no limit')} to ${amount(now.maxBalance, 'no limit')}`)
   if (cls.fields.includes('dormantAfterMonths') && number(was.dormantAfterMonths) !== number(now.dormantAfterMonths)) parts.push(`dormant after ${was.dormantAfterMonths || 'never'} to ${now.dormantAfterMonths ? `${now.dormantAfterMonths} months` : 'never'}`)
-  if (number(was.priority) !== number(now.priority)) parts.push(`order to ${now.priority || 'none'}`)
   if (was.disabled !== now.disabled) parts.push(now.disabled ? 'switched off' : 'switched on')
   return parts.length ? `Changing: ${parts.join('; ')}.` : 'Nothing has changed.'
 }

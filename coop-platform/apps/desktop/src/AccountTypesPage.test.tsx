@@ -139,7 +139,7 @@ describe('Account types', () => {
     expect(await screen.findByRole('heading', { name: 'Other Payable' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Interest rate (% a year)')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Minimum balance')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Order in lists')).toHaveValue('99')
+    expect(screen.queryByLabelText('Order in lists')).not.toBeInTheDocument()
   })
 
   it('adds a type as a copy of another, with a reason', async () => {

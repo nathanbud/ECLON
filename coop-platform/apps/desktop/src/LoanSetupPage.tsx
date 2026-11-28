@@ -32,7 +32,8 @@ const olderName = (t: LoanSetupType) => (t.fullName && t.fullName.trim() !== t.n
 const toForm = (t: LoanSetupType): LoanSetupForm => ({
   name: t.name, fullName: olderName(t), terms: t.terms, termUnit: t.termUnit, principalMode: t.principalMode, interestMode: t.interestMode, amortization: t.amortization,
   interestRate: t.interestRate, penaltyRate: t.penaltyRate, serviceFeeRate: t.serviceFeeRate, minCoMakers: t.minCoMakers, requireCollateral: t.requireCollateral,
-  priority: t.priority, yearDays: t.yearDays, disabled: t.disabled, reason: '', dayCount: t.dayCount,
+  priority: t.priority, // the old system's list order: kept as stored or copied, not asked (nothing here sorts by it)
+  yearDays: t.yearDays, disabled: t.disabled, reason: '', dayCount: t.dayCount,
 })
 
 /** A titled group of fields inside the loan type form. Two columns of fields keep the whole form on one screen. */
@@ -249,7 +250,6 @@ function TypeDialog({ editing, creating, types, lists, onClose, onDone }: {
               </FormSection>
               <FormSection title="Rules">
                 <TextField type="number" size="small" label="Minimum co-makers" value={form.minCoMakers ?? ''} onChange={(e) => set('minCoMakers', numberOrNull(e.target.value))} slotProps={{ htmlInput: { min: 0, max: 20 } }} />
-                <TextField type="number" size="small" label="Order in lists" value={form.priority ?? ''} onChange={(e) => set('priority', numberOrNull(e.target.value))} slotProps={{ htmlInput: { min: 0, max: 999 } }} />
                 <Box sx={{ gridColumn: 'span 2', display: 'flex', flexWrap: 'wrap', columnGap: 3 }}>
                   <FormControlLabel control={<Switch size="small" checked={form.requireCollateral} onChange={(e) => set('requireCollateral', e.target.checked)} />} label={<Typography>Collateral required</Typography>} />
                   {editing && <FormControlLabel control={<Switch size="small" checked={!form.disabled} onChange={(e) => set('disabled', !e.target.checked)} />} label={<Typography>Available for new applications</Typography>} />}
