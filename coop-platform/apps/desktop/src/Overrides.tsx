@@ -1,8 +1,9 @@
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, TextField, Typography } from '@mui/material'
+import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { askFoOverride, decideFoOverride, getFoOverrideForDraft, getFoOverridesPending, type FoOverride } from './api'
 import { money } from './FoTransactionForm'
+import { notifyError } from './ui/notices'
 import { glass } from './glass'
 
 /** For a supervisor: requests waiting for a decision. A supervisor cannot decide their own request (the server enforces it). */
@@ -11,23 +12,21 @@ export function OverridesCard() {
   const pending = useQuery({ queryKey: ['fo-overrides-pending'], queryFn: getFoOverridesPending, refetchInterval: 20_000 })
   const [rejecting, setRejecting] = useState<FoOverride | null>(null)
   const [note, setNote] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const decide = useMutation({
     mutationFn: (v: { o: FoOverride; approve: boolean; note: string }) => decideFoOverride(v.o.id, v.approve, v.note),
-    onSuccess: () => { setError(null); setRejecting(null); setNote(''); void qc.invalidateQueries({ queryKey: ['fo-overrides-pending'] }); void qc.invalidateQueries({ queryKey: ['fo-pulse'] }) },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: () => { setRejecting(null); setNote(''); void qc.invalidateQueries({ queryKey: ['fo-overrides-pending'] }); void qc.invalidateQueries({ queryKey: ['fo-pulse'] }) },
+    onError: (e) => notifyError((e as Error).message),
   })
   const rows = pending.data ?? []
   if (rows.length === 0) return null
   return (
     <Box sx={(t) => ({ p: 1.5, flexShrink: 0, ...glass(t) })}>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Waiting for your approval</Typography>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
+      <Typography variant="overline" sx={{ display: 'block', mb: 0.75 }} color="text.secondary">Waiting for your approval</Typography>
       {rows.map((o) => (
         <Box key={o.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.75, borderTop: '1px solid', borderColor: 'divider' }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 13 }}>{o.description}</Typography>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary">
+            <Typography>{o.description}</Typography>
+            <Typography variant="body2" color="text.secondary">
               {o.requestedBy} · {o.requestedAt} · {money(o.amount)}{o.limitAmount ? ` against a limit of ${money(o.limitAmount)}` : ''}
             </Typography>
           </Box>
@@ -57,11 +56,10 @@ export function OverridesCard() {
 export function OverrideAsk({ draftId, amount, limit, summary }: { draftId: number; amount: number; limit: number; summary: string }) {
   const qc = useQueryClient()
   const current = useQuery({ queryKey: ['fo-override', draftId], queryFn: () => getFoOverrideForDraft(draftId), refetchInterval: 15_000 })
-  const [error, setError] = useState<string | null>(null)
   const ask = useMutation({
     mutationFn: () => askFoOverride({ draftId, kind: 'OVER_LIMIT', description: summary, amount, limitAmount: limit }),
-    onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['fo-override', draftId] }); void qc.invalidateQueries({ queryKey: ['fo-pulse'] }) },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['fo-override', draftId] }); void qc.invalidateQueries({ queryKey: ['fo-pulse'] }) },
+    onError: (e) => notifyError((e as Error).message),
   })
   const o = current.data
   return (
@@ -69,7 +67,6 @@ export function OverrideAsk({ draftId, amount, limit, summary }: { draftId: numb
       {o && <Chip size="small" variant="outlined" color={o.status === 'APPROVED' ? 'success' : o.status === 'REJECTED' ? 'error' : 'warning'}
         label={o.status === 'APPROVED' ? `Approved by ${o.decidedBy}` : o.status === 'REJECTED' ? `Rejected by ${o.decidedBy}${o.note ? `: ${o.note}` : ''}` : 'Waiting for a supervisor'} />}
       {(!o || o.status === 'REJECTED') && <Button size="small" variant="outlined" disabled={ask.isPending} onClick={() => ask.mutate()}>{ask.isPending ? 'Asking…' : 'Ask a supervisor'}</Button>}
-      {error && <Typography sx={{ fontSize: 12 }} color="error">{error}</Typography>}
     </Box>
   )
 }

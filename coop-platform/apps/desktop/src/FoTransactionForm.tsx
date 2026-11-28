@@ -125,7 +125,7 @@ function QuickEntry({ clientId, side, onAdd, cashName }: { clientId: number | nu
   return (
     <Card title="Quick entry">
       {clientId == null
-        ? <Typography sx={{ fontSize: 13 }} color="text.secondary">Pick the member above, then choose the account and amount.</Typography>
+        ? <Typography color="text.secondary">Pick the member above, then choose the account and amount.</Typography>
         : (
           <Box sx={{ display: 'grid', gap: 1.25 }}>
             <TextField
@@ -144,7 +144,7 @@ function QuickEntry({ clientId, side, onAdd, cashName }: { clientId: number | nu
               <Button variant="contained" size="small" disabled={!ready} onClick={add} sx={{ whiteSpace: 'nowrap', height: 40 }}>Add entries</Button>
             </Box>
             {chosen && (
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">
+              <Typography variant="body2" color="text.secondary">
                 {side === 'credit' ? `Credits ${chosen.glDesc ?? chosen.glCode}, debits ${cashName}.` : `Debits ${chosen.glDesc ?? chosen.glCode}, credits ${cashName}.`}
               </Typography>
             )}
@@ -157,7 +157,7 @@ function QuickEntry({ clientId, side, onAdd, cashName }: { clientId: number | nu
 function Card({ title, children, sx }: { title?: string; children: React.ReactNode; sx?: object }) {
   return (
     <Box sx={(t) => ({ p: 1.5, ...glass(t), ...sx })}>
-      {title && <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">{title}</Typography>}
+      {title && <Typography variant="overline" sx={{ display: 'block', mb: 1 }} color="text.secondary">{title}</Typography>}
       {children}
     </Box>
   )
@@ -241,13 +241,13 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
               const a = extras.allocations.find((x) => x.label === label)?.amount ?? 0
               return (
                 <Box key={label} sx={{ display: 'contents' }}>
-                  <Typography sx={{ fontSize: 13 }}>{label}</Typography>
-                  <Typography sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', textAlign: 'right', opacity: a ? 1 : 0.4 }}>{a ? money(a) : '—'}</Typography>
+                  <Typography>{label}</Typography>
+                  <Typography sx={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right' }} color={a ? 'text.primary' : 'text.secondary'}>{a ? money(a) : '—'}</Typography>
                 </Box>
               )
             })}
           </Box>
-          {editing && <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">Filled in once the transaction is posted.</Typography>}
+          {editing && <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">Filled in once the transaction is posted.</Typography>}
         </Card>
 
         <Card title="Explanation" sx={{ flex: 1, minHeight: 130 }}>
@@ -262,8 +262,8 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
             <Tab label="GL/SL Entries" /><Tab label={`COCI Details${extras.cheques.length ? ` (${extras.cheques.length})` : ''}`} /><Tab label="Cash Denomination" />
           </Tabs>
           <Box sx={{ px: 2, textAlign: 'right' }}>
-            <Typography sx={{ fontSize: 11 }} color="text.secondary">Total</Typography>
-            <Typography sx={{ fontSize: 17, fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{money(totals.debit)}</Typography>
+            <Typography variant="caption" color="text.secondary">Total</Typography>
+            <Typography variant="h5" component="p" sx={{ fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{money(totals.debit)}</Typography>
           </Box>
         </Box>
 
@@ -329,7 +329,7 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
 
           {panel === 1 && (
             extras.cheques.length === 0
-              ? <Typography sx={{ p: 2.5, fontSize: 13 }} color="text.secondary">{editing ? 'Cheque details are not part of drafts yet.' : 'This transaction has no cheques.'}</Typography>
+              ? <Typography sx={{ p: 2.5 }} color="text.secondary">{editing ? 'Cheque details are not part of drafts yet.' : 'This transaction has no cheques.'}</Typography>
               : (
                 <Table size="small" stickyHeader aria-label="Cheques">
                   <TableHead><TableRow><TableCell>#</TableCell><TableCell>Type</TableCell><TableCell>Cheque no.</TableCell><TableCell>Bank</TableCell><TableCell>Cheque date</TableCell><TableCell>Payee</TableCell><TableCell align="right">Amount</TableCell><TableCell>Cleared</TableCell></TableRow></TableHead>
@@ -367,7 +367,7 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
                 </Table>
               )
               : extras.cash.length === 0
-                ? <Typography sx={{ p: 2.5, fontSize: 13 }} color="text.secondary">No cash denominations were recorded for this transaction.</Typography>
+                ? <Typography sx={{ p: 2.5 }} color="text.secondary">No cash denominations were recorded for this transaction.</Typography>
                 : (
                   <Table size="small" stickyHeader aria-label="Cash denominations">
                     <TableHead><TableRow><TableCell>Denomination</TableCell><TableCell align="right">Count</TableCell><TableCell align="right">Amount</TableCell></TableRow></TableHead>
@@ -399,11 +399,11 @@ export default function FoTransactionForm({ setup, types, form, extras, editing,
               )}
             </Box>
           )}
-          <Typography sx={{ fontSize: 13, color: balanced ? 'text.primary' : 'error.main' }}>
+          <Typography sx={{ color: balanced ? 'text.primary' : 'error.main' }}>
             Difference: <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(totals.difference)}</b>{!balanced && ' (debits and credits do not match)'}
           </Typography>
-          <Typography sx={{ fontSize: 13 }}>Debit: <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(totals.debit)}</b></Typography>
-          <Typography sx={{ fontSize: 13 }}>Credit: <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(totals.credit)}</b></Typography>
+          <Typography>Debit: <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(totals.debit)}</b></Typography>
+          <Typography>Credit: <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(totals.credit)}</b></Typography>
         </Box>
       </Box>
     </Box>

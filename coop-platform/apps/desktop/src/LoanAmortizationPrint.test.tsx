@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LoanAppTemplate } from './api'
 import LoanApplicationDialog from './LoanApplicationDialog'
 import { AppThemeProvider } from './theme'
+import { Notices } from './ui/notices'
 
 const pdf = vi.fn<(b: number, c: number, body: { typeCode: number; amount: number }, refNo?: number) => Promise<Blob>>()
 const printed = vi.fn<(file: Blob, name: string) => Promise<'printing' | 'saved'>>()
@@ -28,6 +29,7 @@ function show() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(<QueryClientProvider client={qc}><AppThemeProvider>
     <LoanApplicationDialog embedded part="profile" branchCode={1} clientId={5} typeCode={21} onClose={() => {}} onNext={() => {}} />
+    <Notices />
   </AppThemeProvider></QueryClientProvider>)
 }
 
@@ -60,12 +62,12 @@ describe('Printing the amortization schedule while profiling', () => {
     expect(pdf).toHaveBeenCalledWith(1, 5, expect.objectContaining({ typeCode: 21, amount: 25000 }), undefined)
   })
 
-  it('says why when the schedule cannot be made', async () => {
+  it('says why when the schedule cannot be made, as a pop-up', async () => {
     pdf.mockRejectedValue(new Error('The term is too long.'))
     show()
     await userEvent.type(await screen.findByRole('textbox', { name: /Principal/ }), '25000')
     await userEvent.click(screen.getByRole('button', { name: 'Print amortization' }))
-    expect(await screen.findByText('The term is too long.')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('The term is too long.')
     expect(printed).not.toHaveBeenCalled()
   })
 })

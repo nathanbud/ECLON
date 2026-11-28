@@ -19,17 +19,17 @@ export function TimeDepositNoticesPanel() {
   return (
     <Box sx={(t) => ({ p: 1.5, flex: 1, minHeight: 0, overflow: 'auto', ...glass(t) })}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
-        <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">Time deposit maturities</Typography>
+        <Typography variant="overline" sx={{ display: 'block' }} color="text.secondary">Time deposit maturities</Typography>
         <TextField select size="small" label="Maturing within" value={days} onChange={(e) => setDays(Number(e.target.value))} sx={{ width: 160 }}>
           {[7, 14, 30, 60, 90].map((d) => <MenuItem key={d} value={d}>{d} days</MenuItem>)}
         </TextField>
         {data && <Chip size="small" color={data.overdue ? 'warning' : 'default'} label={`${data.overdue} matured, waiting`} />}
         {data && <Chip size="small" label={`${data.maturingSoon} within a week`} />}
-        {data && <Typography sx={{ fontSize: 13 }}>Holding <b>{peso(data.totalBalance)}</b></Typography>}
+        {data && <Typography>Holding <b>{peso(data.totalBalance)}</b></Typography>}
       </Box>
       {error && <Alert severity="error">{(error as Error).message}</Alert>}
       {isLoading && <Typography color="text.secondary">Loading…</Typography>}
-      {data && data.notices.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">No certificate is maturing in these days, and none is waiting after maturity.</Typography>}
+      {data && data.notices.length === 0 && <Typography color="text.secondary">No certificate is maturing in these days, and none is waiting after maturity.</Typography>}
       {data && data.notices.length > 0 && (
         <Table size="small" stickyHeader aria-label="Time deposit maturities">
           <TableHead>
@@ -57,7 +57,7 @@ export function TimeDepositNoticesPanel() {
                       <Button size="small" onClick={() => setAct({ n, mode: 'PAYOUT' })}>Pay out</Button>
                       <Button size="small" onClick={() => setAct({ n, mode: 'RENEW' })}>Renew</Button>
                     </>
-                  ) : <Typography component="span" sx={{ fontSize: 12 }} color="text.secondary">Not due yet</Typography>}
+                  ) : <Typography variant="body2" component="span" color="text.secondary">Not due yet</Typography>}
                 </TableCell>
               </TableRow>
             ))}

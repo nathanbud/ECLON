@@ -1,4 +1,4 @@
-import { Alert, Avatar, Box, Button, ButtonBase, Chip, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import { Alert, Avatar, Box, Button, ButtonBase, Chip, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useRef, useState } from 'react'
 import { FiActivity, FiArrowDownCircle, FiBriefcase, FiChevronLeft, FiChevronRight, FiClock, FiCreditCard, FiGrid, FiInfo, FiPercent, FiSearch, FiUser } from 'react-icons/fi'
@@ -17,7 +17,8 @@ import { SavingsTab } from './profile/Savings'
 import TellerTransaction, { type TellerOnly, type TellerPreset } from './TellerTransaction'
 import { ShareCapitalTab } from './profile/ShareCapital'
 import { TimeDepositsTab } from './profile/TimeDeposits'
-import { tileFill } from './theme'
+import { LoadingBlock } from './ui/Loading'
+import { tileFill, SURFACE_RADIUS, RADIUS } from './theme'
 
 const SECTIONS = ['Savings', 'Share Capital', 'Loans', 'Time Deposits'] as const
 type Section = (typeof SECTIONS)[number]
@@ -131,7 +132,7 @@ const Card = ({ title, icon, color = tileFill.blue, action, children, sx }: { ti
   <Box component="section" aria-label={title} sx={(t) => ({ p: 1.75, ...glass(t), ...sx })}>
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
       {icon && <IconChip icon={icon} color={color} />}
-      <Typography component="h2" noWrap sx={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>{title}</Typography>
+      <Typography variant="h6" component="h2" noWrap sx={{ flex: 1, minWidth: 0 }}>{title}</Typography>
       {action}
     </Box>
     {children}
@@ -141,19 +142,19 @@ const Card = ({ title, icon, color = tileFill.blue, action, children, sx }: { ti
 /** A label and its value on one line, the label quiet. */
 const Fact = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <>
-    <Typography component="dt" sx={{ fontSize: 12, m: 0 }} color="text.secondary">{label}</Typography>
-    <Typography component="dd" sx={{ fontSize: 13, m: 0, fontVariantNumeric: 'tabular-nums', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{children}</Typography>
+    <Typography variant="body2" component="dt" sx={{ m: 0 }} color="text.secondary">{label}</Typography>
+    <Typography component="dd" sx={{ m: 0, fontVariantNumeric: 'tabular-nums', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{children}</Typography>
   </>
 )
 
 function Balance({ label, value, color, icon }: { label: string; value: number | null; color: string; icon: React.ReactNode }) {
   return (
-    <Box sx={{ flex: '1 1 104px', minWidth: 0, px: 1, py: 1, borderRadius: '10px', bgcolor: `${color}14`, boxShadow: `inset 0 0 0 1px ${color}30` }}>
+    <Box sx={{ flex: '1 1 104px', minWidth: 0, px: 1, py: 1, borderRadius: `${SURFACE_RADIUS}px`, bgcolor: `${color}14`, boxShadow: `inset 0 0 0 1px ${color}30` }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5, color }}>
         <Box aria-hidden sx={{ display: 'flex', fontSize: 13, flexShrink: 0 }}>{icon}</Box>
-        <Typography sx={{ fontSize: 12, minWidth: 0 }} color="text.secondary" noWrap title={label}>{label}</Typography>
+        <Typography variant="body2" sx={{ minWidth: 0 }} color="text.secondary" noWrap title={label}>{label}</Typography>
       </Box>
-      <Typography sx={{ fontSize: 17, fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }} noWrap>{value === null ? '…' : money(value)}</Typography>
+      <Typography variant="h5" component="p" sx={{ fontVariantNumeric: 'tabular-nums' }} noWrap>{value === null ? '…' : money(value)}</Typography>
     </Box>
   )
 }
@@ -198,7 +199,7 @@ function MemberCard({ id, onChange, lk }: { id: Id; onChange: () => void; lk: Re
         <Avatar src={photo ?? undefined} alt={m ? `Photo of ${displayName(m)}` : ''} sx={(t) => ({ width: 76, height: 76, borderRadius: '50%', flexShrink: 0, bgcolor: t.palette.mode === 'dark' ? '#3A3A3C' : '#E5E7EB', color: 'text.secondary' })}><FiUser size={34} aria-hidden /></Avatar>
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75, minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 600, fontSize: 17, letterSpacing: '-0.01em', minWidth: 0 }} noWrap>{m ? displayName(m) : '…'}</Typography>
+            <Typography variant="h5" component="p" sx={{ minWidth: 0 }} noWrap>{m ? displayName(m) : '…'}</Typography>
             {status && <Chip size="small" label={status.label} color={status.kind === 'default' ? 'default' : status.kind} variant="outlined" sx={{ flexShrink: 0 }} />}
           </Box>
           <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', columnGap: 1.5, rowGap: 0.25 }}>
@@ -223,21 +224,21 @@ function AccountSummary({ id }: { id: Id }) {
   const savings = useQuery({ queryKey: ['teller-savings', id], queryFn: () => getSavings(id.branchCode, id.clientId), retry: false })
   return (
     <Card title="Account summary" icon={<FiCreditCard />} color={tileFill.green}>
-      {!savings.data && <Skeleton variant="rounded" height={60} />}
-      {savings.data && savings.data.accounts.length === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">No savings accounts.</Typography>}
+      <LoadingBlock q={savings} what="the savings accounts" />
+      {savings.data && savings.data.accounts.length === 0 && <Typography color="text.secondary">No savings accounts.</Typography>}
       <Box sx={{ display: 'grid', gap: 1 }}>
         {savings.data?.accounts.filter((a) => a.status === 15).map((a) => (
-          <Box key={`${a.typeCode}-${a.refNo}`} sx={(t) => ({ p: 1.25, borderRadius: '8px', border: `1px solid ${t.palette.divider}`, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.55)' })}>
+          <Box key={`${a.typeCode}-${a.refNo}`} sx={(t) => ({ p: 1.25, borderRadius: `${SURFACE_RADIUS - 2}px`, border: `1px solid ${t.palette.divider}`, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.55)' })}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ fontSize: 13, fontWeight: 600 }} noWrap>{a.type ?? 'Savings'}</Typography>
-                <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary" noWrap>{a.refNoText ?? a.refNo}</Typography>
+                <Typography variant="subtitle2" component="p" noWrap>{a.type ?? 'Savings'}</Typography>
+                <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }} color="text.secondary" noWrap>{a.refNoText ?? a.refNo}</Typography>
               </Box>
               <Chip size="small" label={a.statusName} color="success" variant="outlined" />
             </Box>
             {([['Current balance', a.balance, false], ['Available balance', a.available, true], ['Hold amount', a.held + a.uncleared, false]] as const).map(([k, v, main]) => (
               <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', py: 0.2 }}>
-                <Typography sx={{ fontSize: 12 }} color="text.secondary">{k}</Typography>
+                <Typography variant="body2" color="text.secondary">{k}</Typography>
                 <Typography sx={{ fontSize: main ? 15 : 13, fontWeight: main ? 600 : 500, fontVariantNumeric: 'tabular-nums' }}>{money(v)}</Typography>
               </Box>
             ))}
@@ -255,17 +256,17 @@ function DrawerCard({ setup }: { setup: FoSetup }) {
   const rows: [string, number | undefined][] = [['Beginning balance', c?.beginning], ['Cash in', c?.in], ['Cash out', c?.out], ['Pending in', c?.pendingIn], ['Pending out', c?.pendingOut]]
   return (
     <Card title="Cash drawer" icon={<FiBriefcase />} color={tileFill.teal}>
-      {totals.data && !totals.data.known && <Typography sx={{ fontSize: 13 }} color="text.secondary">{totals.data.reason}</Typography>}
-      {!totals.data && <Skeleton variant="rounded" height={90} />}
+      {totals.data && !totals.data.known && <Typography color="text.secondary">{totals.data.reason}</Typography>}
+      <LoadingBlock q={totals} what="the drawer totals" />
       {totals.data?.known && (
         <>
           {rows.map(([k, v]) => (
             <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.2 }}>
-              <Typography sx={{ fontSize: 12 }} color="text.secondary">{k}</Typography><Typography sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{money(v ?? 0)}</Typography>
+              <Typography variant="body2" color="text.secondary">{k}</Typography><Typography sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(v ?? 0)}</Typography>
             </Box>
           ))}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: 1, borderColor: 'divider', mt: 0.75, pt: 0.75 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>Total cash</Typography><Typography sx={{ fontSize: 17, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{money(c?.ending ?? 0)}</Typography>
+            <Typography variant="subtitle2" component="p">Total cash</Typography><Typography variant="h5" component="p" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(c?.ending ?? 0)}</Typography>
           </Box>
         </>
       )}
@@ -277,7 +278,7 @@ function DrawerCard({ setup }: { setup: FoSetup }) {
 function TypeBadge({ type }: { type: string | null }) {
   const t = type ?? '—'
   const c = /withdraw|disburse|payout|pay-out|voucher|release/i.test(t) ? tileFill.red : /loan/i.test(t) ? tileFill.orange : /deposit|receipt|payment|collection/i.test(t) ? tileFill.green : tileFill.blue
-  return <Box component="span" sx={{ display: 'inline-block', maxWidth: '100%', px: 0.75, py: 0.1, borderRadius: '5px', fontSize: 11, fontWeight: 600, color: c, bgcolor: `${c}1A`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', verticalAlign: 'middle' }}>{t}</Box>
+  return <Box component="span" sx={{ display: 'inline-block', maxWidth: '100%', px: 0.75, py: 0.1, borderRadius: `${RADIUS}px`, fontSize: 11, fontWeight: 600, color: c, bgcolor: `${c}1A`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', verticalAlign: 'middle' }}>{t}</Box>
 }
 
 /** The day's transactions as they come in, newest first. It refreshes by itself. */
@@ -297,7 +298,7 @@ function TodayCard({ setup }: { setup: FoSetup }) {
               <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(r.total)}</TableCell>
             </TableRow>
           ))}
-          {data && rows.length === 0 && <TableRow><TableCell colSpan={4}><Typography sx={{ p: 1, textAlign: 'center', fontSize: 12 }} color="text.secondary">Nothing yet today.</Typography></TableCell></TableRow>}
+          {data && rows.length === 0 && <TableRow><TableCell colSpan={4}><Typography variant="body2" sx={{ p: 1, textAlign: 'center' }} color="text.secondary">Nothing yet today.</Typography></TableCell></TableRow>}
         </TableBody>
       </Table>
     </Card>
@@ -334,7 +335,7 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
       <Box ref={container} sx={{ display: 'grid', alignItems: 'start', gridTemplateColumns: `${cols[0] === 0 ? '0px' : `minmax(0, ${cols[0]}fr)`} 10px ${cols[1] === 0 ? '0px' : `minmax(0, ${cols[1]}fr)`} 10px ${cols[2] === 0 ? '0px' : `minmax(0, ${cols[2]}fr)`}` }}>
         <Box className="col" sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0, ...(cols[0] === 0 && { visibility: 'hidden', overflow: 'hidden' }) }}>
           {id ? <MemberCard id={id} onChange={() => setId(null)} lk={lk} /> : (
-            <Card title="Member information" icon={<FiUser />} color={tileFill.blue}><Typography sx={{ fontSize: 13 }} color="text.secondary">Search for the member to take a deposit from or pay a withdrawal to.</Typography></Card>
+            <Card title="Member information" icon={<FiUser />} color={tileFill.blue}><Typography color="text.secondary">Search for the member to take a deposit from or pay a withdrawal to.</Typography></Card>
           )}
           <Card title="Go to account" icon={<FiGrid />} color={tileFill.purple}>
             <Box sx={{ display: 'grid', gap: 0.75, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
@@ -348,13 +349,13 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
                     if (q.preset) setPreset({ ...q.preset, seq: (preset?.seq ?? 0) + 1 })
                   }}
                   sx={(t) => ({
-                    flexDirection: 'column', gap: 0.75, py: 1.25, borderRadius: '10px', border: `1px solid ${t.palette.divider}`, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.55)',
+                    flexDirection: 'column', gap: 0.75, py: 1.25, borderRadius: `${SURFACE_RADIUS}px`, border: `1px solid ${t.palette.divider}`, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.55)',
                     transition: 'background-color 140ms, border-color 140ms, transform 140ms', '&:hover': { bgcolor: t.palette.action.hover }, '&:active': { transform: 'scale(0.97)' }, '&.Mui-disabled': { opacity: 0.45 },
                     ...(only === q.only && { borderColor: q.color, bgcolor: `${q.color}14`, boxShadow: `inset 0 0 0 1px ${q.color}`, '&:hover': { bgcolor: `${q.color}1F` } }),
                   })}
                 >
                   <IconChip icon={q.icon} color={q.color} size={34} />
-                  <Typography sx={{ fontSize: 12, fontWeight: 500 }}>{q.label}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>{q.label}</Typography>
                 </ButtonBase>
               ))}
             </Box>
@@ -368,19 +369,19 @@ export default function MemberAccountsPanel({ setup }: { setup: FoSetup }) {
             <Box sx={(t) => ({ ...glass(t), p: 5, display: 'grid', placeItems: 'center', textAlign: 'center', minHeight: 260 })}>
               <Box>
                 <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1.5 }}><IconChip icon={<FiSearch />} color={tileFill.blue} size={52} /></Box>
-                <Typography sx={{ fontSize: 17, fontWeight: 600, mb: 0.5 }}>Find a member to begin</Typography>
-                <Typography sx={{ fontSize: 13, maxWidth: 320, mx: 'auto' }} color="text.secondary">Search by name or member number above. Their accounts, balances and the transaction form open here.</Typography>
+                <Typography variant="h5" component="p" sx={{ mb: 0.5 }}>Find a member to begin</Typography>
+                <Typography sx={{ maxWidth: 320, mx: 'auto' }} color="text.secondary">Search by name or member number above. Their accounts, balances and the transaction form open here.</Typography>
               </Box>
             </Box>
           ) : (
             <>
               <TellerTransaction id={id} preset={preset} only={only} onShowAll={() => setOnly(null)} />
-              <Box role="tablist" aria-label="Member accounts" sx={(t) => ({ display: 'flex', gap: '2px', p: '3px', mb: 1.25, borderRadius: '9px', bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' })}>
+              <Box role="tablist" aria-label="Member accounts" sx={(t) => ({ display: 'flex', gap: '2px', p: '3px', mb: 1.25, borderRadius: `${SURFACE_RADIUS}px`, bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' })}>
                 {sections.map((x) => (
                   <ButtonBase
                     key={x} role="tab" aria-selected={section === x} onClick={() => setSection(x)}
                     sx={(t) => ({
-                      flex: 1, minWidth: 0, minHeight: 28, px: 1, borderRadius: '7px', fontSize: 13, fontWeight: section === x ? 600 : 500, fontFamily: 'inherit',
+                      flex: 1, minWidth: 0, minHeight: 28, px: 1, borderRadius: `${SURFACE_RADIUS - 2}px`, fontSize: 13, fontWeight: section === x ? 600 : 500, fontFamily: 'inherit',
                       color: section === x ? 'text.primary' : 'text.secondary', transition: 'background-color 160ms, color 160ms',
                       ...(section === x && { bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.16)' : '#FBFBFC', boxShadow: t.palette.mode === 'dark' ? '0 1px 2px rgba(0,0,0,0.4)' : '0 1px 3px rgba(0,0,0,0.12)' }),
                     })}

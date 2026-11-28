@@ -5,6 +5,7 @@ import { getBankCashBanks, getFoHandoverDrawers, getFoHandoverMine, postBankDepo
 import { CountGrid, countTotal, toNumbers, type Counts } from './CountGrid'
 import { money } from './FoTransactionForm'
 import MoneyField from './MoneyField'
+import { notifyError } from './ui/notices'
 import { glass } from './glass'
 
 /**
@@ -23,7 +24,6 @@ export function BankCashPanel({ setup }: { setup: FoSetup }) {
   const [counts, setCounts] = useState<Counts>({})
   const [remarks, setRemarks] = useState('')
   const [note, setNote] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const total = countTotal(setup, counts)
   const run = useMutation({
     mutationFn: (kind: 'deposit' | 'withdraw' | 'cheques') => {
@@ -32,21 +32,20 @@ export function BankCashPanel({ setup }: { setup: FoSetup }) {
       return kind === 'deposit' ? postBankDeposit(body) : postBankWithdrawal(body)
     },
     onSuccess: (r, kind) => {
-      setError(null); setCounts({}); setRemarks(''); setChequeText('')
+      setCounts({}); setRemarks(''); setChequeText('')
       setNote(`${kind === 'withdraw' ? 'Withdrawn from' : 'Deposited to'} ${r.bank}: ${money(r.amount)}${kind === 'cheques' ? ' in cheques' : ''} (document ${r.documentNo}). The vault now holds ${money(r.vaultAfter)}${kind === 'cheques' ? ' in cheques' : ''}.`)
       void qc.invalidateQueries({ queryKey: ['fo-handover-drawers'] })
       void qc.invalidateQueries({ queryKey: ['fo-handover-mine'] })
     },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   if (mine.data?.headCashier !== true) return null
   const ready = bankId !== '' && total > 0 && !run.isPending
   const chequesReady = bankId !== '' && chequeTotal > 0 && chequeTotal <= vaultCheques + 0.001 && !run.isPending
   return (
     <Box sx={(t) => ({ p: 1.5, mt: 1.5, ...glass(t) })}>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Bank deposit and withdrawal (vault)</Typography>
+      <Typography variant="overline" sx={{ display: 'block', mb: 0.75 }} color="text.secondary">Bank deposit and withdrawal (vault)</Typography>
       {note && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setNote(null)}>{note}</Alert>}
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       <Box sx={{ display: 'flex', gap: 1.5, mb: 1.5, flexWrap: 'wrap' }}>
         <TextField select size="small" label="Bank account" value={bankId} onChange={(e) => setBankId(Number(e.target.value))} sx={{ minWidth: 260 }}>
           {(banks.data ?? []).map((b) => <MenuItem key={b.bankId} value={b.bankId}>{b.name} · {b.ledgerAccount}</MenuItem>)}
@@ -55,7 +54,7 @@ export function BankCashPanel({ setup }: { setup: FoSetup }) {
       </Box>
       <CountGrid setup={setup} counts={counts} onChange={setCounts} />
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1.5 }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Total {money(total)}</Typography>
+        <Typography sx={{ fontWeight: 700 }}>Total {money(total)}</Typography>
         <Box sx={{ flex: 1 }} />
         <Button variant="outlined" disabled={!ready} onClick={() => run.mutate('withdraw')}>Withdraw from bank to vault</Button>
         <Button variant="contained" disabled={!ready} onClick={() => run.mutate('deposit')}>Deposit vault cash to bank</Button>

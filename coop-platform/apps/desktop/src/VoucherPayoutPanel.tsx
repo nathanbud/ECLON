@@ -1,10 +1,12 @@
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Skeleton, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { askFoOverride, checkVoucherPayout, getVoucherPayablesOf, getVoucherPayablesWaiting, postVoucherPayout, type VoucherPayable, type VoucherPayoutCheck, type VoucherPayoutReceipt } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
 import { useRequestKey } from './ui/requestKey'
+import { notifyError } from './ui/notices'
+import { LoadingBlock } from './ui/Loading'
 import { Hinted } from './appleUi'
 
 /**
@@ -18,14 +20,14 @@ export function VoucherPayoutPanel() {
   const found = useQuery({ queryKey: ['voucher-payables-of', lookup], queryFn: () => getVoucherPayablesOf(lookup!), enabled: lookup !== null, retry: false })
   const [paying, setPaying] = useState<VoucherPayable | null>(null)
 
-  if (waiting.isLoading) return <Skeleton variant="rounded" height={90} />
+  if (waiting.isLoading) return <LoadingBlock q={waiting} what="the vouchers payable" />
   if (waiting.error) return null // no right to pay vouchers out
   const rows = lookup !== null ? found.data ?? [] : waiting.data ?? []
   const clientNo = Number(clientText)
   const canFind = clientText.trim() !== '' && Number.isInteger(clientNo) && clientNo > 0
   return (
     <Box sx={(t) => ({ p: 1.5, flex: 1, minHeight: 0, overflow: 'auto', ...glass(t) })}>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Pay out vouchers payable</Typography>
+      <Typography variant="overline" sx={{ display: 'block', mb: 0.75 }} color="text.secondary">Pay out vouchers payable</Typography>
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
         <TextField size="small" label="Member number" value={clientText} onChange={(e) => setClientText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && canFind) setLookup(clientNo) }} sx={{ width: 180 }} />
@@ -37,8 +39,8 @@ export function VoucherPayoutPanel() {
       {rows.map((r) => (
         <Box key={`${r.clientId}-${r.refNo}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider' }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 13 }}>{r.client ?? `Member ${r.clientId}`} · {money(r.balance)}</Typography>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>Client {r.clientId} · payable account {r.refNo}{r.lastCredit ? ` · last credited ${r.lastCredit}` : ''}</Typography>
+            <Typography>{r.client ?? `Member ${r.clientId}`} · {money(r.balance)}</Typography>
+            <Typography variant="body2" color="text.secondary" noWrap>Client {r.clientId} · payable account {r.refNo}{r.lastCredit ? ` · last credited ${r.lastCredit}` : ''}</Typography>
           </Box>
           <Button size="small" variant="contained" onClick={() => setPaying(r)}>Pay out</Button>
         </Box>
@@ -71,22 +73,22 @@ function PayDialog({ payable, onClose }: { payable: VoucherPayable; onClose: () 
   }, [payable.clientId, payable.refNo, waitingForSupervisor, receipt])
 
   const ask = async () => {
-    setBusy(true); setError(null)
+    setBusy(true)
     try {
       for (const n of check?.needs ?? []) {
         if (n.status === 'NONE' || n.status === 'REJECTED') await askFoOverride({ draftId: null, kind: n.kind, description: n.description, amount: n.amount, limitAmount: n.limit })
       }
       setCheck(await checkVoucherPayout({ clientId: payable.clientId, refNo: payable.refNo }))
-    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+    } catch (e) { notifyError(e) } finally { setBusy(false) }
   }
 
   const pay = async () => {
-    setBusy(true); setError(null)
+    setBusy(true)
     try {
       setReceipt(await postVoucherPayout(body, requestKey))
       void qc.invalidateQueries({ queryKey: ['voucher-payables-waiting'] })
       void qc.invalidateQueries({ queryKey: ['voucher-payables-of'] })
-    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+    } catch (e) { notifyError(e) } finally { setBusy(false) }
   }
 
   const needsAsking = !!check && check.needs.some((n) => n.status === 'NONE' || n.status === 'REJECTED')
@@ -118,6 +120,7 @@ function PayDialog({ payable, onClose }: { payable: VoucherPayable; onClose: () 
             <Box>By {receipt.cashier}</Box>
           </Box>
         )}
+        {/* the check could not be made: shown here, like a list that could not load; a refused action pops up (notifyError) */}
         {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       </DialogContent>
       <DialogActions>

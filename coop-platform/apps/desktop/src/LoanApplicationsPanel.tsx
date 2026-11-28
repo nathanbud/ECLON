@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { approveLoanApplication, cancelLoanApplication, disapproveLoanApplication, getLoanAppPermissions, getLoanApplication, getLoanApplications, verifyLoanApplication, type LoanApplicationItem } from './api'
@@ -8,6 +8,8 @@ import { Segmented } from './appleUi'
 import { glass } from './glass'
 import { FILTERS, type LoanFilter } from './LoanMenu'
 import { LoanStepStatus } from './LoanStepStatus'
+import { notifyError } from './ui/notices'
+import { LoadingBlock } from './ui/Loading'
 import { APPROVED, isReleased, LOAN_SORTS, releaseWords, sortApplications, type LoanSort } from './loanSteps'
 
 const STALE_DAYS = 60
@@ -24,7 +26,6 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
   const list = useQuery({ queryKey: ['loan-applications'], queryFn: getLoanApplications, refetchInterval: 30_000, retry: false })
   const perms = useQuery({ queryKey: ['loan-app-permissions'], queryFn: getLoanAppPermissions, staleTime: 60_000 })
   const [open, setOpen] = useState<LoanApplicationItem | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [disapproving, setDisapproving] = useState(false)
@@ -36,24 +37,24 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
   const detail = useQuery({ queryKey: ['loan-application', open?.id], queryFn: () => getLoanApplication(open!.id), enabled: !!open,
     refetchInterval: (q) => (q.state.data?.item.status === APPROVED && !isReleased(q.state.data.item) ? 30_000 : false) })
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['loan-applications'] }); void qc.invalidateQueries({ queryKey: ['loan-application'] }); void qc.invalidateQueries({ queryKey: ['loan-releases'] }) }
-  const verify = useMutation({ mutationFn: (a: LoanApplicationItem) => verifyLoanApplication(a.id), onSuccess: (a) => { setError(null); setOpen(a); refresh() }, onError: (e) => setError((e as Error).message) })
+  const verify = useMutation({ mutationFn: (a: LoanApplicationItem) => verifyLoanApplication(a.id), onSuccess: (a) => { setOpen(a); refresh() }, onError: (e) => notifyError((e as Error).message) })
   const cancel = useMutation({
     mutationFn: (a: LoanApplicationItem) => cancelLoanApplication(a.id, reason.trim()),
-    onSuccess: () => { setError(null); setOpen(null); setCancelling(false); setReason(''); setNote('The application was cancelled.'); refresh() },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: () => { setOpen(null); setCancelling(false); setReason(''); setNote('The application was cancelled.'); refresh() },
+    onError: (e) => notifyError((e as Error).message),
   })
   const disapprove = useMutation({
     mutationFn: (a: LoanApplicationItem) => disapproveLoanApplication(a.id, reason.trim()),
-    onSuccess: () => { setError(null); setOpen(null); setDisapproving(false); setReason(''); setNote('The application was disapproved.'); refresh() },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: () => { setOpen(null); setDisapproving(false); setReason(''); setNote('The application was disapproved.'); refresh() },
+    onError: (e) => notifyError((e as Error).message),
   })
   const approve = useMutation({
     mutationFn: (a: LoanApplicationItem) => approveLoanApplication(a.id),
-    onSuccess: (r) => { setError(null); setOpen(null); setNote(`Approved. Release voucher ${r.voucherDocumentNo} was created; the money is released in Front Office > Disburse, Loan releases waiting.`); refresh() },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: (r) => { setOpen(null); setNote(`Approved. Release voucher ${r.voucherDocumentNo} was created; the money is released in Front Office > Disburse, Loan releases waiting.`); refresh() },
+    onError: (e) => notifyError((e as Error).message),
   })
 
-  if (list.isLoading) return <Skeleton variant="rounded" height={120} />
+  if (list.isLoading) return <LoadingBlock q={list} what="the loan applications waiting" />
   if (list.error) return null // no right to verify or approve loan applications
   const step = FILTERS.find((f) => f.key === filter) ?? FILTERS[0]
   const all = (list.data ?? []).filter(step.test)
@@ -67,7 +68,7 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
   return (
     <Box sx={(t) => ({ p: 1.5, mb: 1.5, ...(full ? {} : { maxHeight: 240, overflow: 'auto' }), ...glass(t) })}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-        <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', flex: 1 }} color="text.secondary">
+        <Typography variant="overline" sx={{ display: 'block', flex: 1 }} color="text.secondary">
           Loan applications waiting{filter !== 'all' ? ` · ${step.label}` : ''}
         </Typography>
         {filter !== 'all' && onShowAll && !onFilter && <Button size="small" onClick={onShowAll}>Show all waiting</Button>}
@@ -89,11 +90,11 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
         </Box>
       )}
       {rows.map((r) => (
-        <Box key={r.id} onClick={() => { setOpen(r); setError(null); setCancelling(false); setDisapproving(false) }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') { setOpen(r); setError(null) } }}
-          sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
+        <Box key={r.id} onClick={() => { setOpen(r); setCancelling(false); setDisapproving(false) }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(r) } }}
+          sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2, bgcolor: 'action.hover' } }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 13 }}>{r.clientName ?? `Member ${r.clientId}`} · {money(r.amount)}</Typography>
-            <Typography sx={{ fontSize: 12 }} color="text.secondary" noWrap>{r.documentNo} · {r.typeName} · {r.terms} months · {r.date} · encoded by {r.encodedByName ?? '—'}{r.approvedOn ? ` · approved ${r.approvedOn}` : ''}{r.releasedOn ? ` · released ${r.releasedOn}` : ''}</Typography>
+            <Typography>{r.clientName ?? `Member ${r.clientId}`} · {money(r.amount)}</Typography>
+            <Typography variant="body2" color="text.secondary" noWrap>{r.documentNo} · {r.typeName} · {r.terms} months · {r.date} · encoded by {r.encodedByName ?? '—'}{r.approvedOn ? ` · approved ${r.approvedOn}` : ''}{r.releasedOn ? ` · released ${r.releasedOn}` : ''}</Typography>
           </Box>
           <LoanStepStatus application={r} />
         </Box>
@@ -103,13 +104,12 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
         <DialogContent>
           {a && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
-              <Typography sx={{ fontSize: 13, flex: 1, minWidth: 240 }} color="text.secondary">{a.clientName ?? `Member ${a.clientId}`} · {a.typeName} · {money(a.amount)} over {a.terms} months · loan ref {a.refNo} · {a.statusName}</Typography>
+              <Typography sx={{ flex: 1, minWidth: 240 }} color="text.secondary">{a.clientName ?? `Member ${a.clientId}`} · {a.typeName} · {money(a.amount)} over {a.terms} months · loan ref {a.refNo} · {a.statusName}</Typography>
               <LoanStepStatus application={a} />
             </Box>
           )}
-          {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
           {detail.data?.problems.map((p) => <Alert key={p} severity="warning" sx={{ mb: 1 }}>{p}</Alert>)}
-          {detail.isLoading ? <Skeleton variant="rounded" height={120} /> : (
+          {detail.isLoading || detail.isError ? <LoadingBlock q={detail} what="the release voucher preview" /> : (
             <Table size="small" aria-label="Release voucher preview">
               <TableHead><TableRow><TableCell>Line</TableCell><TableCell>Account</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell></TableRow></TableHead>
               <TableBody>
@@ -127,7 +127,7 @@ export function LoanApplicationsPanel({ full, filter = 'all', onShowAll, onFilte
           {a?.waitingForDeductions && <Alert severity="info" sx={{ mt: 1.5 }}>This application waits for its deductions. It can be verified once someone who may do the Deduction step fills them in.</Alert>}
           {disapproving && <TextField label="Reason for disapproving" value={reason} onChange={(e) => setReason(e.target.value)} fullWidth size="small" sx={{ mt: 1.5 }} autoFocus />}
           {cancelling && <TextField label="Reason for cancelling" value={reason} onChange={(e) => setReason(e.target.value)} fullWidth size="small" sx={{ mt: 1.5 }} autoFocus />}
-          <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">
+          <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">
             {a?.status === APPROVED
               ? 'This is the release voucher. The money is released in Front Office > Disburse, Loan releases waiting: the voucher is approved by one person and posted by another.'
               : 'This is the voucher approval will create. You cannot verify or approve an application you encoded, and the verifier cannot approve it.'}

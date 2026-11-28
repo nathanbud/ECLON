@@ -21,7 +21,7 @@ export const FILTERS: { key: LoanFilter; label: string; step: string; test: (a: 
 ]
 
 const Shortcut = ({ children }: { children: ReactNode }) => (
-  <Typography component="span" sx={{ ml: 4, fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{children}</Typography>
+  <Typography variant="body2" component="span" sx={{ ml: 4, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{children}</Typography>
 )
 
 /**
@@ -48,26 +48,26 @@ export function LoanMenu({ onNew, mayNew, filter, onFilter, counts, onLoanSetup 
     return () => window.removeEventListener('keydown', on)
   }, [])
 
-  const text = (t: string) => <ListItemText slotProps={{ primary: { sx: { fontSize: 13 } } }}>{t}</ListItemText>
+  const text = (t: string) => <ListItemText>{t}</ListItemText>
   return (
     <>
       <Tooltip title="Loan Module menu (Alt+L)">
         <Button
           ref={button} size="small" onClick={(e) => setAnchor(e.currentTarget)} endIcon={<FiChevronDown />}
           aria-haspopup="menu" aria-expanded={!!anchor} aria-keyshortcuts="Alt+L"
-          sx={{ color: 'inherit', fontSize: 13, fontWeight: 400, px: 0.75, py: 0.25, minWidth: 0, borderRadius: '5px', '& .MuiButton-endIcon': { ml: 0.25 }, '&:hover': { bgcolor: 'action.hover' } }}
+          sx={{ color: 'inherit', fontWeight: 400, px: 0.75, py: 0.25, minWidth: 0, '& .MuiButton-endIcon': { ml: 0.25 }, '&:hover': { bgcolor: 'action.hover' } }}
         >
           <u>L</u>oan Module
         </Button>
       </Tooltip>
-      <Menu anchorEl={anchor} open={!!anchor} onClose={close} slotProps={{ paper: { sx: { borderRadius: '5px', minWidth: 280, mt: 0.5 } } }}>
+      <Menu anchorEl={anchor} open={!!anchor} onClose={close} slotProps={{ paper: { sx: { minWidth: 280, mt: 0.5 } } }}>
         <MenuItem disabled={!mayNew} onClick={() => { close(); onNew() }}>
           <ListItemIcon sx={{ minWidth: 32, fontSize: 15 }}><FiFilePlus /></ListItemIcon>
           {text('New loan application')}
           <Shortcut>{NEW_LOAN_SHORTCUT}</Shortcut>
         </MenuItem>
         <Divider />
-        <ListSubheader sx={{ fontSize: 11, lineHeight: '28px', bgcolor: 'transparent' }}>Show in the list</ListSubheader>
+        <ListSubheader sx={{ bgcolor: 'transparent' }}>Show in the list</ListSubheader>
         {FILTERS.map((f) => (
           <MenuItem key={f.key} selected={filter === f.key} onClick={() => { close(); onFilter(f.key) }}>
             <ListItemIcon sx={{ minWidth: 32, fontSize: 15 }}>{filter === f.key ? <FiCheck /> : null}</ListItemIcon>
@@ -84,7 +84,7 @@ export function LoanMenu({ onNew, mayNew, filter, onFilter, counts, onLoanSetup 
         )}
         {!mayNew && <Divider />}
         {!mayNew && (
-          <Typography sx={{ px: 2, py: 0.75, fontSize: 12, maxWidth: 280 }} color="text.secondary">
+          <Typography variant="body2" sx={{ px: 2, py: 0.75, maxWidth: 280 }} color="text.secondary">
             Your account may not do 1 · Profiling, so it cannot start a loan application.
           </Typography>
         )}

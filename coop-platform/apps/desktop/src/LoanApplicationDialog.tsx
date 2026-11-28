@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, InputAdornment, MenuItem, Select, Skeleton, TextField, Tooltip, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, InputAdornment, MenuItem, Select, TextField, Tooltip, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { createLoanApplication, getAmortizationPdf, getLoanAppPermissions, getLoanAppTemplate, getLoanTypes, type LoanAppCreated, type Member } from './api'
@@ -13,6 +13,9 @@ import MoneyField from './MoneyField'
 import { missingText, mostTerm, profileChecks, termLimitText, type ProfileField } from './loanProfileChecks'
 import { money } from './ui/format'
 import { printPdf } from './ui/printPdf'
+import { notifyError } from './ui/notices'
+import { RADIUS, SURFACE_RADIUS } from './theme'
+import { LoadingBlock } from './ui/Loading'
 
 
 /**
@@ -48,7 +51,8 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
   const usable = types.data?.filter((x) => x.available)
   const typeCode: number | null = givenType ?? (pickType != null && (!usable || usable.some((x) => x.code === pickType)) ? pickType : null)
   useEffect(() => { onApplicant?.(ready ? { branchCode, clientId } : null) }, [onApplicant, ready, branchCode, clientId])
-  const { data: t, error, isLoading } = useQuery({ queryKey: ['loan-app-template', branchCode, clientId, typeCode], queryFn: () => getLoanAppTemplate(branchCode, clientId, typeCode!), enabled: ready && typeCode != null && (!searching || !!types.data) })
+  const template = useQuery({ queryKey: ['loan-app-template', branchCode, clientId, typeCode], queryFn: () => getLoanAppTemplate(branchCode, clientId, typeCode!), enabled: ready && typeCode != null && (!searching || !!types.data) })
+  const t = template.data
   const [amount, setAmount] = useState('')
   const [terms, setTerms] = useState('')
   const [unit, setUnit] = useState('') // '' = the loan type's own unit
@@ -157,11 +161,13 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
   const save = useMutation({
     mutationFn: () => createLoanApplication(branchCode, clientId, formBody()),
     onSuccess: (r) => { setDone(r); qc.invalidateQueries({ queryKey: ['member-loans', branchCode, clientId] }); if (embedded) announceLoanApplicationSaved(); onSaved?.(r) },
+    onError: notifyError,
   })
   // The amortization schedule of what is on the form, for the member to read and sign; once saved it carries the loan number.
   const print = useMutation({
     mutationFn: async () => printPdf(await getAmortizationPdf(branchCode, clientId, formBody(), done?.refNo),
       `amortization-schedule-${clientId}.pdf`),
+    onError: notifyError,
     meta: { done: (how: unknown) => (how === 'saved' ? 'The amortization schedule was saved as a PDF; open it to print.' : 'The amortization schedule is ready to print.') },
   })
   const clear = () => { setTouched(new Set()); setAmount(''); setTerms(''); setUnit(''); setPurpose(''); setCollType(''); setCollAmount(''); setCollDesc(''); setRemarks(''); setCoMakers(''); setCoHolds({}); setDed({}); setDone(null); setCls('1'); setPaid({}); save.reset() }
@@ -197,7 +203,7 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
           </Alert>
         )}
         {showProfile && searching && !picked && (
-          <Box sx={{ ...(embedded ? appear : {}), mb: 1.5, mx: 'auto', width: '100%', maxWidth: embedded ? 520 : undefined, borderRadius: '5px', overflow: 'hidden', border: 1, borderColor: 'divider' }}>
+          <Box sx={{ ...(embedded ? appear : {}), mb: 1.5, mx: 'auto', width: '100%', maxWidth: embedded ? 520 : undefined, borderRadius: `${RADIUS}px`, overflow: 'hidden', border: 1, borderColor: 'divider' }}>
             <FindBody wording={LOAN_FIND} inline allowInactive={false} onPick={() => {}} onPickMember={pick} />
           </Box>
         )}
@@ -212,29 +218,28 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
             </TextField>
           </Box>
         )}
-        {error && <Alert severity="error">{(error as Error).message}</Alert>}
         {ready && searching && types.data && typeCode == null && !done && (
-          <Typography color="text.secondary" sx={{ fontSize: 13, mb: 1 }}>Select the loan type to load its setup: term, rate, deductions and the rest.</Typography>
+          <Typography color="text.secondary" sx={{ mb: 1 }}>Select the loan type to load its setup: term, rate, deductions and the rest.</Typography>
         )}
-        {ready && isLoading && <Skeleton variant="rounded" height={240} />}
+        {ready && <LoadingBlock q={template} what="the loan type's setup" />}
         {t && !done && (
           <Box sx={{ display: 'grid', gap: 1.5, pt: 1 }}>
             {showProfile && <>
-            <Box component="section" aria-label="Loan setup" sx={{ border: 1, borderColor: 'divider', borderRadius: '8px', p: 1.5 }}>
-              <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Loan setup · {t.typeName}</Typography>
+            <Box component="section" aria-label="Loan setup" sx={{ border: 1, borderColor: 'divider', borderRadius: `${SURFACE_RADIUS - 2}px`, p: 1.5 }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Loan setup · {t.typeName}</Typography>
               <Box component="dl" sx={{ m: 0, display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 1.25 }}>
                 {([
                   ['Based on', t.setup.basedOn], ['Diminishing', t.setup.diminish], ['Term', `${t.terms} ${t.setup.termUnit?.toLowerCase() ?? ''}`.trim()], ['Interest rate', `${t.interestRate.toFixed(2)}% p.a.`],
                   ['Principal payment', t.setup.principalPayment], ['Interest payment', t.setup.interestPayment], ['Penalty rate', t.setup.penaltyRate == null ? null : `${t.setup.penaltyRate}%`],
                   ['Days in a year', t.setup.yearDays == null ? null : String(t.setup.yearDays)], ['Collateral', t.setup.collateralRequired ? 'Required' : 'Not required'],
                 ] as [string, string | null][]).map(([k, v]) => (
-                  <Box key={k}><Typography component="dt" sx={{ fontSize: 11 }} color="text.secondary">{k}</Typography><Typography component="dd" sx={{ m: 0, fontSize: 13, fontWeight: 500 }}>{v ?? '—'}</Typography></Box>
+                  <Box key={k}><Typography variant="caption" component="dt" color="text.secondary">{k}</Typography><Typography component="dd" sx={{ m: 0, fontWeight: 500 }}>{v ?? '—'}</Typography></Box>
                 ))}
               </Box>
               {t.setup.unsupported && <Alert severity="warning" sx={{ mt: 1.25 }}>{t.setup.unsupported}</Alert>}
             </Box>
             <Box component="section" aria-label="What Profiling needs" sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-              <Typography sx={{ fontSize: 12, mr: 0.5 }} color="text.secondary">
+              <Typography variant="body2" sx={{ mr: 0.5 }} color="text.secondary">
                 Fields marked * are required · {checks.length - missing.length} of {checks.length} done{missing.length ? ':' : '.'}
               </Typography>
               {checks.map((c) => (
@@ -311,8 +316,6 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
               ? <LoanDeductionFields t={t} amount={Number(amount) || 0} ded={ded} setDed={setDed} paid={paid} setPaid={setPaid} />
               : <Alert severity="info">You may do Profiling but not Deduction. The application is saved without deductions, and someone who may do the Deduction step fills them in before it is verified.</Alert>}
             </>}
-            {save.error && <Alert severity="error">{(save.error as Error).message}</Alert>}
-            {print.error && <Alert severity="error">{(print.error as Error).message}</Alert>}
           </Box>
         )}
         {done && (
@@ -333,10 +336,13 @@ export default function LoanApplicationDialog({ branchCode: givenBranch, clientI
         {part === 'profile' && !done && mayDeduct && gate(incomplete,
           <Button variant="contained" ref={spot('next')} disabled={!t || !!t.setup.unsupported || incomplete} onClick={() => onNext?.()}>Next: Deduction</Button>,
         )}
-        {part === 'profile' && !done && !mayDeduct && gate(incomplete,
-          <Button variant="contained" title={restructureNeedsBoth ? 'A restructured loan needs both Profiling and Deduction.' : undefined}
+        {/* why it cannot be pressed shows in the tooltip (hover and keyboard focus), not a title the keyboard never reaches */}
+        {part === 'profile' && !done && !mayDeduct && (
+          <Tooltip title={restructureNeedsBoth ? 'A restructured loan needs both Profiling and Deduction.' : incomplete && t ? stillNeeded : ''}><span style={{ display: 'inline-flex' }}>
+          <Button variant="contained"
             ref={spot('next')} disabled={!mayAdd || restructureNeedsBoth || !t || !!t.setup.unsupported || save.isPending || incomplete}
-            onClick={() => save.mutate()}>Save and send for deductions</Button>,
+            onClick={() => save.mutate()}>Save and send for deductions</Button>
+          </span></Tooltip>
         )}
         {part !== 'profile' && !done && gate(incomplete,
           <Button variant="contained" ref={part ? undefined : spot('next')} disabled={!mayAdd || !t || !!t.setup.unsupported || save.isPending || incomplete}

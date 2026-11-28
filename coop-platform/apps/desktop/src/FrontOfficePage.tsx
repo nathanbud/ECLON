@@ -1,5 +1,5 @@
 import {
-  Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Skeleton, Snackbar,
+  Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
   IconButton, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Tooltip, Typography,
 } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -33,10 +33,15 @@ import TemplatesMenu, { useTemplates, type FoTemplate } from './Templates'
 import FoTransactionForm, { emptyForm, formTotals, money, newLine, type FoExtras, type FoForm } from './FoTransactionForm'
 import { appBackground, glass } from './glass'
 import { useMe } from './session'
+import { LoadingBlock } from './ui/Loading'
+import { notify, notifyError } from './ui/notices'
+import { SURFACE_RADIUS } from './theme'
 import { featureOn, useFeaturesOff, type Feature } from './ui/features'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 const MOD = isMac ? '⌘' : 'Ctrl+'
+/** The same keys as aria-keyshortcuts writes them, so a screen reader announces each toolbar button's shortcut (the tooltip shows MOD). */
+const ARIA_MOD = isMac ? 'Meta+' : 'Control+'
 const mod = (e: KeyboardEvent) => (isMac ? e.metaKey : e.ctrlKey)
 
 type Shown =
@@ -113,15 +118,15 @@ function TellerTotalsCard({ date, onDate, totals }: { date: string; onDate: (d: 
   return (
     <Box sx={(t) => ({ p: 2, flexShrink: 0, ...glass(t) })}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 1.5 }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 600, maxWidth: 240 }}>{totals.person ?? ''}</Typography>
+        <Typography variant="subtitle2" component="p" sx={{ maxWidth: 240 }}>{totals.person ?? ''}</Typography>
         <Box sx={{ textAlign: 'right' }}>
           <TextField label="Date" type="date" size="small" value={date} onChange={(e) => onDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 170 }} />
-          <Typography sx={{ fontSize: 12, mt: 0.5, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">
+          <Typography variant="body2" sx={{ mt: 0.5, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">
             {longDate(date)} · {now.toLocaleTimeString()}
           </Typography>
         </Box>
       </Box>
-      <Typography component="h2" sx={{ textAlign: 'center', fontSize: 17, fontWeight: 700, letterSpacing: '0.04em', mb: 1.5 }}>TELLER’S / CASHIER’S TOTALS</Typography>
+      <Typography variant="h5" component="h2" sx={{ textAlign: 'center', letterSpacing: '0.04em', mb: 1.5 }}>TELLER’S / CASHIER’S TOTALS</Typography>
       <Table size="small" aria-label="Teller totals" sx={{ '& td, & th': { borderBottom: 'none', py: 0.6 } }}>
         <TableHead>
           <TableRow>
@@ -156,7 +161,6 @@ function SummaryPanel({ setup, onOpen }: { setup: FoSetup; onOpen: (t: FoSummary
     <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: 'minmax(380px, 560px) minmax(0, 1fr)', flex: 1, minHeight: 0 }}>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, minHeight: 0, overflow: 'auto', pr: 0.25 }}>
         <OverridesCard />
-        {totals.error && <Alert severity="error">{(totals.error as Error).message}</Alert>}
         {totals.data && totals.data.known && (
           <>
             <TellerTotalsCard date={date} onDate={setDate} totals={totals.data} />
@@ -169,12 +173,12 @@ function SummaryPanel({ setup, onOpen }: { setup: FoSetup; onOpen: (t: FoSummary
             <Alert severity="info">{totals.data.reason}</Alert>
           </Box>
         )}
-        {totals.isLoading && <Skeleton variant="rounded" height={300} />}
+        <LoadingBlock q={totals} what="the teller's totals" />
       </Box>
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minHeight: 0, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }} color="text.secondary">Transactions of the day</Typography>
+          <Typography variant="overline" sx={{ display: 'block' }} color="text.secondary">Transactions of the day</Typography>
           {isFetching && <CircularProgress size={16} aria-label="Loading" />}
         </Box>
         {error && <Alert severity="error">{(error as Error).message}</Alert>}
@@ -197,7 +201,7 @@ function SummaryPanel({ setup, onOpen }: { setup: FoSetup; onOpen: (t: FoSummary
               {!isFetching && rows.length === 0 && <TableRow><TableCell colSpan={5}><Typography sx={{ p: 2, textAlign: 'center' }} color="text.secondary">No transactions on this date.</Typography></TableCell></TableRow>}
             </TableBody>
           </Table>
-          {rows.length >= 200 && <Typography sx={{ p: 1.5, fontSize: 12 }} color="text.secondary">Showing the latest 200 of the day.</Typography>}
+          {rows.length >= 200 && <Typography variant="body2" sx={{ p: 1.5 }} color="text.secondary">Showing the latest 200 of the day.</Typography>}
         </Box>
       </Box>
     </Box>
@@ -212,7 +216,7 @@ function SummaryPanel({ setup, onOpen }: { setup: FoSetup; onOpen: (t: FoSummary
 /** How many wait under a tab, as a small orange count after its name (a badge above the name was cut off by the tab strip). */
 function Count({ n }: { n: number }) {
   return (
-    <Box component="span" aria-label={`${n} waiting`} sx={{ ml: 0.75, px: 0.6, minWidth: 18, height: 18, borderRadius: '9px', bgcolor: 'warning.main', color: '#fff', fontSize: 11, fontWeight: 600, lineHeight: '18px', display: 'inline-block', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+    <Box component="span" aria-label={`${n} waiting`} sx={{ ml: 0.75, px: 0.6, minWidth: 18, height: 18, borderRadius: `${SURFACE_RADIUS}px`, bgcolor: 'warning.main', color: '#fff', fontSize: 11, fontWeight: 600, lineHeight: '18px', display: 'inline-block', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
       {n > 99 ? '99+' : n}
     </Box>
   )
@@ -249,7 +253,6 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
   const [focusKey, setFocusKey] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<null | { title: string; text: string; action: string; run: () => void }>(null)
   const workKey = `coop.foWork.${me.username}`
   const [recoverable, setRecoverable] = useState<null | { tab: string; form: FoForm; id: number | null; savedAt: string }>(() => {
@@ -263,7 +266,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
     if (restored.current || !setup || !recoverable) return
     restored.current = true
     setTab(recoverable.tab); setForm(recoverable.form); setShown({ kind: 'draft', id: recoverable.id }); setDirty(true)
-    setNotice(`Restored your unsaved work from ${new Date(recoverable.savedAt).toLocaleString()}.`)
+    notify(`Restored your unsaved work from ${new Date(recoverable.savedAt).toLocaleString()}.`)
     setRecoverable(null)
   }, [setup, recoverable])
   const [receipt, setReceipt] = useState(false)
@@ -272,7 +275,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
   const headCashier = handoverMine.data?.headCashier ?? false
   // Live: a short poll of a cheap endpoint tells this screen when cash has been handed to this person or a supervisor is asked.
   const { data: tdCount } = useQuery({ queryKey: ['td-maturity-count'], queryFn: getTdMaturityCount, refetchInterval: 60_000, retry: false })
-  const pulse = usePulse((p) => setNotice(`Cash from ${p.latestFrom} is waiting for you to count: ${money(p.latestAmount ?? 0)}`))
+  const pulse = usePulse((p) => notify(`Cash from ${p.latestFrom} is waiting for you to count: ${money(p.latestAmount ?? 0)}`))
 
   const departments = useMemo(() => Object.entries(lk?.department ?? {}), [lk])
   const tabDef = setup?.tabs.find((t) => t.key === tab)
@@ -330,7 +333,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
       const d = await getFoDraft(row.id)
       guard(() => { setTab(tabOf(d.payload.trCode)); setForm(fromPayload(d.payload)); setShown({ kind: 'draft', id: d.id }); setDirty(false); setProblem(null) })
     } catch (e) {
-      setNotice((e as Error).message)
+      notifyError(e)
     }
   }
 
@@ -350,7 +353,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
   const saveTemplate = (name: string) => {
     if (!form) return
     templates.save({ name, tab, form: { ...form, date: '', batchNo: '', refNo: '' } })
-    setNotice(`Template “${name}” saved`)
+    notify(`Template “${name}” saved`)
   }
   const applyTemplate = (t: FoTemplate) => {
     if (!setup) return
@@ -360,7 +363,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
       setForm({ ...t.form, date: setup.systemDate, batchNo: setup.systemDate.replace(/-/g, ''), refNo: '', lines: t.form.lines.map((l) => ({ ...l, key: newLine().key })) })
       setShown({ kind: 'draft', id: null })
       setDirty(true)
-      setNotice(`Started from “${t.name}”. Check the amounts, then save.`)
+      notify(`Started from “${t.name}”. Check the amounts, then save.`)
     })
   }
 
@@ -374,7 +377,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
     setShown({ kind: 'draft', id: null })
     setDirty(true)
     setProblem(null)
-    setNotice('Copied into a new draft. Change what is different, then save.')
+    notify('Copied into a new draft. Change what is different, then save.')
   }
 
   /** The side the member's account is on: a receipt credits it, a payout debits it. */
@@ -423,7 +426,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
       setShown({ kind: 'draft', id: d.id })
       setDirty(false)
       forgetWork()
-      setNotice(d.totals.balanced ? 'Draft saved' : 'Draft saved. Debits and credits do not match yet.')
+      notify(d.totals.balanced ? 'Draft saved' : 'Draft saved. Debits and credits do not match yet.')
       void qc.invalidateQueries({ queryKey: ['fo-drafts'] })
     } catch (e) {
       setProblem((e as Error).message)
@@ -461,10 +464,10 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
         try {
           await deleteFoDraft(id)
           leaveDraft()
-          setNotice('Draft deleted')
+          notify('Draft deleted')
           void qc.invalidateQueries({ queryKey: ['fo-drafts'] })
         } catch (e) {
-          setNotice((e as Error).message)
+          notifyError(e)
         }
       },
     })
@@ -562,8 +565,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
 
   // ---- screens ---------------------------------------------------------------------------------------------------
 
-  if (error) return <Alert severity="error" sx={{ m: 2 }}>{(error as Error).message}</Alert>
-  if (isLoading || !setup) return <Box sx={{ p: 2 }}><Skeleton variant="rounded" height={420} /></Box>
+  if (!setup) return <Box sx={{ p: 2 }}><LoadingBlock q={{ isLoading: isLoading || !error, isError: !!error, error }} what="Front Office" /></Box>
   if (!setup.canAccess) {
     return <Alert severity="info" sx={{ m: 2 }}>Your account does not have access to the front office. Ask an administrator to turn it on.</Alert>
   }
@@ -580,7 +582,6 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
           <Button color="error" onClick={() => { const run = confirm?.run; setConfirm(null); run?.() }}>{confirm?.action}</Button>
         </DialogActions>
       </Dialog>
-      <Snackbar open={!!notice} autoHideDuration={3500} onClose={() => setNotice(null)} message={notice} />
       <ReceiptDialog detail={txn.data} user={me.username} open={receipt} onClose={() => setReceipt(false)} />
 
       <BusinessDayNotice onOpen={onBusinessDay} />
@@ -619,19 +620,19 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
       {entryTab && (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', flexShrink: 0 }} role="toolbar" aria-label="Transaction actions">
         {entryTab && (<>
-        <Button size="small" startIcon={<FiSearch />} disabled={!runs.find} onClick={runs.find} title={`${MOD}F`}>Find</Button>
-        <Button size="small" startIcon={<FiPlus />} disabled={!runs.new} onClick={runs.new} title={`${MOD}N`}>New</Button>
-        <Button size="small" startIcon={<FiCopy />} disabled={!runs.copy} onClick={runs.copy} title={`${MOD}D`}>Copy</Button>
+        <Tooltip title={`${MOD}F`}><span><Button size="small" startIcon={<FiSearch />} disabled={!runs.find} onClick={runs.find} aria-keyshortcuts={`${ARIA_MOD}F`}>Find</Button></span></Tooltip>
+        <Tooltip title={`${MOD}N`}><span><Button size="small" startIcon={<FiPlus />} disabled={!runs.new} onClick={runs.new} aria-keyshortcuts={`${ARIA_MOD}N`}>New</Button></span></Tooltip>
+        <Tooltip title={`${MOD}D`}><span><Button size="small" startIcon={<FiCopy />} disabled={!runs.copy} onClick={runs.copy} aria-keyshortcuts={`${ARIA_MOD}D`}>Copy</Button></span></Tooltip>
         <TemplatesMenu templates={templates} canSave={editing && !!form} onUse={applyTemplate} onSave={saveTemplate} />
         <Button size="small" startIcon={<FiPrinter />} disabled={!(shown.kind === 'txn' && txn.data)} onClick={() => setReceipt(true)}>Receipt</Button>
-        <Button size="small" startIcon={<FiSave />} variant={editing ? 'contained' : 'text'} disabled={!runs.save} onClick={runs.save} title={`${MOD}S`}>{saving ? 'Saving…' : 'Save'}</Button>
-        <Button size="small" startIcon={<FiX />} disabled={!runs.cancel} onClick={runs.cancel} title="Esc">Cancel</Button>
-        {runs.del && <Button size="small" color="error" startIcon={<FiTrash2 />} onClick={runs.del} title={`${MOD}Del`}>Delete</Button>}
+        <Tooltip title={`${MOD}S`}><span><Button size="small" startIcon={<FiSave />} variant={editing ? 'contained' : 'text'} disabled={!runs.save} onClick={runs.save} aria-keyshortcuts={`${ARIA_MOD}S`}>{saving ? 'Saving…' : 'Save'}</Button></span></Tooltip>
+        <Tooltip title="Esc"><span><Button size="small" startIcon={<FiX />} disabled={!runs.cancel} onClick={runs.cancel} aria-keyshortcuts="Escape">Cancel</Button></span></Tooltip>
+        {runs.del && <Tooltip title={`${MOD}Del`}><span><Button size="small" color="error" startIcon={<FiTrash2 />} onClick={runs.del} aria-keyshortcuts={`${ARIA_MOD}Delete`}>Delete</Button></span></Tooltip>}
         </>)}
         {shown.kind === 'txn' && navList.length > 1 && (
           <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
             <Tooltip title="Previous (PgUp)"><span><IconButton size="small" aria-label="Previous transaction" disabled={!runs.up} onClick={runs.up}><FiChevronLeft /></IconButton></span></Tooltip>
-            <Typography sx={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{pos + 1} of {navList.length}</Typography>
+            <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }} color="text.secondary">{pos + 1} of {navList.length}</Typography>
             <Tooltip title="Next (PgDn)"><span><IconButton size="small" aria-label="Next transaction" disabled={!runs.down} onClick={runs.down}><FiChevronRight /></IconButton></span></Tooltip>
           </Box>
         )}
@@ -641,7 +642,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
       {editing && (
         <Box sx={(t) => ({ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 0.75, flexShrink: 0, ...glass(t) })} role="status">
           <FiEdit2 aria-hidden />
-          <Typography sx={{ flex: 1, fontSize: 13 }}>
+          <Typography sx={{ flex: 1 }}>
             Draft. Nothing is posted to the ledger until you press Post.
             {dirty ? ' Changes not saved.' : ''}
             {overLimit && <b style={{ marginLeft: 8, color: 'inherit' }}>Over your limit of {money(limit ?? 0)}.</b>}
@@ -659,7 +660,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
           )}
           {overLimit && (shown.kind === 'draft' && shown.id
             ? <OverrideAsk draftId={shown.id} amount={totals.debit} limit={limit ?? 0} summary={`${form?.clientName || 'Draft'}: ${money(totals.debit)} over a limit of ${money(limit ?? 0)}`} />
-            : <Typography sx={{ fontSize: 12 }} color="text.secondary">Save the draft to ask a supervisor.</Typography>)}
+            : <Typography variant="body2" color="text.secondary">Save the draft to ask a supervisor.</Typography>)}
         </Box>
       )}
       {problem && <Alert severity="error" sx={{ flexShrink: 0 }}>{problem}</Alert>}
@@ -668,7 +669,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
           onPosted={(p) => {
             setPosting(false)
             leaveDraft()
-            setNotice(p.status === 'POSTED' ? `Posted as ${p.documentNo.trim()}, ${money(p.amount)}` : `Voucher ${p.documentNo.trim()} sent for approval (Disburse > Vouchers waiting)`)
+            notify(p.status === 'POSTED' ? `Posted as ${p.documentNo.trim()}, ${money(p.amount)}` : `Voucher ${p.documentNo.trim()} sent for approval (Disburse > Vouchers waiting)`)
             void qc.invalidateQueries({ queryKey: ['fo-drafts'] })
             void qc.invalidateQueries({ queryKey: ['waiting-vouchers'] })
             void qc.invalidateQueries({ queryKey: ['fo-list'] })
@@ -678,7 +679,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
       {summary
         ? <SummaryPanel setup={setup} onOpen={openTxn} />
         : tab === 'handover' && shown.kind === 'none'
-          ? <><DrawerOpen setup={setup} head={headCashier} /><CashHandoverPanel setup={setup} onNotice={setNotice} /><BankCashPanel setup={setup} /><ChequeClearingPanel /><ChequeReturnPanel /></>
+          ? <><DrawerOpen setup={setup} head={headCashier} /><CashHandoverPanel setup={setup} onNotice={notify} /><BankCashPanel setup={setup} /><ChequeClearingPanel /><ChequeReturnPanel /></>
           : tab === 'disburse' && shown.kind === 'none'
           ? <><LoanReleasePanel /><WaitingVouchersPanel /><VoucherPayoutPanel /></>
           : tab === 'tdaccrual'
@@ -689,10 +690,10 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
           ? <><DrawerOpen setup={setup} head={false} /><Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}><SavingsTellerPanel setup={setup} /></Box></>
           : tab === 'passbook'
           ? <PassbookPanel />
-          : txn.isLoading && shown.kind === 'txn'
-            ? <Skeleton variant="rounded" sx={{ flex: 1 }} />
+          : (txn.isLoading || txn.isError) && shown.kind === 'txn'
+            ? <LoadingBlock q={txn} what="the transaction" />
             : txn.error
-              ? <Alert severity="error">{(txn.error as Error).message}</Alert>
+              ? null
               : (
                 <FoTransactionForm
                   setup={setup} types={tabTypes} form={shownForm} extras={extras} editing={editing} departments={departments as [string, string][]}
@@ -702,7 +703,7 @@ export default function FrontOfficePage({ onBusinessDay }: { onBusinessDay?: () 
                 />
               )}
       {!summary && tab !== 'passbook' && tab !== 'accounts' && tab !== 'handover' && tab !== 'tdmaturity' && tab !== 'tdaccrual' && tab !== 'dividend' && shown.kind === 'none' && (
-        <Typography sx={{ fontSize: 12, textAlign: 'center', flexShrink: 0 }} color="text.secondary">
+        <Typography variant="body2" sx={{ textAlign: 'center', flexShrink: 0 }} color="text.secondary">
           {hasFind ? `Press ${MOD}F to find a transaction` : ''}{hasFind && canNewHere ? ' or ' : ''}{canNewHere ? `${MOD}N to start a draft.` : ''}
         </Typography>
       )}

@@ -13,6 +13,8 @@ import MemberSearchBox from './MemberSearchBox'
 import { useMe } from './session'
 import { LoadingBlock } from './ui/Loading'
 import { printPdf } from './ui/printPdf'
+import { notifyError } from './ui/notices'
+import { SURFACE_RADIUS } from './theme'
 import { AboutNote } from './appleUi'
 
 type Acct = { typeCode: number; refNo: number }
@@ -50,6 +52,7 @@ function NextPage({ d, a, clientId }: { d: PassbookDetail; a: Acct; clientId: nu
   const page = d.pages[0]
   const print = useMutation({
     mutationFn: () => getPassbookNextPage(clientId, a.typeCode, a.refNo),
+    onError: notifyError,
     onSuccess: async (blob) => {
       const how = await printPdf(blob, `passbook-${clientId}-${a.refNo}.pdf`)
       setNote(how === 'saved' ? 'The page was saved as a PDF instead; open it and print it at actual size.' : null)
@@ -60,11 +63,12 @@ function NextPage({ d, a, clientId }: { d: PassbookDetail; a: Acct; clientId: nu
     meta: { done: 'The passbook moved on to the next line.' },
     mutationFn: () => confirmPassbookPage(clientId, a.typeCode, a.refNo, d.position!.lastSeq, d.position!.lastLine, page.lastSeq),
     onSuccess: (r) => { qc.setQueryData(['passbook', clientId, a.typeCode, a.refNo], r); void qc.invalidateQueries({ queryKey: ['passbook-accounts', clientId] }); setPrinted(false) },
+    onError: notifyError,
   })
   const turn = page.newPage && (d.position?.lastLine ?? 0) > 0
   return (
     <Box>
-      <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 0.5 }}>
+      <Typography variant="subtitle2" component="p" sx={{ mb: 0.5 }}>
         Page {page.number} of {d.pages.length}: lines {page.firstLine} to {page.lastLine}{page.newPage ? ', on a fresh page' : ', on the page in use'}
       </Typography>
       {turn && <Alert severity="info" sx={{ mb: 1 }}>The page in use is full. Turn to the next page and put the passbook in at its top before printing.</Alert>}
@@ -83,8 +87,6 @@ function NextPage({ d, a, clientId }: { d: PassbookDetail; a: Acct; clientId: nu
         </Alert>
       )}
       {note && <Alert severity="info" sx={{ mt: 1 }}>{note}</Alert>}
-      {print.error && <Alert severity="error" sx={{ mt: 1 }}>{(print.error as Error).message}</Alert>}
-      {confirm.error && <Alert severity="error" sx={{ mt: 1 }}>{(confirm.error as Error).message}</Alert>}
     </Box>
   )
 }
@@ -99,17 +101,16 @@ function Corrections({ d, a, clientId }: { d: PassbookDetail; a: Acct; clientId:
   const [toSeq, setToSeq] = useState('')
   const [firstLine, setFirstLine] = useState('')
   const [lastLine, setLastLine] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const close = () => { setOpen(null); setError(null); setReason(''); setSerial('') }
+  const close = () => { setOpen(null); setReason(''); setSerial('') }
   const start = (k: 'reprint' | 'new' | 'position') => {
     const p = d.position
     setFromSeq(p ? String(Math.max(1, p.lastSeq - 2)) : ''); setToSeq(p ? String(p.lastSeq) : ''); setFirstLine('1')
-    setLastLine(p ? String(p.lastLine) : '0'); setOpen(k); setError(null)
+    setLastLine(p ? String(p.lastLine) : '0'); setOpen(k)
   }
   const n = (s: string) => (s.trim() === '' ? NaN : Number(s))
   const run = async () => {
-    setBusy(true); setError(null)
+    setBusy(true)
     try {
       if (open === 'reprint') {
         const blob = await reprintPassbook(clientId, a.typeCode, a.refNo, { fromSeq: n(fromSeq), toSeq: n(toSeq), firstLine: n(firstLine), reason: reason.trim() })
@@ -124,7 +125,7 @@ function Corrections({ d, a, clientId }: { d: PassbookDetail; a: Acct; clientId:
       void qc.invalidateQueries({ queryKey: ['passbook', clientId, a.typeCode, a.refNo] })
       close()
     } catch (e) {
-      setError((e as Error).message)
+      notifyError((e as Error).message)
     } finally {
       setBusy(false)
     }
@@ -141,9 +142,9 @@ function Corrections({ d, a, clientId }: { d: PassbookDetail; a: Acct; clientId:
         <DialogTitle>{title}</DialogTitle>
         <DialogContent>
           <Stack spacing={1.5} sx={{ pt: 1 }}>
-            {open === 'reprint' && <Typography sx={{ fontSize: 13 }} color="text.secondary">Prints entries already in the passbook again, from the line you choose. The passbook does not move on.</Typography>}
-            {open === 'new' && <Typography sx={{ fontSize: 13 }} color="text.secondary">For a full or lost passbook. Printing starts at line 1 of the new one with the balance carried forward, then the entries not yet printed.</Typography>}
-            {open === 'position' && <Typography sx={{ fontSize: 13 }} color="text.secondary">Set where the paper really stands: the last line printed on the page in use and the last entry printed (entry numbers are the account's ledger sequence).</Typography>}
+            {open === 'reprint' && <Typography color="text.secondary">Prints entries already in the passbook again, from the line you choose. The passbook does not move on.</Typography>}
+            {open === 'new' && <Typography color="text.secondary">For a full or lost passbook. Printing starts at line 1 of the new one with the balance carried forward, then the entries not yet printed.</Typography>}
+            {open === 'position' && <Typography color="text.secondary">Set where the paper really stands: the last line printed on the page in use and the last entry printed (entry numbers are the account's ledger sequence).</Typography>}
             {open === 'new' && <TextField label="New passbook number" value={serial} onChange={(e) => setSerial(e.target.value)} autoFocus slotProps={{ htmlInput: { maxLength: 20 } }} />}
             {open === 'reprint' && (
               <Stack direction="row" spacing={1}>
@@ -159,7 +160,6 @@ function Corrections({ d, a, clientId }: { d: PassbookDetail; a: Acct; clientId:
               </Stack>
             )}
             <TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} helperText="At least 5 letters. Kept in the passbook's history and the audit log." />
-            {error && <Alert severity="error">{error}</Alert>}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -186,18 +186,16 @@ function LayoutDialog({ onClose, admin }: { onClose: () => void; admin: boolean 
   const qc = useQueryClient()
   const [edit, setEdit] = useState<Record<string, string> | null>(null)
   const [reason, setReason] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const values = edit ?? (q.data ? Object.fromEntries(LAYOUT_FIELDS.map(([k]) => [k, String(q.data![k])])) : null)
   const layout = values ? Object.fromEntries(LAYOUT_FIELDS.map(([k]) => [k, Number(values[k])])) as unknown as PassbookLayout : null
   const save = useMutation({
     meta: { done: 'Passbook layout saved.' },
     mutationFn: () => savePassbookLayout(layout!, reason.trim()),
     onSuccess: (r) => { qc.setQueryData(['passbook-layout'], r); setEdit(null); setReason(''); onClose() },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   const test = async () => {
-    setError(null)
-    try { await printPdf(await getPassbookTestPage(layout ?? undefined), 'passbook-test-page.pdf') } catch (e) { setError((e as Error).message) }
+    try { await printPdf(await getPassbookTestPage(layout ?? undefined), 'passbook-test-page.pdf') } catch (e) { notifyError((e as Error).message) }
   }
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
@@ -216,10 +214,9 @@ function LayoutDialog({ onClose, admin }: { onClose: () => void; admin: boolean 
               ))}
             </Box>
             {admin && edit && <TextField label="Reason for the change" value={reason} onChange={(e) => setReason(e.target.value)} fullWidth sx={{ mt: 1.5 }} />}
-            {!admin && <Typography sx={{ fontSize: 12, mt: 1 }} color="text.secondary">Only an administrator can change the layout.</Typography>}
+            {!admin && <Typography variant="body2" sx={{ mt: 1 }} color="text.secondary">Only an administrator can change the layout.</Typography>}
           </>
         )}
-        {error && <Alert severity="error" sx={{ mt: 1.5 }}>{error}</Alert>}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
@@ -258,14 +255,14 @@ export default function PassbookPanel() {
         <Box sx={{ display: 'grid', gap: 1.25, gridTemplateColumns: { xs: '1fr', md: '280px minmax(0, 1fr)' }, alignItems: 'start' }}>
           <Box sx={(t) => ({ ...glass(t), p: 1 })} role="list" aria-label="Savings accounts">
             <LoadingBlock q={accounts} what="the savings accounts" />
-            {accounts.data?.length === 0 && <Typography sx={{ p: 1.5, fontSize: 13 }} color="text.secondary">This member has no savings account.</Typography>}
+            {accounts.data?.length === 0 && <Typography sx={{ p: 1.5 }} color="text.secondary">This member has no savings account.</Typography>}
             {accounts.data?.map((x) => {
               const on = chosen?.typeCode === x.typeCode && chosen?.refNo === x.refNo
               return (
                 <ButtonBase key={`${x.typeCode}-${x.refNo}`} role="listitem" onClick={() => setAcct(x)}
-                  sx={{ display: 'block', width: '100%', textAlign: 'left', p: 1.25, borderRadius: '8px', bgcolor: on ? 'action.selected' : undefined, '&:hover': { bgcolor: 'action.hover' } }}>
-                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{x.typeName ?? `Type ${x.typeCode}`} {x.refNo}</Typography>
-                  <Typography sx={{ fontSize: 12 }} color="text.secondary">Balance {money(x.balance)}</Typography>
+                  sx={{ display: 'block', width: '100%', textAlign: 'left', p: 1.25, borderRadius: `${SURFACE_RADIUS - 2}px`, bgcolor: on ? 'action.selected' : undefined, '&:hover': { bgcolor: 'action.hover' } }}>
+                  <Typography variant="subtitle2" component="p">{x.typeName ?? `Type ${x.typeCode}`} {x.refNo}</Typography>
+                  <Typography variant="body2" color="text.secondary">Balance {money(x.balance)}</Typography>
                   <Stack direction="row" spacing={0.75} sx={{ mt: 0.5 }}>
                     <Chip size="small" variant="outlined" label={x.serial ? `Passbook ${x.serial}` : 'No passbook'} />
                     {x.waiting > 0 && <Chip size="small" color="warning" label={`${x.waiting} to print`} />}
@@ -275,13 +272,13 @@ export default function PassbookPanel() {
             })}
           </Box>
           <Box sx={(t) => ({ ...glass(t), p: 2, minWidth: 0 })}>
-            {!chosen && <Typography sx={{ fontSize: 13 }} color="text.secondary">Choose a savings account.</Typography>}
+            {!chosen && <Typography color="text.secondary">Choose a savings account.</Typography>}
             {chosen && <LoadingBlock q={detail} what="the passbook" />}
             {d && chosen && (
               <Stack spacing={1.5}>
                 <Box>
-                  <Typography sx={{ fontSize: 17, fontWeight: 700 }}>{d.clientName} · {d.typeName} {d.refNo}</Typography>
-                  <Typography sx={{ fontSize: 13 }} color="text.secondary">
+                  <Typography variant="h5" component="p">{d.clientName} · {d.typeName} {d.refNo}</Typography>
+                  <Typography color="text.secondary">
                     Balance {money(d.balance)}
                     {d.position && <> · passbook {d.position.serial ?? '—'} · last printed line {d.position.lastLine} of {d.linesPerPage}{d.position.lastDate ? `, ${d.position.lastDate}` : ''}, balance {d.position.balance}</>}
                   </Typography>
@@ -292,7 +289,7 @@ export default function PassbookPanel() {
                 <Corrections key={`${chosen.typeCode}-${chosen.refNo}`} d={d} a={chosen} clientId={id.clientId} />
                 {d.history.length > 0 && (
                   <Box>
-                    <Typography sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', mb: 0.5 }} color="text.secondary">History</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', mb: 0.5 }} color="text.secondary">History</Typography>
                     <Table size="small" aria-label="Passbook history">
                       <TableBody>
                         {d.history.map((h, i) => (

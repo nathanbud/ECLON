@@ -6,6 +6,7 @@ import ChequeFields, { chequesToApi, type ChequeRow } from './ChequeFields'
 import { ConfirmButton } from './ui/dialogs'
 import { money } from './ui/format'
 import { useRequestKey } from './ui/requestKey'
+import { notifyError } from './ui/notices'
 import { Hinted } from './appleUi'
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -55,18 +56,18 @@ export default function DraftPostDialog({ draftId, payor, onClose, onPosted }: {
 
   const ask = async () => {
     if (!plan) return
-    setBusy(true); setError(null)
+    setBusy(true)
     try {
       for (const n of plan.needs) if (n.status === 'NONE' || n.status === 'REJECTED') await askFoOverride({ draftId: null, kind: n.kind, description: n.description, amount: n.amount, limitAmount: n.limit })
       setPlan(await checkFoDraftPost(draftId, body()))
-    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+    } catch (e) { notifyError(e) } finally { setBusy(false) }
   }
 
   const post = async () => {
-    setBusy(true); setError(null)
+    setBusy(true)
     try {
       onPosted(await postFoDraft(draftId, body(), requestKey))
-    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+    } catch (e) { notifyError(e) } finally { setBusy(false) }
   }
 
   const waits = plan?.kind === 'CASH_VOUCHER' || plan?.kind === 'CHECK_VOUCHER'
@@ -78,7 +79,7 @@ export default function DraftPostDialog({ draftId, payor, onClose, onPosted }: {
         {!plan && !error && <Typography color="text.secondary">Checking the draft…</Typography>}
         {plan && (
           <Box sx={{ display: 'grid', gap: 1.5 }}>
-            {plan.postsHow && <Typography sx={{ fontSize: 13 }}>{plan.postsHow}</Typography>}
+            {plan.postsHow && <Typography>{plan.postsHow}</Typography>}
             <Table size="small" aria-label="What will be written">
               <TableHead><TableRow><TableCell>Account</TableCell><TableCell>Description</TableCell><TableCell align="right">Debit</TableCell><TableCell align="right">Credit</TableCell></TableRow></TableHead>
               <TableBody>
@@ -92,12 +93,12 @@ export default function DraftPostDialog({ draftId, payor, onClose, onPosted }: {
                 ))}
               </TableBody>
             </Table>
-            {plan.drawerCash != null && <Typography sx={{ fontSize: 12 }} color="text.secondary">Your drawer holds {money(plan.drawerCash)}.</Typography>}
+            {plan.drawerCash != null && <Typography variant="body2" color="text.secondary">Your drawer holds {money(plan.drawerCash)}.</Typography>}
 
             {plan.kind === 'OTHER_RECEIPT' && (
               <>
                 <Hinted tip="Up to 8 letters or digits. Left empty, the system numbers it."><TextField label="Receipt number (optional)" value={receiptNo} onChange={(e) => setReceiptNo(e.target.value)} /></Hinted>
-                <Typography sx={{ fontSize: 12, fontWeight: 600 }}>Paid by cheque? Add the cheques; whatever they do not cover is cash.</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>Paid by cheque? Add the cheques; whatever they do not cover is cash.</Typography>
                 <ChequeFields rows={cheques} onChange={setCheques} total={plan.amount} />
               </>
             )}
@@ -124,6 +125,7 @@ export default function DraftPostDialog({ draftId, payor, onClose, onPosted }: {
             ))}
           </Box>
         )}
+        {/* the check could not be made: shown here, like a list that could not load; a refused action pops up (notifyError) */}
         {error && <Alert severity="error" sx={{ mt: 2 }} role="alert">{error}</Alert>}
       </DialogContent>
       <DialogActions>

@@ -7,6 +7,7 @@ import {
 } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
+import { notifyError } from './ui/notices'
 import { ConfirmButton } from './ui/dialogs'
 
 /**
@@ -22,7 +23,6 @@ export function ChequeReturnPanel() {
   const [picked, setPicked] = useState<ChequeReturnCandidate | null>(null)
   const [where, setWhere] = useState<string>('VAULT')
   const [note, setNote] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const found = useQuery({ queryKey: ['cheque-return-find', searched], queryFn: () => findReturnableCheques(searched), enabled: searched !== '', retry: false })
   const drawers = useQuery({ queryKey: ['fo-handover-drawers'], queryFn: getFoHandoverDrawers, enabled: picked !== null })
   const banks = useQuery({ queryKey: ['bank-cash-banks'], queryFn: getBankCashBanks, enabled: picked !== null, retry: false })
@@ -41,33 +41,32 @@ export function ChequeReturnPanel() {
   })
   const ask = useMutation({ meta: { done: 'Sent to a supervisor for approval.' },
     mutationFn: () => askChequeReturn(r!),
-    onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ['cheque-return-check'] }) },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['cheque-return-check'] }) },
+    onError: (e) => notifyError((e as Error).message),
   })
   const post = useMutation({
     mutationFn: () => postChequeReturn(r!),
     onSuccess: (p) => {
-      setError(null); setNote(`Recorded. Journal ${p.documentNo}: ${money(p.amount)} put back on the accounts of ${p.client} the cheque paid, cheque taken out of ${p.where}.`)
+      setNote(`Recorded. Journal ${p.documentNo}: ${money(p.amount)} put back on the accounts of ${p.client} the cheque paid, cheque taken out of ${p.where}.`)
       setPicked(null); setSearched(''); setNumber('')
       void qc.invalidateQueries({ queryKey: ['fo-handover-drawers'] }); void qc.invalidateQueries({ queryKey: ['cheque-return-find'] })
     },
-    onError: (e) => setError((e as Error).message),
+    onError: (e) => notifyError((e as Error).message),
   })
   if (mine.data?.headCashier !== true) return null
   const rows = found.data ?? []
   const s = state.data
   return (
     <Box sx={(t) => ({ p: 1.5, mt: 1.5, ...glass(t) })}>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Returned cheque</Typography>
+      <Typography variant="overline" sx={{ display: 'block', mb: 0.75 }} color="text.secondary">Returned cheque</Typography>
       {note && <Alert severity="success" sx={{ mb: 1 }} onClose={() => setNote(null)}>{note}</Alert>}
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
       {found.isError && searched !== '' && <Alert severity="error" sx={{ mb: 1 }}>{(found.error as Error).message}</Alert>}
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
         <TextField size="small" label="Cheque number" value={number} onChange={(e) => setNumber(e.target.value.replace(/[^0-9]/g, '').slice(0, 15))}
           onKeyDown={(e) => { if (e.key === 'Enter' && number) { setPicked(null); setSearched(number) } }} sx={{ width: 220 }} />
         <Button variant="outlined" disabled={!number} onClick={() => { setPicked(null); setSearched(number) }}>Find</Button>
       </Box>
-      {searched !== '' && found.isSuccess && rows.length === 0 && <Typography sx={{ fontSize: 13, mt: 1 }} color="text.secondary">No received cheque has that number.</Typography>}
+      {searched !== '' && found.isSuccess && rows.length === 0 && <Typography sx={{ mt: 1 }} color="text.secondary">No received cheque has that number.</Typography>}
       {rows.length > 0 && (
         <Table size="small" sx={{ mt: 1 }} aria-label="Cheques found">
           <TableHead><TableRow><TableCell>Received</TableCell><TableCell>Receipt</TableCell><TableCell>Member</TableCell><TableCell>Bank</TableCell><TableCell align="right">Amount</TableCell><TableCell /></TableRow></TableHead>
@@ -77,9 +76,9 @@ export function ChequeReturnPanel() {
                 <TableCell>{c.receiptDate}</TableCell><TableCell>{c.documentNo}</TableCell><TableCell>{c.client}</TableCell><TableCell>{c.bank ?? ''}</TableCell>
                 <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(c.amount)}</TableCell>
                 <TableCell align="right">
-                  {c.returned ? <Typography sx={{ fontSize: 12 }} color="text.secondary">Already returned</Typography>
-                    : c.problem ? <Typography sx={{ fontSize: 12 }} color="error">{c.problem}</Typography>
-                    : <Button size="small" onClick={() => { setPicked(c); setError(null) }}>Choose</Button>}
+                  {c.returned ? <Typography variant="body2" color="text.secondary">Already returned</Typography>
+                    : c.problem ? <Typography variant="body2" color="error">{c.problem}</Typography>
+                    : <Button size="small" onClick={() => { setPicked(c) }}>Choose</Button>}
                 </TableCell>
               </TableRow>
             ))}
@@ -93,7 +92,7 @@ export function ChequeReturnPanel() {
             {(drawers.data ?? []).filter((d) => d.event !== 50).map((d) => <MenuItem key={`${d.event}:${d.number}`} value={`D:${d.event}:${d.number}`}>With {d.label} · {d.who}</MenuItem>)}
             {(banks.data ?? []).map((b) => <MenuItem key={b.bankId} value={`B:${b.bankId}`}>Deposited in the bank · {b.name}</MenuItem>)}
           </TextField>
-          <Typography sx={{ fontSize: 13 }}>
+          <Typography>
             Puts <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(picked.amount)}</b> back on what the cheque paid for {picked.client}:
           </Typography>
           <Box component="ul" sx={{ m: 0, pl: 2.5, fontSize: 13 }}>

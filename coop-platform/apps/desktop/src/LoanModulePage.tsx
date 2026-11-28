@@ -10,6 +10,7 @@ import { LoanApplicationsPanel } from './LoanApplicationsPanel'
 import { FILTERS, LoanMenu, NEW_LOAN_SHORTCUT, type LoanFilter } from './LoanMenu'
 import { useMe } from './session'
 import { ToolbarPortal } from './toolbarSlot'
+import { RADIUS, SURFACE_RADIUS } from './theme'
 import { InfoTip, ScreenTitle } from './appleUi'
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
@@ -80,25 +81,25 @@ export default function LoanModulePage() {
           <Button variant="contained" startIcon={<FiFilePlus />} disabled={!mayStart} onClick={start} aria-keyshortcuts={isMac ? 'Meta+N' : 'Control+N'}
             title={!mayStart ? 'Your account may not do the Profiling step.' : `New loan application (${NEW_LOAN_SHORTCUT})`}>
             New loan application
-            <Box component="kbd" aria-hidden sx={{ ml: 1, px: 0.6, borderRadius: '4px', fontSize: 11, fontFamily: 'inherit', bgcolor: 'rgba(255,255,255,0.22)' }}>{NEW_LOAN_SHORTCUT}</Box>
+            <Box component="kbd" aria-hidden sx={{ ml: 1, px: 0.6, borderRadius: `${RADIUS}px`, fontSize: 11, fontFamily: 'inherit', bgcolor: 'rgba(255,255,255,0.22)' }}>{NEW_LOAN_SHORTCUT}</Box>
           </Button>
         </Box>
 
         <Box component="ol" aria-label="Loan steps" sx={{ listStyle: 'none', p: 0, m: 0, mb: 2, display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' } }}>
           {STEPS.map(([n, name, what, right]) => (
             <Box component="li" key={n} aria-label={`${n} · ${name}${p ? (p[right] ? ', granted to you' : ', not granted to you') : ''}`}
-              sx={{ border: 1, borderColor: p?.[right] ? 'success.main' : 'divider', borderRadius: '8px', p: 1.25, display: 'flex', flexDirection: 'column' }}>
+              sx={{ border: 1, borderColor: p?.[right] ? 'success.main' : 'divider', borderRadius: `${SURFACE_RADIUS - 2}px`, p: 1.25, display: 'flex', flexDirection: 'column' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flex: 1 }}>
-                <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{n} · {name}</Typography>
+                <Typography variant="subtitle2" component="p">{n} · {name}</Typography>
                 <InfoTip label={`About ${name}`}>{what}</InfoTip>
               </Box>
               <Granted yes={p?.[right]} />
             </Box>
           ))}
           <Box component="li" aria-label={`5 · Loan Release${p?.canRelease != null ? (p.canRelease ? ', granted to you' : ', not granted to you') : ''}`}
-            sx={{ border: 1, borderColor: p?.canRelease ? 'success.main' : 'divider', borderStyle: 'dashed', borderRadius: '8px', p: 1.25, display: 'flex', flexDirection: 'column' }}>
+            sx={{ border: 1, borderColor: p?.canRelease ? 'success.main' : 'divider', borderStyle: 'dashed', borderRadius: `${SURFACE_RADIUS - 2}px`, p: 1.25, display: 'flex', flexDirection: 'column' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flex: 1 }}>
-              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>5 · Loan Release</Typography>
+              <Typography variant="subtitle2" component="p">5 · Loan Release</Typography>
               <InfoTip label="About Loan Release">In Front Office &gt; Disburse, by those allowed to release money (the Cash Voucher right).</InfoTip>
             </Box>
             <Granted yes={p?.canRelease} />
@@ -106,7 +107,7 @@ export default function LoanModulePage() {
         </Box>
 
         {p && anyStep && STEPS.some(([, , , right]) => !p[right]) && (
-          <Typography color="text.secondary" sx={{ fontSize: 12, mt: -1, mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: -1, mb: 2 }}>
             A step marked Not granted is given by an administrator in Settings &gt; Users: your user, tab Receivables, Loan process (Loan Release: tab Transaction Types, New on Cash Voucher).
           </Typography>
         )}

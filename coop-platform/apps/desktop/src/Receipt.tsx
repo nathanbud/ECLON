@@ -25,7 +25,7 @@ export default function ReceiptDialog({ detail, user, open, onClose }: { detail:
         {h && detail && (
           <Box id="fo-receipt" sx={{ fontSize: 13, fontFamily: 'ui-monospace, Consolas, monospace' }}>
             <Typography sx={{ fontWeight: 700, textAlign: 'center', fontFamily: 'inherit' }}>{h.type.toUpperCase()}</Typography>
-            <Typography sx={{ textAlign: 'center', fontSize: 12, fontFamily: 'inherit' }}>{h.docNo ?? `No. ${h.ctlNo}`}</Typography>
+            <Typography variant="body2" sx={{ textAlign: 'center', fontFamily: 'inherit' }}>{h.docNo ?? `No. ${h.ctlNo}`}</Typography>
             {rule}
             {row('Date', `${h.date} ${h.time?.slice(0, 5) ?? ''}`)}
             {h.clientName && row('Member', h.clientName)}
@@ -43,12 +43,12 @@ export default function ReceiptDialog({ detail, user, open, onClose }: { detail:
             {h.explanation && (
               <>
                 {rule}
-                <Typography sx={{ fontSize: 12, fontFamily: 'inherit' }}>{h.explanation}</Typography>
+                <Typography variant="body2" sx={{ fontFamily: 'inherit' }}>{h.explanation}</Typography>
               </>
             )}
             {rule}
             {row('Served by', user)}
-            <Typography sx={{ textAlign: 'center', fontSize: 11, mt: 1.5, fontFamily: 'inherit' }}>Thank you</Typography>
+            <Typography variant="caption" sx={{ textAlign: 'center', mt: 1.5, fontFamily: 'inherit' }}>Thank you</Typography>
           </Box>
         )}
       </DialogContent>

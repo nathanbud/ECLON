@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { listFoDrafts, listFoTransactions, type FoDraftRow, type FoSetup, type FoSummary } from './api'
 import { glass } from './glass'
+import { RADIUS } from './theme'
 import { money } from './ui/format'
 
 const dark = (t: Theme) => t.palette.mode === 'dark'
@@ -63,7 +64,7 @@ function Body({ setup, typeIds, onPickTransaction, onPickDraft }: {
   return (
     <Box>
       <Box sx={{ p: 2, pb: 1.5 }}>
-        <Typography component="h2" sx={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', mb: 1.25 }}>Find transaction</Typography>
+        <Typography variant="h5" component="h2" sx={{ mb: 1.25 }}>Find transaction</Typography>
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
           <ToggleButtonGroup size="small" exclusive value={what} onChange={(_, v) => { if (v) { setWhat(v); setActive(0) } }} aria-label="What to find">
             <ToggleButton value="txn" sx={{ textTransform: 'none', px: 1.5 }}>Posted</ToggleButton>
@@ -86,7 +87,7 @@ function Body({ setup, typeIds, onPickTransaction, onPickDraft }: {
       <Box sx={(t) => ({ borderTop: `1px solid ${dark(t) ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`, minHeight: 140, maxHeight: 380, overflow: 'auto' })}>
         {error && <Alert severity="error" sx={{ m: 1.5 }}>{error.message}</Alert>}
         {!error && !loading && rows.length === 0 && (
-          <Typography sx={{ p: 2.5, fontSize: 13 }} color="text.secondary">
+          <Typography sx={{ p: 2.5 }} color="text.secondary">
             {what === 'txn' ? 'No transactions found for this date.' : 'You have no saved drafts.'}
           </Typography>
         )}
@@ -96,21 +97,21 @@ function Body({ setup, typeIds, onPickTransaction, onPickDraft }: {
               component="li" key={r.key} role="option" aria-selected={i === active} ref={i === active ? activeRef : undefined}
               onClick={() => pick(r)} onMouseMove={() => setActive(i)}
               sx={(t) => ({
-                display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 0.9, borderRadius: '5px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 0.9, borderRadius: `${RADIUS}px`, cursor: 'pointer',
                 backgroundColor: i === active ? (dark(t) ? 'rgba(255,255,255,0.1)' : 'rgba(0,100,220,0.09)') : 'transparent',
               })}
             >
               <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Typography noWrap sx={{ fontSize: 13, fontWeight: 600 }}>{r.title}</Typography>
-                <Typography noWrap sx={{ fontSize: 12 }} color="text.secondary">{r.sub}</Typography>
+                <Typography variant="subtitle2" component="p" noWrap>{r.title}</Typography>
+                <Typography variant="body2" noWrap color="text.secondary">{r.sub}</Typography>
               </Box>
               {r.kind === 'draft' && <Chip size="small" variant="outlined" color={r.balanced ? 'success' : 'warning'} label={r.balanced ? 'Balanced' : 'Out of balance'} sx={{ height: 20, fontSize: 11 }} />}
-              <Typography sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{money(r.total)}</Typography>
+              <Typography variant="subtitle2" component="p" sx={{ fontVariantNumeric: 'tabular-nums' }}>{money(r.total)}</Typography>
             </Box>
           ))}
         </Box>
         {what === 'txn' && rows.length >= 200 && (
-          <Typography sx={{ px: 2.5, pb: 1.5, fontSize: 12 }} color="text.secondary">Showing the latest 200. Type a control number, member or words to narrow the list.</Typography>
+          <Typography variant="body2" sx={{ px: 2.5, pb: 1.5 }} color="text.secondary">Showing the latest 200. Type a control number, member or words to narrow the list.</Typography>
         )}
       </Box>
     </Box>
@@ -130,7 +131,6 @@ export default function FoFindDialog({ open, onClose, setup, typeIds, onPickTran
     <Dialog
       open={open} onClose={onClose} fullWidth maxWidth="sm" aria-label="Find transaction"
       slotProps={{
-        backdrop: { sx: (t: Theme) => ({ backdropFilter: 'blur(10px)', backgroundColor: dark(t) ? 'rgba(0,0,0,0.5)' : 'rgba(40,50,80,0.28)' }) },
         paper: { sx: (t: Theme) => ({ ...glass(t, { elevated: true }), alignSelf: 'flex-start', mt: '10vh', overflow: 'hidden' }) },
       }}
     >

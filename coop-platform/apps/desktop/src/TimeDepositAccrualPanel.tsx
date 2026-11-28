@@ -1,10 +1,12 @@
-import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Skeleton, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, TextField, Typography } from '@mui/material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { approveAccrual, encodeAccrual, getAccrualPreview, getAccrualVouchers, postAccrual, type AccrualGroup, type AccrualVoucher } from './api'
 import { money } from './FoTransactionForm'
 import { glass } from './glass'
 import { ConfirmButton } from './ui/dialogs'
+import { notifyError } from './ui/notices'
+import { LoadingBlock } from './ui/Loading'
 import { AboutNote } from './appleUi'
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -28,19 +30,18 @@ export function TimeDepositAccrualPanel() {
   const [to, setTo] = useState(defaultDate('LOCK_IN'))
   const [asked, setAsked] = useState<{ group: AccrualGroup; to: string } | null>(null)
   const [skip, setSkip] = useState<number[]>([])
-  const [error, setError] = useState<string | null>(null)
   const preview = useQuery({ queryKey: ['td-accrual-preview', asked], queryFn: () => getAccrualPreview(asked!.group, asked!.to), enabled: !!asked, retry: false })
   const vouchers = useQuery({ queryKey: ['td-accrual-vouchers', asked], queryFn: () => getAccrualVouchers(asked!.group, asked!.to), enabled: !!asked, retry: false, refetchInterval: 20_000 })
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['td-accrual-preview'] }); void qc.invalidateQueries({ queryKey: ['td-accrual-vouchers'] }) }
   const encode = useMutation({ meta: { done: 'Accrual vouchers made. They now wait for approval.' },
     mutationFn: () => encodeAccrual({ group: asked!.group, to: asked!.to, types: (preview.data?.types ?? []).filter((t) => !t.alreadyEncoded && !skip.includes(t.typeCode)).map((t) => t.typeCode) }),
-    onSuccess: () => { setError(null); refresh() },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: () => { refresh() },
+    onError: (e) => notifyError((e as Error).message),
   })
   const act = useMutation({ meta: { done: (_, v) => ((v as { kind: string }).kind === 'approve' ? 'Voucher approved. Someone else can now post it.' : 'Accrual voucher posted.') },
     mutationFn: (v: { kind: 'approve' | 'post'; r: AccrualVoucher }) => (v.kind === 'approve' ? approveAccrual : postAccrual)(v.r.year, v.r.controlNo),
-    onSuccess: () => { setError(null); refresh() },
-    onError: (e) => setError((e as Error).message),
+    onSuccess: () => { refresh() },
+    onError: (e) => notifyError((e as Error).message),
   })
 
   const p = preview.data
@@ -48,7 +49,7 @@ export function TimeDepositAccrualPanel() {
   const pending = (p?.types ?? []).filter((t) => !t.alreadyEncoded && !skip.includes(t.typeCode))
   return (
     <Box sx={(t) => ({ p: 1.5, flex: 1, minHeight: 0, overflow: 'auto', ...glass(t) })}>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.75 }} color="text.secondary">Time deposit interest accruals</Typography>
+      <Typography variant="overline" sx={{ display: 'block', mb: 0.75 }} color="text.secondary">Time deposit interest accruals</Typography>
       <AboutNote sx={{ mb: 1.5 }}>
         Interest earned so far on certificates, taken to the interest expense account. Nothing runs by itself: choose the period, look at the figures, then encode the vouchers.
         Another person approves and a third posts them.
@@ -60,14 +61,13 @@ export function TimeDepositAccrualPanel() {
         </TextField>
         <TextField size="small" type="date" label="Accrue to" value={to} onChange={(e) => { setTo(e.target.value); setAsked(null) }} slotProps={{ inputLabel: { shrink: true } }}
           helperText={group === 'LOCK_IN' ? 'Last day of a month' : 'December 31'} />
-        <Button variant="outlined" sx={{ mt: 0.25 }} disabled={!to} onClick={() => { setError(null); setSkip([]); setAsked({ group, to }) }}>Preview</Button>
+        <Button variant="outlined" sx={{ mt: 0.25 }} disabled={!to} onClick={() => { setSkip([]); setAsked({ group, to }) }}>Preview</Button>
       </Box>
-      {error && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setError(null)}>{error}</Alert>}
-      {preview.isLoading && <Skeleton variant="rounded" height={80} />}
+      <LoadingBlock q={preview} what="the preview" errors={false} />
       {preview.error && <Alert severity="warning" sx={{ mb: 1 }}>{(preview.error as Error).message}</Alert>}
       {p && (
         <Box sx={{ mb: 2 }}>
-          <Typography sx={{ fontSize: 13, mb: 0.5 }}>{p.accrualType}: {p.from} to {p.to} · {p.certificates} certificates · <b>{money(p.total)}</b></Typography>
+          <Typography sx={{ mb: 0.5 }}>{p.accrualType}: {p.from} to {p.to} · {p.certificates} certificates · <b>{money(p.total)}</b></Typography>
           {p.withoutDepartment > 0 && <Alert severity="warning" sx={{ mb: 1 }}>{p.withoutDepartment} certificate owner(s) have no department and are left out until it is set.</Alert>}
           {p.types.length === 0 && <Typography color="text.secondary">No certificate earns interest for this period.</Typography>}
           {p.types.map((t) => (
@@ -82,12 +82,12 @@ export function TimeDepositAccrualPanel() {
       )}
       {(vouchers.data ?? []).length > 0 && (
         <>
-          <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 0.5 }} color="text.secondary">Vouchers for this date</Typography>
+          <Typography variant="overline" sx={{ display: 'block', mb: 0.5 }} color="text.secondary">Vouchers for this date</Typography>
           {vouchers.data!.map((v) => (
             <Box key={`${v.year}-${v.controlNo}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.9, borderTop: '1px solid', borderColor: 'divider' }}>
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ fontSize: 13 }}>{v.documentNo} · {names.get(v.typeCode) ?? `Type ${v.typeCode}`} · {money(v.total)}</Typography>
-                <Typography sx={{ fontSize: 12 }} color="text.secondary">{v.lines} lines</Typography>
+                <Typography>{v.documentNo} · {names.get(v.typeCode) ?? `Type ${v.typeCode}`} · {money(v.total)}</Typography>
+                <Typography variant="body2" color="text.secondary">{v.lines} lines</Typography>
               </Box>
               <Chip size="small" variant="outlined" color={statusColor(v.status)} label={v.status === 'WAITING FOR APPROVAL' ? 'Waiting for approval' : v.status === 'APPROVED' ? 'Approved' : 'Posted'} />
               {v.status === 'WAITING FOR APPROVAL' && <Button size="small" variant="contained" disabled={act.isPending} onClick={() => act.mutate({ kind: 'approve', r: v })}>Approve</Button>}

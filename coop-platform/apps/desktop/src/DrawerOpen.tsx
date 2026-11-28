@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { getDrawerOpen, getDrawersOpenedToday, openDrawer, type DrawerOpened, type FoSetup } from './api'
 import { CountGrid, countTotal, toNumbers, type Counts } from './CountGrid'
 import { glass } from './glass'
+import { notifyError } from './ui/notices'
 import { money } from './ui/format'
 
 /**
@@ -29,7 +30,7 @@ export default function DrawerOpen({ setup, head }: { setup: FoSetup; head: bool
   if (!closed && !head && !result) {
     // nothing to do: say once that the drawer is open
     return opened.length ? (
-      <Typography sx={{ fontSize: 12, flexShrink: 0 }} color="text.secondary">
+      <Typography variant="body2" sx={{ flexShrink: 0 }} color="text.secondary">
         {opened.map((d) => `${d.label} opened at ${d.openedAt}${d.difference ? ` (${d.difference < 0 ? 'short' : 'over'} ${money(Math.abs(d.difference))})` : ''}`).join(' · ')}
       </Typography>
     ) : null
@@ -47,14 +48,14 @@ export default function DrawerOpen({ setup, head }: { setup: FoSetup; head: bool
       void qc.invalidateQueries({ queryKey: ['drawer-open-day'] })
     } catch (e) {
       const msg = (e as Error).message
-      if (msg.includes('does not match')) setAskReason(true)
-      setError(msg)
+      // a count that does not match asks for a reason here; any other refusal pops up
+      if (msg.includes('does not match')) { setAskReason(true); setError(msg) } else notifyError(msg)
     } finally { setBusy(false) }
   }
 
   return (
     <Box sx={(t) => ({ p: 1.5, flexShrink: 0, ...glass(t) })}>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', mb: 1 }} color="text.secondary">Open my drawer</Typography>
+      <Typography variant="overline" sx={{ display: 'block', mb: 1 }} color="text.secondary">Open my drawer</Typography>
       {result && (
         <Alert severity={result.difference === 0 ? 'success' : 'warning'} sx={{ mb: 1.25 }} onClose={() => setResult(null)}>
           {result.label} opened at {result.openedAt}: {result.difference === 0 ? 'the count matches the ledger.' : `${result.difference < 0 ? 'short' : 'over'} ${money(Math.abs(result.difference))}, recorded. The ledger expected ${money(result.expected)}; you counted ${money(result.counted)}.`}
@@ -62,15 +63,15 @@ export default function DrawerOpen({ setup, head }: { setup: FoSetup; head: bool
       )}
       {closed && (
         <>
-          <Typography sx={{ fontSize: 13, mb: 1 }}>
+          <Typography sx={{ mb: 1 }}>
             {m.required ? `Count ${closed.label} before taking or paying out cash today (${m.businessDate}).` : `Count ${closed.label} at the start of the day (${m.businessDate}).`}
             {' '}The expected amount is shown after you submit.
           </Typography>
           <Box sx={{ mb: 1 }}><CountGrid setup={setup} counts={counts} onChange={setCounts} onSubmit={() => { if (!busy) void submit() }} /></Box>
-          {error && <Alert severity={askReason ? 'warning' : 'error'} sx={{ mb: 1 }} role="alert">{error}</Alert>}
+          {error && askReason && <Alert severity="warning" sx={{ mb: 1 }} role="alert">{error}</Alert>}
           {askReason && <TextField fullWidth size="small" label="Reason for the difference" value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mb: 1 }} slotProps={{ htmlInput: { maxLength: 200 } }} />}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography sx={{ fontSize: 13 }}>Counted <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(counted)}</b>{!entered ? ' (an empty drawer)' : ''}</Typography>
+            <Typography>Counted <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(counted)}</b>{!entered ? ' (an empty drawer)' : ''}</Typography>
             <Box sx={{ flex: 1 }} />
             <Button variant="contained" disabled={busy || (askReason && reason.trim().length < 5)} onClick={() => { void submit() }}>{busy ? 'Opening…' : 'Open the drawer'}</Button>
           </Box>
@@ -91,7 +92,7 @@ export default function DrawerOpen({ setup, head }: { setup: FoSetup; head: bool
           </TableBody>
         </Table>
       )}
-      {head && !closed && (day.data?.length ?? 0) === 0 && <Typography sx={{ fontSize: 13 }} color="text.secondary">No drawer has been opened today yet.</Typography>}
+      {head && !closed && (day.data?.length ?? 0) === 0 && <Typography color="text.secondary">No drawer has been opened today yet.</Typography>}
     </Box>
   )
 }
